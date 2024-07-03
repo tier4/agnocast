@@ -1,0 +1,14 @@
+.Module.symvers.cmd
+.agnocast.ko.cmd
+.agnocast.mod.cmd
+.agnocast.mod.o.cmd
+.agnocast.o.cmd
+.modules.order.cmd
+Module.symvers
+agnocast.ko
+agnocast.mod
+agnocast.mod.c
+agnocast.mod.o
+agnocast.o
+modules.order
+main
