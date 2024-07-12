@@ -24,7 +24,7 @@ uint64_t agnocast_get_timestamp() {
 
 class MinimalPublisher : public rclcpp::Node {
   void timer_callback() {
-    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = publisher_->borrow_loaded_message();
+    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = publisher_->borrow_loaned_message();
 
     message->id = count_;
     message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
