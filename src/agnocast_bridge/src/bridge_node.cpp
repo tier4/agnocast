@@ -36,7 +36,7 @@ class BridgeNode : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "bridge message ros2->agnocast address: %p", msg.get());
 
         auto raw = msg.release();
-        agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = agnocast_publisher_->borrow_loaded_message(raw);
+        agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = agnocast_publisher_->borrow_loaned_message(raw);
         agnocast_publisher_->publish(std::move(message));
     }
 

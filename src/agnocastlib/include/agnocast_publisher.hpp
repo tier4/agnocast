@@ -56,12 +56,12 @@ public:
     }
   }
 
-  message_ptr<MessageT> borrow_loaded_message() {
+  message_ptr<MessageT> borrow_loaned_message() {
     MessageT *ptr = new MessageT();
-    return borrow_loaded_message(ptr);
+    return borrow_loaned_message(ptr);
   }
 
-  message_ptr<MessageT> borrow_loaded_message(MessageT *ptr) {
+  message_ptr<MessageT> borrow_loaned_message(MessageT *ptr) {
     union ioctl_release_oldest_args release_args;
     release_args.topic_name = topic_name_;
     release_args.publisher_pid = publisher_pid_;
