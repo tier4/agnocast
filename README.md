@@ -16,7 +16,7 @@ make
 Insert kernel module.
 ```
 cd kmod
-sudo insmod agnocast.kmod
+sudo insmod agnocast.ko
 sudo lsmod
 ```
 
