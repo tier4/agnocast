@@ -94,11 +94,6 @@ static struct topic_wrapper *find_topic(const char *topic_name) {
 	return NULL;
 }
 
-// TODO: free all memory
-static void remove_topic(struct topic_wrapper *wrapper) {
-	hash_del(&wrapper->node);
-}
-
 static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
