@@ -681,61 +681,61 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	switch (cmd) {
 	case AGNOCAST_TOPIC_ADD_CMD:
-		if (copy_from_user(topic_name_buf, (char __user *)arg, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(topic_name_buf, (char __user *)arg, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		topic_add(topic_name_buf);
 		break;
 	case AGNOCAST_SUBSCRIBER_ADD_CMD:
-		if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		subscriber_pid_add(topic_name_buf, sub_args.pid);
 		break;
 	case AGNOCAST_SUBSCRIBER_REMOVE_CMD:	
-		if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		subscriber_pid_remove(topic_name_buf, sub_args.pid);
 		break;
 	case AGNOCAST_PUBLISHER_ADD_CMD:
-		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		publisher_queue_add(topic_name_buf, pub_args.pid);
 		break;
 	case AGNOCAST_PUBLISHER_REMOVE_CMD:
-		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		publisher_queue_remove(topic_name_buf, pub_args.pid);
 		break;
 	case AGNOCAST_RELEASE_OLDEST_CMD:
-		if (copy_from_user(&release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)release_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)release_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		uint64_t release_addr = release_oldest_message(topic_name_buf, release_args.publisher_pid, release_args.buffer_depth);
-		if (copy_to_user((uint64_t __user *)arg, &release_addr, sizeof(uint64_t))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_to_user((uint64_t __user *)arg, &release_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_ENQUEUE_ENTRY_CMD:
-		if (copy_from_user(&enqueue_args, (struct ioctl_enqueue_entry_args __user *)arg, sizeof(enqueue_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)enqueue_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&enqueue_args, (struct ioctl_enqueue_entry_args __user *)arg, sizeof(enqueue_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)enqueue_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		enqueue_entry(topic_name_buf, enqueue_args.publisher_pid, enqueue_args.msg_virtual_address, enqueue_args.timestamp);
 		break;
 	case AGNOCAST_INCREMENT_RC_CMD:
-		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		increment_message_entry_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
 		break;
 	case AGNOCAST_DECREMENT_RC_CMD:
-		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		decrement_message_entry_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
 		break;
 	case AGNOCAST_RECEIVE_MSG_CMD:
-		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		uint64_t msg_addr = decrement_usc_increment_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
-		if (copy_to_user((uint64_t __user *)arg, &msg_addr, sizeof(uint64_t))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_to_user((uint64_t __user *)arg, &msg_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_PUBLISH_MSG_CMD:
-		if (copy_from_user(&publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
-		if (copy_from_user(topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_from_user(&publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		publish_msg(topic_name_buf, publish_args.publisher_pid, publish_args.msg_timestamp, &publish_args);
-		if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args))) { mutex_unlock(&global_mutex); return -EFAULT; }
+		if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args))) goto unlock_mutex_and_return;
 		break;
 	default:
 		mutex_unlock(&global_mutex);
@@ -743,8 +743,11 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	}
 
 	mutex_unlock(&global_mutex);
-
 	return 0;
+
+unlock_mutex_and_return:
+    mutex_unlock(&global_mutex);
+	return -EFAULT;
 }
 
 static char *agnocast_devnode(const struct device *dev, umode_t *mode) {
