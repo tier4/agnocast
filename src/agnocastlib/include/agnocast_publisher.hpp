@@ -50,7 +50,7 @@ public:
     pub_args.pid = publisher_pid_;
     pub_args.topic_name = topic_name_;
      if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
-        perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
+        perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
     }
