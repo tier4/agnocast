@@ -28,7 +28,7 @@ bash scripts/run_talker
 
 Check kmod state.
 ```
-cat /sys/module/agnocast/state/all
+cat /sys/module/agnocast/status/all
 ```
 
 Unload kmod.
