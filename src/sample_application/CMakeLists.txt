@@ -12,6 +12,7 @@ find_package(std_msgs REQUIRED)
 
 find_package(agnocastlib REQUIRED)
 find_package(sample_interfaces REQUIRED)
+find_package(agnocast_heaphook REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -25,15 +26,25 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(talker src/minimal_publisher.cpp)
-ament_target_dependencies(talker rclcpp agnocastlib sample_interfaces)
+ament_target_dependencies(talker rclcpp agnocast_heaphook agnocastlib sample_interfaces)
 target_include_directories(talker PRIVATE
+  ${agnocast_heaphook_INCLUDE_DIRS}
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+target_link_libraries(talker
+  agnocast_heaphook::preloaded
+)
+
 add_executable(listener src/minimal_subscriber.cpp)
-ament_target_dependencies(listener rclcpp agnocastlib sample_interfaces)
+ament_target_dependencies(listener rclcpp agnocast_heaphook agnocastlib sample_interfaces)
 target_include_directories(listener PRIVATE
+  ${agnocast_heaphook_INCLUDE_DIRS}
   ${agnocastlib_INCLUDE_DIRS}
+)
+
+target_link_libraries(listener
+  agnocast_heaphook::preloaded
 )
 
 install(TARGETS talker listener

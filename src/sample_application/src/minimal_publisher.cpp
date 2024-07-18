@@ -77,6 +77,7 @@ public:
 };
 
 int main(int argc, char * argv[]) {
+  agnocast::initialize_agnocast();
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<MinimalPublisher>());
   rclcpp::shutdown();

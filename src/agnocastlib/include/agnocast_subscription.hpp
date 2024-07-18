@@ -21,6 +21,7 @@
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "agnocast_mq.hpp"
+#include "preloaded.hpp"
 
 namespace agnocast {
 
@@ -58,13 +59,30 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
     }
   }
 
-  struct ioctl_subscriber_args args;
-  args.pid = subscriber_pid;
-  args.topic_name = topic_name;
-  if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &args) < 0) {
+  struct ioctl_subscriber_args subscriber_args;
+  subscriber_args.pid = subscriber_pid;
+  subscriber_args.topic_name = topic_name;
+  if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
     perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  // TODO: topic name から shm addr & name を受け取り、openする
+  union ioctl_get_shm_args get_shm_args;
+  get_shm_args.topic_name = topic_name;
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SHM_CMD, &get_shm_args) < 0) {
+    perror("AGNOCAST_GET_SHM_CMD failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  // map area thought agnocast-heaphook
+  for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
+    uint32_t pid = get_shm_args.ret_pids[i];
+    uint64_t addr = get_shm_args.ret_addrs[i];
+    const char * shm_name = "shm" + pid;
+    map_area(shm_name, addr, false);
   }
 
   // Create a thread that handles the messages to execute the callback

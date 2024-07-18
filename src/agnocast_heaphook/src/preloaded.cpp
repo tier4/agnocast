@@ -15,7 +15,11 @@
 #include <unordered_map>
 #include <string>
 
+#include <iostream>
+
 #include "tlsf/tlsf.h"
+
+#include "preloaded.hpp"
 
 using malloc_type = void * (*)(size_t);
 using free_type = void (*)(void *);
@@ -37,14 +41,11 @@ static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000; // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER; // mempool_initialized == true
 static bool mempool_initialized = false;
-static bool mempool_init_started = false; // guarded by init_mtx
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-static void map_area(const char *area_name_env, const char *addr_str_env, bool writable = false) {
-  const char *shm_name = std::getenv(area_name_env);
+void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable) {
   int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0666);
   if (shm_fd == -1) {
     fprintf(stderr, "shm_open failed on READ_ONLY_AREA0\n");
@@ -56,18 +57,10 @@ static void map_area(const char *area_name_env, const char *addr_str_env, bool w
     exit(EXIT_FAILURE);
   }
 
-  const char * addr_str = std::getenv(addr_str_env);
-  char *end;
-  errno = 0;
-  uint64_t addr = std::strtoull(addr_str, &end, 16);
-  /*
-  if (errno != 0 || *end != '\0') // error handling
-  */
-
   int prot = PROT_READ | MAP_FIXED;
   if (writable) prot |= PROT_WRITE;
 
-  void* ret = mmap(reinterpret_cast<void*>(addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd, 0);
+  void* ret = mmap(reinterpret_cast<void*>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     fprintf(stderr, "mmap failed\n");
@@ -79,8 +72,14 @@ static void map_area(const char *area_name_env, const char *addr_str_env, bool w
   }
 }
 
-static void initialize_mempool()
-{
+void initialize_mempool(const char * shm_name, const uint64_t shm_addr) {
+  pthread_mutex_lock(&init_mtx);
+  
+  if (mempool_initialized) {
+    pthread_mutex_unlock(&init_mtx);
+    return;
+  }
+
   if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
     INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
@@ -89,40 +88,19 @@ static void initialize_mempool()
     ADDITIONAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
 
-  map_area("READ_ONLY_AREA0_NAME", "READ_ONLY_AREA0_START");
-  map_area("READ_ONLY_AREA1_NAME", "READ_ONLY_AREA1_START");
-  map_area("WRITABLE_AREA_NAME", "WRITABLE_AREA_START", true);
+  printf("initialize 1\n");
+
+  map_area(shm_name, shm_addr, true);
+
+  printf("initialize 2\n");
 
   memset(mempool_ptr, 0, INITIAL_MEMPOOL_SIZE);
   init_memory_pool(INITIAL_MEMPOOL_SIZE, mempool_ptr); // tlsf library function
 
   // aligned2orig.reserve(10000000);
-}
 
-// Do not use printf
-void check_mempool_initialized()
-{
-  if (mempool_initialized) {return;}
-
-  pthread_mutex_lock(&init_mtx);
-
-  if (!mempool_init_started) {
-    mempool_init_started = true;
-    pthread_mutex_unlock(&init_mtx);
-
-    initialize_mempool();
-
-    aligned2orig = new std::unordered_map<void *, void *>();
-
-    mempool_initialized = true;
-    pthread_cond_signal(&init_cond);
-  } else {
-    while (!mempool_initialized) {
-      pthread_cond_wait(&init_cond, &init_mtx);
-    }
-
-    pthread_mutex_unlock(&init_mtx);
-  }
+  mempool_initialized = true;
+  pthread_mutex_unlock(&init_mtx);
 }
 
 template<class F>
@@ -201,10 +179,15 @@ void * malloc(size_t size)
   }
 
   malloc_no_hook = true;
-  check_mempool_initialized();
-  void * ret = tlsf_malloc_wrapped(size);
-  malloc_no_hook = false;
-  return ret;
+  if (mempool_initialized) {
+    void * ret = tlsf_malloc_wrapped(size);
+    malloc_no_hook = false;
+    return ret;
+  } else {
+    void * ret = original_malloc(size);
+    malloc_no_hook = false;
+    return ret;
+  }
 }
 
 void free(void * ptr)
@@ -223,7 +206,6 @@ void free(void * ptr)
   }
 
   free_no_hook = true;
-  check_mempool_initialized();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -249,7 +231,6 @@ void * calloc(size_t num, size_t size)
   }
 
   calloc_no_hook = true;
-  check_mempool_initialized();
   void * ret = tlsf_calloc_wrapped(num, size);
   calloc_no_hook = false;
 
@@ -271,7 +252,6 @@ void * realloc(void * ptr, size_t new_size)
   }
 
   realloc_no_hook = true;
-  check_mempool_initialized();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -300,7 +280,6 @@ int posix_memalign(void ** memptr, size_t alignment, size_t size)
   }
 
   posix_memalign_no_hook = true;
-  check_mempool_initialized();
 
   *memptr = tlsf_aligned_malloc(alignment, size);
 
@@ -321,7 +300,6 @@ void * memalign(size_t alignment, size_t size)
   }
 
   memalign_no_hook = true;
-  check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(alignment, size);
   memalign_no_hook = false;
   return ret;
@@ -340,7 +318,6 @@ void * aligned_alloc(size_t alignment, size_t size)
   }
 
   aligned_alloc_no_hook = true;
-  check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(alignment, size);
   aligned_alloc_no_hook = false;
   return ret;
@@ -359,7 +336,6 @@ void * valloc(size_t size)
   }
 
   valloc_no_hook = true;
-  check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(page_size, size);
   valloc_no_hook = false;
 
@@ -381,7 +357,6 @@ void * pvalloc(size_t size)
   }
 
   pvalloc_no_hook = true;
-  check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(page_size, rounded_up);
   return ret;
 }
@@ -390,8 +365,6 @@ size_t malloc_usable_size(void * ptr)
 {
   static malloc_usable_size_type original_malloc_usable_size = \
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
-
-  check_mempool_initialized();
 
   printf("hoge: malloc_usable_size called\n");
 

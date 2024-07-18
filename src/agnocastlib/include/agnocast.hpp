@@ -27,15 +27,11 @@ void initialize_agnocast();
 
 template<typename MessageT>
 std::shared_ptr<Publisher<MessageT>> create_publisher(std::string topic_name) {
-  initialize_agnocast();
-
   return std::make_shared<Publisher<MessageT>>(topic_name);
 }
 
 template<typename MessageT>
 std::shared_ptr<Subscription<MessageT>> create_subscription(const char* topic_name, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-  initialize_agnocast();
-
   subscribe_topic_agnocast(topic_name, callback);
   return std::make_shared<Subscription<MessageT>>();
 }
