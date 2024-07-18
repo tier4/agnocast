@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
     pub_args.pid = 1;
     pub_args.topic_name = key;
      if (ioctl(fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
-        perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
+        perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
         close(fd);
         return errno;
     }
