@@ -138,9 +138,11 @@ static void * tlsf_allocate_internal(F allocate)
       NULL, multiplier * ADDITIONAL_MEMPOOL_SIZE, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     add_new_area(addr, multiplier * ADDITIONAL_MEMPOOL_SIZE, mempool_ptr); // tlsf library function
-    fprintf(
-      stderr, "TLSF memory pool exhausted: %lu bytes additionally mmaped.\n",
-      multiplier * ADDITIONAL_MEMPOOL_SIZE);
+
+    // TODO: printf cannot be used
+    // fprintf(
+    //   stderr, "TLSF memory pool exhausted: %lu bytes additionally mmaped.\n",
+    //   multiplier * ADDITIONAL_MEMPOOL_SIZE);
 
     ret = allocate();
     multiplier *= 2;
