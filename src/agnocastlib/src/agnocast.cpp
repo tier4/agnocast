@@ -37,7 +37,8 @@ void initialize_agnocast() {
   }
 
   // call heaphook function
-  const char * shm_name = "shm" + getpid();
+  char shm_name[20]; // enough size for pid
+  sprintf(shm_name,"%d", getpid());
   initialize_mempool(shm_name, new_shm_args.ret_addr);
 }
 

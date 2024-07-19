@@ -1,6 +1,5 @@
 <launch>
     <node pkg="sample_application" exec="listener" name="listener_node" output="screen">
         <env name="LD_PRELOAD" value="libpreloaded.so" />
-        <remap from="~/input1" to="mytopic1"/>
     </node>
 </launch>

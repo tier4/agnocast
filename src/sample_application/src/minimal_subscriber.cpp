@@ -39,10 +39,6 @@ class MinimalSubscriber : public rclcpp::Node {
 public:
 
   MinimalSubscriber() : Node("minimal_subscriber") {
-    std::cout << "constructor" << std::endl;
-    agnocast::initialize_agnocast();
-    std::cout << "constructor 2" << std::endl;
-
     sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
       "/mytopic", std::bind(&MinimalSubscriber::topic_callback, this, _1));
 
@@ -67,8 +63,8 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char * argv[]) {
+  agnocast::initialize_agnocast();
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<MinimalSubscriber>());
   rclcpp::shutdown();

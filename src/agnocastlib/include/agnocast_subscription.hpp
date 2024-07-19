@@ -81,7 +81,8 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
   for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
     uint32_t pid = get_shm_args.ret_pids[i];
     uint64_t addr = get_shm_args.ret_addrs[i];
-    const char * shm_name = "shm" + pid;
+    char shm_name[20]; // enough size for pid
+    sprintf(shm_name,"%d", pid);
     map_area(shm_name, addr, false);
   }
 
