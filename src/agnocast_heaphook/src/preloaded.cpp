@@ -11,11 +11,8 @@
 #include <malloc.h>
 #include <fcntl.h>
 
-#include <cstdint>
 #include <unordered_map>
 #include <string>
-
-#include <iostream>
 
 #include "tlsf/tlsf.h"
 

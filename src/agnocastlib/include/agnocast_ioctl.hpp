@@ -1,8 +1,6 @@
 #pragma once
 
-#include <cstdint>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 
 namespace agnocast {
 
