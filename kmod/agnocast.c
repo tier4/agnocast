@@ -637,7 +637,6 @@ void subscriber_pid_remove(const char *topic_name, uint32_t pid) {
 void publisher_queue_add(const char *topic_name, uint32_t pid) {
 	printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
 	insert_publisher_queue(topic_name, pid);
-	// TODO: publisher が参加したことを subscriber に通知
 }
 
 #define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, struct ioctl_publisher_args)

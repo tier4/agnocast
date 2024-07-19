@@ -68,7 +68,7 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
     exit(EXIT_FAILURE);
   }
 
-  // TODO: topic name から shm addr & name を受け取り、openする
+  // get shared memory info from topic_name from kernel module
   union ioctl_get_shm_args get_shm_args;
   get_shm_args.topic_name = topic_name;
   if (ioctl(agnocast_fd, AGNOCAST_GET_SHM_CMD, &get_shm_args) < 0) {
@@ -77,7 +77,7 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
     exit(EXIT_FAILURE);
   }
 
-  // map area thought agnocast-heaphook
+  // map read-only shared memory through heaphook
   for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
     uint32_t pid = get_shm_args.ret_pids[i];
     uint64_t addr = get_shm_args.ret_addrs[i];
