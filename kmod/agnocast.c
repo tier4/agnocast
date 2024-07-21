@@ -48,7 +48,6 @@ struct topic_wrapper {
 struct pid_node {
 	struct rb_node node;
 	uint32_t pid; // rbtree key
-	uint64_t shm_addr;
 };
 
 struct publisher_queue_node {
