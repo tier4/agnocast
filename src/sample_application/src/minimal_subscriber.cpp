@@ -40,7 +40,7 @@ public:
 
   MinimalSubscriber() : Node("minimal_subscriber") {
     sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/mytopic", std::bind(&MinimalSubscriber::topic_callback, this, _1));
+      "/mytopic2", std::bind(&MinimalSubscriber::topic_callback, this, _1));
 
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);

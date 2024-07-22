@@ -36,6 +36,17 @@ target_link_libraries(talker
   agnocast_heaphook::preloaded
 )
 
+add_executable(listen_talker src/minimal_pubsub.cpp)
+ament_target_dependencies(listen_talker rclcpp agnocast_heaphook agnocastlib sample_interfaces)
+target_include_directories(listen_talker PRIVATE
+  ${agnocast_heaphook_INCLUDE_DIRS}
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+target_link_libraries(listen_talker
+  agnocast_heaphook::preloaded
+)
+
 add_executable(listener src/minimal_subscriber.cpp)
 ament_target_dependencies(listener rclcpp agnocast_heaphook agnocastlib sample_interfaces)
 target_include_directories(listener PRIVATE
@@ -47,7 +58,7 @@ target_link_libraries(listener
   agnocast_heaphook::preloaded
 )
 
-install(TARGETS talker listener
+install(TARGETS talker listen_talker listener
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
