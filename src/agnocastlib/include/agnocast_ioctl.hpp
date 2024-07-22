@@ -67,7 +67,7 @@ union ioctl_new_shm_args {
     uint64_t ret_addr;
 };
 
-#define MAX_PUBLISHER_NUM 16
+#define MAX_PUBLISHER_NUM 16  // TODO: should be reconsidered
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
