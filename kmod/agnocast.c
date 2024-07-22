@@ -16,7 +16,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-#define MAX_PUBLISHER_NUM 16
+#define MAX_PUBLISHER_NUM 16  // only for ioctl_get_shm_args currently
 #define MAX_SUBSCRIBER_NUM 16
 
 // =========================================
@@ -24,12 +24,13 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 #define AGNOCAST_HASH_BITS 10 // hash table size : 2^AGNOCAST_HASH_BITS
 
+// TODO: data structures for mapping pid to shm_addr during initialization
 #define MAX_PROCESS_NUM 1024
-
 uint32_t pid_index = 0;
 uint32_t process_ids[MAX_PROCESS_NUM];
 uint64_t shm_addrs[MAX_PROCESS_NUM];
 
+// TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
 
 struct topic_struct {
@@ -695,7 +696,7 @@ void publish_msg(char *topic_name, uint32_t publisher_pid, uint64_t msg_timestam
 uint64_t new_shm_addr(uint32_t pid) {
 	process_ids[pid_index] = pid;
 	shm_addrs[pid_index] = allocatable_addr;
-    allocatable_addr += 0x00400000000;
+    allocatable_addr += 0x00400000000; // TODO: allocate 0x00400000000 size for each process, currently
 	return shm_addrs[pid_index++];
 }
 
@@ -711,6 +712,8 @@ void get_shm(char *topic_name, union ioctl_get_shm_args *ioctl_ret) {
 		return;
 	}
 
+	// TODO: currently, wait until any publisher appear
+	// This will cause infinite loop. To be changed to message based wating
 	while (wrapper->topic.publisher_num == 0) {
 		mutex_unlock(&global_mutex);
 		usleep_range(100, 200); // slepp 100~200 msec
