@@ -3,19 +3,12 @@
 #include <fcntl.h>
 #include <mqueue.h>
 #include <semaphore.h>
-#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <atomic>
-#include <cstdint>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <memory>
-#include <thread>
-#include <vector>
-#include <chrono>
 #include <sys/ioctl.h>
 
 #include "agnocast_publisher.hpp"

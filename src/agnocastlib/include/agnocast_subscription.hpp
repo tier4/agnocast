@@ -12,10 +12,8 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <thread>
 #include <vector>
-#include <chrono>
 #include <sys/ioctl.h>
 
 #include "agnocast_ioctl.hpp"

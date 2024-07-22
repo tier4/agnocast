@@ -1,6 +1,5 @@
 #include <atomic>
 #include <cstdint>
-#include <map>
 #include <iostream>
 
 #include "agnocast.hpp"
