@@ -1,11 +1,4 @@
-#include <fcntl.h>
-#include <semaphore.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <chrono>
-#include <functional>
-#include <memory>
 #include <vector>
 #include <fstream>
 
@@ -50,7 +43,7 @@ class MinimalPublisher : public rclcpp::Node {
 
 public:
 
-  MinimalPublisher() : Node("minimal_publisher") {
+  MinimalPublisher() : Node("minimal_pubsubr") {
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
     publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic");
     count_ = 0;
@@ -62,7 +55,7 @@ public:
 
   ~MinimalPublisher() {
     {
-      std::ofstream f("talker.log");
+      std::ofstream f("listen_talker.log");
 
       if (!f) {
         std::cerr << "file open error" << std::endl;
