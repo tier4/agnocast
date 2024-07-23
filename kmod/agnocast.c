@@ -165,7 +165,6 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 
 	if (!new_node) {
 		printk(KERN_WARNING "kmalloc failed (insert_publisher_queue)\n");
-		kfree(new_node);
 		return -1;
 	}
 
