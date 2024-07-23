@@ -145,11 +145,17 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 	wrapper->topic.subscriber_num++;
 }
 
-static void insert_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
+static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
 		printk(KERN_WARNING "topic_name %s not found (insert_publisher_queue)\n", topic_name);
-		return;
+		return -1;
+	}
+
+    // TODO: support two or more publishers to one topic
+	if (wrapper->topic.publisher_num > 0) {
+		printk(KERN_WARNING "topic_name %s already has a publisher. Two or more publishers are not supported.\n", topic_name);
+		return -1;
 	}
 
 	struct publisher_queue_node *new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
@@ -159,7 +165,8 @@ static void insert_publisher_queue(const char *topic_name, uint32_t publisher_pi
 
 	if (!new_node) {
 		printk(KERN_WARNING "kmalloc failed (insert_publisher_queue)\n");
-		return;
+		kfree(new_node);
+		return -1;
 	}
 
 	new_node->pid = publisher_pid;
@@ -177,7 +184,7 @@ static void insert_publisher_queue(const char *topic_name, uint32_t publisher_pi
 		} else {
 			printk(KERN_INFO "publisher_pid=%d already exists in %s (insert_publisher_queue)\n", publisher_pid, topic_name);
 			kfree(new_node);
-			return;
+			return -1;
 		}
 	}
 
@@ -185,12 +192,14 @@ static void insert_publisher_queue(const char *topic_name, uint32_t publisher_pi
 	rb_insert_color(&new_node->node, root);
 
 	wrapper->topic.publisher_num++;
+
+	return 0;
 }
 
 static struct publisher_queue_node* find_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
-		printk(KERN_WARNING "topic_name %s not found (insert_publisher_queue)\n", topic_name);
+		printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
 		return NULL;
 	}
 
@@ -634,9 +643,9 @@ void subscriber_pid_remove(const char *topic_name, uint32_t pid) {
 }
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, struct ioctl_publisher_args)
-void publisher_queue_add(const char *topic_name, uint32_t pid) {
+int publisher_queue_add(const char *topic_name, uint32_t pid) {
 	printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
-	insert_publisher_queue(topic_name, pid);
+	return insert_publisher_queue(topic_name, pid);
 }
 
 #define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, struct ioctl_publisher_args)
@@ -740,6 +749,7 @@ void get_shm(char *topic_name, union ioctl_get_shm_args *ioctl_ret) {
 
 static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
 	mutex_lock(&global_mutex);
+	int ret = 0;
 	char topic_name_buf[256];
 	struct ioctl_subscriber_args sub_args;
 	struct ioctl_publisher_args pub_args;
@@ -768,7 +778,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case AGNOCAST_PUBLISHER_ADD_CMD:
 		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
 		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		publisher_queue_add(topic_name_buf, pub_args.pid);
+		ret = publisher_queue_add(topic_name_buf, pub_args.pid);
 		break;
 	case AGNOCAST_PUBLISHER_REMOVE_CMD:
 		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
@@ -825,7 +835,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	}
 
 	mutex_unlock(&global_mutex);
-	return 0;
+	return ret;
 
 unlock_mutex_and_return:
     mutex_unlock(&global_mutex);
