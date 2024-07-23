@@ -43,15 +43,18 @@ static bool mempool_initialized = false;
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable) {
-  int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0666);
+  int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
+  int shm_fd = shm_open(shm_name, oflag, 0666);
   if (shm_fd == -1) {
     fprintf(stderr, "heaphook: shm_open failed in map_area\n");
     exit(EXIT_FAILURE);
   }
 
-  if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
-    fprintf(stderr, "heaphook: ftruncate failed in map_area\n");
-    exit(EXIT_FAILURE);
+  if (writable) {
+    if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
+      fprintf(stderr, "heaphook: ftruncate failed in map_area\n");
+      exit(EXIT_FAILURE);
+    }
   }
 
   int prot = PROT_READ | MAP_FIXED;
