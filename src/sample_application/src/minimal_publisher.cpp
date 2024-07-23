@@ -43,7 +43,7 @@ class MinimalPublisher : public rclcpp::Node {
 
 public:
 
-  MinimalPublisher() : Node("minimal_pubsubr") {
+  MinimalPublisher() : Node("minimal_publisher") {
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
     publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic");
     count_ = 0;
