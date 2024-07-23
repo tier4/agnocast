@@ -41,6 +41,26 @@ void initialize_agnocast() {
   initialize_mempool(shm_name, new_shm_args.ret_addr);
 }
 
+void map_rdonly_areas(const char* topic_name) {
+  // get shared memory info from topic_name from kernel module
+  union ioctl_get_shm_args get_shm_args;
+  get_shm_args.topic_name = topic_name;
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SHM_CMD, &get_shm_args) < 0) {
+    perror("AGNOCAST_GET_SHM_CMD failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  // map read-only shared memory through heaphook
+  for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
+    uint32_t pid = get_shm_args.ret_pids[i];
+    uint64_t addr = get_shm_args.ret_addrs[i];
+    char shm_name[20]; // enough size for pid
+    sprintf(shm_name,"%d", pid);
+    map_area(shm_name, addr, false);
+  }
+}
+
 static void shutdown_agnocast() {
   is_running = false;
 
