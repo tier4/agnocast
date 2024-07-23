@@ -1,6 +1,5 @@
-#include <functional>
-#include <memory>
-#include <thread>
+#include <chrono>
+#include <vector>
 #include <fstream>
 
 #include "rclcpp/rclcpp.hpp"
@@ -40,7 +39,7 @@ public:
 
   MinimalSubscriber() : Node("minimal_subscriber") {
     sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/mytopic", std::bind(&MinimalSubscriber::topic_callback, this, _1));
+      "/mytopic2", std::bind(&MinimalSubscriber::topic_callback, this, _1));
 
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
@@ -63,8 +62,8 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char * argv[]) {
+  agnocast::initialize_agnocast();
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<MinimalSubscriber>());
   rclcpp::shutdown();

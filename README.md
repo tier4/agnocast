@@ -21,8 +21,10 @@ sudo lsmod
 ```
 
 Run sample app (different window for each script).
+The order does not matter.
 ```
 bash scripts/run_listener
+bash scripts/run_listen_talker
 bash scripts/run_talker
 ```
 

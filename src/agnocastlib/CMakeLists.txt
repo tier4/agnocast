@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(agnocast_heaphook REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -21,6 +22,11 @@ endif()
 
 add_library(agnocast SHARED src/agnocast.cpp)
 # ament_target_dependencies(agnocast rclcpp)
+
+target_link_libraries(agnocast
+  PRIVATE
+    agnocast_heaphook::preloaded
+)
 
 target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

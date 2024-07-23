@@ -1,1 +1,1 @@
-colcon build --cmake-args -DCMAKE_BUILD_TYPE=Debug
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release

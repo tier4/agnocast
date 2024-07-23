@@ -1,4 +1,3 @@
-#include <chrono>
 #include <vector>
 #include <fstream>
 
@@ -15,26 +14,32 @@ uint64_t agnocast_get_timestamp() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
-class MinimalPublisher : public rclcpp::Node {
-  void timer_callback() {
-    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = publisher_->borrow_loaned_message();
+using std::placeholders::_1;
 
-    message->id = count_;
-    message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
+class MinimalPubSub : public rclcpp::Node {
+
+  void topic_callback(const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> &sub_message) {
+    // subscribe
+    timestamp_ids_[timestamp_idx_] = sub_message->id;
+    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
+    RCLCPP_INFO(this->get_logger(), "I heard message addr: %016lx", reinterpret_cast<uint64_t>(sub_message.get()));
+
+    // publish
+    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message = publisher_->borrow_loaned_message();
+    pub_message->id = count_;
+    pub_message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
     for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
-      message->data.push_back(i + count_);
+      pub_message->data.push_back(i + count_);
     }
     count_++;
-
     RCLCPP_INFO(this->get_logger(), "publish message: %d", count_);
-
-    timestamp_ids_[timestamp_idx_] = message->id;
+    timestamp_ids_[timestamp_idx_] = pub_message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    publisher_->publish(std::move(message));
+    publisher_->publish(std::move(pub_message));
   }
 
-  rclcpp::TimerBase::SharedPtr timer_;
   std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_;
+  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_;
   int count_;
 
   std::vector<uint64_t> timestamps_;
@@ -43,9 +48,11 @@ class MinimalPublisher : public rclcpp::Node {
 
 public:
 
-  MinimalPublisher() : Node("minimal_publisher") {
-    timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
-    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic");
+  MinimalPubSub() : Node("minimal_pubsub") {
+    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic2");
+    sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
+      "/mytopic", std::bind(&MinimalPubSub::topic_callback, this, _1));
+
     count_ = 0;
 
     timestamps_.resize(10000, 0);
@@ -53,9 +60,9 @@ public:
     timestamp_idx_ = 0;
   }
 
-  ~MinimalPublisher() {
+  ~MinimalPubSub() {
     {
-      std::ofstream f("talker.log");
+      std::ofstream f("listen_talker.log");
 
       if (!f) {
         std::cerr << "file open error" << std::endl;
@@ -72,7 +79,7 @@ public:
 int main(int argc, char * argv[]) {
   agnocast::initialize_agnocast();
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalPublisher>());
+  rclcpp::spin(std::make_shared<MinimalPubSub>());
   rclcpp::shutdown();
   return 0;
 }
