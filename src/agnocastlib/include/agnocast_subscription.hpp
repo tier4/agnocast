@@ -53,6 +53,7 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
     mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
     if (mq == -1) {
       perror("mq_open");
+      close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
   }
