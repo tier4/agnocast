@@ -55,7 +55,7 @@ public:
 
   ~MinimalPublisher() {
     {
-      std::ofstream f("listen_talker.log");
+      std::ofstream f("talker.log");
 
       if (!f) {
         std::cerr << "file open error" << std::endl;
