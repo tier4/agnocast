@@ -64,8 +64,8 @@ public:
     release_args.buffer_depth = static_cast<uint32_t>(qos_.depth());
 
     while (true) {
-      if (ioctl(agnocast_fd, AGNOCAST_RELEASE_OLDEST_CMD, &release_args) < 0) {
-        perror("AGNOCAST_RELEASE_OLDEST_CMD failed");
+      if (ioctl(agnocast_fd, AGNOCAST_RELEASE_MSG_CMD, &release_args) < 0) {
+        perror("AGNOCAST_RELEASE_MSG_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
