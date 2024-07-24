@@ -48,7 +48,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
 
     struct mq_attr attr;
     attr.mq_flags = 0; // Blocking queue
-    attr.mq_maxmsg = 10; // Maximum number of messages in the queue
+    attr.mq_maxmsg = qos.depth(); // Maximum number of messages in the queue
     attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
     attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
 
