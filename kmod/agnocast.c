@@ -382,7 +382,7 @@ static uint64_t try_remove_oldest_message_entry(const char *topic_name, uint32_t
 
 	if (publisher_queue->queue_size <= buffer_depth) return 0;
 
-	uint32_t leak_threshold = publisher_queue->queue_size * 2;
+	uint32_t leak_threshold = buffer_depth * 2;
 	if (publisher_queue->queue_size > leak_threshold) {
 		printk(KERN_WARNING "Memory leak may occur: publisher queue publisher_pid=%d, topic_name=%s (try_remove_oldest_message_entry)\n", publisher_pid, topic_name);
 	}
