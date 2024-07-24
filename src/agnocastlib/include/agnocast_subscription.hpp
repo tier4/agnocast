@@ -77,7 +77,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
   auto th = std::thread([=]() {
     std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
     MqMsgAgnocast mq_msg;
-    struct mq_attr attr;
+    struct mq_attr mq_attr;
 
     while (is_running) {
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
@@ -86,12 +86,12 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
         return;
       }
 
-      if (mq_getattr(mq, &attr) == -1) {
+      if (mq_getattr(mq, &mq_attr) == -1) {
         perror("mq_getattr failed");
         return;
       }
 
-      if (attr.mq_curmsgs + 1 > qos.depth()) {
+      if (mq_attr.mq_curmsgs + 1 > qos.depth()) {
         // NOTE: Depending on how unreceived_subscriber_count is used, it may need to be decremented.
         continue;
       }
