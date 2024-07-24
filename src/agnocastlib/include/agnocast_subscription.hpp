@@ -87,7 +87,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
       }
 
       if (mq_getattr(mq, &attr) == -1) {
-        perror("mq_getattr error");
+        perror("mq_getattr failed");
         return;
       }
 
