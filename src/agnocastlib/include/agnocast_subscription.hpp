@@ -107,7 +107,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
         return;
       }
 
-      if (attr.mq_curmsgs+1 > qos.depth()) {
+      if (attr.mq_curmsgs + 1 > qos.depth()) {
         // NOTE: Depending on how unreceived_subscriber_count is used, it may need to be decremented.
         continue;
       }

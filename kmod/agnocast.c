@@ -383,7 +383,7 @@ static uint64_t try_remove_oldest_message_entry(const char *topic_name, uint32_t
 	struct rb_node *node = rb_first(&publisher_queue->entries);
 	if (!node) return 0;
 
-	for (uint32_t _ = 0; _ < num_search_entries-1; _++) {
+	for (uint32_t _ = 0; _ < num_search_entries - 1; _++) {
 		struct entry_node* en = container_of(node, struct entry_node, node);
 		if (en->reference_count > 0) {
 			// This is not counted in a Queue size of QoS.
