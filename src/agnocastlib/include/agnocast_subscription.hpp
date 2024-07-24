@@ -41,23 +41,18 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
   uint32_t subscriber_pid = getpid();
 
   std::string mq_name = std::string(topic_name) + "|" + std::to_string(getpid());
-  mqd_t mq = mq_open(mq_name.c_str(), O_RDONLY);
 
+  struct mq_attr attr;
+  attr.mq_flags = 0; // Blocking queue
+  attr.mq_maxmsg = 10; // Maximum number of messages in the queue
+  attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
+  attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
+
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
   if (mq == -1) {
-    std::cout << "create agnocast topic mq: " << mq_name << std::endl;
-
-    struct mq_attr attr;
-    attr.mq_flags = 0; // Blocking queue
-    attr.mq_maxmsg = 10; // Maximum number of messages in the queue
-    attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
-    attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
-
-    mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
-    if (mq == -1) {
-      perror("mq_open");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
+    perror("mq_open failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
   struct ioctl_subscriber_args subscriber_args;
