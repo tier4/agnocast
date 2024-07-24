@@ -16,6 +16,8 @@
 #include <vector>
 #include <sys/ioctl.h>
 
+#include "rclcpp/rclcpp.hpp"
+
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "agnocast_mq.hpp"
@@ -29,7 +31,7 @@ extern std::atomic<bool> is_running;
 template<typename MessageT> class Subscription { };
 
 template<typename T>
-void subscribe_topic_agnocast(const char* topic_name, std::function<void(const agnocast::message_ptr<T> &)> callback) {
+void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<T> &)> callback) {
   if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
       perror("Failed to execute ioctl");
       close(agnocast_fd);
@@ -88,6 +90,7 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
   auto th = std::thread([=]() {
     std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
     MqMsgAgnocast mq_msg;
+    struct mq_attr attr;
 
     while (is_running) {
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
@@ -96,6 +99,17 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
         std::cerr << "mq_receive error" << std::endl;
         perror("mq_receive error");
         return;
+      }
+
+      if (mq_getattr(mq, &attr) == -1) {
+        std::cerr << "mq_getattr error" << std::endl;
+        perror("mq_getattr error");
+        return;
+      }
+
+      if (attr.mq_curmsgs+1 > qos.depth()) {
+        // NOTE: Depending on how unreceived_subscriber_count is used, it may need to be decremented.
+        continue;
       }
 
       union ioctl_update_entry_args entry_args;

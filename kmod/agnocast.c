@@ -63,6 +63,10 @@ struct entry_node {
 	uint64_t timestamp; // rbtree key
 	uint64_t msg_virtual_address;
 	uint32_t reference_count;
+	/*
+	 * unreceived_subscriber_count currently has no effect on the release timing of the message. 
+	 * However, it is retained for future use such as early release or logging.
+	 */
 	uint32_t unreceived_subscriber_count;
 };
 
@@ -370,18 +374,32 @@ static uint64_t try_remove_oldest_message_entry(const char *topic_name, uint32_t
 
 	if (publisher_queue->queue_size <= buffer_depth) return 0;
 
+	uint32_t leak_threshold = publisher_queue->queue_size * 2;
+	if (publisher_queue->queue_size > leak_threshold) {
+		printk(KERN_WARNING "Memory leak may occur: publisher queue publisher_pid=%d, topic_name=%s (try_remove_oldest_message_entry)\n", publisher_pid, topic_name);
+	}
+
+	uint32_t num_search_entries = publisher_queue->queue_size - buffer_depth;
 	struct rb_node *node = rb_first(&publisher_queue->entries);
 	if (!node) return 0;
-	struct entry_node* en = container_of(node, struct entry_node, node);
 
-	if (en->reference_count > 0 || en->unreceived_subscriber_count > 0) return 0;
+	for (uint32_t _ = 0; _ < num_search_entries-1; _++) {
+		struct entry_node* en = container_of(node, struct entry_node, node);
+		if (en->reference_count > 0) {
+			// This is not counted in a Queue size of QoS.
+			node = rb_next(node);
+			if (!node) return 0;
+		} else {
+			uint64_t msg_addr = en->msg_virtual_address;
+			rb_erase(&en->node, &publisher_queue->entries);
+			publisher_queue->queue_size--;
+			kfree(en);
 
-    uint64_t msg_addr = en->msg_virtual_address;
-	rb_erase(&en->node, &publisher_queue->entries);
-	publisher_queue->queue_size--;
-	kfree(en);
+			return msg_addr;
+		}
+	}
 
-	return msg_addr;
+	return 0;
 }
 
 static void remove_subscriber_pid(const char *topic_name, uint32_t pid) {
