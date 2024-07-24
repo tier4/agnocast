@@ -34,7 +34,7 @@ public:
     publisher_pid_ = getpid();
 
     if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name_) < 0) {
-        perror("Failed to execute ioctl");
+        perror("AGNOCAST_TOPIC_ADD_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
     }
@@ -107,8 +107,7 @@ public:
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
 
       if (mq == -1) {
-        perror("mq_open");
-        std::cerr << "mq_open error" << std::endl;
+        perror("mq_open failed");
         continue;
       }
 
@@ -117,8 +116,7 @@ public:
       mq_msg.timestamp = message.get_timestamp();
 
       if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        perror("mq_send");
-        std::cerr << "mq_send error" << std::endl;
+        perror("mq_send failed");
         continue;
       }
     }
