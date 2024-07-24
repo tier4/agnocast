@@ -15,25 +15,27 @@
 #include <thread>
 #include <vector>
 #include <sys/ioctl.h>
+#include <stdio.h>
 
 #include "rclcpp/rclcpp.hpp"
 
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "agnocast_mq.hpp"
-#include "preloaded.hpp"
 
 namespace agnocast {
 
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
+void map_rdonly_areas(const char* topic_name);
+
 template<typename MessageT> class Subscription { };
 
 template<typename T>
 void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<T> &)> callback) {
   if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
-      perror("Failed to execute ioctl");
+      perror("AGNOCAST_TOPIC_ADD_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
   }
@@ -55,6 +57,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
     mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
     if (mq == -1) {
       perror("mq_open");
+      close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
   }
@@ -68,23 +71,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
     exit(EXIT_FAILURE);
   }
 
-  // get shared memory info from topic_name from kernel module
-  union ioctl_get_shm_args get_shm_args;
-  get_shm_args.topic_name = topic_name;
-  if (ioctl(agnocast_fd, AGNOCAST_GET_SHM_CMD, &get_shm_args) < 0) {
-    perror("AGNOCAST_GET_SHM_CMD failed");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  // map read-only shared memory through heaphook
-  for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
-    uint32_t pid = get_shm_args.ret_pids[i];
-    uint64_t addr = get_shm_args.ret_addrs[i];
-    char shm_name[20]; // enough size for pid
-    sprintf(shm_name,"%d", pid);
-    map_area(shm_name, addr, false);
-  }
+  map_rdonly_areas(topic_name);
 
   // Create a thread that handles the messages to execute the callback
   auto th = std::thread([=]() {
@@ -94,10 +81,8 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
 
     while (is_running) {
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
-
       if (ret == -1) {
-        std::cerr << "mq_receive error" << std::endl;
-        perror("mq_receive error");
+        perror("mq_receive failed");
         return;
       }
 
