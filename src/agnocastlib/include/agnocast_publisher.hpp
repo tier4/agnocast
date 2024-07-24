@@ -104,6 +104,8 @@ public:
       uint32_t pid = publish_args.ret_pids[i];
 
       std::string mq_name = std::string(topic_name_) + "|" + std::to_string(pid);
+      // NOTE: If repeatedly opening and closing mq impacts performance, 
+      // consider using a hash map to store mq descriptors.
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
 
       if (mq == -1) {
@@ -117,8 +119,9 @@ public:
 
       if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
         perror("mq_send failed");
-        continue;
       }
+
+      mq_close(mq);
     }
   }
 };
