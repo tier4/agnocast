@@ -16,6 +16,7 @@
 
 namespace agnocast {
 
+__attribute__((constructor))
 void initialize_agnocast();
 
 template<typename MessageT>
