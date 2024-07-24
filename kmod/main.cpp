@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
     }
 
     if (ioctl(fd, AGNOCAST_TOPIC_ADD_CMD, key) < 0) {
-        perror("Failed to execute ioctl");
+        perror("AGNOCAST_TOPIC_ADD_CMD failed");
         close(fd);
         return errno;
     }

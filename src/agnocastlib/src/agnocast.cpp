@@ -1,6 +1,7 @@
 #include <atomic>
 #include <cstdint>
 #include <iostream>
+#include <stdio.h>
 
 #include "agnocast.hpp"
 #include "agnocast_ioctl.hpp"

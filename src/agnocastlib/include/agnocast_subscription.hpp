@@ -15,6 +15,7 @@
 #include <thread>
 #include <vector>
 #include <sys/ioctl.h>
+#include <stdio.h>
 
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
@@ -32,7 +33,7 @@ template<typename MessageT> class Subscription { };
 template<typename T>
 void subscribe_topic_agnocast(const char* topic_name, std::function<void(const agnocast::message_ptr<T> &)> callback) {
   if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
-      perror("Failed to execute ioctl");
+      perror("AGNOCAST_TOPIC_ADD_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
   }
@@ -77,10 +78,8 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
 
     while (is_running) {
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
-
       if (ret == -1) {
-        std::cerr << "mq_receive error" << std::endl;
-        perror("mq_receive error");
+        perror("mq_receive failed");
         return;
       }
 
