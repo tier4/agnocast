@@ -402,9 +402,9 @@ static uint64_t try_release_removable_oldest_message(const char *topic_name, uin
 
 	if (publisher_queue->queue_size <= qos_depth) return 0;
 
-	uint32_t leak_threshold = qos_depth * 2;
-	if (publisher_queue->queue_size > leak_threshold) {
-		printk(KERN_WARNING "Memory leak may occur: publisher queue publisher_pid=%d, topic_name=%s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
+	uint32_t leak_warn_threshold = (qos_depth <= 100) ? 100 : qos_depth * 2;  // This is rough value.
+	if (publisher_queue->queue_size > leak_warn_threshold) {
+		printk(KERN_WARNING "For some reason the reference count of the message is not reduced and the queue size is huge: publisher queue publisher_pid=%d, topic_name=%s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
 	}
 
 	uint32_t num_search_entries = publisher_queue->queue_size - qos_depth;
