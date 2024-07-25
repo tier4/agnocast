@@ -20,7 +20,7 @@ union ioctl_release_oldest_args {
     struct {
         const char *topic_name;
         uint32_t publisher_pid;
-        uint32_t buffer_depth;
+        uint32_t qos_depth;
     };
     uint64_t ret;
 };

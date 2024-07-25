@@ -393,21 +393,21 @@ static void insert_message_entry(const char *topic_name, uint32_t publisher_pid,
 	publisher_queue->queue_size++;
 }
 
-static uint64_t try_release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t buffer_depth) {
+static uint64_t try_release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t qos_depth) {
 	struct publisher_queue_node *publisher_queue = find_publisher_queue(topic_name, publisher_pid);
 	if (!publisher_queue) {
 		printk(KERN_WARNING "publisher queue publisher_pid=%d not found in %s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
 		return 0;
 	}
 
-	if (publisher_queue->queue_size <= buffer_depth) return 0;
+	if (publisher_queue->queue_size <= qos_depth) return 0;
 
-	uint32_t leak_threshold = buffer_depth * 2;
+	uint32_t leak_threshold = qos_depth * 2;
 	if (publisher_queue->queue_size > leak_threshold) {
 		printk(KERN_WARNING "Memory leak may occur: publisher queue publisher_pid=%d, topic_name=%s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
 	}
 
-	uint32_t num_search_entries = publisher_queue->queue_size - buffer_depth;
+	uint32_t num_search_entries = publisher_queue->queue_size - qos_depth;
 	struct rb_node *node = rb_first(&publisher_queue->entries);
 	if (!node) return 0;
 
@@ -658,7 +658,7 @@ union ioctl_release_oldest_args {
 	struct {
 		char *topic_name;
 		uint32_t publisher_pid;
-		uint32_t buffer_depth;
+		uint32_t qos_depth;
 	};
 	uint64_t ret;
 };
@@ -702,10 +702,10 @@ void publisher_queue_remove(const char *topic_name, uint32_t pid) {
 }
 
 #define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
-uint64_t release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t buffer_depth) {
-	printk(KERN_INFO "Try to release oldest message in %s pulisher_pid=%d with buffer_depth=%d (release_removable_oldest_message)\n",
-		topic_name, publisher_pid, buffer_depth);
-	return try_release_removable_oldest_message(topic_name, publisher_pid, buffer_depth);
+uint64_t release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t qos_depth) {
+	printk(KERN_INFO "Try to release oldest message in %s pulisher_pid=%d with qos_depth=%d (release_removable_oldest_message)\n",
+		topic_name, publisher_pid, qos_depth);
+	return try_release_removable_oldest_message(topic_name, publisher_pid, qos_depth);
 }
 
 
@@ -836,7 +836,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case AGNOCAST_RELEASE_MSG_CMD:
 		if (copy_from_user(&release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args))) goto unlock_mutex_and_return;
 		if (copy_from_user(topic_name_buf, (char __user *)release_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		uint64_t release_addr = release_removable_oldest_message(topic_name_buf, release_args.publisher_pid, release_args.buffer_depth);
+		uint64_t release_addr = release_removable_oldest_message(topic_name_buf, release_args.publisher_pid, release_args.qos_depth);
 		if (copy_to_user((uint64_t __user *)arg, &release_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_ENQUEUE_ENTRY_CMD:

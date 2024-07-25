@@ -61,7 +61,7 @@ public:
     union ioctl_release_oldest_args release_args;
     release_args.topic_name = topic_name_;
     release_args.publisher_pid = publisher_pid_;
-    release_args.buffer_depth = static_cast<uint32_t>(qos_.depth());
+    release_args.qos_depth = static_cast<uint32_t>(qos_.depth());
 
     while (true) {
       if (ioctl(agnocast_fd, AGNOCAST_RELEASE_MSG_CMD, &release_args) < 0) {
