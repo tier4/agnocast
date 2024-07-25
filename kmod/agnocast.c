@@ -657,27 +657,23 @@ int publisher_queue_add(const char *topic_name, uint32_t pid, union ioctl_publis
 	}
 
     // set shm addr to ioctl_ret
-	{
-		for (int i = 0; i < pid_index; i++) {
-			if (process_ids[i] == pid) {
-				ioctl_ret->ret_shm_addr = shm_addrs[i];
-				break;
-			}
+	for (int i = 0; i < pid_index; i++) {
+		if (process_ids[i] == pid) {
+			ioctl_ret->ret_shm_addr = shm_addrs[i];
+			break;
 		}
 	}
 
 	// set subscriber info to ioctl_ret
-	{
-		uint32_t subscriber_len = 0;
-		struct rb_root *root = &wrapper->topic.subscriber_pids;
-		struct rb_node *node;
-		for (node = rb_first(root); node; node = rb_next(node)) {
-			struct pid_node *data = container_of(node, struct pid_node, node);
-			ioctl_ret->ret_subscriber_pids[subscriber_len] = data->pid;
-			subscriber_len++;
-		}
-		ioctl_ret->ret_subscriber_len = subscriber_len;
+	uint32_t subscriber_len = 0;
+	struct rb_root *root = &wrapper->topic.subscriber_pids;
+	struct rb_node *node;
+	for (node = rb_first(root); node; node = rb_next(node)) {
+		struct pid_node *data = container_of(node, struct pid_node, node);
+		ioctl_ret->ret_subscriber_pids[subscriber_len] = data->pid;
+		subscriber_len++;
 	}
+	ioctl_ret->ret_subscriber_len = subscriber_len;
 
 	return 0;
 }
