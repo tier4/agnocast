@@ -126,7 +126,6 @@ public:
       if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
         perror("mq_send failed");
       }
-
     }
   }
 };
