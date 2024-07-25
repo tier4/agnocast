@@ -25,6 +25,7 @@ class Publisher {
   const char *topic_name_;
   std::string topic_name_cpp_;
   uint32_t publisher_pid_;
+  std::unordered_map<std::string, int> opened_mqs; // NOTE: The mq should be closed when a subscriber unsubscribes from the topic, but this is not currently implemented.
 
 public:
 
@@ -104,9 +105,14 @@ public:
       uint32_t pid = publish_args.ret_pids[i];
 
       std::string mq_name = std::string(topic_name_) + "|" + std::to_string(pid);
-      // NOTE: If repeatedly opening and closing mq impacts performance, 
-      // consider using a hash map to store mq descriptors.
-      mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+      mqd_t mq;
+      if (opened_mqs.find(mq_name) != opened_mqs.end()){
+        mq = opened_mqs[mq_name];
+      } else {
+        mq = mq_open(mq_name.c_str(), O_WRONLY);
+        opened_mqs[mq_name] = mq;
+      }
+
 
       if (mq == -1) {
         perror("mq_open failed");
@@ -121,7 +127,6 @@ public:
         perror("mq_send failed");
       }
 
-      mq_close(mq);
     }
   }
 };
