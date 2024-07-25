@@ -29,6 +29,7 @@ extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
 void map_rdonly_areas(const char* topic_name);
+size_t read_mq_msgmax();
 
 template<typename MessageT> class Subscription { };
 
@@ -52,11 +53,11 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
    * NOTE:
    *   Maximum number of messages in the queue.
    *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
-   *   The limit can be changed by editing the file, but here it is set to 10.
+   *   The limit can be changed by editing the file, but here it is used as mq_maxmsg without changing it.
    *   If mq_send() is called when the message queue is full, it will block until the queue is free,
    *   so this value may need to be reconsidered in the future.
    */
-  attr.mq_maxmsg = 10;
+  attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
 
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
   if (mq == -1) {
