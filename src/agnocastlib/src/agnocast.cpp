@@ -66,14 +66,6 @@ void map_rdonly_areas(const char* topic_name) {
   }
 }
 
-std::string create_mq_name_for_new_publisher(const uint32_t pid) {
-  return "mq_" + std::to_string(pid);
-}
-
-std::string create_mq_name_for_publish(const char* topic_name, const uint32_t pid) {
-  return "mq_" + std::string(topic_name) + "_" + std::to_string(pid);
-}
-
 static void shutdown_agnocast() {
   is_running = false;
 
