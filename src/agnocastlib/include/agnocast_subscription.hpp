@@ -46,9 +46,17 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
 
   struct mq_attr attr;
   attr.mq_flags = 0; // Blocking queue
-  attr.mq_maxmsg = 10; // Maximum number of messages in the queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
   attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
+  /* 
+   * NOTE:
+   *   Maximum number of messages in the queue.
+   *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msgsize_max and defaults to 10.
+   *   The limit can be changed by editing the file, but here it is set to 10.
+   *   If mq_send() is called when the message queue is full, it will block until the queue is free,
+   *   so this value may need to be reconsidered in the future.
+   */
+  attr.mq_maxmsg = 10;
 
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
   if (mq == -1) {
