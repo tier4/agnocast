@@ -408,13 +408,13 @@ static uint64_t try_release_removable_oldest_message(const char *topic_name, uin
 		printk(KERN_WARNING "For some reason the reference count of the message is not reduced and the queue size is huge: publisher queue publisher_pid=%d, topic_name=%s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
 	}
 
-	uint32_t num_search_entries = publisher_queue->queue_size - qos_depth;  // Number of entries exceeding qos_depth.
+	uint32_t num_search_entries = publisher_queue->queue_size - qos_depth + 1;  // Number of entries exceeding qos_depth. +1 is for the message to be enqueued later.
 	struct rb_node *node = rb_first(&publisher_queue->entries);
 	if (!node) return 0;
 
 	// The searched message is either deleted or, if a reference count remains, is not deleted.
 	// In both cases, this number of searches is sufficient, as it does not affect the Queue size of QoS.
-	for (uint32_t _ = 0; _ < num_search_entries - 1; _++) {
+	for (uint32_t _ = 0; _ < num_search_entries; _++) {
 		struct entry_node* en = container_of(node, struct entry_node, node);
 		if (en->reference_count > 0) {
 			// This is not counted in a Queue size of QoS.
