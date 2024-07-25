@@ -706,7 +706,7 @@ void publisher_queue_remove(const char *topic_name, uint32_t pid) {
 
 #define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
 uint64_t release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t qos_depth) {
-	printk(KERN_INFO "Try to release oldest message in %s pulisher_pid=%d with qos_depth=%d (release_removable_oldest_message)\n",
+	printk(KERN_INFO "Try to release oldest message in %s publisher_pid=%d with qos_depth=%d (release_removable_oldest_message)\n",
 		topic_name, publisher_pid, qos_depth);
 	return try_release_removable_oldest_message(topic_name, publisher_pid, qos_depth);
 }
