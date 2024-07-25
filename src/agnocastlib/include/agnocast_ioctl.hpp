@@ -45,6 +45,19 @@ union ioctl_update_entry_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_receive_msg_args {
+    struct {
+        const char *topic_name;
+        uint32_t publisher_pid;
+        uint64_t msg_timestamp;
+        uint32_t qos_depth;
+    };
+    uint64_t ret;
+};
+#pragma GCC diagnostic pop
+
 #define MAX_SUBSCRIBER_NUM 16
 
 #pragma GCC diagnostic push
@@ -90,7 +103,7 @@ union ioctl_get_shm_args {
 #define AGNOCAST_ENQUEUE_ENTRY_CMD _IOW('E', 1, struct ioctl_enqueue_entry_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
-#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_update_entry_args)
+#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
 #define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)

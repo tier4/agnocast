@@ -280,20 +280,40 @@ static void decrement_message_entry_rc(const char *topic_name, uint32_t publishe
 	en->reference_count--;
 }
 
-static uint64_t decrement_usc_increment_rc(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
+static uint64_t receive_and_update(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth) {
 	struct entry_node *en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
 	if (!en) {
-		printk(KERN_WARNING "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found (decrement_message_entry_usc)\n",
+		printk(KERN_WARNING "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found (receive_and_update)\n",
 			topic_name, publisher_pid, msg_timestamp);
 		return 0;
 	}
 
 	if (en->unreceived_subscriber_count == 0) {
-		printk(KERN_WARNING "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d timestamp=%lld(decrement_message_entry_usc)\n",
+		printk(KERN_WARNING "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d timestamp=%lld(receive_and_update)\n",
 			topic_name, publisher_pid, msg_timestamp);
 		return 0;
 	}
 
+	// Count number of nodes that have greater timestamp than the current message entry.
+	// If the count is greater than qos_depth, the current message is ignored.
+	struct publisher_queue_node *publisher_queue = find_publisher_queue(topic_name, publisher_pid);
+	if (!publisher_queue) {
+		printk(KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n", publisher_pid, topic_name);
+		return 0;
+	}
+	if (publisher_queue->queue_size > qos_depth) {
+		uint32_t older_count = 0;
+		struct rb_node *next_node = rb_next(&en->node);
+		while (next_node) {
+			older_count++;
+			next_node = rb_next(next_node);
+		}
+		if (older_count > qos_depth) {
+			en->unreceived_subscriber_count--;
+			return 0;
+		}
+	}
+	
 	en->unreceived_subscriber_count--;
 	en->reference_count++;
 	return en->msg_virtual_address;
@@ -612,6 +632,16 @@ union ioctl_update_entry_args {
 	uint64_t ret;
 };
 
+union ioctl_receive_msg_args {
+	struct {
+		char *topic_name;
+		uint32_t publisher_pid;
+		uint64_t msg_timestamp;
+		uint32_t qos_depth;
+	};
+	uint64_t ret;
+};
+
 union ioctl_publish_args {
 	struct {
 		char *topic_name;
@@ -700,11 +730,11 @@ void decrement_rc(char *topic_name, uint32_t publisher_pid, uint64_t msg_timesta
 	decrement_message_entry_rc(topic_name, publisher_pid, msg_timestamp);
 }
 
-#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_update_entry_args)
-uint64_t receive_msg(char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
+#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
+uint64_t receive_msg(char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth) {
 	printk(KERN_INFO "a subscriber receives message timestamp=%lld topic_name=%s publisher_pid=%d",
 		msg_timestamp, topic_name, publisher_pid);
-	return decrement_usc_increment_rc(topic_name, publisher_pid, msg_timestamp);
+	return receive_and_update(topic_name, publisher_pid, msg_timestamp, qos_depth);
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
@@ -772,6 +802,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	struct ioctl_publisher_args pub_args;
 	struct ioctl_enqueue_entry_args enqueue_args;
 	union ioctl_update_entry_args entry_args;
+	union ioctl_receive_msg_args receive_msg_args;
 	union ioctl_publish_args publish_args;
 	union ioctl_release_oldest_args release_args;
 	union ioctl_new_shm_args new_shm_args;
@@ -824,9 +855,9 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		decrement_message_entry_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
 		break;
 	case AGNOCAST_RECEIVE_MSG_CMD:
-		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) goto unlock_mutex_and_return;
-		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		uint64_t msg_addr = decrement_usc_increment_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
+		if (copy_from_user(&receive_msg_args, (union ioctl_receive_msg_args __user *)arg, sizeof(receive_msg_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
+		uint64_t msg_addr = receive_and_update(topic_name_buf, receive_msg_args.publisher_pid, receive_msg_args.msg_timestamp, receive_msg_args.qos_depth);
 		if (copy_to_user((uint64_t __user *)arg, &msg_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_PUBLISH_MSG_CMD:

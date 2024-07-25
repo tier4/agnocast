@@ -72,7 +72,6 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
   auto th = std::thread([=]() {
     std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
     MqMsgAgnocast mq_msg;
-    struct mq_attr mq_attr;
 
     while (is_running) {
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
@@ -81,32 +80,22 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
         return;
       }
 
-      if (mq_getattr(mq, &mq_attr) == -1) {
-        perror("mq_getattr failed");
-        return;
-      }
-
-      if (mq_attr.mq_curmsgs + 1 > qos.depth()) {
-        // NOTE: Depending on how unreceived_subscriber_count is used, it may need to be decremented.
-        continue;
-      }
-
-      union ioctl_update_entry_args entry_args;
-      entry_args.topic_name = topic_name;
-      entry_args.publisher_pid = mq_msg.publisher_pid;
-      entry_args.msg_timestamp = mq_msg.timestamp;
-      if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &entry_args) < 0) {
+      union ioctl_receive_msg_args receive_args;
+      receive_args.topic_name = topic_name;
+      receive_args.publisher_pid = mq_msg.publisher_pid;
+      receive_args.msg_timestamp = mq_msg.timestamp;
+      receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
+      if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
         perror("AGNOCAST_RECEIVE_MSG_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
 
-      if (entry_args.ret == 0) {
-        std::cerr << "The received message has message address zero" << std::endl;
+      if (receive_args.ret == 0) {  // Number of messages > qos_depth
         continue;
       }
 
-      T* ptr = reinterpret_cast<T*>(entry_args.ret); 
+      T* ptr = reinterpret_cast<T*>(receive_args.ret); 
       agnocast::message_ptr<T> agnocast_ptr = agnocast::message_ptr<T>(ptr, topic_name, mq_msg.publisher_pid, mq_msg.timestamp, true);
 
       /*
