@@ -64,8 +64,9 @@ struct entry_node {
 	uint64_t msg_virtual_address;
 	uint32_t reference_count;
 	/*
-	 * unreceived_subscriber_count currently has no effect on the release timing of the message. 
-	 * However, it is retained for future use such as early release or logging.
+	 * NOTE:
+	 *   unreceived_subscriber_count currently has no effect on the release timing of the message. 
+	 *   However, it is retained for future use such as early release or logging.
 	 */
 	uint32_t unreceived_subscriber_count;
 };
