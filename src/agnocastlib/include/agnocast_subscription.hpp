@@ -53,7 +53,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
    * NOTE:
    *   Maximum number of messages in the queue.
    *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
-   *   The limit can be changed by editing the file, but here it is used as mq_maxmsg without changing it.
+   *   Although this limit can be changed by editing the file, here mq_maxmsg is used without being changed.
    *   If mq_send() is called when the message queue is full, it will block until the queue is free,
    *   so this value may need to be reconsidered in the future.
    */
