@@ -39,13 +39,35 @@ public:
         exit(EXIT_FAILURE);
     }
 
-    struct ioctl_publisher_args pub_args;
-    pub_args.pid = publisher_pid_;
+    union ioctl_publisher_args pub_args;
+    pub_args.publisher_pid = publisher_pid_;
     pub_args.topic_name = topic_name_;
      if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
         perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
+    }
+
+    // Send messages to subscribers to notify that a new publisher appears
+    for (uint32_t i = 0; i < pub_args.ret_subscriber_len; i++) {
+      uint32_t subscriber_pid = pub_args.ret_subscriber_pids[i];
+
+      std::string mq_name = std::string(topic_name_) + "_" + std::to_string(subscriber_pid);
+      mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+      if (mq == -1) {
+        perror("mq_open failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      MqMsgNewPublisher mq_msg;
+      mq_msg.publisher_pid = publisher_pid_;
+      mq_msg.shm_addr = pub_args.ret_shm_addr;
+      if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        perror("mq_send failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
     }
   }
 

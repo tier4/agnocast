@@ -42,6 +42,12 @@ void initialize_agnocast() {
   initialize_mempool(shm_name, new_shm_args.ret_addr);
 }
 
+void map_rdonly_area(const uint32_t pid, const uint64_t addr) {
+  char shm_name[20]; // enough size for pid
+  sprintf(shm_name,"%d", pid);
+  map_area(shm_name, addr, false);
+}
+
 void map_rdonly_areas(const char* topic_name) {
   // get shared memory info from topic_name from kernel module
   union ioctl_get_shm_args get_shm_args;
@@ -56,10 +62,16 @@ void map_rdonly_areas(const char* topic_name) {
   for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
     uint32_t pid = get_shm_args.ret_pids[i];
     uint64_t addr = get_shm_args.ret_addrs[i];
-    char shm_name[20]; // enough size for pid
-    sprintf(shm_name,"%d", pid);
-    map_area(shm_name, addr, false);
+    map_rdonly_area(pid, addr);
   }
+}
+
+std::string create_mq_name_for_new_publisher(const uint32_t pid) {
+  return "mq_" + std::to_string(pid);
+}
+
+std::string create_mq_name_for_publish(const char* topic_name, const uint32_t pid) {
+  return "mq_" + std::string(topic_name) + "_" + std::to_string(pid);
 }
 
 static void shutdown_agnocast() {

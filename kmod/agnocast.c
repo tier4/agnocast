@@ -152,12 +152,6 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 		return -1;
 	}
 
-    // TODO: support two or more publishers to one topic
-	if (wrapper->topic.publisher_num > 0) {
-		printk(KERN_WARNING "topic_name %s already has a publisher. Two or more publishers are not supported.\n", topic_name);
-		return -1;
-	}
-
 	struct publisher_queue_node *new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
 	struct rb_root *root = &wrapper->topic.publisher_queues;
 	struct rb_node **new = &(root->rb_node);
@@ -573,9 +567,16 @@ struct ioctl_subscriber_args {
 	uint32_t pid;
 };
 
-struct ioctl_publisher_args {
-	char *topic_name;
-	uint32_t pid;
+union ioctl_publisher_args {
+    struct {
+        const char *topic_name;
+        uint32_t publisher_pid;
+    };
+    struct {
+        uint64_t ret_shm_addr;
+        uint32_t ret_subscriber_len;
+        uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
+    };
 };
 
 struct ioctl_enqueue_entry_args {
@@ -641,13 +642,47 @@ void subscriber_pid_remove(const char *topic_name, uint32_t pid) {
 	remove_subscriber_pid(topic_name, pid);
 }
 
-#define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, struct ioctl_publisher_args)
-int publisher_queue_add(const char *topic_name, uint32_t pid) {
+#define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
+int publisher_queue_add(const char *topic_name, uint32_t pid, union ioctl_publisher_args *ioctl_ret) {
 	printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
-	return insert_publisher_queue(topic_name, pid);
+
+	if (insert_publisher_queue(topic_name, pid) == -1) {
+		return -1;
+	}
+
+	struct topic_wrapper *wrapper = find_topic(topic_name);
+	if (!wrapper) {
+		printk(KERN_WARNING "topic_name %s not found (insert_publisher_queue)\n", topic_name);
+		return -1;
+	}
+
+    // set shm addr to ioctl_ret
+	{
+		for (int i = 0; i < pid_index; i++) {
+			if (process_ids[i] == pid) {
+				ioctl_ret->ret_shm_addr = shm_addrs[i];
+				break;
+			}
+		}
+	}
+
+	// set subscriber info to ioctl_ret
+	{
+		uint32_t subscriber_len = 0;
+		struct rb_root *root = &wrapper->topic.subscriber_pids;
+		struct rb_node *node;
+		for (node = rb_first(root); node; node = rb_next(node)) {
+			struct pid_node *data = container_of(node, struct pid_node, node);
+			ioctl_ret->ret_subscriber_pids[subscriber_len] = data->pid;
+			subscriber_len++;
+		}
+		ioctl_ret->ret_subscriber_len = subscriber_len;
+	}
+
+	return 0;
 }
 
-#define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, struct ioctl_publisher_args)
+#define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, union ioctl_publisher_args)
 void publisher_queue_remove(const char *topic_name, uint32_t pid) {
 	printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", pid, topic_name);
 	remove_publisher_queue(topic_name, pid);
@@ -720,14 +755,6 @@ void get_shm(char *topic_name, union ioctl_get_shm_args *ioctl_ret) {
 		return;
 	}
 
-	// TODO: currently, wait until any publisher appear
-	// This will cause infinite loop. To be changed to message based wating
-	while (wrapper->topic.publisher_num == 0) {
-		mutex_unlock(&global_mutex);
-		usleep_range(100, 200); // slepp 100~200 msec
-		mutex_lock(&global_mutex);
-	}
-
 	ioctl_ret->ret_publisher_num = wrapper->topic.publisher_num;
 	
 	uint32_t index = 0;
@@ -751,7 +778,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	int ret = 0;
 	char topic_name_buf[256];
 	struct ioctl_subscriber_args sub_args;
-	struct ioctl_publisher_args pub_args;
+	union ioctl_publisher_args pub_args;
 	struct ioctl_enqueue_entry_args enqueue_args;
 	union ioctl_update_entry_args entry_args;
 	union ioctl_publish_args publish_args;
@@ -775,14 +802,15 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		subscriber_pid_remove(topic_name_buf, sub_args.pid);
 		break;
 	case AGNOCAST_PUBLISHER_ADD_CMD:
-		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
 		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		ret = publisher_queue_add(topic_name_buf, pub_args.pid);
+		ret = publisher_queue_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
+		if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_PUBLISHER_REMOVE_CMD:
-		if (copy_from_user(&pub_args, (struct ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args))) goto unlock_mutex_and_return;
 		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		publisher_queue_remove(topic_name_buf, pub_args.pid);
+		publisher_queue_remove(topic_name_buf, pub_args.publisher_pid);
 		break;
 	case AGNOCAST_RELEASE_OLDEST_CMD:
 		if (copy_from_user(&release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args))) goto unlock_mutex_and_return;
