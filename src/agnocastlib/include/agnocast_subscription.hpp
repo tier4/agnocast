@@ -74,11 +74,13 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
       exit(EXIT_FAILURE);
   }
 
-  mqd_t mq_for_new_publisher = initialize_mq(std::string(topic_name) + "_" + std::to_string(getpid()), sizeof(MqMsgNewPublisher));
-  mqd_t mq_for_topic_publish = initialize_mq(std::string(topic_name) + "|" + std::to_string(getpid()), sizeof(MqMsgAgnocast));
+  const pid_t subscriber_pid = getpid();
+
+  mqd_t mq_for_new_publisher = initialize_mq(std::string(topic_name) + "_" + std::to_string(subscriber_pid), sizeof(MqMsgNewPublisher));
+  mqd_t mq_for_topic_publish = initialize_mq(std::string(topic_name) + "|" + std::to_string(subscriber_pid), sizeof(MqMsgAgnocast));
 
   struct ioctl_subscriber_args subscriber_args;
-  subscriber_args.pid = getpid();
+  subscriber_args.pid = subscriber_pid;
   subscriber_args.topic_name = topic_name;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
     perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
