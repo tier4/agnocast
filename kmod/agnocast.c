@@ -119,9 +119,18 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 		return;
 	}
 
+	// check whether subscriber_pids is full
 	if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
-		printk(KERN_WARNING "subscribers for topic_name %s reached maximum value %d\n", topic_name, MAX_SUBSCRIBER_NUM);
+		printk(KERN_WARNING "subscribers for topic_name %s is full %d\n", topic_name, MAX_SUBSCRIBER_NUM);
 		return;
+	}
+
+	// check whether pid already exists in subscriber_pids
+	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+		if (pid == wrapper->topic.subscriber_pids[i]) {
+			printk(KERN_INFO "pid=%d already exists in %s (insert_subscriber_pid)\n", pid, topic_name);
+			return;
+		}
 	}
 
 	wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
