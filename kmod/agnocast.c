@@ -652,7 +652,7 @@ int publisher_queue_add(const char *topic_name, uint32_t pid, union ioctl_publis
 
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
-		printk(KERN_WARNING "topic_name %s not found (insert_publisher_queue)\n", topic_name);
+		printk(KERN_WARNING "topic_name %s not found (publisher_queue_add)\n", topic_name);
 		return -1;
 	}
 
