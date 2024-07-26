@@ -24,7 +24,7 @@ public:
         publisher_ = this->create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic", 10, publisher_options);
 
         agnocast_subscriber_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-          "/mytopic", std::bind(&BridgeNode::agnocast_topic_callback, this, _1));
+          "/mytopic", 10, std::bind(&BridgeNode::agnocast_topic_callback, this, _1));
     }
 };
 
