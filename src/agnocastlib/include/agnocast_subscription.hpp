@@ -55,7 +55,7 @@ void wait_new_publisher(const mqd_t &mq) {
   while (is_running) {
     auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
     if (ret == -1) {
-      perror("mq_receive failed");
+      perror("mq_receive for new publisher failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
