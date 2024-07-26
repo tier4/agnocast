@@ -37,7 +37,7 @@ struct topic_struct {
 	unsigned int publisher_num;
 	struct rb_root publisher_queues;
 	unsigned int subscriber_num;
-	struct rb_root subscriber_pids;
+	uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
 
 struct topic_wrapper {
@@ -94,7 +94,9 @@ static void insert_topic(const char *topic_name/*, struct topic_struct topic*/) 
 	wrapper->topic.publisher_num = 0;
 	wrapper->topic.publisher_queues = RB_ROOT;
 	wrapper->topic.subscriber_num = 0;
-	wrapper->topic.subscriber_pids = RB_ROOT;
+	for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+		wrapper->topic.subscriber_pids[i] = 0;
+	}
 
 	hash_add(topic_hashtable, &wrapper->node, agnocast_hash(topic_name));
 }
@@ -117,36 +119,12 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 		return;
 	}
 
-	struct pid_node *new_node = kmalloc(sizeof(struct pid_node), GFP_KERNEL);
-	struct rb_root *root = &wrapper->topic.subscriber_pids;
-	struct rb_node **new = &(root->rb_node);
-	struct rb_node *parent = NULL;
-
-	if (!new_node) {
-		printk(KERN_WARNING "kmalloc failed (insert_subscriber_pid)\n");
+	if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
+		printk(KERN_WARNING "subscribers for topic_name %s reached maximum value %d\n", topic_name, MAX_SUBSCRIBER_NUM);
 		return;
 	}
 
-	new_node->pid = pid;
-
-	while (*new) {
-		struct pid_node *this = container_of(*new, struct pid_node, node);
-		parent = *new;
-
-		if (pid < this->pid) {
-			new = &((*new)->rb_left);
-		} else if (pid > this->pid) {
-			new = &((*new)->rb_right);
-		} else {
-			printk(KERN_INFO "pid=%d already exists in %s (insert_subscriber_pid)\n", pid, topic_name);
-			kfree(new_node);
-			return;
-		}
-	}
-
-	rb_link_node(&new_node->node, parent, new);
-	rb_insert_color(&new_node->node, root);
-
+	wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
 	wrapper->topic.subscriber_num++;
 }
 
@@ -339,15 +317,10 @@ static void set_message_entry_usc(char *topic_name, uint32_t publisher_pid, uint
 
 	en->unreceived_subscriber_count = subscriber_num;
 
-	struct rb_root *root = &wrapper->topic.subscriber_pids;
-	struct rb_node *node;
-	uint32_t i = 0;
-	for (node = rb_first(root); node; node = rb_next(node)) {
-		struct pid_node *data = container_of(node, struct pid_node, node);
-		pids_ret[i++] = data->pid;
+	*pid_ret_len = wrapper->topic.subscriber_num;
+	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+		pids_ret[i] = wrapper->topic.subscriber_pids[i]
 	}
-
-	*pid_ret_len = i;
 }
 
 static void insert_message_entry(const char *topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp) {
@@ -440,24 +413,22 @@ static void remove_subscriber_pid(const char *topic_name, uint32_t pid) {
 		return;
 	}
 
-	struct rb_node *node = wrapper->topic.subscriber_pids.rb_node;
+	bool found = false;
+	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+		if (pid == wrapper->topic.subscriber_pids[i]) {
+			found = true;
+		}
 
-	while (node) {
-		struct pid_node *data = container_of(node, struct pid_node, node);
-
-		if (pid < data->pid) {
-			node = node->rb_left;
-		} else if (pid > data->pid) {
-			node = node->rb_right;
-		} else {
-			rb_erase(&data->node, &wrapper->topic.subscriber_pids);
-			wrapper->topic.subscriber_num--;
-			kfree(data);
-			return;
+		if (found && i < MAX_SUBSCRIBER_NUM - 1) {
+			wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
 		}
 	}
 
-	printk(KERN_INFO "tried to remove subscriber pid %d, but not found in %s (remove_subscriber_pid)\n", pid, topic_name);
+	if (found) {
+		wrapper->topic.subscriber_num--;
+	} else {
+		printk(KERN_WARNING "tried to remove subscriber pid %d, but not found in %s (remove_subscriber_pid)\n", pid, topic_name);
+	}
 }
 
 // TODO: deallocate entries rbtree
@@ -527,10 +498,7 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 			strcat(local_buf, "\nsubscribers:\n");
 			buf_len += key_len + 1;
 
-			struct rb_root *root = &entry->topic.subscriber_pids;
-			struct rb_node *node;
-			for (node = rb_first(root); node; node = rb_next(node)) {
-				struct pid_node *data = container_of(node, struct pid_node, node);
+			for (int i = 0; i < entry->topic.subscriber_num; i++) {
 				char num_str[13];
 				scnprintf(num_str, sizeof(num_str), "%u ", data->pid);
 				strcat(local_buf, num_str);
@@ -538,7 +506,8 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 			}
 
 			strcat(local_buf, "\npublisher queues:\n");
-			root = &entry->topic.publisher_queues;
+			struct rb_root *root = &entry->topic.publisher_queues;
+			struct rb_node *node;
 			for (node = rb_first(root); node; node = rb_next(node)) {
 				struct publisher_queue_node *data = container_of(node, struct publisher_queue_node, node);
 				char num_str[21];
@@ -975,7 +944,6 @@ static void free_all_topics(void) {
         if (entry->key) {
             kfree(entry->key);
         }
-        free_rb_tree(&entry->topic.subscriber_pids);
         kfree(entry);
     }
 }
