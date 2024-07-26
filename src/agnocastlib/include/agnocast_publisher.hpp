@@ -64,7 +64,7 @@ public:
       mq_msg.publisher_pid = publisher_pid_;
       mq_msg.shm_addr = pub_args.ret_shm_addr;
       if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        perror("mq_send failed");
+        perror("mq_send for new publisher failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
