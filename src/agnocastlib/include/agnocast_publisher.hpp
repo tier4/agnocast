@@ -55,7 +55,7 @@ public:
       std::string mq_name = std::string(topic_name_) + "_" + std::to_string(subscriber_pid);
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
       if (mq == -1) {
-        perror("mq_open failed");
+        perror("mq_open for new publisher failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
