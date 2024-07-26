@@ -12,7 +12,6 @@
 #include <linux/hash.h> // hash_64
 #include <linux/rbtree.h>
 #include <linux/kprobes.h>
-#include <linux/delay.h> // usleep_range
 
 MODULE_LICENSE("Dual BSD/GPL");
 
