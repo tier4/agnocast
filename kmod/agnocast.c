@@ -500,7 +500,7 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 
 			for (int i = 0; i < entry->topic.subscriber_num; i++) {
 				char num_str[13];
-				scnprintf(num_str, sizeof(num_str), "%u ", data->pid);
+				scnprintf(num_str, sizeof(num_str), "%u ", entry->topic.subscriber_pids[i]);
 				strcat(local_buf, num_str);
 				// TODO: count pids string length
 			}
