@@ -32,11 +32,11 @@ void map_rdonly_areas(const char* topic_name);
 
 template<typename MessageT> class Subscription { };
 
-mqd_t initialize_mq(const std::string &mq_name, const size_t size) {
+mqd_t initialize_mq(const std::string &mq_name, const size_t mq_msgsize) {
   struct mq_attr attr;
   attr.mq_flags = 0; // Blocking queue
   attr.mq_maxmsg = 10; // Maximum number of messages in the queue
-  attr.mq_msgsize = size; // Maximum message size
+  attr.mq_msgsize = mq_msgsize; // Maximum message size
   attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
 
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
