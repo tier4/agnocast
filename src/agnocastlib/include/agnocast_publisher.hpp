@@ -11,6 +11,8 @@
 #include <iostream>
 #include <sys/ioctl.h>
 
+#include "rclcpp/rclcpp.hpp"
+
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "agnocast_mq.hpp"
@@ -25,11 +27,13 @@ class Publisher {
   const char *topic_name_;
   std::string topic_name_cpp_;
   uint32_t publisher_pid_;
+  rclcpp::QoS qos_;
   std::unordered_map<std::string, mqd_t> opened_mqs; // TODO: The mq should be closed when a subscriber unsubscribes from the topic, but this is not currently implemented.
+
 
 public:
 
-  Publisher(std::string topic_name) {
+  Publisher(std::string topic_name, const rclcpp::QoS& qos) : qos_(qos) {
     topic_name_cpp_ = topic_name;
     topic_name_ = topic_name_cpp_.c_str();
     publisher_pid_ = getpid();
@@ -59,16 +63,21 @@ public:
     union ioctl_release_oldest_args release_args;
     release_args.topic_name = topic_name_;
     release_args.publisher_pid = publisher_pid_;
-    release_args.buffer_depth = 5;
-    if (ioctl(agnocast_fd, AGNOCAST_RELEASE_OLDEST_CMD, &release_args) < 0) {
-        perror("AGNOCAST_RELEASE_OLDEST_CMD failed");
+    release_args.qos_depth = static_cast<uint32_t>(qos_.depth());
+
+    while (true) {
+      if (ioctl(agnocast_fd, AGNOCAST_RELEASE_MSG_CMD, &release_args) < 0) {
+        perror("AGNOCAST_RELEASE_MSG_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
-    }
+      }
 
-    if (release_args.ret != 0) {
-      MessageT *release_ptr = reinterpret_cast<MessageT*>(release_args.ret);
-      delete release_ptr;
+      if (release_args.ret == 0) {  // Queue size of QoS is met.
+        break;
+      } else {
+        MessageT *release_ptr = reinterpret_cast<MessageT*>(release_args.ret);
+        delete release_ptr;
+      }
     }
 
     uint64_t timestamp = agnocast_get_timestamp();

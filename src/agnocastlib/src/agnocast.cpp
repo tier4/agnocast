@@ -1,6 +1,7 @@
 #include <atomic>
 #include <cstdint>
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 
 #include "agnocast.hpp"
@@ -60,6 +61,25 @@ void map_rdonly_areas(const char* topic_name) {
     sprintf(shm_name,"%d", pid);
     map_area(shm_name, addr, false);
   }
+}
+
+size_t read_mq_msgmax() {
+  std::ifstream msgmax_file("/proc/sys/fs/mqueue/msg_max");
+  if (!msgmax_file.is_open()) {
+    perror("Opening /proc/sys/fs/mqueue/msg_max failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  size_t mq_msgmax;
+  if (!(msgmax_file >> mq_msgmax)) {
+    perror("Reading /proc/sys/fs/mqueue/msg_max failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  msgmax_file.close();
+
+  return mq_msgmax;
 }
 
 static void shutdown_agnocast() {

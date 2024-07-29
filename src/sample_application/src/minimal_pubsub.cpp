@@ -49,9 +49,9 @@ class MinimalPubSub : public rclcpp::Node {
 public:
 
   MinimalPubSub() : Node("minimal_pubsub") {
-    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic2");
+    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic2", 10);
     sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/mytopic", std::bind(&MinimalPubSub::topic_callback, this, _1));
+      "/mytopic", 10, std::bind(&MinimalPubSub::topic_callback, this, _1));
 
     count_ = 0;
 
