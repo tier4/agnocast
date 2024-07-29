@@ -27,7 +27,7 @@ namespace agnocast {
 
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
-std::vector<std::pair<mqd_t, std::string>> mqs;
+std::pair<mqd_t, std::string> mq_subscription;
 
 void map_rdonly_areas(const char* topic_name);
 size_t read_mq_msgmax();
@@ -37,13 +37,11 @@ template<typename MessageT> class Subscription {
   ~Subscription(){
     /* It's best to notify the publisher and have it call mq_close, but currently 
     this is not being done. The message queue is destroyed when the publisher process exits. */
-    for (const auto& element: mqs){
-      if (mq_close(element.first) == -1 ){ 
-        perror("mq_close failed");
-      }
-      if (mq_unlink(element.second.c_str()) == -1 ){ 
-        perror("mq_unlink failed");
-      }
+    if (mq_close(mq_subscription.first) == -1 ){ 
+      perror("mq_close failed");
+    }
+    if (mq_unlink(mq_subscription.second.c_str()) == -1 ){ 
+      perror("mq_unlink failed");
     }
   }
 };
@@ -80,7 +78,7 @@ void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, st
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-  mqs.emplace_back(mq, mq_name);
+  mq_subscription = std::make_pair(mq, mq_name);
 
   struct ioctl_subscriber_args subscriber_args;
   subscriber_args.pid = subscriber_pid;
