@@ -17,7 +17,6 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 
-
 #include "rclcpp/rclcpp.hpp"
 
 #include "agnocast_ioctl.hpp"
