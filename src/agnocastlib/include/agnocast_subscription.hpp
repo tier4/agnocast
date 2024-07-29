@@ -69,7 +69,6 @@ public:
     }
     mq_subscription = std::make_pair(mq, mq_name);
 
-
     struct ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
     subscriber_args.topic_name = topic_name;
@@ -136,5 +135,4 @@ public:
   }
 };
                         
-
 } // namespace agnocast
