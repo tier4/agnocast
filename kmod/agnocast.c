@@ -327,10 +327,8 @@ static void set_message_entry_usc(char *topic_name, uint32_t publisher_pid, uint
 
 	en->unreceived_subscriber_count = subscriber_num;
 
-	*pid_ret_len = wrapper->topic.subscriber_num;
-	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-		pids_ret[i] = wrapper->topic.subscriber_pids[i]
-	}
+	*pid_ret_len = subscriber_num;
+	memcpy(pids_ret, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
 }
 
 static void insert_message_entry(const char *topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp) {
