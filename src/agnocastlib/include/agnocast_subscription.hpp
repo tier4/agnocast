@@ -126,10 +126,10 @@ public:
   ~Subscription(){
     /* It's best to notify the publisher and have it call mq_close, but currently 
     this is not being done. The message queue is destroyed when the publisher process exits. */
-    if (mq_close(mq_subscription.first) == -1 ){ 
+    if (mq_close(mq_subscription.first) == -1){
       perror("mq_close failed");
     }
-    if (mq_unlink(mq_subscription.second.c_str()) == -1 ){ 
+    if (mq_unlink(mq_subscription.second.c_str()) == -1){
       perror("mq_unlink failed");
     }
   }
