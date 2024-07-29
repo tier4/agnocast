@@ -50,9 +50,7 @@ public:
 
     // Send messages to subscribers to notify that a new publisher appears
     for (uint32_t i = 0; i < pub_args.ret_subscriber_len; i++) {
-      uint32_t subscriber_pid = pub_args.ret_subscriber_pids[i];
-
-      std::string mq_name = std::string(topic_name_) + "_" + std::to_string(subscriber_pid);
+      const std::string mq_name = "/new_publisher@" + std::to_string(pub_args.ret_subscriber_pids[i]);
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
       if (mq == -1) {
         perror("mq_open for new publisher failed");

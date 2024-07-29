@@ -32,40 +32,6 @@ void map_rdonly_areas(const char* topic_name);
 
 template<typename MessageT> class Subscription { };
 
-mqd_t initialize_mq(const std::string &mq_name, const size_t mq_msgsize) {
-  struct mq_attr attr;
-  attr.mq_flags = 0; // Blocking queue
-  attr.mq_maxmsg = 10; // Maximum number of messages in the queue
-  attr.mq_msgsize = mq_msgsize; // Maximum message size
-  attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
-
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
-  if (mq == -1) {
-    perror("mq_open for new publisher failed");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  return mq;
-}
-
-void wait_new_publisher(const mqd_t &mq) {
-  MqMsgNewPublisher mq_msg;
-
-  while (is_running) {
-    auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
-    if (ret == -1) {
-      perror("mq_receive for new publisher failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    uint32_t publisher_pid = mq_msg.publisher_pid;
-    uint64_t publisher_shm_addr = mq_msg.shm_addr;
-    map_rdonly_area(publisher_pid, publisher_shm_addr);
-  }
-}
-
 template<typename T>
 void subscribe_topic_agnocast(const char* topic_name, std::function<void(const agnocast::message_ptr<T> &)> callback) {
   if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
@@ -76,8 +42,60 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
 
   const pid_t subscriber_pid = getpid();
 
-  mqd_t mq_for_new_publisher = initialize_mq(std::string(topic_name) + "_" + std::to_string(subscriber_pid), sizeof(MqMsgNewPublisher));
-  mqd_t mq_for_topic_publish = initialize_mq(std::string(topic_name) + "|" + std::to_string(subscriber_pid), sizeof(MqMsgAgnocast));
+  // Open a mq for a new publisher appearence, only one time in a subscriber process
+  static bool is_first_subscription = true;
+  if (is_first_subscription) {
+    is_first_subscription = false;
+
+    const std::string mq_name = "/new_publisher@" + std::to_string(subscriber_pid);
+    struct mq_attr attr;
+    attr.mq_flags = 0; // Blocking queue
+    attr.mq_maxmsg = 10; // Maximum number of messages in the queue
+    attr.mq_msgsize = sizeof(MqMsgNewPublisher); // Maximum message size
+    attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
+
+    mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+    if (mq == -1) {
+      std::cout << mq_name << std::endl;
+      perror("mq_open for new publisher failed");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    // Create a thread that maps the areas for publishers afterwards
+    auto th = std::thread([=]() {
+      while (is_running) {
+        MqMsgNewPublisher mq_msg;
+        auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
+        if (ret == -1) {
+          perror("mq_receive for new publisher failed");
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
+
+        const uint32_t publisher_pid = mq_msg.publisher_pid;
+        const uint64_t publisher_shm_addr = mq_msg.shm_addr;
+        map_rdonly_area(publisher_pid, publisher_shm_addr);
+      }
+    });
+
+    threads.push_back(std::move(th));
+  }
+
+  // Open a mq for 'publish' from publishers
+  const std::string mq_name = std::string(topic_name) + "|" + std::to_string(subscriber_pid);
+  struct mq_attr attr;
+  attr.mq_flags = 0; // Blocking queue
+  attr.mq_maxmsg = 10; // Maximum number of messages in the queue
+  attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
+  attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
+
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+  if (mq == -1) {
+    perror("mq_open for topic publish failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
 
   struct ioctl_subscriber_args subscriber_args;
   subscriber_args.pid = subscriber_pid;
@@ -90,18 +108,15 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
 
   map_rdonly_areas(topic_name);
 
-  // Create a thread that maps the areas for publishers afterwards
-  std::thread th_for_new_publisher(wait_new_publisher, mq_for_new_publisher);
-
   // Create a thread that handles the messages to execute the callback
-  auto th_for_topic_publish = std::thread([=]() {
+  auto th = std::thread([=]() {
     std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
     MqMsgAgnocast mq_msg;
 
     while (is_running) {
-      auto ret = mq_receive(mq_for_topic_publish, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
+      auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);
       if (ret == -1) {
-        perror("mq_receive failed");
+        perror("mq_receive for topic publish failed");
         return;
       }
 
@@ -133,8 +148,7 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
     }
   });
 
-  threads.push_back(std::move(th_for_new_publisher));
-  threads.push_back(std::move(th_for_topic_publish));
+  threads.push_back(std::move(th));
 }
 
 } // namespace agnocast
