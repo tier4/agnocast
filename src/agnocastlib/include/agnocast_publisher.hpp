@@ -30,7 +30,6 @@ class Publisher {
   rclcpp::QoS qos_;
   std::unordered_map<std::string, mqd_t> opened_mqs; // TODO: The mq should be closed when a subscriber unsubscribes from the topic, but this is not currently implemented.
 
-
 public:
 
   Publisher(std::string topic_name, const rclcpp::QoS& qos) : qos_(qos) {
