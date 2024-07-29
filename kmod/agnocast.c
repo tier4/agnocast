@@ -36,7 +36,7 @@ struct topic_struct {
 	unsigned int publisher_num;
 	struct rb_root publisher_queues;
 	unsigned int subscriber_num;
-	struct rb_root subscriber_pids;
+	uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
 
 struct topic_wrapper {
@@ -62,6 +62,11 @@ struct entry_node {
 	uint64_t timestamp; // rbtree key
 	uint64_t msg_virtual_address;
 	uint32_t reference_count;
+	/*
+	 * NOTE:
+	 *   unreceived_subscriber_count currently has no effect on the release timing of the message. 
+	 *   However, it is retained for future use such as early release or logging.
+	 */
 	uint32_t unreceived_subscriber_count;
 };
 
@@ -88,7 +93,9 @@ static void insert_topic(const char *topic_name/*, struct topic_struct topic*/) 
 	wrapper->topic.publisher_num = 0;
 	wrapper->topic.publisher_queues = RB_ROOT;
 	wrapper->topic.subscriber_num = 0;
-	wrapper->topic.subscriber_pids = RB_ROOT;
+	for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+		wrapper->topic.subscriber_pids[i] = 0;
+	}
 
 	hash_add(topic_hashtable, &wrapper->node, agnocast_hash(topic_name));
 }
@@ -111,36 +118,22 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 		return;
 	}
 
-	struct pid_node *new_node = kmalloc(sizeof(struct pid_node), GFP_KERNEL);
-	struct rb_root *root = &wrapper->topic.subscriber_pids;
-	struct rb_node **new = &(root->rb_node);
-	struct rb_node *parent = NULL;
-
-	if (!new_node) {
-		printk(KERN_WARNING "kmalloc failed (insert_subscriber_pid)\n");
+	// check whether subscriber_pids is full
+	if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
+		printk(KERN_WARNING "subscribers for topic_name=%s reached MAX_SUBSCRIBER_NUM=%d, so a new subscriber cannot be added\n",
+		  topic_name, MAX_SUBSCRIBER_NUM);
 		return;
 	}
 
-	new_node->pid = pid;
-
-	while (*new) {
-		struct pid_node *this = container_of(*new, struct pid_node, node);
-		parent = *new;
-
-		if (pid < this->pid) {
-			new = &((*new)->rb_left);
-		} else if (pid > this->pid) {
-			new = &((*new)->rb_right);
-		} else {
+	// check whether pid already exists in subscriber_pids
+	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+		if (pid == wrapper->topic.subscriber_pids[i]) {
 			printk(KERN_INFO "pid=%d already exists in %s (insert_subscriber_pid)\n", pid, topic_name);
-			kfree(new_node);
 			return;
 		}
 	}
 
-	rb_link_node(&new_node->node, parent, new);
-	rb_insert_color(&new_node->node, root);
-
+	wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
 	wrapper->topic.subscriber_num++;
 }
 
@@ -269,20 +262,40 @@ static void decrement_message_entry_rc(const char *topic_name, uint32_t publishe
 	en->reference_count--;
 }
 
-static uint64_t decrement_usc_increment_rc(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
+static uint64_t receive_and_update(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth) {
 	struct entry_node *en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
 	if (!en) {
-		printk(KERN_WARNING "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found (decrement_message_entry_usc)\n",
+		printk(KERN_WARNING "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found (receive_and_update)\n",
 			topic_name, publisher_pid, msg_timestamp);
 		return 0;
 	}
 
 	if (en->unreceived_subscriber_count == 0) {
-		printk(KERN_WARNING "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d timestamp=%lld(decrement_message_entry_usc)\n",
+		printk(KERN_WARNING "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d timestamp=%lld(receive_and_update)\n",
 			topic_name, publisher_pid, msg_timestamp);
 		return 0;
 	}
 
+	// Count number of nodes that have greater timestamp than the current message entry.
+	// If the count is greater than qos_depth, the current message is ignored.
+	struct publisher_queue_node *publisher_queue = find_publisher_queue(topic_name, publisher_pid);
+	if (!publisher_queue) {
+		printk(KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n", publisher_pid, topic_name);
+		return 0;
+	}
+	if (publisher_queue->queue_size > qos_depth) {
+		uint32_t older_count = 0;
+		struct rb_node *next_node = rb_next(&en->node);
+		while (next_node) {
+			older_count++;
+			next_node = rb_next(next_node);
+		}
+		if (older_count > qos_depth) {
+			en->unreceived_subscriber_count--;
+			return 0;
+		}
+	}
+	
 	en->unreceived_subscriber_count--;
 	en->reference_count++;
 	return en->msg_virtual_address;
@@ -307,15 +320,8 @@ static void set_message_entry_usc(char *topic_name, uint32_t publisher_pid, uint
 
 	en->unreceived_subscriber_count = subscriber_num;
 
-	struct rb_root *root = &wrapper->topic.subscriber_pids;
-	struct rb_node *node;
-	uint32_t i = 0;
-	for (node = rb_first(root); node; node = rb_next(node)) {
-		struct pid_node *data = container_of(node, struct pid_node, node);
-		pids_ret[i++] = data->pid;
-	}
-
-	*pid_ret_len = i;
+	*pid_ret_len = subscriber_num;
+	memcpy(pids_ret, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
 }
 
 static void insert_message_entry(const char *topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp) {
@@ -362,27 +368,43 @@ static void insert_message_entry(const char *topic_name, uint32_t publisher_pid,
 	publisher_queue->queue_size++;
 }
 
-static uint64_t try_remove_oldest_message_entry(const char *topic_name, uint32_t publisher_pid, uint32_t buffer_depth) {
+static uint64_t try_release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t qos_depth) {
 	struct publisher_queue_node *publisher_queue = find_publisher_queue(topic_name, publisher_pid);
 	if (!publisher_queue) {
-		printk(KERN_WARNING "publisher queue publisher_pid=%d not found in %s (try_remove_oldest_message_entry)\n", publisher_pid, topic_name);
+		printk(KERN_WARNING "publisher queue publisher_pid=%d not found in %s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
 		return 0;
 	}
 
-	if (publisher_queue->queue_size <= buffer_depth) return 0;
+	if (publisher_queue->queue_size <= qos_depth) return 0;
 
+	uint32_t leak_warn_threshold = (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
+	if (publisher_queue->queue_size > leak_warn_threshold) {
+		printk(KERN_WARNING "For some reason the reference count of the message is not reduced and the queue size is huge: publisher queue publisher_pid=%d, topic_name=%s (try_release_removable_oldest_message)\n", publisher_pid, topic_name);
+	}
+
+	uint32_t num_search_entries = publisher_queue->queue_size - qos_depth + 1;  // Number of entries exceeding qos_depth. +1 is for the message to be enqueued later.
 	struct rb_node *node = rb_first(&publisher_queue->entries);
 	if (!node) return 0;
-	struct entry_node* en = container_of(node, struct entry_node, node);
 
-	if (en->reference_count > 0 || en->unreceived_subscriber_count > 0) return 0;
+	// The searched message is either deleted or, if a reference count remains, is not deleted.
+	// In both cases, this number of searches is sufficient, as it does not affect the Queue size of QoS.
+	for (uint32_t _ = 0; _ < num_search_entries; _++) {
+		struct entry_node* en = container_of(node, struct entry_node, node);
+		if (en->reference_count > 0) {
+			// This is not counted in a Queue size of QoS.
+			node = rb_next(node);
+			if (!node) return 0;
+		} else {
+			uint64_t msg_addr = en->msg_virtual_address;
+			rb_erase(&en->node, &publisher_queue->entries);
+			publisher_queue->queue_size--;
+			kfree(en);
 
-    uint64_t msg_addr = en->msg_virtual_address;
-	rb_erase(&en->node, &publisher_queue->entries);
-	publisher_queue->queue_size--;
-	kfree(en);
+			return msg_addr;
+		}
+	}
 
-	return msg_addr;
+	return 0;
 }
 
 static void remove_subscriber_pid(const char *topic_name, uint32_t pid) {
@@ -392,24 +414,22 @@ static void remove_subscriber_pid(const char *topic_name, uint32_t pid) {
 		return;
 	}
 
-	struct rb_node *node = wrapper->topic.subscriber_pids.rb_node;
+	bool found = false;
+	for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+		if (pid == wrapper->topic.subscriber_pids[i]) {
+			found = true;
+		}
 
-	while (node) {
-		struct pid_node *data = container_of(node, struct pid_node, node);
-
-		if (pid < data->pid) {
-			node = node->rb_left;
-		} else if (pid > data->pid) {
-			node = node->rb_right;
-		} else {
-			rb_erase(&data->node, &wrapper->topic.subscriber_pids);
-			wrapper->topic.subscriber_num--;
-			kfree(data);
-			return;
+		if (found && i < MAX_SUBSCRIBER_NUM - 1) {
+			wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
 		}
 	}
 
-	printk(KERN_INFO "tried to remove subscriber pid %d, but not found in %s (remove_subscriber_pid)\n", pid, topic_name);
+	if (found) {
+		wrapper->topic.subscriber_num--;
+	} else {
+		printk(KERN_WARNING "tried to remove subscriber pid %d, but not found in %s (remove_subscriber_pid)\n", pid, topic_name);
+	}
 }
 
 // TODO: deallocate entries rbtree
@@ -479,18 +499,16 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 			strcat(local_buf, "\nsubscribers:\n");
 			buf_len += key_len + 1;
 
-			struct rb_root *root = &entry->topic.subscriber_pids;
-			struct rb_node *node;
-			for (node = rb_first(root); node; node = rb_next(node)) {
-				struct pid_node *data = container_of(node, struct pid_node, node);
+			for (int i = 0; i < entry->topic.subscriber_num; i++) {
 				char num_str[13];
-				scnprintf(num_str, sizeof(num_str), "%u ", data->pid);
+				scnprintf(num_str, sizeof(num_str), "%u ", entry->topic.subscriber_pids[i]);
 				strcat(local_buf, num_str);
 				// TODO: count pids string length
 			}
 
 			strcat(local_buf, "\npublisher queues:\n");
-			root = &entry->topic.publisher_queues;
+			struct rb_root *root = &entry->topic.publisher_queues;
+			struct rb_node *node;
 			for (node = rb_first(root); node; node = rb_next(node)) {
 				struct publisher_queue_node *data = container_of(node, struct publisher_queue_node, node);
 				char num_str[21];
@@ -594,6 +612,16 @@ union ioctl_update_entry_args {
 	uint64_t ret;
 };
 
+union ioctl_receive_msg_args {
+	struct {
+		char *topic_name;
+		uint32_t publisher_pid;
+		uint64_t msg_timestamp;
+		uint32_t qos_depth;
+	};
+	uint64_t ret;
+};
+
 union ioctl_publish_args {
 	struct {
 		char *topic_name;
@@ -610,7 +638,7 @@ union ioctl_release_oldest_args {
 	struct {
 		char *topic_name;
 		uint32_t publisher_pid;
-		uint32_t buffer_depth;
+		uint32_t qos_depth;
 	};
 	uint64_t ret;
 };
@@ -683,11 +711,11 @@ void publisher_queue_remove(const char *topic_name, uint32_t pid) {
 	remove_publisher_queue(topic_name, pid);
 }
 
-#define AGNOCAST_RELEASE_OLDEST_CMD _IOW('P', 3, union ioctl_release_oldest_args)
-uint64_t release_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t buffer_depth) {
-	printk(KERN_INFO "Try to release oldest message in %s pulisher_pid=%d with buffer_depth=%d (release_oldest_message)\n",
-		topic_name, publisher_pid, buffer_depth);
-	return try_remove_oldest_message_entry(topic_name, publisher_pid, buffer_depth);
+#define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
+uint64_t release_removable_oldest_message(const char *topic_name, uint32_t publisher_pid, uint32_t qos_depth) {
+	printk(KERN_INFO "Try to release oldest message in %s publisher_pid=%d with qos_depth=%d (release_removable_oldest_message)\n",
+		topic_name, publisher_pid, qos_depth);
+	return try_release_removable_oldest_message(topic_name, publisher_pid, qos_depth);
 }
 
 
@@ -712,11 +740,11 @@ void decrement_rc(char *topic_name, uint32_t publisher_pid, uint64_t msg_timesta
 	decrement_message_entry_rc(topic_name, publisher_pid, msg_timestamp);
 }
 
-#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_update_entry_args)
-uint64_t receive_msg(char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
+#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
+uint64_t receive_msg(char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth) {
 	printk(KERN_INFO "a subscriber receives message timestamp=%lld topic_name=%s publisher_pid=%d",
 		msg_timestamp, topic_name, publisher_pid);
-	return decrement_usc_increment_rc(topic_name, publisher_pid, msg_timestamp);
+	return receive_and_update(topic_name, publisher_pid, msg_timestamp, qos_depth);
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
@@ -776,6 +804,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	union ioctl_publisher_args pub_args;
 	struct ioctl_enqueue_entry_args enqueue_args;
 	union ioctl_update_entry_args entry_args;
+	union ioctl_receive_msg_args receive_msg_args;
 	union ioctl_publish_args publish_args;
 	union ioctl_release_oldest_args release_args;
 	union ioctl_new_shm_args new_shm_args;
@@ -807,10 +836,10 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
 		publisher_queue_remove(topic_name_buf, pub_args.publisher_pid);
 		break;
-	case AGNOCAST_RELEASE_OLDEST_CMD:
+	case AGNOCAST_RELEASE_MSG_CMD:
 		if (copy_from_user(&release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args))) goto unlock_mutex_and_return;
 		if (copy_from_user(topic_name_buf, (char __user *)release_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		uint64_t release_addr = release_oldest_message(topic_name_buf, release_args.publisher_pid, release_args.buffer_depth);
+		uint64_t release_addr = release_removable_oldest_message(topic_name_buf, release_args.publisher_pid, release_args.qos_depth);
 		if (copy_to_user((uint64_t __user *)arg, &release_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_ENQUEUE_ENTRY_CMD:
@@ -829,9 +858,9 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		decrement_message_entry_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
 		break;
 	case AGNOCAST_RECEIVE_MSG_CMD:
-		if (copy_from_user(&entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args))) goto unlock_mutex_and_return;
-		if (copy_from_user(topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		uint64_t msg_addr = decrement_usc_increment_rc(topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
+		if (copy_from_user(&receive_msg_args, (union ioctl_receive_msg_args __user *)arg, sizeof(receive_msg_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
+		uint64_t msg_addr = receive_and_update(topic_name_buf, receive_msg_args.publisher_pid, receive_msg_args.msg_timestamp, receive_msg_args.qos_depth);
 		if (copy_to_user((uint64_t __user *)arg, &msg_addr, sizeof(uint64_t))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_PUBLISH_MSG_CMD:
@@ -946,7 +975,7 @@ static void free_all_topics(void) {
         if (entry->key) {
             kfree(entry->key);
         }
-        free_rb_tree(&entry->topic.subscriber_pids);
+		// TODO: free messages
         kfree(entry);
     }
 }

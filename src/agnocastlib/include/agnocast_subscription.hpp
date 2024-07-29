@@ -18,6 +18,8 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 
+#include "rclcpp/rclcpp.hpp"
+
 #include "agnocast_ioctl.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "agnocast_mq.hpp"
@@ -29,11 +31,12 @@ extern std::atomic<bool> is_running;
 
 void map_rdonly_area(uint32_t pid, uint64_t addr);
 void map_rdonly_areas(const char* topic_name);
+size_t read_mq_msgmax();
 
 template<typename MessageT> class Subscription { };
 
 template<typename T>
-void subscribe_topic_agnocast(const char* topic_name, std::function<void(const agnocast::message_ptr<T> &)> callback) {
+void subscribe_topic_agnocast(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<T> &)> callback) {
   if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
       perror("AGNOCAST_TOPIC_ADD_CMD failed");
       close(agnocast_fd);
@@ -86,9 +89,17 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
   const std::string mq_name = std::string(topic_name) + "|" + std::to_string(subscriber_pid);
   struct mq_attr attr;
   attr.mq_flags = 0; // Blocking queue
-  attr.mq_maxmsg = 10; // Maximum number of messages in the queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
   attr.mq_curmsgs = 0; // Number of messages currently in the queue (not set by mq_open)
+  /* 
+   * NOTE:
+   *   Maximum number of messages in the queue.
+   *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
+   *   Although this limit can be changed by editing the file, here mq_maxmsg is used without being changed.
+   *   If mq_send() is called when the message queue is full, it will block until the queue is free,
+   *   so this value may need to be reconsidered in the future.
+   */
+  attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
 
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
   if (mq == -1) {
@@ -120,22 +131,22 @@ void subscribe_topic_agnocast(const char* topic_name, std::function<void(const a
         return;
       }
 
-      union ioctl_update_entry_args entry_args;
-      entry_args.topic_name = topic_name;
-      entry_args.publisher_pid = mq_msg.publisher_pid;
-      entry_args.msg_timestamp = mq_msg.timestamp;
-      if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &entry_args) < 0) {
+      union ioctl_receive_msg_args receive_args;
+      receive_args.topic_name = topic_name;
+      receive_args.publisher_pid = mq_msg.publisher_pid;
+      receive_args.msg_timestamp = mq_msg.timestamp;
+      receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
+      if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
         perror("AGNOCAST_RECEIVE_MSG_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
 
-      if (entry_args.ret == 0) {
-        std::cerr << "The received message has message address zero" << std::endl;
+      if (receive_args.ret == 0) {  // Number of messages > qos_depth
         continue;
       }
 
-      T* ptr = reinterpret_cast<T*>(entry_args.ret); 
+      T* ptr = reinterpret_cast<T*>(receive_args.ret); 
       agnocast::message_ptr<T> agnocast_ptr = agnocast::message_ptr<T>(ptr, topic_name, mq_msg.publisher_pid, mq_msg.timestamp, true);
 
       /*
