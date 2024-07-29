@@ -42,14 +42,12 @@ std::shared_ptr<Publisher<MessageT>> create_publisher(std::string topic_name, si
 
 template<typename MessageT>
 std::shared_ptr<Subscription<MessageT>> create_subscription(const char* topic_name, const rclcpp::QoS & qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-  subscribe_topic_agnocast(topic_name, qos, callback);
-  return std::make_shared<Subscription<MessageT>>();
+  return std::make_shared<Subscription<MessageT>>(topic_name, qos, callback);
 }
 
 template<typename MessageT>
 std::shared_ptr<Subscription<MessageT>> create_subscription(const char* topic_name, size_t qos_history_depth, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-  subscribe_topic_agnocast(topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback);
-  return std::make_shared<Subscription<MessageT>>();
+  return std::make_shared<Subscription<MessageT>>(topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback);
 }
 
 } // namespace agnocast
