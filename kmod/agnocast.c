@@ -121,8 +121,8 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 
 	// check whether subscriber_pids is full
 	if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
-		printk(KERN_WARNING "subscribers for topic_name=%s reached MAX_SUBSCRIBER_NUM=%d,
-		  so a new subscriber cannot be added\n", topic_name, MAX_SUBSCRIBER_NUM);
+		printk(KERN_WARNING "subscribers for topic_name=%s reached MAX_SUBSCRIBER_NUM=%d, so a new subscriber cannot be added\n",
+		  topic_name, MAX_SUBSCRIBER_NUM);
 		return;
 	}
 
@@ -952,6 +952,7 @@ static void free_all_topics(void) {
         if (entry->key) {
             kfree(entry->key);
         }
+		// TODO: free messages
         kfree(entry);
     }
 }
