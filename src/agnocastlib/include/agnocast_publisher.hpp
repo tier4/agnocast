@@ -117,10 +117,6 @@ public:
         opened_mqs.insert({mq_name, mq});
       }
 
-      for (const auto& pair : opened_mqs) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
-      }
-
       MqMsgAgnocast mq_msg;
       mq_msg.publisher_pid = publisher_pid_;
       mq_msg.timestamp = message.get_timestamp();
