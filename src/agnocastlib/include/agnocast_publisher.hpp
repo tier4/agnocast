@@ -28,7 +28,7 @@ class Publisher {
   std::string topic_name_cpp_;
   uint32_t publisher_pid_;
   rclcpp::QoS qos_;
-  std::unordered_map<std::string, mqd_t> opened_mqs; // TODO: The mq should be closed when a subscriber unsubscribes from the topic, but this is not currently implemented.
+  std::unordered_map<std::string, mqd_t> opened_mqs; // TODO: The mq should be closed when a subscriber unsubscribes the topic, but this is not currently implemented.
 
 public:
 
@@ -118,10 +118,10 @@ public:
         mq = opened_mqs[mq_name];
       } else {
         mq = mq_open(mq_name.c_str(), O_WRONLY);
-          if (mq == -1) {
-            perror("mq_open failed");
-            continue;
-          }
+        if (mq == -1) {
+          perror("mq_open failed");
+          continue;
+        }
         opened_mqs.insert({mq_name, mq});
       }
 
