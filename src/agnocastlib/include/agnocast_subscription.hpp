@@ -41,19 +41,8 @@ template<typename MessageT> class Subscription {
 public:
 
   Subscription(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-    union ioctl_add_topic_sub_args add_topic_args;
-    add_topic_args.topic_name = topic_name;
-    add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) ? static_cast<uint32_t>(qos.depth()) : 0;
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
-        perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-    }
-
     const pid_t subscriber_pid = getpid();
-
     std::string mq_name = create_mq_name(topic_name, subscriber_pid);
-
     struct mq_attr attr;
     attr.mq_flags = 0; // Blocking queue
     attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
@@ -75,6 +64,20 @@ public:
       exit(EXIT_FAILURE);
     }
     mq_subscription = std::make_pair(mq, mq_name);
+
+    /*
+     * NOTE:
+     *   When transient local is enabled, if there is a requirement to execute callbacks with strictly new messages,
+     *   AGNOCAST_TOPIC_ADD_SUB_CMD and AGNOCAST_SUBSCRIBER_ADD_CMD should be merged into a single ioctl.
+     */ 
+    union ioctl_add_topic_sub_args add_topic_args;
+    add_topic_args.topic_name = topic_name;
+    add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) ? static_cast<uint32_t>(qos.depth()) : 0;
+    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
+        perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+    }
 
     struct ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
