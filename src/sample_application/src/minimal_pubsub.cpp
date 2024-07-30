@@ -4,6 +4,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "sample_interfaces/msg/dynamic_size_array.hpp"
+#include "sample_interfaces/msg/static_size_array.hpp"
 #include "agnocast.hpp"
 
 using namespace std::chrono_literals;
@@ -18,28 +19,27 @@ using std::placeholders::_1;
 
 class MinimalPubSub : public rclcpp::Node {
 
-  void topic_callback(const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> &sub_message) {
+  void topic_callback(const agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> &sub_message) {
     // subscribe
-    timestamp_ids_[timestamp_idx_] = sub_message->id;
-    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    RCLCPP_INFO(this->get_logger(), "I heard message addr: %016lx", reinterpret_cast<uint64_t>(sub_message.get()));
+    RCLCPP_INFO(this->get_logger(), "I heard static message: addr=%016lx", reinterpret_cast<uint64_t>(sub_message.get()));
 
     // publish
-    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message = publisher_->borrow_loaned_message();
+    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message = publisher_dynamic_->borrow_loaned_message();
     pub_message->id = count_;
     pub_message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
     for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
       pub_message->data.push_back(i + count_);
     }
+
     count_++;
-    RCLCPP_INFO(this->get_logger(), "publish message: %d", count_);
-    timestamp_ids_[timestamp_idx_] = pub_message->id;
+    RCLCPP_INFO(this->get_logger(), "publish dynamic message: %d", count_);
+    timestamp_ids_[timestamp_idx_] = count_;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    publisher_->publish(std::move(pub_message));
+    publisher_dynamic_->publish(std::move(pub_message));
   }
 
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_;
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_;
+  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_dynamic_;
+  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>> sub_static_;
   int count_;
 
   std::vector<uint64_t> timestamps_;
@@ -49,9 +49,9 @@ class MinimalPubSub : public rclcpp::Node {
 public:
 
   MinimalPubSub() : Node("minimal_pubsub") {
-    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic2", 10);
-    sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/mytopic", 10, std::bind(&MinimalPubSub::topic_callback, this, _1));
+    publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/my_dynamic_topic", 10);
+    sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
+      "/my_static_topic", 10, std::bind(&MinimalPubSub::topic_callback, this, _1));
 
     count_ = 0;
 
