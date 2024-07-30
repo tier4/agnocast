@@ -5,6 +5,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "sample_interfaces/msg/dynamic_size_array.hpp"
+#include "sample_interfaces/msg/static_size_array.hpp"
 #include "agnocast.hpp"
 
 using namespace std::chrono_literals;
@@ -17,24 +18,38 @@ uint64_t agnocast_get_timestamp() {
 
 class MinimalPublisher : public rclcpp::Node {
   void timer_callback() {
-    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = publisher_->borrow_loaned_message();
+    const auto timestamp = agnocast_get_timestamp();
 
-    message->id = count_;
-    message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
-    for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
-      message->data.push_back(i + count_);
+    {
+      agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message = publisher_dynamic_->borrow_loaned_message();
+      message->id = count_;
+      message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
+      for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
+        message->data.push_back(i + count_);
+      }
+      publisher_dynamic_->publish(std::move(message));
     }
+
+    {
+      agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> message = publisher_static_->borrow_loaned_message();
+      message->id = count_;
+      message->timestamp = timestamp;
+      for (int i = 0; i < 1000; i++) {
+        message->data[i] = (i + count_) % 256;
+      }
+      publisher_static_->publish(std::move(message));
+    }
+
+    timestamp_ids_[timestamp_idx_] = count_;
+    timestamps_[timestamp_idx_] = timestamp;
+    timestamp_idx_++;
     count_++;
-
     RCLCPP_INFO(this->get_logger(), "publish message: %d", count_);
-
-    timestamp_ids_[timestamp_idx_] = message->id;
-    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    publisher_->publish(std::move(message));
   }
 
   rclcpp::TimerBase::SharedPtr timer_;
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_;
+  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_dynamic_;
+  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>> publisher_static_;
   int count_;
 
   std::vector<uint64_t> timestamps_;
@@ -45,7 +60,8 @@ public:
 
   MinimalPublisher() : Node("minimal_publisher") {
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
-    publisher_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/mytopic", 10);
+    publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/my_dynamic_topic", 10);
+    publisher_static_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>("/my_static_topic", 10);
     count_ = 0;
 
     timestamps_.resize(10000, 0);
