@@ -681,23 +681,23 @@ void topic_add_sub(const char *topic_name, uint32_t qos_depth, union ioctl_add_t
 	if (wrapper) {
 		printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
 
-		// Return messages for the transient local
 		ioctl_ret->ret_len = 0;
-		if (qos_depth != 0) {  // transient local is enabled
-			struct rb_node *node = rb_first(&wrapper->topic.publisher_queues);  // TODO: support two or more publishers to one topic
-			struct publisher_queue_node *pubq = container_of(node, struct publisher_queue_node, node);
-			struct entry_node *en;
-			for (node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
-				en = container_of(node, struct entry_node, node);
-				if (en->published) {
-					ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pubq->pid;
-					ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
-					ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-					en->reference_count++;
-					ioctl_ret->ret_len++;
-				}
-				if (ioctl_ret->ret_len == qos_depth) break;
+		if (qos_depth == 0) return;  // transient local is disabled
+
+		// Return messages for the transient local
+		struct rb_node *node = rb_first(&wrapper->topic.publisher_queues);  // TODO: support two or more publishers to one topic
+		struct publisher_queue_node *pubq = container_of(node, struct publisher_queue_node, node);
+		struct entry_node *en;
+		for (node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
+			en = container_of(node, struct entry_node, node);
+			if (en->published) {
+				ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pubq->pid;
+				ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+				ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+				en->reference_count++;
+				ioctl_ret->ret_len++;
 			}
+			if (ioctl_ret->ret_len == qos_depth) break;
 		}
 
 		return;
