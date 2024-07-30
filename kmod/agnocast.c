@@ -63,6 +63,7 @@ struct entry_node {
 	uint64_t timestamp; // rbtree key
 	uint64_t msg_virtual_address;
 	uint32_t reference_count;
+	bool published;
 	/*
 	 * NOTE:
 	 *   unreceived_subscriber_count currently has no effect on the release timing of the message. 
@@ -319,12 +320,13 @@ static void set_message_entry_usc(char *topic_name, uint32_t publisher_pid, uint
 		return;
 	}
 
-	if (en->unreceived_subscriber_count != 0) {
+	if (en->published) {
 		printk(KERN_WARNING "tried to already published message with topic_name=%s publisher_pid=%d timestamp=%lld(set_message_entry_usc)\n",
 			topic_name, publisher_pid, msg_timestamp);
 		return;
 	}
 
+	en->published = true;
 	en->unreceived_subscriber_count = subscriber_num;
 
 	*pid_ret_len = subscriber_num;
@@ -352,6 +354,7 @@ static void insert_message_entry(const char *topic_name, uint32_t publisher_pid,
 	new_node->msg_virtual_address = msg_virtual_address;
 	new_node->reference_count = 0;
 	new_node->unreceived_subscriber_count = 0;
+	new_node->published = false;
 
 	while (*new) {
 		struct entry_node *this = container_of(*new, struct entry_node, node);
@@ -574,8 +577,8 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 
-#define AGNOCAST_TOPIC_ADD_CMD _IOW('T', 1, char *)
-void topic_add(const char *topic_name) {
+#define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
+void topic_add_pub(const char *topic_name) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (wrapper) {
 		printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
@@ -585,6 +588,21 @@ void topic_add(const char *topic_name) {
 	printk(KERN_INFO "%s added\n", topic_name);	
 	insert_topic(topic_name);
 }
+
+#define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
+
+union ioctl_add_topic_sub_args {
+    struct{
+		char *topic_name;
+		uint32_t qos_depth;
+	};
+    struct {
+		uint32_t ret_len;
+        uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+        uint64_t ret_timestamps[MAX_QOS_DEPTH];
+        uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+    };
+};
 
 struct ioctl_subscriber_args {
 	char *topic_name;
@@ -656,6 +674,38 @@ union ioctl_get_shm_args {
         uint64_t ret_addrs[MAX_PUBLISHER_NUM];
     };
 };
+
+#define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
+void topic_add_sub(const char *topic_name, uint32_t qos_depth, union ioctl_add_topic_sub_args *ioctl_ret) {
+	struct topic_wrapper *wrapper = find_topic(topic_name);
+	if (wrapper) {
+		printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
+
+		// Return messages for the transient local
+		ioctl_ret->ret_len = 0;
+		if (qos_depth != 0) {  // transient local is enabled
+			struct rb_node *node = rb_first(&wrapper->topic.publisher_queues);  // TODO: support two or more publishers to one topic
+			struct publisher_queue_node *pubq = container_of(node, struct publisher_queue_node, node);
+			struct entry_node *en;
+			for (node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
+				en = container_of(node, struct entry_node, node);
+				if (en->published) {
+					ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pubq->pid;
+					ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+					ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+					en->reference_count++;
+					ioctl_ret->ret_len++;
+				}
+				if (ioctl_ret->ret_len == qos_depth) break;
+			}
+		}
+
+		return;
+	}
+
+	printk(KERN_INFO "%s added\n", topic_name);	
+	insert_topic(topic_name);
+}
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
 void subscriber_pid_add(const char *topic_name, uint32_t pid) {
@@ -778,6 +828,7 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	mutex_lock(&global_mutex);
 	int ret = 0;
 	char topic_name_buf[256];
+	union ioctl_add_topic_sub_args add_topic_sub_args;
 	struct ioctl_subscriber_args sub_args;
 	struct ioctl_publisher_args pub_args;
 	struct ioctl_enqueue_entry_args enqueue_args;
@@ -789,9 +840,15 @@ static long agnocast_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	union ioctl_get_shm_args get_shm_args;
 
 	switch (cmd) {
-	case AGNOCAST_TOPIC_ADD_CMD:
+	case AGNOCAST_TOPIC_ADD_PUB_CMD:
 		if (copy_from_user(topic_name_buf, (char __user *)arg, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
-		topic_add(topic_name_buf);
+		topic_add_pub(topic_name_buf);
+		break;
+	case AGNOCAST_TOPIC_ADD_SUB_CMD:
+		if (copy_from_user(&add_topic_sub_args, (union ioctl_add_topic_sub_args __user *)arg, sizeof(add_topic_sub_args))) goto unlock_mutex_and_return;
+		if (copy_from_user(topic_name_buf, (char __user *)add_topic_sub_args.topic_name, sizeof(topic_name_buf))) goto unlock_mutex_and_return;
+		topic_add_sub(topic_name_buf, add_topic_sub_args.qos_depth, &add_topic_sub_args);
+		if (copy_to_user((union ioctl_add_topic_sub_args __user *)arg, &add_topic_sub_args, sizeof(add_topic_sub_args))) goto unlock_mutex_and_return;
 		break;
 	case AGNOCAST_SUBSCRIBER_ADD_CMD:
 		if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args))) goto unlock_mutex_and_return;

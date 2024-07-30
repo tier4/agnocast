@@ -36,10 +36,13 @@ template<typename MessageT> class Subscription {
 public:
 
   Subscription(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
-      perror("AGNOCAST_TOPIC_ADD_CMD failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
+    union ioctl_add_topic_sub_args add_topic_args;
+    add_topic_args.topic_name = topic_name;
+    add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) ? static_cast<uint32_t>(qos.depth()) : 0;
+    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
+        perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
     }
 
     uint32_t subscriber_pid = getpid();
@@ -81,6 +84,17 @@ public:
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
       std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
+
+      // If the last message is available and the transient local is set, immediately call the callback.
+      // Actually, the second condition is always met, but it is written for readability.
+      if (add_topic_args.ret_len != 0 && qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+        for (int i = 0; i < add_topic_args.ret_len; i++) {
+          MessageT* ptr = reinterpret_cast<MessageT*>(add_topic_args.ret_last_msg_addrs[i]);
+          agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i], true);
+          callback(agnocast_ptr);
+        }
+      }
+
       MqMsgAgnocast mq_msg;
 
       while (is_running) {
