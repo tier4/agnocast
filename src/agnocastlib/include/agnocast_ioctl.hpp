@@ -4,6 +4,10 @@
 
 namespace agnocast {
 
+// TODO: These values should be reconsidered
+#define MAX_PUBLISHER_NUM 16
+#define MAX_SUBSCRIBER_NUM 16
+
 #define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
 
 #pragma GCC diagnostic push
@@ -27,10 +31,20 @@ struct ioctl_subscriber_args {
     uint32_t pid;
 };
 
-struct ioctl_publisher_args {
-    const char *topic_name;
-    uint32_t pid;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_publisher_args {
+    struct {
+        const char *topic_name;
+        uint32_t publisher_pid;
+    };
+    struct {
+        uint64_t ret_shm_addr;
+        uint32_t ret_subscriber_len;
+        uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
+    };
 };
+#pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -76,8 +90,6 @@ union ioctl_receive_msg_args {
 };
 #pragma GCC diagnostic pop
 
-#define MAX_SUBSCRIBER_NUM 16
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_publish_args {
@@ -98,8 +110,6 @@ union ioctl_new_shm_args {
     uint64_t ret_addr;
 };
 
-#define MAX_PUBLISHER_NUM 16  // TODO: should be reconsidered
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_shm_args {
@@ -116,8 +126,8 @@ union ioctl_get_shm_args {
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
 #define AGNOCAST_SUBSCRIBER_REMOVE_CMD _IOW('S', 2, struct ioctl_subscriber_args)
-#define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, struct ioctl_publisher_args)
-#define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, struct ioctl_publisher_args)
+#define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
+#define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, union ioctl_publisher_args)
 #define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
 #define AGNOCAST_ENQUEUE_ENTRY_CMD _IOW('E', 1, struct ioctl_enqueue_entry_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)

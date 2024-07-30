@@ -22,6 +22,8 @@ namespace agnocast {
 extern int agnocast_fd;
 uint64_t agnocast_get_timestamp();
 
+std::string create_mq_name(const char* topic_name, const uint32_t pid);
+
 template<typename MessageT>
 class Publisher {
   const char *topic_name_;
@@ -43,13 +45,33 @@ public:
         exit(EXIT_FAILURE);
     }
 
-    struct ioctl_publisher_args pub_args;
-    pub_args.pid = publisher_pid_;
+    union ioctl_publisher_args pub_args;
+    pub_args.publisher_pid = publisher_pid_;
     pub_args.topic_name = topic_name_;
      if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
         perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
+    }
+
+    // Send messages to subscribers to notify that a new publisher appears
+    for (uint32_t i = 0; i < pub_args.ret_subscriber_len; i++) {
+      const std::string mq_name = "/new_publisher@" + std::to_string(pub_args.ret_subscriber_pids[i]);
+      mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+      if (mq == -1) {
+        perror("mq_open for new publisher failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      MqMsgNewPublisher mq_msg;
+      mq_msg.publisher_pid = publisher_pid_;
+      mq_msg.shm_addr = pub_args.ret_shm_addr;
+      if (mq_send(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        perror("mq_send for new publisher failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
     }
   }
 
@@ -112,7 +134,7 @@ public:
     for (uint32_t i = 0; i < publish_args.ret_len; i++) {
       uint32_t pid = publish_args.ret_pids[i];
 
-      std::string mq_name = std::string(topic_name_) + "|" + std::to_string(pid);
+      std::string mq_name = create_mq_name(topic_name_, pid);
       mqd_t mq;
       if (opened_mqs.find(mq_name) != opened_mqs.end()){
         mq = opened_mqs[mq_name];
