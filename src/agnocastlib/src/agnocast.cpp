@@ -14,7 +14,7 @@ namespace agnocast {
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
-std::atomic<bool> is_first_subscription = false;
+std::atomic<bool> is_first_subscription = true;
 
 uint64_t agnocast_get_timestamp() {
   auto now = std::chrono::system_clock::now();
@@ -106,6 +106,8 @@ void wait_for_new_publisher(const uint32_t pid) {
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
+    std::cout << "thread for new publisher has started" << std::endl;
+
     while (is_running) {
       MqMsgNewPublisher mq_msg;
       auto ret = mq_receive(mq, reinterpret_cast<char*>(&mq_msg), sizeof(mq_msg), NULL);

@@ -5,6 +5,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "sample_interfaces/msg/dynamic_size_array.hpp"
+#include "sample_interfaces/msg/static_size_array.hpp"
 #include "agnocast.hpp"
 
 uint64_t agnocast_get_timestamp() {
@@ -19,27 +20,28 @@ class MinimalSubscriber : public rclcpp::Node {
   std::vector<uint64_t> timestamp_ids_;
   int timestamp_idx_ = 0;
 
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_;
+  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_dynamic_;
+  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>> sub_static_;
 
-  void topic_callback(const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> &message) {
+  void callback_dynamic(const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> &message) {
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
+    RCLCPP_INFO(this->get_logger(), "I heard dynamic message: addr=%016lx", reinterpret_cast<uint64_t>(message.get()));
+  }
 
-    RCLCPP_INFO(this->get_logger(), "I heard message addr: %016lx", reinterpret_cast<uint64_t>(message.get()));
-
-    /*
-    for (size_t i = 0; i < message->data.size(); i++) {
-      std::cout << message->data[i] << " ";
-    }
-    std::cout << std::endl;
-    */
+  void callback_static(const agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> &message) {
+    timestamp_ids_[timestamp_idx_] = message->id;
+    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
+    RCLCPP_INFO(this->get_logger(), "I heard static message: addr=%016lx", reinterpret_cast<uint64_t>(message.get()));
   }
 
 public:
 
   MinimalSubscriber() : Node("minimal_subscriber") {
-    sub_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/mytopic2", 10, std::bind(&MinimalSubscriber::topic_callback, this, _1));
+    sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
+      "/my_dynamic_topic", 10, std::bind(&MinimalSubscriber::callback_dynamic, this, _1));
+    sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
+      "/my_static_topic", 10, std::bind(&MinimalSubscriber::callback_static, this, _1));
 
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
