@@ -63,8 +63,8 @@ void map_rdonly_areas(const char* topic_name) {
 
   // map read-only shared memory through heaphook
   for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
-    uint32_t pid = get_shm_args.ret_pids[i];
-    uint64_t addr = get_shm_args.ret_addrs[i];
+    const uint32_t pid = get_shm_args.ret_pids[i];
+    const uint64_t addr = get_shm_args.ret_addrs[i];
     map_rdonly_area(pid, addr);
   }
 }
