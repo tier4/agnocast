@@ -22,6 +22,8 @@ namespace agnocast {
 extern int agnocast_fd;
 uint64_t agnocast_get_timestamp();
 
+std::string create_mq_name(const char* topic_name, const uint32_t pid);
+
 template<typename MessageT>
 class Publisher {
   const char *topic_name_;
@@ -132,7 +134,7 @@ public:
     for (uint32_t i = 0; i < publish_args.ret_len; i++) {
       uint32_t pid = publish_args.ret_pids[i];
 
-      std::string mq_name = std::string(topic_name_) + "|" + std::to_string(pid);
+      std::string mq_name = create_mq_name(topic_name_, pid);
       mqd_t mq;
       if (opened_mqs.find(mq_name) != opened_mqs.end()){
         mq = opened_mqs[mq_name];

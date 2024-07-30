@@ -27,12 +27,13 @@ namespace agnocast {
 
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
-extern std::atomic<bool> is_first_subscription;
 
 void map_rdonly_area(const uint32_t pid, const uint64_t addr);
 void map_rdonly_areas(const char* topic_name);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
+
+std::string create_mq_name(const char* topic_name, const uint32_t pid);
 
 template<typename MessageT> class Subscription {
   std::pair<mqd_t, std::string> mq_subscription;
@@ -48,12 +49,7 @@ public:
 
     const pid_t subscriber_pid = getpid();
 
-    if (is_first_subscription) {
-      is_first_subscription = false;
-      wait_for_new_publisher(subscriber_pid);
-    }
-
-    std::string mq_name = std::string(topic_name) + "|" + std::to_string(getpid());
+    std::string mq_name = create_mq_name(topic_name, subscriber_pid);
 
     struct mq_attr attr;
     attr.mq_flags = 0; // Blocking queue
