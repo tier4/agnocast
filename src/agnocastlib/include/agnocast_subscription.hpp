@@ -27,13 +27,17 @@ namespace agnocast {
 
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
+extern std::atomic<bool> is_first_subscription;
 
+void map_rdonly_area(const uint32_t pid, const uint64_t addr);
 void map_rdonly_areas(const char* topic_name);
 size_t read_mq_msgmax();
+void wait_for_new_publisher(const uint32_t pid);
 
 std::string create_mq_name(const char* topic_name, const uint32_t pid);
 
 template<typename MessageT> class Subscription {
+  std::pair<mqd_t, std::string> mq_subscription;
 
 public:
 
@@ -44,7 +48,12 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    uint32_t subscriber_pid = getpid();
+    const pid_t subscriber_pid = getpid();
+
+    if (is_first_subscription) {
+      is_first_subscription = false;
+      wait_for_new_publisher(subscriber_pid);
+    }
 
     std::string mq_name = create_mq_name(topic_name, subscriber_pid);
 
@@ -68,6 +77,7 @@ public:
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
+    mq_subscription = std::make_pair(mq, mq_name);
 
     struct ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
@@ -122,6 +132,17 @@ public:
 
     threads.push_back(std::move(th));
   }
-};
 
+  ~Subscription(){
+    /* It's best to notify the publisher and have it call mq_close, but currently 
+    this is not being done. The message queue is destroyed when the publisher process exits. */
+    if (mq_close(mq_subscription.first) == -1){
+      perror("mq_close failed");
+    }
+    if (mq_unlink(mq_subscription.second.c_str()) == -1){
+      perror("mq_unlink failed");
+    }
+  }
+};
+                        
 } // namespace agnocast

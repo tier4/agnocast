@@ -1,0 +1,56 @@
+name: build test
+
+on:
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Check for specific label
+      if: github.event.label.name != 'run-build-test'
+      run: exit 0
+
+    # TODO: Cache apt packages
+
+    - name: Cache ROS2 workspace
+      uses: actions/cache@v2
+      with:
+        path: /opt/ros/humble
+        key: ${{ runner.os }}-ros2-${{ hashFiles('**/package.xml') }}-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-ros2-
+
+    - name: Setup ROS 2 environment
+      run: |
+        sudo apt update
+        sudo apt install -y software-properties-common curl
+        sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+        sudo apt update
+        sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y
+        sudo apt install -y ros-humble-desktop python3-colcon-common-extensions ros-humble-ament-cmake
+
+    - name: Install dependencies
+      run: |
+        source /opt/ros/humble/setup.bash
+        sudo apt install -y python3-rosdep
+        sudo rosdep init
+        rosdep update
+        rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+
+    - name: Build src
+      run: |
+        source /opt/ros/humble/setup.bash
+        colcon build
+
+    - name: Build kmod
+      run: |
+        cd kmod
+        make
