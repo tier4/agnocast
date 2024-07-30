@@ -91,9 +91,8 @@ public:
     auto th = std::thread([=]() {
       std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
 
-      // If the last message is available and the transient local is set, immediately call the callback.
-      // Actually, the second condition is always met, but it is written for readability.
-      if (add_topic_args.ret_len != 0 && qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      // If there are messages available and the transient local is enabled, immediately call the callback.
+      if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
         for (int i = 0; i < add_topic_args.ret_len; i++) {
           MessageT* ptr = reinterpret_cast<MessageT*>(add_topic_args.ret_last_msg_addrs[i]);
           agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i], true);
