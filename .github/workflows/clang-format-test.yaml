@@ -1,0 +1,36 @@
+name: clang-format test
+
+on:
+  pull_request:
+    types:
+      - synchronize
+    paths:
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.cpp'
+      - '**/*.hpp'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install specific version of clang-format
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo apt-add-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-17 main"
+          sudo apt-get update
+          sudo apt-get install -y clang-format-17
+          if [ -L /usr/bin/clang-format ]; then sudo rm /usr/bin/clang-format; fi
+          sudo ln -s /usr/bin/clang-format-17 /usr/bin/clang-format
+
+      - name: Run clang-format
+        run: |
+          clang-format --version
+          FILES=$(git ls-files '*.c' '*.h' '*.cpp' '*.hpp')
+          for file in $FILES; do
+            clang-format -style=file $file | diff -u $file -
+          done
