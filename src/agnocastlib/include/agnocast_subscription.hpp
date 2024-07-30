@@ -27,7 +27,6 @@ namespace agnocast {
 
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
-extern std::atomic<bool> is_first_subscription;
 
 void map_rdonly_area(const uint32_t pid, const uint64_t addr);
 void map_rdonly_areas(const char* topic_name);
@@ -46,11 +45,6 @@ public:
     }
 
     const pid_t subscriber_pid = getpid();
-
-    if (is_first_subscription) {
-      is_first_subscription = false;
-      wait_for_new_publisher(subscriber_pid);
-    }
 
     std::string mq_name = std::string(topic_name) + "|" + std::to_string(getpid());
 
