@@ -29,7 +29,7 @@ extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 extern std::atomic<bool> is_first_subscription;
 
-void map_rdonly_area(uint32_t pid, uint64_t addr);
+void map_rdonly_area(const uint32_t pid, const uint64_t addr);
 void map_rdonly_areas(const char* topic_name);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
