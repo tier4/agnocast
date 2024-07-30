@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <fcntl.h>
 #include <mqueue.h>
 #include <semaphore.h>
