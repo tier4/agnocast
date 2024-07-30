@@ -41,7 +41,7 @@ public:
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
       "/my_dynamic_topic", 10, std::bind(&MinimalSubscriber::callback_dynamic, this, _1));
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
-      "/my_static_topic", 10, std::bind(&MinimalSubscriber::callback_static, this, _1));
+      "/my_static_topic", rclcpp::QoS(10).transient_local(), std::bind(&MinimalSubscriber::callback_static, this, _1));
 
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
