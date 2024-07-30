@@ -31,6 +31,8 @@ extern std::atomic<bool> is_running;
 void map_rdonly_areas(const char* topic_name);
 size_t read_mq_msgmax();
 
+std::string create_mq_name(const char* topic_name, const uint32_t pid);
+
 template<typename MessageT> class Subscription {
 
 public:
@@ -44,7 +46,7 @@ public:
 
     uint32_t subscriber_pid = getpid();
 
-    std::string mq_name = std::string(topic_name) + "|" + std::to_string(getpid());
+    std::string mq_name = create_mq_name(topic_name, subscriber_pid);
 
     struct mq_attr attr;
     attr.mq_flags = 0; // Blocking queue

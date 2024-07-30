@@ -82,6 +82,25 @@ size_t read_mq_msgmax() {
   return mq_msgmax;
 }
 
+std::string create_mq_name(const char* topic_name, const uint32_t pid) {
+  std::string mq_name = std::string(topic_name) + "@" + std::to_string(pid);
+
+  if (mq_name[0] != '/') {
+    perror("create_mq_name failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  // As a mq_name, '/' cannot be used
+  for (size_t i = 1; i < mq_name.size(); i++) {
+    if (mq_name[i] == '/') {
+      mq_name[i] = '_';
+    }
+  }
+
+  return mq_name;
+}
+
 static void shutdown_agnocast() {
   is_running = false;
 
