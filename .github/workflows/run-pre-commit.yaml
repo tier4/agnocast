@@ -1,4 +1,4 @@
-name: Pre-commit Check
+name: run pre-commit
 
 on:
   pull_request:
