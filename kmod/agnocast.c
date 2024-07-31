@@ -15,7 +15,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-#define MAX_PUBLISHER_NUM 16
+#define MAX_PUBLISHER_NUM 16  // only for ioctl_get_shm_args currently
 #define MAX_SUBSCRIBER_NUM 16
 
 // =========================================
@@ -431,14 +431,13 @@ static void remove_publisher_queue(const char *topic_name, uint32_t publisher_pi
 	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
 	while (node) {
 		if (publisher_pid == node->pid) {
-			free_rb_tree(&node->entries);
-			
 			if (prev) {
 				prev->next = node->next;
 			} else {
 				wrapper->topic.publisher_queues = node->next;
 			}
 
+			free_rb_tree(&node->entries);
 			return;
 		}
 
@@ -767,6 +766,7 @@ void get_shm(char *topic_name, union ioctl_get_shm_args *ioctl_ret) {
 	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
 	while (node) {
 		ioctl_ret->ret_pids[index] = node->pid;
+		printk(KERN_WARNING "get_shm pid=%d\n", node->pid);
 		for (int j = 0; j < pid_index; j++) {
 			if (process_ids[j] == node->pid) {
 				ioctl_ret->ret_addrs[index] = shm_addrs[j];
