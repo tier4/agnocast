@@ -81,12 +81,11 @@ public:
   }
 
   message_ptr<MessageT> borrow_loaned_message(MessageT *ptr) {
-    union ioctl_release_oldest_args release_args;
-    release_args.topic_name = topic_name_;
-    release_args.publisher_pid = publisher_pid_;
-    release_args.qos_depth = static_cast<uint32_t>(qos_.depth());
-
     while (true) {
+      union ioctl_release_oldest_args release_args;
+      release_args.topic_name = topic_name_;
+      release_args.publisher_pid = publisher_pid_;
+      release_args.qos_depth = static_cast<uint32_t>(qos_.depth());
       if (ioctl(agnocast_fd, AGNOCAST_RELEASE_MSG_CMD, &release_args) < 0) {
         perror("AGNOCAST_RELEASE_MSG_CMD failed");
         close(agnocast_fd);
