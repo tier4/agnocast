@@ -37,3 +37,13 @@ Unload kmod.
 ```
 sudo rmmod agnocast
 ```
+
+## (For developer) Setup pre-commit
+
+The following command allows clang-format to be run before each commit.
+
+```
+bash scripts/setup_pre_commit
+```
+
+If you want to disable pre-commit, please execute `pre-commit uninstall`.
