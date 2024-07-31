@@ -138,6 +138,25 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 	wrapper->topic.subscriber_num++;
 }
 
+static struct publisher_queue_node* find_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
+	struct topic_wrapper *wrapper = find_topic(topic_name);
+	if (!wrapper) {
+		printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
+		return NULL;
+	}
+
+	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
+	while (node) {
+		if (publisher_pid == node->pid) {
+			return node;
+		}
+
+		node = node->next;
+	}
+
+	return NULL;
+}
+
 static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
@@ -145,16 +164,10 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 		return -1;
 	}
 
-	// check whether publisher already exists in publisher_queues
-	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
-	while (node) {
-		if (publisher_pid == node->pid) {
-			printk(KERN_INFO "publisher_pid=%d already exists in topic_name=%s (insert_subscriber_pid)\n",
-				publisher_pid, topic_name);
-			return -1;
-		}
-
-		node = node->next;
+	struct publisher_queue_node *node = find_publisher_queue(topic_name, publisher_pid);
+	if (node) {
+		printk(KERN_INFO "publisher_pid=%d already exists in topic_name=%s (insert_subscriber_pid)\n", publisher_pid, topic_name);
+		return -1;
 	}
 
 	struct publisher_queue_node *new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
@@ -173,26 +186,6 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 	wrapper->topic.publisher_num++;
 
 	return 0;
-}
-
-static struct publisher_queue_node* find_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
-	struct topic_wrapper *wrapper = find_topic(topic_name);
-	if (!wrapper) {
-		printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
-		return NULL;
-	}
-
-	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
-	while (node) {
-		if (publisher_pid == node->pid) {
-			return node;
-		}
-
-		node = node->next;
-	}
-
-	printk(KERN_INFO "publisher queue publisher_pid=%d not found in %s (find_publisher_queue)\n", publisher_pid, topic_name);
-	return NULL;
 }
 
 static struct entry_node* find_message_entry(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
