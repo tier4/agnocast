@@ -96,7 +96,11 @@ static void insert_topic(const char *topic_name/*, struct topic_struct topic*/) 
 	}
 
 	wrapper->topic.publisher_num = 0;
+	wrapper->topic.publisher_queues = NULL;
 	wrapper->topic.subscriber_num = 0;
+	for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+		wrapper->topic.subscriber_pids[i] = 0;
+	}
 
 	hash_add(topic_hashtable, &wrapper->node, agnocast_hash(topic_name));
 }
