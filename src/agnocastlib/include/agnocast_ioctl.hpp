@@ -2,7 +2,8 @@
 
 #include <sys/ioctl.h>
 
-namespace agnocast {
+namespace agnocast
+{
 
 // TODO: These values should be reconsidered
 #define MAX_PUBLISHER_NUM 16
@@ -13,112 +14,124 @@ namespace agnocast {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_add_topic_sub_args {
-    struct{
-		const char *topic_name;
-		uint32_t qos_depth;
-	};
-    struct {
-		uint32_t ret_len;
-        uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
-        uint64_t ret_timestamps[MAX_QOS_DEPTH];
-        uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
-    };
+  struct
+  {
+    const char * topic_name;
+    uint32_t qos_depth;
+  };
+  struct
+  {
+    uint32_t ret_len;
+    uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+    uint64_t ret_timestamps[MAX_QOS_DEPTH];
+    uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+  };
 };
 #pragma GCC diagnostic pop
 
-struct ioctl_subscriber_args {
-    const char *topic_name;
-    uint32_t pid;
+struct ioctl_subscriber_args
+{
+  const char * topic_name;
+  uint32_t pid;
 };
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_publisher_args {
-    struct {
-        const char *topic_name;
-        uint32_t publisher_pid;
-    };
-    struct {
-        uint64_t ret_shm_addr;
-        uint32_t ret_subscriber_len;
-        uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
-    };
+  struct
+  {
+    const char * topic_name;
+    uint32_t publisher_pid;
+  };
+  struct
+  {
+    uint64_t ret_shm_addr;
+    uint32_t ret_subscriber_len;
+    uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
+  };
 };
 #pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_release_oldest_args {
-    struct {
-        const char *topic_name;
-        uint32_t publisher_pid;
-        uint32_t qos_depth;
-    };
-    uint64_t ret;
+  struct
+  {
+    const char * topic_name;
+    uint32_t publisher_pid;
+    uint32_t qos_depth;
+  };
+  uint64_t ret;
 };
 #pragma GCC diagnostic pop
 
-struct ioctl_enqueue_entry_args {
-    const char *topic_name;
-    uint32_t publisher_pid;
-    uint64_t msg_virtual_address;
-    uint64_t timestamp;
+struct ioctl_enqueue_entry_args
+{
+  const char * topic_name;
+  uint32_t publisher_pid;
+  uint64_t msg_virtual_address;
+  uint64_t timestamp;
 };
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_update_entry_args {
-    struct {
-        const char *topic_name;
-        uint32_t publisher_pid;
-        uint64_t msg_timestamp;
-    };
-    uint64_t ret;
+  struct
+  {
+    const char * topic_name;
+    uint32_t publisher_pid;
+    uint64_t msg_timestamp;
+  };
+  uint64_t ret;
 };
 #pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_receive_msg_args {
-    struct {
-        const char *topic_name;
-        uint32_t publisher_pid;
-        uint64_t msg_timestamp;
-        uint32_t qos_depth;
-    };
-    uint64_t ret;
+  struct
+  {
+    const char * topic_name;
+    uint32_t publisher_pid;
+    uint64_t msg_timestamp;
+    uint32_t qos_depth;
+  };
+  uint64_t ret;
 };
 #pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_publish_args {
-    struct {
-        const char *topic_name;
-        uint32_t publisher_pid;
-        uint64_t msg_timestamp;
-    };
-    struct {
-        uint32_t ret_pids[MAX_SUBSCRIBER_NUM];
-        uint32_t ret_len;
-    };
+  struct
+  {
+    const char * topic_name;
+    uint32_t publisher_pid;
+    uint64_t msg_timestamp;
+  };
+  struct
+  {
+    uint32_t ret_pids[MAX_SUBSCRIBER_NUM];
+    uint32_t ret_len;
+  };
 };
 #pragma GCC diagnostic pop
 
 union ioctl_new_shm_args {
-    uint32_t pid;
-    uint64_t ret_addr;
+  uint32_t pid;
+  uint64_t ret_addr;
 };
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_shm_args {
-    const char *topic_name;
-    struct {
-        uint32_t ret_publisher_num;
-        uint32_t ret_pids[MAX_PUBLISHER_NUM];
-        uint64_t ret_addrs[MAX_PUBLISHER_NUM];
-    };
+  const char * topic_name;
+  struct
+  {
+    uint32_t ret_publisher_num;
+    uint32_t ret_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
+  };
 };
 #pragma GCC diagnostic pop
 
@@ -137,4 +150,4 @@ union ioctl_get_shm_args {
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
 #define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)
 
-} // namespace agnocast
+}  // namespace agnocast
