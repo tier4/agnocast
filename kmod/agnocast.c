@@ -663,11 +663,11 @@ union ioctl_get_shm_args {
 
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 void topic_add_sub(const char *topic_name, uint32_t qos_depth, union ioctl_add_topic_sub_args *ioctl_ret) {
+	ioctl_ret->ret_len = 0;
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (wrapper) {
 		printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
 
-		ioctl_ret->ret_len = 0;
 		if (qos_depth == 0) return;  // transient local is disabled
 
 		struct publisher_queue_node *pubq = wrapper->topic.publisher_queues;
