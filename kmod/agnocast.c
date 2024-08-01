@@ -785,10 +785,7 @@ int topic_add_sub(
     if (qos_depth == 0) return 0;  // transient local is disabled
 
     struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
-    if (!pubq) {
-      printk(KERN_WARNING "There is no publisher in topic %s (topic_add_sub)\n", topic_name);
-      return 0;
-    }
+    if (!pubq) return 0;
 
     // Return messages for the transient local
     // TODO: support two or more publishers to one topic
