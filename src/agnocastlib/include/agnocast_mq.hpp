@@ -1,15 +1,18 @@
 #pragma once
 
-namespace agnocast {
+namespace agnocast
+{
 
-struct MqMsgNewPublisher {
+struct MqMsgNewPublisher
+{
   uint32_t publisher_pid;
   uint64_t shm_addr;
 };
 
-struct MqMsgAgnocast {
+struct MqMsgAgnocast
+{
   uint32_t publisher_pid;
   uint64_t timestamp;
 };
 
-} // namespace agnocast
+}  // namespace agnocast
