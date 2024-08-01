@@ -24,11 +24,15 @@ uint64_t agnocast_get_timestamp()
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
+std::string create_shm_name(const uint32_t pid)
+{
+  return "/agnocast@" + std::to_string(pid);
+}
+
 void map_rdonly_area(const uint32_t pid, const uint64_t addr)
 {
-  char shm_name[20];  // enough size for pid
-  sprintf(shm_name, "%d", pid);
-  map_area(shm_name, addr, false);
+  const std::string shm_name = create_shm_name(pid);
+  map_area(shm_name.c_str(), addr, false);
 }
 
 void map_rdonly_areas(const char * topic_name)
@@ -130,10 +134,8 @@ void initialize_agnocast()
     exit(EXIT_FAILURE);
   }
 
-  // call heaphook function
-  char shm_name[20];  // enough size for pid
-  sprintf(shm_name, "%d", pid);
-  initialize_mempool(shm_name, new_shm_args.ret_addr);
+  const std::string shm_name = create_shm_name(pid);
+  initialize_mempool(shm_name.c_str(), new_shm_args.ret_addr);
 
   // open a mq for new publisher appearences
   wait_for_new_publisher(pid);
