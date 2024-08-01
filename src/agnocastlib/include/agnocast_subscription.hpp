@@ -41,16 +41,8 @@ template<typename MessageT> class Subscription {
 public:
 
   Subscription(const char* topic_name, const rclcpp::QoS& qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback) {
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name) < 0) {
-      perror("AGNOCAST_TOPIC_ADD_CMD failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
     const pid_t subscriber_pid = getpid();
-
     std::string mq_name = create_mq_name(topic_name, subscriber_pid);
-
     struct mq_attr attr;
     attr.mq_flags = 0; // Blocking queue
     attr.mq_msgsize = sizeof(MqMsgAgnocast); // Maximum message size
@@ -73,6 +65,20 @@ public:
     }
     mq_subscription = std::make_pair(mq, mq_name);
 
+    /*
+     * NOTE:
+     *   When transient local is enabled, if there is a requirement to execute callbacks with strictly new messages,
+     *   AGNOCAST_TOPIC_ADD_SUB_CMD and AGNOCAST_SUBSCRIBER_ADD_CMD should be merged into a single ioctl.
+     */ 
+    union ioctl_add_topic_sub_args add_topic_args;
+    add_topic_args.topic_name = topic_name;
+    add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) ? static_cast<uint32_t>(qos.depth()) : 0;
+    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
+        perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+    }
+
     struct ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
     subscriber_args.topic_name = topic_name;
@@ -87,6 +93,16 @@ public:
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
       std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
+
+      // If there are messages available and the transient local is enabled, immediately call the callback.
+      if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+        for (int i = 0; i < add_topic_args.ret_len; i++) {
+          MessageT* ptr = reinterpret_cast<MessageT*>(add_topic_args.ret_last_msg_addrs[i]);
+          agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i], true);
+          callback(agnocast_ptr);
+        }
+      }
+
       MqMsgAgnocast mq_msg;
 
       while (is_running) {

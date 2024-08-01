@@ -39,8 +39,8 @@ public:
     topic_name_ = topic_name_cpp_.c_str();
     publisher_pid_ = getpid();
 
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_CMD, topic_name_) < 0) {
-        perror("AGNOCAST_TOPIC_ADD_CMD failed");
+    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_PUB_CMD, topic_name_) < 0) {
+        perror("AGNOCAST_TOPIC_ADD_PUB_CMD failed");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
     }

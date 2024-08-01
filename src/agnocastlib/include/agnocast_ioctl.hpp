@@ -8,6 +8,24 @@ namespace agnocast {
 #define MAX_PUBLISHER_NUM 16
 #define MAX_SUBSCRIBER_NUM 16
 
+#define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_add_topic_sub_args {
+    struct{
+		const char *topic_name;
+		uint32_t qos_depth;
+	};
+    struct {
+		uint32_t ret_len;
+        uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+        uint64_t ret_timestamps[MAX_QOS_DEPTH];
+        uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+    };
+};
+#pragma GCC diagnostic pop
+
 struct ioctl_subscriber_args {
     const char *topic_name;
     uint32_t pid;
@@ -104,7 +122,8 @@ union ioctl_get_shm_args {
 };
 #pragma GCC diagnostic pop
 
-#define AGNOCAST_TOPIC_ADD_CMD _IOW('T', 1, char *)
+#define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
+#define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
 #define AGNOCAST_SUBSCRIBER_REMOVE_CMD _IOW('S', 2, struct ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
