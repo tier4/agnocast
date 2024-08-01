@@ -32,9 +32,16 @@ uint64_t shm_addrs[MAX_PROCESS_NUM];
 // TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
 
+struct publisher_queue_node {
+	uint32_t pid;
+	uint32_t queue_size;
+	struct rb_root entries;
+	struct publisher_queue_node *next;
+};
+
 struct topic_struct {
 	unsigned int publisher_num;
-	struct rb_root publisher_queues;
+	struct publisher_queue_node *publisher_queues; // linked list
 	unsigned int subscriber_num;
 	uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
@@ -43,18 +50,6 @@ struct topic_wrapper {
 	char *key;
 	struct topic_struct topic;
 	struct hlist_node node;
-};
-
-struct pid_node {
-	struct rb_node node;
-	uint32_t pid; // rbtree key
-};
-
-struct publisher_queue_node {
-	struct rb_node node;
-	uint32_t pid; // rbtree key
-	uint32_t queue_size;
-	struct rb_root entries;
 };
 
 struct entry_node {
@@ -78,6 +73,16 @@ static unsigned long agnocast_hash(const char *str) {
 	return hash_min(hash, AGNOCAST_HASH_BITS);
 }
 
+static void free_rb_tree(struct rb_root *root) {
+    struct rb_node *next = rb_first(root);
+    while (next) {
+        struct entry_node *en = rb_entry(next, struct entry_node, node);
+        next = rb_next(next);
+        rb_erase(&en->node, root);
+        kfree(en);
+    }
+}
+
 static void insert_topic(const char *topic_name/*, struct topic_struct topic*/) {
 	struct topic_wrapper *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
 	if (!wrapper) {
@@ -92,7 +97,7 @@ static void insert_topic(const char *topic_name/*, struct topic_struct topic*/) 
 	}
 
 	wrapper->topic.publisher_num = 0;
-	wrapper->topic.publisher_queues = RB_ROOT;
+	wrapper->topic.publisher_queues = NULL;
 	wrapper->topic.subscriber_num = 0;
 	for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
 		wrapper->topic.subscriber_pids[i] = 0;
@@ -138,6 +143,25 @@ static void insert_subscriber_pid(const char *topic_name, uint32_t pid) {
 	wrapper->topic.subscriber_num++;
 }
 
+static struct publisher_queue_node* find_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
+	struct topic_wrapper *wrapper = find_topic(topic_name);
+	if (!wrapper) {
+		printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
+		return NULL;
+	}
+
+	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
+	while (node) {
+		if (publisher_pid == node->pid) {
+			return node;
+		}
+
+		node = node->next;
+	}
+
+	return NULL;
+}
+
 static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
@@ -145,11 +169,13 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 		return -1;
 	}
 
-	struct publisher_queue_node *new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
-	struct rb_root *root = &wrapper->topic.publisher_queues;
-	struct rb_node **new = &(root->rb_node);
-	struct rb_node *parent = NULL;
+	struct publisher_queue_node *node = find_publisher_queue(topic_name, publisher_pid);
+	if (node) {
+		printk(KERN_INFO "publisher_pid=%d already exists in topic_name=%s (insert_subscriber_pid)\n", publisher_pid, topic_name);
+		return -1;
+	}
 
+	struct publisher_queue_node *new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
 	if (!new_node) {
 		printk(KERN_WARNING "kmalloc failed (insert_publisher_queue)\n");
 		return -1;
@@ -159,53 +185,12 @@ static int insert_publisher_queue(const char *topic_name, uint32_t publisher_pid
 	new_node->queue_size = 0;
 	new_node->entries = RB_ROOT;
 
-	while (*new) {
-		struct publisher_queue_node *this = container_of(*new, struct publisher_queue_node, node);
-		parent = *new;
-
-		if (publisher_pid < this->pid) {
-			new = &((*new)->rb_left);
-		} else if (publisher_pid > this->pid) {
-			new = &((*new)->rb_right);
-		} else {
-			printk(KERN_INFO "publisher_pid=%d already exists in %s (insert_publisher_queue)\n", publisher_pid, topic_name);
-			kfree(new_node);
-			return -1;
-		}
-	}
-
-	rb_link_node(&new_node->node, parent, new);
-	rb_insert_color(&new_node->node, root);
+	new_node->next = wrapper->topic.publisher_queues;
+	wrapper->topic.publisher_queues = new_node;
 
 	wrapper->topic.publisher_num++;
 
 	return 0;
-}
-
-static struct publisher_queue_node* find_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
-	struct topic_wrapper *wrapper = find_topic(topic_name);
-	if (!wrapper) {
-		printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
-		return NULL;
-	}
-
-	struct rb_root *root = &wrapper->topic.publisher_queues;
-	struct rb_node **new = &(root->rb_node);
-
-	while (*new) {
-		struct publisher_queue_node *this = container_of(*new, struct publisher_queue_node, node);
-
-		if (publisher_pid < this->pid) {
-			new = &((*new)->rb_left);
-		} else if (publisher_pid > this->pid) {
-			new = &((*new)->rb_right);
-		} else {
-			return this;
-		}
-	}
-
-	printk(KERN_INFO "publisher queue publisher_pid=%d not found in %s (find_publisher_queue)\n", publisher_pid, topic_name);
-	return NULL;
 }
 
 static struct entry_node* find_message_entry(const char *topic_name, uint32_t publisher_pid, uint64_t msg_timestamp) {
@@ -435,7 +420,6 @@ static void remove_subscriber_pid(const char *topic_name, uint32_t pid) {
 	}
 }
 
-// TODO: deallocate entries rbtree
 static void remove_publisher_queue(const char *topic_name, uint32_t publisher_pid) {
 	struct topic_wrapper *wrapper = find_topic(topic_name);
 	if (!wrapper) {
@@ -443,23 +427,25 @@ static void remove_publisher_queue(const char *topic_name, uint32_t publisher_pi
 		return;
 	}
 
-	struct rb_node *node = wrapper->topic.publisher_queues.rb_node;
-
+	struct publisher_queue_node *prev = NULL;
+	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
 	while (node) {
-		struct publisher_queue_node *data = container_of(node, struct publisher_queue_node, node);
+		if (publisher_pid == node->pid) {
+			if (prev) {
+				prev->next = node->next;
+			} else {
+				wrapper->topic.publisher_queues = node->next;
+			}
 
-		if (publisher_pid < data->pid) {
-			node = node->rb_left;
-		} else if (publisher_pid > data->pid) {
-			node = node->rb_right;
-		} else {
-			rb_erase(&data->node, &wrapper->topic.publisher_queues);
-			kfree(data);
+			free_rb_tree(&node->entries);
 			return;
 		}
+
+		prev = node;
+		node = node->next;
 	}
 
-	printk(KERN_INFO "tried to remove publisher_queue pid %d, but not found in %s (remove_publisher_queue)\n", publisher_pid, topic_name);
+	printk(KERN_INFO "tried to remove publisher_pid=%d, but not found in %s (remove_publisher_queue)\n", publisher_pid, topic_name);
 }
 
 // =========================================
@@ -510,19 +496,17 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 			}
 
 			strcat(local_buf, "\npublisher queues:\n");
-			struct rb_root *root = &entry->topic.publisher_queues;
-			struct rb_node *node;
-			for (node = rb_first(root); node; node = rb_next(node)) {
-				struct publisher_queue_node *data = container_of(node, struct publisher_queue_node, node);
+			struct publisher_queue_node *pub_node = entry->topic.publisher_queues;
+			while (pub_node) {
 				char num_str[21];
-				scnprintf(num_str, sizeof(num_str), "pubpid=%u :\n", data->pid);
+				scnprintf(num_str, sizeof(num_str), "pubpid=%u :\n", pub_node->pid);
 				strcat(local_buf, num_str);
 				// TODO: count pids string length
 
-				struct rb_root *pubq_root = &data->entries;
-				struct rb_node *node2;
-				for (node2 = rb_first(pubq_root); node2; node2 = rb_next(node2)) {
-					struct entry_node *en = container_of(node2, struct entry_node, node);
+				struct rb_root *root = &pub_node->entries;
+				struct rb_node *node;
+				for (node = rb_first(root); node; node = rb_next(node)) {
+					struct entry_node *en = container_of(node, struct entry_node, node);
 
 					char num_str_timestamp[25];
 					char num_str_msg_addr[25];
@@ -539,6 +523,8 @@ static ssize_t show_all(struct kobject *kobj, struct kobj_attribute *attr, char 
 					strcat(local_buf, num_str_rc);
 					strcat(local_buf, num_str_usc);
 				}
+
+				pub_node = pub_node->next;
 			}
 
 			strcat(local_buf, "\n");
@@ -684,12 +670,13 @@ void topic_add_sub(const char *topic_name, uint32_t qos_depth, union ioctl_add_t
 		ioctl_ret->ret_len = 0;
 		if (qos_depth == 0) return;  // transient local is disabled
 
+		struct publisher_queue_node *pubq = wrapper->topic.publisher_queues;
+		if (!pubq) return;
+
 		// Return messages for the transient local
-		struct rb_node *node = rb_first(&wrapper->topic.publisher_queues);  // TODO: support two or more publishers to one topic
-		struct publisher_queue_node *pubq = container_of(node, struct publisher_queue_node, node);
-		struct entry_node *en;
-		for (node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
-			en = container_of(node, struct entry_node, node);
+		// TODO: support two or more publishers to one topic
+		for (struct rb_node *node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
+			struct entry_node *en = container_of(node, struct entry_node, node);
 			if (en->published) {
 				ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pubq->pid;
 				ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
@@ -822,20 +809,20 @@ void get_shm(char *topic_name, union ioctl_get_shm_args *ioctl_ret) {
 	}
 
 	ioctl_ret->ret_publisher_num = wrapper->topic.publisher_num;
-	
-	uint32_t index = 0;
-	struct rb_root *root = &wrapper->topic.publisher_queues;
-	struct rb_node *node;
-	for (node = rb_first(root); node; node = rb_next(node)) {
-		struct publisher_queue_node *data = container_of(node, struct publisher_queue_node, node);
-		for (uint32_t i = 0; i < pid_index; i++) {
-			if (process_ids[i] == data->pid) {
-				ioctl_ret->ret_pids[index] = process_ids[i];
-				ioctl_ret->ret_addrs[index] = shm_addrs[i];
+
+	int index = 0;
+	struct publisher_queue_node *node = wrapper->topic.publisher_queues;
+	while (node) {
+		ioctl_ret->ret_pids[index] = node->pid;
+		for (int j = 0; j < pid_index; j++) {
+			if (process_ids[j] == node->pid) {
+				ioctl_ret->ret_addrs[index] = shm_addrs[j];
 				index++;
 				break;
 			}
 		}
+
+		node = node->next;
 	}
 }
 
@@ -1002,16 +989,6 @@ static int agnocast_init(void) {
 	agnocast_device = device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast"/*file name*/);
 
 	return 0;
-}
-
-static void free_rb_tree(struct rb_root *root) {
-    struct rb_node *next = rb_first(root);
-    while (next) {
-        struct pid_node *pn = rb_entry(next, struct pid_node, node);
-        next = rb_next(next);
-        rb_erase(&pn->node, root);
-        kfree(pn);
-    }
 }
 
 // TODO: Implement memory free later
