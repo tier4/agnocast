@@ -1,22 +1,21 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <dlfcn.h>
-
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include <string.h>
-#include <malloc.h>
-#include <fcntl.h>
-
-#include <unordered_map>
-#include <string>
+#include "preloaded.hpp"
 
 #include "tlsf/tlsf.h"
 
-#include "preloaded.hpp"
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <malloc.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include <string>
+#include <unordered_map>
 
 using malloc_type = void * (*)(size_t);
 using free_type = void (*)(void *);
@@ -33,8 +32,8 @@ using pvalloc_type = void * (*)(size_t);
 using malloc_usable_size_type = size_t (*)(void *);
 
 static char * mempool_ptr;
-static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000; // default: 100MB
-static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000; // default: 100MB
+static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;     // default: 100MB
+static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -42,7 +41,8 @@ static bool mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable) {
+void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable)
+{
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name, oflag, 0666);
   if (shm_fd == -1) {
@@ -60,7 +60,9 @@ void map_area(const char * shm_name, const uint64_t shm_addr, const bool writabl
   int prot = PROT_READ | MAP_FIXED;
   if (writable) prot |= PROT_WRITE;
 
-  void* ret = mmap(reinterpret_cast<void*>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd, 0);
+  void * ret = mmap(
+    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
+    0);
 
   if (ret == MAP_FAILED) {
     fprintf(stderr, "heaphook: mmap failed in map_area\n");
@@ -68,11 +70,12 @@ void map_area(const char * shm_name, const uint64_t shm_addr, const bool writabl
   }
 
   if (writable) {
-    mempool_ptr = reinterpret_cast<char*>(ret);
+    mempool_ptr = reinterpret_cast<char *>(ret);
   }
 }
 
-void initialize_mempool(const char * shm_name, const uint64_t shm_addr) {
+void initialize_mempool(const char * shm_name, const uint64_t shm_addr)
+{
   pthread_mutex_lock(&init_mtx);
 
   if (mempool_initialized) {
@@ -91,7 +94,7 @@ void initialize_mempool(const char * shm_name, const uint64_t shm_addr) {
   map_area(shm_name, shm_addr, true);
 
   memset(mempool_ptr, 0, INITIAL_MEMPOOL_SIZE);
-  init_memory_pool(INITIAL_MEMPOOL_SIZE, mempool_ptr); // tlsf library function
+  init_memory_pool(INITIAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
 
   aligned2orig = new std::unordered_map<void *, void *>();
   // aligned2orig.reserve(10000000);
@@ -100,7 +103,7 @@ void initialize_mempool(const char * shm_name, const uint64_t shm_addr) {
   pthread_mutex_unlock(&init_mtx);
 }
 
-template<class F>
+template <class F>
 static void * tlsf_allocate_internal(F allocate)
 {
   pthread_mutex_lock(&tlsf_mtx);
@@ -109,10 +112,10 @@ static void * tlsf_allocate_internal(F allocate)
 
   size_t multiplier = 1;
   while (ret == NULL) {
-    char * addr = (char *) mmap(
+    char * addr = (char *)mmap(
       NULL, multiplier * ADDITIONAL_MEMPOOL_SIZE, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    add_new_area(addr, multiplier * ADDITIONAL_MEMPOOL_SIZE, mempool_ptr); // tlsf library function
+    add_new_area(addr, multiplier * ADDITIONAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
 
     // TODO: printf cannot be used
     // fprintf(
@@ -129,17 +132,17 @@ static void * tlsf_allocate_internal(F allocate)
 
 static void * tlsf_malloc_wrapped(size_t size)
 {
-  return tlsf_allocate_internal([size] {return tlsf_malloc(size);});
+  return tlsf_allocate_internal([size] { return tlsf_malloc(size); });
 }
 
 static void * tlsf_calloc_wrapped(size_t num, size_t size)
 {
-  return tlsf_allocate_internal([num, size] {return tlsf_calloc(num, size);});
+  return tlsf_allocate_internal([num, size] { return tlsf_calloc(num, size); });
 }
 
 static void * tlsf_realloc_wrapped(void * ptr, size_t new_size)
 {
-  return tlsf_allocate_internal([ptr, new_size] {return tlsf_realloc(ptr, new_size);});
+  return tlsf_allocate_internal([ptr, new_size] { return tlsf_realloc(ptr, new_size); });
 }
 
 static void tlsf_free_wrapped(void * ptr)
@@ -152,12 +155,11 @@ static void tlsf_free_wrapped(void * ptr)
 static void * tlsf_aligned_malloc(size_t alignment, size_t size)
 {
   void * addr = tlsf_malloc_wrapped(alignment + size);
-  void * aligned =
-    reinterpret_cast<void *>(reinterpret_cast<uint64_t>(addr) + alignment -
-    reinterpret_cast<uint64_t>(addr) % alignment);
+  void * aligned = reinterpret_cast<void *>(
+    reinterpret_cast<uint64_t>(addr) + alignment - reinterpret_cast<uint64_t>(addr) % alignment);
   (*aligned2orig)[aligned] = addr;
 
-  //printf("In tlsf_aligned_malloc: orig=%p -> aligned=%p\n", addr, aligned);
+  // printf("In tlsf_aligned_malloc: orig=%p -> aligned=%p\n", addr, aligned);
 
   return aligned;
 }
@@ -324,13 +326,13 @@ void * pvalloc(size_t size)
 
 size_t malloc_usable_size(void * ptr)
 {
-  static malloc_usable_size_type original_malloc_usable_size = \
+  static malloc_usable_size_type original_malloc_usable_size =
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
   size_t ret = original_malloc_usable_size(ptr);
   return ret;
 }
 
-using mallinfo_type = struct mallinfo (*)( void);
+using mallinfo_type = struct mallinfo (*)(void);
 struct mallinfo mallinfo()
 {
   static mallinfo_type orig = reinterpret_cast<mallinfo_type>(dlsym(RTLD_NEXT, "mallinfo"));
@@ -338,7 +340,7 @@ struct mallinfo mallinfo()
 }
 
 #ifdef HAVE_MALLINFO2
-using mallinfo2_type = struct mallinfo2 (*)( void);
+using mallinfo2_type = struct mallinfo2 (*)(void);
 struct mallinfo2 mallinfo2()
 {
   static mallinfo2_type orig = reinterpret_cast<mallinfo2_type>(dlsym(RTLD_NEXT, "mallinfo2"));
@@ -379,4 +381,4 @@ int malloc_info(int options, FILE * stream)
   return orig(options, stream);
 }
 
-} // extern "C"
+}  // extern "C"
