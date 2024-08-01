@@ -2,6 +2,8 @@
 
 #include <sys/ioctl.h>
 
+#include <cstdint>
+
 namespace agnocast
 {
 
