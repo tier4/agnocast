@@ -868,8 +868,8 @@ uint64_t release_removable_oldest_message(
     if (en->reference_count == 0) {
       rb_erase(&en->node, &publisher_queue->entries);
       publisher_queue->queue_size--;
-      kfree(en);
       ioctl_ret->ret = en->msg_virtual_address;
+      kfree(en);
 
       printk(
         KERN_INFO
