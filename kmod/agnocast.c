@@ -370,32 +370,20 @@ static void set_message_entry_usc(
   memcpy(pids_ret, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
 }
 
-static void insert_message_entry(
+static int insert_message_entry(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp)
 {
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
     printk(
-      KERN_WARNING "publisher queue publisher_pid=%d not found in %s (insert_message_entry)\n",
-      publisher_pid, topic_name);
-    return;
+      KERN_WARNING "publisher (pid=%d) not found in %s (insert_message_entry)\n", publisher_pid,
+      topic_name);
+    return -1;
   }
 
-  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node ** new = &(root->rb_node);
   struct rb_node * parent = NULL;
-
-  if (!new_node) {
-    printk(KERN_WARNING "kmalloc failed (insert_message_entry)\n");
-    return;
-  }
-
-  new_node->timestamp = timestamp;
-  new_node->msg_virtual_address = msg_virtual_address;
-  new_node->reference_count = 0;
-  new_node->unreceived_subscriber_count = 0;
-  new_node->published = false;
 
   while (*new) {
     struct entry_node * this = container_of(*new, struct entry_node, node);
@@ -407,19 +395,36 @@ static void insert_message_entry(
       new = &((*new)->rb_right);
     } else {
       printk(
-        KERN_INFO
-        "message entry timestamp=%lld already exists in publisher queue pid=%d %s "
+        KERN_WARNING
+        "message entry timestamp=%lld already exists in publisher (pid=%d) queue in %s "
         "(insert_message_entry)\n",
         timestamp, publisher_pid, topic_name);
-      kfree(new_node);
-      return;
+      return -1;
     }
   }
+
+  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
+  if (!new_node) {
+    printk(KERN_WARNING "kmalloc failed (insert_message_entry)\n");
+    return -1;
+  }
+
+  new_node->timestamp = timestamp;
+  new_node->msg_virtual_address = msg_virtual_address;
+  new_node->reference_count = 0;
+  new_node->unreceived_subscriber_count = 0;
+  new_node->published = false;
 
   rb_link_node(&new_node->node, parent, new);
   rb_insert_color(&new_node->node, root);
 
   publisher_queue->queue_size++;
+
+  printk(
+    KERN_INFO
+    "enqueue entry: topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld",
+    topic_name, publisher_pid, msg_virtual_address, timestamp);
+  return 0;
 }
 
 static uint64_t try_release_removable_oldest_message(
@@ -880,15 +885,6 @@ uint64_t release_removable_oldest_message(
 }
 
 #define AGNOCAST_ENQUEUE_ENTRY_CMD _IOW('E', 1, struct ioctl_enqueue_entry_args)
-void enqueue_entry(
-  const char * topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp)
-{
-  printk(
-    KERN_INFO
-    "enqueue entry: topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld",
-    topic_name, publisher_pid, msg_virtual_address, timestamp);
-  insert_message_entry(topic_name, publisher_pid, msg_virtual_address, timestamp);
-}
 
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
 void increment_rc(char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
@@ -1062,7 +1058,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)enqueue_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      enqueue_entry(
+      ret = insert_message_entry(
         topic_name_buf, enqueue_args.publisher_pid, enqueue_args.msg_virtual_address,
         enqueue_args.timestamp);
       break;
