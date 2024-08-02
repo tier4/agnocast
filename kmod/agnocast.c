@@ -219,7 +219,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
 }
 
 static struct entry_node * find_message_entry(
-  const char * topic_name, const uint32_t publisher_pid, const uint64_t msg_timestamp)
+  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct publisher_queue_node * pubq = find_publisher_queue(topic_name, publisher_pid);
   if (!pubq) {
@@ -249,7 +249,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const uint32_t publisher_pid, const uint64_t msg_timestamp)
+  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
@@ -266,7 +266,7 @@ static int increment_message_entry_rc(
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const uint32_t publisher_pid, const uint64_t msg_timestamp)
+  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
