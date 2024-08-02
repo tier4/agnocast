@@ -881,7 +881,13 @@ uint64_t release_removable_oldest_message(
 
     // This is not counted in a Queue size of QoS.
     node = rb_next(node);
-    if (!node) break;
+
+    if (!node) {
+      printk(KERN_WARNING
+             "queue_size is inconsistent with actual message entry num "
+             "(release_removable_oldest_message)\n");
+      return -1;
+    }
   }
 
   ioctl_ret->ret = 0;
