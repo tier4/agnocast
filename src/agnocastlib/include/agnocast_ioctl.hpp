@@ -11,7 +11,7 @@ namespace agnocast
 #define MAX_PUBLISHER_NUM 16
 #define MAX_SUBSCRIBER_NUM 16
 
-#define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
+#define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"

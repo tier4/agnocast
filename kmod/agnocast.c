@@ -245,14 +245,10 @@ static struct entry_node * find_message_entry(
     }
   }
 
-  printk(
-    KERN_INFO
-    "message entry publisher_pid=%d timestamp=%lld not found in %s (find_publisher_queue)\n",
-    publisher_pid, msg_timestamp, topic_name);
   return NULL;
 }
 
-static void increment_message_entry_rc(
+static int increment_message_entry_rc(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
@@ -262,13 +258,14 @@ static void increment_message_entry_rc(
       "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
       "(increment_message_entry_rc)\n",
       topic_name, publisher_pid, msg_timestamp);
-    return;
+    return -1;
   }
 
   en->reference_count++;
+  return 0;
 }
 
-static void decrement_message_entry_rc(
+static int decrement_message_entry_rc(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
@@ -278,19 +275,20 @@ static void decrement_message_entry_rc(
       "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
       "(decrement_message_entry_rc)\n",
       topic_name, publisher_pid, msg_timestamp);
-    return;
+    return -1;
   }
 
   if (en->reference_count == 0) {
     printk(
       KERN_WARNING
       "tried to decrement reference count 0 with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld(decrement_message_entry_rc)\n",
+      "timestamp=%lld (decrement_message_entry_rc)\n",
       topic_name, publisher_pid, msg_timestamp);
-    return;
+    return -1;
   }
 
   en->reference_count--;
+  return 0;
 }
 
 static uint64_t receive_and_update(
@@ -627,7 +625,7 @@ int topic_add_pub(const char * topic_name)
   return 0;
 }
 
-#define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
+#define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
 
 union ioctl_add_topic_sub_args {
   struct
@@ -897,22 +895,8 @@ uint64_t release_removable_oldest_message(
 #define AGNOCAST_ENQUEUE_ENTRY_CMD _IOW('E', 1, struct ioctl_enqueue_entry_args)
 
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
-void increment_rc(char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
-{
-  printk(
-    KERN_INFO "increment message reference count in topic_name=%s publisher_pid=%d timestamp=%lld",
-    topic_name, publisher_pid, msg_timestamp);
-  increment_message_entry_rc(topic_name, publisher_pid, msg_timestamp);
-}
 
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
-void decrement_rc(char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
-{
-  printk(
-    KERN_INFO "decrement message reference count in topic_name=%s publisher_pid=%d timestamp=%lld",
-    topic_name, publisher_pid, msg_timestamp);
-  decrement_message_entry_rc(topic_name, publisher_pid, msg_timestamp);
-}
 
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 uint64_t receive_msg(
@@ -1079,7 +1063,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      increment_message_entry_rc(
+      ret = increment_message_entry_rc(
         topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
@@ -1089,7 +1073,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      decrement_message_entry_rc(
+      ret = decrement_message_entry_rc(
         topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
