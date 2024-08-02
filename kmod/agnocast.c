@@ -89,18 +89,19 @@ static void free_rb_tree(struct rb_root * root)
   }
 }
 
-static void insert_topic(const char * topic_name /*, struct topic_struct topic*/)
+static int insert_topic(const char * topic_name)
 {
   struct topic_wrapper * wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
   if (!wrapper) {
-    printk(KERN_WARNING "kmalloc failed in insert_topic\n");
+    printk(KERN_WARNING "kmalloc failed (insert_topic)\n");
+    return -1;
   }
 
   wrapper->key = kstrdup(topic_name, GFP_KERNEL);
   if (!wrapper->key) {
-    printk(KERN_WARNING "kstrdup failed in insert_topic\n");
+    printk(KERN_WARNING "kstrdup failed (insert_topic)\n");
     kfree(wrapper);
-    return;
+    return -1;
   }
 
   wrapper->topic.publisher_num = 0;
@@ -111,6 +112,7 @@ static void insert_topic(const char * topic_name /*, struct topic_struct topic*/
   }
 
   hash_add(topic_hashtable, &wrapper->node, agnocast_hash(topic_name));
+  return 0;
 }
 
 static struct topic_wrapper * find_topic(const char * topic_name)
@@ -649,16 +651,21 @@ static struct attribute_group attribute_group = {
 // /dev/agnocast
 
 #define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
-void topic_add_pub(const char * topic_name)
+int topic_add_pub(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
-    printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
-    return;
+    printk(KERN_INFO "Topic %s already exists (topic_add_pub)\n", topic_name);
+    return 0;
   }
 
-  printk(KERN_INFO "%s added\n", topic_name);
-  insert_topic(topic_name);
+  if (insert_topic(topic_name) < 0) {
+    printk(KERN_WARNING "Failed to add a new topic %s (topic_add_pub)\n", topic_name);
+    return -1;
+  }
+
+  printk(KERN_INFO "Topic %s added\n", topic_name);
+  return 0;
 }
 
 #define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
@@ -767,18 +774,18 @@ union ioctl_get_shm_args {
 };
 
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
-void topic_add_sub(
+int topic_add_sub(
   const char * topic_name, uint32_t qos_depth, union ioctl_add_topic_sub_args * ioctl_ret)
 {
   ioctl_ret->ret_len = 0;
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
-    printk(KERN_INFO "Topic %s already exists (topic_add)\n", topic_name);
+    printk(KERN_INFO "Topic %s already exists (topic_add_sub)\n", topic_name);
 
-    if (qos_depth == 0) return;  // transient local is disabled
+    if (qos_depth == 0) return 0;  // transient local is disabled
 
     struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
-    if (!pubq) return;
+    if (!pubq) return 0;
 
     // Return messages for the transient local
     // TODO: support two or more publishers to one topic
@@ -794,11 +801,16 @@ void topic_add_sub(
       if (ioctl_ret->ret_len == qos_depth) break;
     }
 
-    return;
+    return 0;
   }
 
-  printk(KERN_INFO "%s added\n", topic_name);
-  insert_topic(topic_name);
+  if (insert_topic(topic_name) < 0) {
+    printk(KERN_WARNING "Failed to add a new topic %s (topic_add_sub)\n", topic_name);
+    return -1;
+  }
+
+  printk(KERN_INFO "Topic %s added\n", topic_name);
+  return 0;
 }
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
@@ -981,7 +993,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     case AGNOCAST_TOPIC_ADD_PUB_CMD:
       if (copy_from_user(topic_name_buf, (char __user *)arg, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      topic_add_pub(topic_name_buf);
+      ret = topic_add_pub(topic_name_buf);
       break;
     case AGNOCAST_TOPIC_ADD_SUB_CMD:
       if (copy_from_user(
@@ -991,7 +1003,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)add_topic_sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      topic_add_sub(topic_name_buf, add_topic_sub_args.qos_depth, &add_topic_sub_args);
+      ret = topic_add_sub(topic_name_buf, add_topic_sub_args.qos_depth, &add_topic_sub_args);
       if (copy_to_user(
             (union ioctl_add_topic_sub_args __user *)arg, &add_topic_sub_args,
             sizeof(add_topic_sub_args)))
