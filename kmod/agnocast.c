@@ -128,12 +128,12 @@ static struct topic_wrapper * find_topic(const char * topic_name)
   return NULL;
 }
 
-static void insert_subscriber_pid(const char * topic_name, uint32_t pid)
+static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     printk(KERN_WARNING "topic_name %s not found (insert_subscriber_pid)\n", topic_name);
-    return;
+    return -1;
   }
 
   // check whether subscriber_pids is full
@@ -141,21 +141,26 @@ static void insert_subscriber_pid(const char * topic_name, uint32_t pid)
     printk(
       KERN_WARNING
       "subscribers for topic_name=%s reached MAX_SUBSCRIBER_NUM=%d, so a new subscriber cannot be "
-      "added\n",
+      "added (insert_subscriber_pid)\n",
       topic_name, MAX_SUBSCRIBER_NUM);
-    return;
+    return -1;
   }
 
   // check whether pid already exists in subscriber_pids
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
     if (pid == wrapper->topic.subscriber_pids[i]) {
-      printk(KERN_INFO "pid=%d already exists in %s (insert_subscriber_pid)\n", pid, topic_name);
-      return;
+      printk(
+        KERN_WARNING "subscriber (pid=%d) already exists in %s (insert_subscriber_pid)\n", pid,
+        topic_name);
+      return -1;
     }
   }
 
   wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
   wrapper->topic.subscriber_num++;
+
+  printk(KERN_INFO "subscriber (pid=%d) is added to %s\n", pid, topic_name);
+  return 0;
 }
 
 static struct publisher_queue_node * find_publisher_queue(
@@ -190,7 +195,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
   struct publisher_queue_node * node = find_publisher_queue(topic_name, publisher_pid);
   if (node) {
     printk(
-      KERN_INFO "publisher_pid=%d already exists in topic_name=%s (insert_subscriber_pid)\n",
+      KERN_INFO "publisher (pid=%d) already exists in topic_name=%s (insert_publisher_queue)\n",
       publisher_pid, topic_name);
     return -1;
   }
@@ -480,12 +485,12 @@ static uint64_t try_release_removable_oldest_message(
   return 0;
 }
 
-static void remove_subscriber_pid(const char * topic_name, uint32_t pid)
+static int remove_subscriber_pid(const char * topic_name, uint32_t pid)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     printk(KERN_WARNING "topic_name %s not found (remove_subscriber_pid)\n", topic_name);
-    return;
+    return -1;
   }
 
   bool found = false;
@@ -499,36 +504,36 @@ static void remove_subscriber_pid(const char * topic_name, uint32_t pid)
     }
   }
 
-  if (found) {
-    wrapper->topic.subscriber_num--;
-  } else {
+  if (!found) {
     printk(
       KERN_WARNING
-      "tried to remove subscriber pid %d, but not found in %s (remove_subscriber_pid)\n",
+      "tried to remove subscriber (pid=%d), but not found in %s (remove_subscriber_pid)\n",
       pid, topic_name);
+    return -1;
   }
+
+  wrapper->topic.subscriber_num--;
+
+  printk(KERN_INFO "subscriber (pid=%d) is removed from %s\n", pid, topic_name);
+  return 0;
 }
 
-static void remove_publisher_queue(const char * topic_name, uint32_t publisher_pid)
+static int remove_publisher_queue(const char * topic_name, uint32_t publisher_pid)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     printk(KERN_WARNING "topic_name %s not found (remove_publisher_queue)\n", topic_name);
-    return;
+    return -1;
   }
 
-  struct publisher_queue_node * prev = NULL;
+  struct publisher_queue_node * prev = wrapper->topic.publisher_queues;
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
     if (publisher_pid == node->pid) {
-      if (prev) {
-        prev->next = node->next;
-      } else {
-        wrapper->topic.publisher_queues = node->next;
-      }
-
+      prev->next = node->next;
       free_rb_tree(&node->entries);
-      return;
+      printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", publisher_pid, topic_name);
+      return 0;
     }
 
     prev = node;
@@ -536,8 +541,10 @@ static void remove_publisher_queue(const char * topic_name, uint32_t publisher_p
   }
 
   printk(
-    KERN_INFO "tried to remove publisher_pid=%d, but not found in %s (remove_publisher_queue)\n",
+    KERN_WARNING
+    "tried to remove publisher (pid=%d), but not found in %s (remove_publisher_queue)\n",
     publisher_pid, topic_name);
+  return -1;
 }
 
 // =========================================
@@ -819,25 +826,13 @@ int topic_add_sub(
 }
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
-void subscriber_pid_add(const char * topic_name, uint32_t pid)
-{
-  printk(KERN_INFO "subscriber (pid=%d) is added to %s\n", pid, topic_name);
-  insert_subscriber_pid(topic_name, pid);
-}
 
 #define AGNOCAST_SUBSCRIBER_REMOVE_CMD _IOW('S', 2, struct ioctl_subscriber_args)
-void subscriber_pid_remove(const char * topic_name, uint32_t pid)
-{
-  printk(KERN_INFO "subscriber (pid=%d) is removed from %s\n", pid, topic_name);
-  remove_subscriber_pid(topic_name, pid);
-}
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
 int publisher_queue_add(
   const char * topic_name, uint32_t pid, union ioctl_publisher_args * ioctl_ret)
 {
-  printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
-
   if (insert_publisher_queue(topic_name, pid) == -1) {
     return -1;
   }
@@ -849,11 +844,18 @@ int publisher_queue_add(
   }
 
   // set shm addr to ioctl_ret
+  bool found = false;
   for (int i = 0; i < pid_index; i++) {
     if (process_ids[i] == pid) {
       ioctl_ret->ret_shm_addr = shm_addrs[i];
+      found = true;
       break;
     }
+  }
+
+  if (!found) {
+    printk(KERN_WARNING "publisher (pid=%d) not found (publisher_queue_add)\n", pid);
+    return -1;
   }
 
   // set subscriber info to ioctl_ret
@@ -862,15 +864,11 @@ int publisher_queue_add(
     ioctl_ret->ret_subscriber_pids, wrapper->topic.subscriber_pids,
     wrapper->topic.subscriber_num * sizeof(uint32_t));
 
+  printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
   return 0;
 }
 
 #define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, union ioctl_publisher_args)
-void publisher_queue_remove(const char * topic_name, uint32_t pid)
-{
-  printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", pid, topic_name);
-  remove_publisher_queue(topic_name, pid);
-}
 
 #define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
 uint64_t release_removable_oldest_message(
@@ -1011,7 +1009,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      subscriber_pid_add(topic_name_buf, sub_args.pid);
+      ret = insert_subscriber_pid(topic_name_buf, sub_args.pid);
       break;
     case AGNOCAST_SUBSCRIBER_REMOVE_CMD:
       if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
@@ -1019,7 +1017,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      subscriber_pid_remove(topic_name_buf, sub_args.pid);
+      ret = remove_subscriber_pid(topic_name_buf, sub_args.pid);
       break;
     case AGNOCAST_PUBLISHER_ADD_CMD:
       if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
@@ -1037,7 +1035,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      publisher_queue_remove(topic_name_buf, pub_args.publisher_pid);
+      ret = remove_publisher_queue(topic_name_buf, pub_args.publisher_pid);
       break;
     case AGNOCAST_RELEASE_MSG_CMD:
       if (copy_from_user(

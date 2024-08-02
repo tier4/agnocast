@@ -1,0 +1,9 @@
+*:*/test/*
+
+checkersReport
+missingInclude
+missingIncludeSystem
+unknownMacro
+unmatchedSuppression
+useInitializationList
+unusedFunction
