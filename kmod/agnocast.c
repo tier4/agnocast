@@ -678,7 +678,7 @@ int topic_add_pub(const char * topic_name)
   return 0;
 }
 
-#define MAX_QOS_DEPTH 100  // TODO: should be reconsidered
+#define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
 
 union ioctl_add_topic_sub_args {
   struct
