@@ -819,7 +819,7 @@ int publisher_queue_add(
 
 #define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
 uint64_t release_removable_oldest_message(
-  const char * topic_name, uint32_t publisher_pid, uint32_t qos_depth,
+  const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
   union ioctl_release_oldest_args * ioctl_ret)
 {
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
@@ -835,7 +835,7 @@ uint64_t release_removable_oldest_message(
     return 0;
   }
 
-  uint32_t leak_warn_threshold =
+  const uint32_t leak_warn_threshold =
     (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
   if (publisher_queue->queue_size > leak_warn_threshold) {
     printk(
