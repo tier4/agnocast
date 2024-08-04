@@ -868,7 +868,7 @@ int receive_and_update(
     printk(
       KERN_WARNING
       "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld(receive_and_update)\n",
+      "timestamp=%lld (receive_and_update)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
@@ -1082,7 +1082,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       ret = receive_and_update(
         topic_name_buf, receive_msg_args.publisher_pid, receive_msg_args.msg_timestamp,
         receive_msg_args.qos_depth, &receive_msg_args);
-      if (copy_to_user((union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
+      if (copy_to_user(
+            (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
+            sizeof(receive_msg_args)))
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_PUBLISH_MSG_CMD:
