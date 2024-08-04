@@ -291,55 +291,6 @@ static int decrement_message_entry_rc(
   return 0;
 }
 
-static uint64_t receive_and_update(
-  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth)
-{
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
-  if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
-      "(receive_and_update)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return 0;
-  }
-
-  if (en->unreceived_subscriber_count == 0) {
-    printk(
-      KERN_WARNING
-      "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld(receive_and_update)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return 0;
-  }
-
-  // Count number of nodes that have greater timestamp than the current message entry.
-  // If the count is greater than qos_depth, the current message is ignored.
-  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
-  if (!publisher_queue) {
-    printk(
-      KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n",
-      publisher_pid, topic_name);
-    return 0;
-  }
-  if (publisher_queue->queue_size > qos_depth) {
-    uint32_t older_count = 0;
-    struct rb_node * next_node = rb_next(&en->node);
-    while (next_node) {
-      older_count++;
-      next_node = rb_next(next_node);
-    }
-    if (older_count > qos_depth) {
-      en->unreceived_subscriber_count--;
-      return 0;
-    }
-  }
-
-  en->unreceived_subscriber_count--;
-  en->reference_count++;
-  return en->msg_virtual_address;
-}
-
 static void set_message_entry_usc(
   char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t * pids_ret,
   uint32_t * pid_ret_len)
@@ -899,13 +850,57 @@ uint64_t release_removable_oldest_message(
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
 
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
-uint64_t receive_msg(
-  char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth)
+int receive_and_update(
+  char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth,
+  union ioctl_receive_msg_args * ioctl_ret)
 {
-  printk(
-    KERN_INFO "a subscriber receives message timestamp=%lld topic_name=%s publisher_pid=%d",
-    msg_timestamp, topic_name, publisher_pid);
-  return receive_and_update(topic_name, publisher_pid, msg_timestamp, qos_depth);
+  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  if (!en) {
+    printk(
+      KERN_WARNING
+      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+      "(receive_and_update)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  if (en->unreceived_subscriber_count == 0) {
+    printk(
+      KERN_WARNING
+      "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d "
+      "timestamp=%lld(receive_and_update)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  // Count number of nodes that have greater timestamp than the current message entry.
+  // If the count is greater than qos_depth, the current message is ignored.
+  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
+  if (!publisher_queue) {
+    printk(
+      KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n",
+      publisher_pid, topic_name);
+    return -1;
+  }
+
+  if (publisher_queue->queue_size > qos_depth) {
+    uint32_t older_count = 0;
+    struct rb_node * next_node = rb_next(&en->node);
+    while (next_node) {
+      older_count++;
+      next_node = rb_next(next_node);
+    }
+    if (older_count > qos_depth) {
+      en->unreceived_subscriber_count--;
+      ioctl_ret->ret = 0;
+      return 0;
+    }
+  }
+
+  en->unreceived_subscriber_count--;
+  en->reference_count++;
+  ioctl_ret->ret = en->msg_virtual_address;
+  return 0;
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
@@ -1084,10 +1079,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      uint64_t msg_addr = receive_and_update(
+      ret = receive_and_update(
         topic_name_buf, receive_msg_args.publisher_pid, receive_msg_args.msg_timestamp,
-        receive_msg_args.qos_depth);
-      if (copy_to_user((uint64_t __user *)arg, &msg_addr, sizeof(uint64_t)))
+        receive_msg_args.qos_depth, &receive_msg_args);
+      if (copy_to_user((union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_PUBLISH_MSG_CMD:
