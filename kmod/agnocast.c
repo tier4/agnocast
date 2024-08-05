@@ -340,39 +340,6 @@ static uint64_t receive_and_update(
   return en->msg_virtual_address;
 }
 
-static void set_message_entry_usc(
-  char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t * pids_ret,
-  uint32_t * pid_ret_len)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  uint32_t subscriber_num = wrapper->topic.subscriber_num;
-
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
-  if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
-      "(set_message_entry_usc)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return;
-  }
-
-  if (en->published) {
-    printk(
-      KERN_WARNING
-      "tried to already published message with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld(set_message_entry_usc)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return;
-  }
-
-  en->published = true;
-  en->unreceived_subscriber_count = subscriber_num;
-
-  *pid_ret_len = subscriber_num;
-  memcpy(pids_ret, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
-}
-
 static int insert_message_entry(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp)
 {
@@ -909,17 +876,44 @@ uint64_t receive_msg(
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
-void publish_msg(
+int publish_msg(
   char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp,
   union ioctl_publish_args * ioctl_ret)
 {
-  uint32_t pids_ret[MAX_SUBSCRIBER_NUM];
-  uint32_t pid_ret_len;
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    printk(KERN_WARNING "topic_name %s not found (publish_msg)\n", topic_name);
+    return -1;
+  }
 
-  set_message_entry_usc(topic_name, publisher_pid, msg_timestamp, pids_ret, &pid_ret_len);
+  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  if (!en) {
+    printk(
+      KERN_WARNING
+      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+      "(publish_msg)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
 
-  ioctl_ret->ret_len = pid_ret_len;
-  memcpy(ioctl_ret->ret_pids, pids_ret, pid_ret_len * sizeof(uint32_t));
+  if (en->published) {
+    printk(
+      KERN_WARNING
+      "tried to already published message with topic_name=%s publisher_pid=%d "
+      "timestamp=%lld (publish_msg)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  const uint32_t subscriber_num = wrapper->topic.subscriber_num;
+
+  en->published = true;
+  en->unreceived_subscriber_count = subscriber_num;
+
+  ioctl_ret->ret_len = subscriber_num;
+  memcpy(ioctl_ret->ret_pids, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
+
+  return 0;
 }
 
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
@@ -1113,7 +1107,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      publish_msg(
+      ret = publish_msg(
         topic_name_buf, publish_args.publisher_pid, publish_args.msg_timestamp, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
