@@ -853,8 +853,8 @@ int receive_and_update(
   struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
   while (pubq && newer_entry_count <= qos_depth) {
     for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
-      struct entry_node * en = container_of(node, struct entry_node, node);
-      if (en->timestamp <= msg_timestamp) break;
+      struct entry_node * compared_en = container_of(node, struct entry_node, node);
+      if (compared_en->timestamp <= msg_timestamp) break;
       newer_entry_count++;
     }
 
