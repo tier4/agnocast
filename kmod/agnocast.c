@@ -394,6 +394,7 @@ static int remove_publisher_queue(const char * topic_name, uint32_t publisher_pi
   while (node) {
     if (publisher_pid == node->pid) {
       prev->next = node->next;
+      wrapper->topic.publisher_num--;
       free_rb_tree(&node->entries);
       printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", publisher_pid, topic_name);
       return 0;
