@@ -41,6 +41,9 @@ static bool mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+static pthread_mutex_t free_mtx = PTHREAD_MUTEX_INITIALIZER;
+uint64_t my_writable_shm_addr;
+
 void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable)
 {
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
@@ -71,6 +74,9 @@ void map_area(const char * shm_name, const uint64_t shm_addr, const bool writabl
 
   if (writable) {
     mempool_ptr = reinterpret_cast<char *>(ret);
+    pthread_mutex_lock(&free_mtx);
+    my_writable_shm_addr = shm_addr;
+    pthread_mutex_unlock(&free_mtx);
   }
 }
 
@@ -190,6 +196,16 @@ void free(void * ptr)
     original_free(ptr);
     return;
   }
+
+  pthread_mutex_lock(&free_mtx);
+  if (
+    (uint64_t)ptr < my_writable_shm_addr ||
+    my_writable_shm_addr + INITIAL_MEMPOOL_SIZE < (uint64_t)ptr) {
+    original_free(ptr);
+    pthread_mutex_unlock(&free_mtx);
+    return;
+  }
+  pthread_mutex_unlock(&free_mtx);
 
   free_no_hook = true;
 
