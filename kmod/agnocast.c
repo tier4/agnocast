@@ -946,7 +946,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   }
 
   if (wrapper->topic.publisher_num > MAX_PUBLISHER_NUM) {
-    printk(KERN_WARNING "publishers for %s are too much\n", topic_name);
+    printk(KERN_WARNING "publishers for %s topic are too much\n", topic_name);
     return -1;
   }
 
