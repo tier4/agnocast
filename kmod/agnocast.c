@@ -917,13 +917,22 @@ int publish_msg(
 }
 
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-uint64_t new_shm_addr(uint32_t pid)
+int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
+  if (pid_index >= MAX_PROCESS_NUM) {
+    printk(KERN_WARNING "processes are too much (new_shm_addr)\n");
+    return -1;
+  }
+
   process_ids[pid_index] = pid;
   shm_addrs[pid_index] = allocatable_addr;
-  allocatable_addr +=
-    0x00400000000;  // TODO: allocate 0x00400000000 size for each process, currently
-  return shm_addrs[pid_index++];
+
+  // TODO: allocate 0x00400000000 size for each process, currently
+  allocatable_addr += 0x00400000000;
+
+  ioctl_ret->ret_addr = shm_addrs[pid_index];
+  pid_index++;
+  return 0;
 }
 
 static DEFINE_MUTEX(global_mutex);
@@ -1100,8 +1109,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             &new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
-      uint64_t shm_addr = new_shm_addr(new_shm_args.pid);
-      if (copy_to_user((union ioctl_new_shm_args __user *)arg, &shm_addr, sizeof(new_shm_args)))
+      ret = new_shm_addr(new_shm_args.pid, &new_shm_args);
+      if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_GET_SHM_CMD:
