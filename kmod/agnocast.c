@@ -840,8 +840,6 @@ int receive_and_update(
     return -1;
   }
 
-  // Count number of nodes that have greater timestamp than the current message entry.
-  // If the count is greater than qos_depth, the current message is ignored.
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
     printk(
@@ -850,6 +848,8 @@ int receive_and_update(
     return -1;
   }
 
+  // Count number of nodes that have greater timestamp than the current message entry.
+  // If the count is greater than qos_depth, the current message is ignored.
   if (publisher_queue->queue_size > qos_depth) {
     uint32_t older_count = 0;
     struct rb_node * next_node = rb_next(&en->node);
