@@ -944,14 +944,19 @@ int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 static DEFINE_MUTEX(global_mutex);
 
 #define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)
-void get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
+int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 {
   // get all publisher id and addr from topic_name
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     printk(KERN_WARNING "topic_name %s not found (get_shm)\n", topic_name);
-    return;
+    return -1;
+  }
+
+  if (wrapper->topic.publisher_num > MAX_PUBLISHER_NUM) {
+    printk(KERN_WARNING "publishers for %s topic are too much\n", topic_name);
+    return -1;
   }
 
   ioctl_ret->ret_publisher_num = wrapper->topic.publisher_num;
@@ -970,6 +975,8 @@ void get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 
     node = node->next;
   }
+
+  return 0;
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -1126,7 +1133,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)get_shm_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      get_shm(topic_name_buf, &get_shm_args);
+      ret = get_shm(topic_name_buf, &get_shm_args);
       if (copy_to_user((union ioctl_get_shm_args __user *)arg, &get_shm_args, sizeof(get_shm_args)))
         goto unlock_mutex_and_return;
       break;
