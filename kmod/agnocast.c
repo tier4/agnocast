@@ -248,29 +248,6 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
-static struct entry_node * find_closest_newer_message_entry(
-  struct publisher_queue_node * pubq, uint64_t base_timestamp)
-{
-  struct rb_root * root = &pubq->entries;
-  struct rb_node * curr_node = root->rb_node;
-  struct entry_node * closest_newer = NULL;
-
-  while (curr_node) {
-    struct entry_node * curr_entry = container_of(curr_node, struct entry_node, node);
-
-    if (curr_entry->timestamp > base_timestamp) {
-      if (!closest_newer || curr_entry->timestamp < closest_newer->timestamp) {
-        closest_newer = curr_entry;
-      }
-      curr_node = curr_node->rb_left;
-    } else {
-      curr_node = curr_node->rb_right;
-    }
-  }
-
-  return closest_newer;
-}
-
 static int increment_message_entry_rc(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -875,15 +852,12 @@ int receive_and_update(
   uint32_t newer_entry_count = 0;
   struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
   while (pubq && newer_entry_count <= qos_depth) {
-    struct entry_node * closest_newer = find_closest_newer_message_entry(pubq, msg_timestamp);
-    if (!closest_newer) {
-      pubq = pubq->next;
-      continue;
-    }
-
-    for (struct rb_node * node = &closest_newer->node; node; node = rb_next(node)) {
+    for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
+      struct entry_node * en = container_of(node, struct entry_node, node);
+      if (en->timestamp <= msg_timestamp) break;
       newer_entry_count++;
     }
+
     pubq = pubq->next;
   }
 
