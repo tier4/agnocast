@@ -904,40 +904,81 @@ int receive_and_update(
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
-void publish_msg(
+int publish_msg(
   char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp,
   union ioctl_publish_args * ioctl_ret)
 {
-  uint32_t pids_ret[MAX_SUBSCRIBER_NUM];
-  uint32_t pid_ret_len;
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    printk(KERN_WARNING "topic_name %s not found (publish_msg)\n", topic_name);
+    return -1;
+  }
 
-  set_message_entry_usc(topic_name, publisher_pid, msg_timestamp, pids_ret, &pid_ret_len);
+  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  if (!en) {
+    printk(
+      KERN_WARNING
+      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+      "(publish_msg)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
 
-  ioctl_ret->ret_len = pid_ret_len;
-  memcpy(ioctl_ret->ret_pids, pids_ret, pid_ret_len * sizeof(uint32_t));
+  if (en->published) {
+    printk(
+      KERN_WARNING
+      "tried to already published message with topic_name=%s publisher_pid=%d "
+      "timestamp=%lld (publish_msg)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  const uint32_t subscriber_num = wrapper->topic.subscriber_num;
+
+  en->published = true;
+  en->unreceived_subscriber_count = subscriber_num;
+
+  ioctl_ret->ret_len = subscriber_num;
+  memcpy(ioctl_ret->ret_pids, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
+
+  return 0;
 }
 
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-uint64_t new_shm_addr(uint32_t pid)
+int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
+  if (pid_index >= MAX_PROCESS_NUM) {
+    printk(KERN_WARNING "processes are too much (new_shm_addr)\n");
+    return -1;
+  }
+
   process_ids[pid_index] = pid;
   shm_addrs[pid_index] = allocatable_addr;
-  allocatable_addr +=
-    0x00400000000;  // TODO: allocate 0x00400000000 size for each process, currently
-  return shm_addrs[pid_index++];
+
+  // TODO: allocate 0x00400000000 size for each process, currently
+  allocatable_addr += 0x00400000000;
+
+  ioctl_ret->ret_addr = shm_addrs[pid_index];
+  pid_index++;
+  return 0;
 }
 
 static DEFINE_MUTEX(global_mutex);
 
 #define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)
-void get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
+int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 {
   // get all publisher id and addr from topic_name
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     printk(KERN_WARNING "topic_name %s not found (get_shm)\n", topic_name);
-    return;
+    return -1;
+  }
+
+  if (wrapper->topic.publisher_num > MAX_PUBLISHER_NUM) {
+    printk(KERN_WARNING "publishers for %s topic are too much\n", topic_name);
+    return -1;
   }
 
   ioctl_ret->ret_publisher_num = wrapper->topic.publisher_num;
@@ -956,6 +997,8 @@ void get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 
     node = node->next;
   }
+
+  return 0;
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -1094,7 +1137,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      publish_msg(
+      ret = publish_msg(
         topic_name_buf, publish_args.publisher_pid, publish_args.msg_timestamp, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
@@ -1103,8 +1146,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             &new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
-      uint64_t shm_addr = new_shm_addr(new_shm_args.pid);
-      if (copy_to_user((union ioctl_new_shm_args __user *)arg, &shm_addr, sizeof(new_shm_args)))
+      ret = new_shm_addr(new_shm_args.pid, &new_shm_args);
+      if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_GET_SHM_CMD:
@@ -1114,7 +1157,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)get_shm_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      get_shm(topic_name_buf, &get_shm_args);
+      ret = get_shm(topic_name_buf, &get_shm_args);
       if (copy_to_user((union ioctl_get_shm_args __user *)arg, &get_shm_args, sizeof(get_shm_args)))
         goto unlock_mutex_and_return;
       break;
