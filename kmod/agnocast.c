@@ -248,6 +248,29 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
+static struct entry_node * find_closest_newer_message_entry(
+  struct publisher_queue_node * pubq, uint64_t base_timestamp)
+{
+  struct rb_root * root = &pubq->entries;
+  struct rb_node * curr_node = root->rb_node;
+  struct entry_node * closest_newer = NULL;
+
+  while (curr_node) {
+    struct entry_node * curr_entry = container_of(curr_node, struct entry_node, node);
+
+    if (curr_entry->timestamp > base_timestamp) {
+      if (!closest_newer || curr_entry->timestamp < closest_newer->timestamp) {
+        closest_newer = curr_entry;
+      }
+      curr_node = curr_node->rb_left;
+    } else {
+      curr_node = curr_node->rb_right;
+    }
+  }
+
+  return closest_newer;
+}
+
 static int increment_message_entry_rc(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -841,28 +864,34 @@ int receive_and_update(
     return -1;
   }
 
-  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
-  if (!publisher_queue) {
-    printk(
-      KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n",
-      publisher_pid, topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    printk(KERN_WARNING "topic_name %s not found (receive_and_update)\n", topic_name);
     return -1;
   }
 
-  // Count number of nodes that have greater timestamp than the current message entry.
-  // If the count is greater than qos_depth, the current message is ignored.
-  if (publisher_queue->queue_size > qos_depth) {
-    uint32_t older_count = 0;
-    struct rb_node * next_node = rb_next(&en->node);
-    while (next_node) {
-      older_count++;
-      next_node = rb_next(next_node);
+  // Count number of nodes that have greater (newer) timestamp than the received message entry.
+  // If the count is greater than qos_depth, the received message is ignored.
+  uint32_t newer_entry_count = 0;
+  struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
+  while (pubq && newer_entry_count <= qos_depth) {
+    struct entry_node * closest_newer = find_closest_newer_message_entry(pubq, msg_timestamp);
+    if (!closest_newer) {
+      pubq = pubq->next;
+      continue;
     }
-    if (older_count > qos_depth) {
-      en->unreceived_subscriber_count--;
-      ioctl_ret->ret = 0;
-      return 0;
+
+    for (struct rb_node * node = &closest_newer->node; node; node = rb_next(node)) {
+      newer_entry_count++;
     }
+    pubq = pubq->next;
+  }
+
+  if (newer_entry_count > qos_depth) {
+    // Received message is ignored.
+    en->unreceived_subscriber_count--;
+    ioctl_ret->ret = 0;
+    return 0;
   }
 
   en->unreceived_subscriber_count--;
