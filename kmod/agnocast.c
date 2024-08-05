@@ -291,39 +291,6 @@ static int decrement_message_entry_rc(
   return 0;
 }
 
-static void set_message_entry_usc(
-  char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t * pids_ret,
-  uint32_t * pid_ret_len)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  uint32_t subscriber_num = wrapper->topic.subscriber_num;
-
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
-  if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
-      "(set_message_entry_usc)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return;
-  }
-
-  if (en->published) {
-    printk(
-      KERN_WARNING
-      "tried to already published message with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld(set_message_entry_usc)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return;
-  }
-
-  en->published = true;
-  en->unreceived_subscriber_count = subscriber_num;
-
-  *pid_ret_len = subscriber_num;
-  memcpy(pids_ret, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
-}
-
 static int insert_message_entry(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp)
 {
