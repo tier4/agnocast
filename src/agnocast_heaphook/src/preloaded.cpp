@@ -91,7 +91,7 @@ static void * tlsf_allocate_internal(F allocate)
 
   size_t multiplier = 1;
   while (ret == NULL) {
-    char * addr = (char *)mmap(
+    void * addr = mmap(
       NULL, multiplier * ADDITIONAL_MEMPOOL_SIZE, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     add_new_area(addr, multiplier * ADDITIONAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
