@@ -670,21 +670,43 @@ int topic_add_sub(
 
     if (qos_depth == 0) return 0;  // transient local is disabled
 
+    // Return qos_depth messages in order from newest to oldest for transient local
+    struct rb_node * backward_trackers[MAX_PUBLISHER_NUM];
+    uint32_t pids[MAX_PUBLISHER_NUM];
     struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
-    if (!pubq) return 0;
+    uint32_t pubq_num = 0;
+    while (pubq) {
+      backward_trackers[pubq_num] = rb_last(&pubq->entries);
+      pids[pubq_num] = pubq->pid;
+      pubq = pubq->next;
+      pubq_num++;
+    }
 
-    // Return messages for the transient local
-    // TODO: support two or more publishers to one topic
-    for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
-      struct entry_node * en = container_of(node, struct entry_node, node);
+    while (ioctl_ret->ret_len < qos_depth) {
+      uint64_t newest_timestamp = 0;
+      size_t newest_i;
+      for (size_t i = 0; i < pubq_num; i++) {
+        if (backward_trackers[i]) {
+          struct entry_node * en = container_of(backward_trackers[i], struct entry_node, node);
+          if (en->timestamp > newest_timestamp) {
+            newest_timestamp = en->timestamp;
+            newest_i = i;
+          }
+        }
+      }
+
+      if (newest_timestamp == 0) break;  // all messages are searched
+
+      struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
       if (en->published) {
-        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pubq->pid;
+        en->reference_count++;
+        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[newest_i];
         ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
         ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-        en->reference_count++;
         ioctl_ret->ret_len++;
       }
-      if (ioctl_ret->ret_len == qos_depth) break;
+
+      backward_trackers[newest_i] = rb_prev(backward_trackers[newest_i]);
     }
 
     return 0;
