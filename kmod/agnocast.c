@@ -506,8 +506,8 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
       pub_node = pub_node->next;
     }
-    strcat(local_buf, "\n\n");
-    buf_len += 2;
+    strcat(local_buf, "\n");
+    buf_len += 1;
   }
 
   ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
