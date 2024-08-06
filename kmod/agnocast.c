@@ -436,10 +436,11 @@ static ssize_t store_value(
   return count;
 }
 
-#define PRINT_BUF_SIZE 512
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
-  char local_buf[PRINT_BUF_SIZE];
+  size_t buf_size = 2048;
+
+  char * local_buf = kmalloc(buf_size, GFP_KERNEL);
   local_buf[0] = '\0';
 
   struct topic_wrapper * entry;
@@ -449,62 +450,71 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
   hash_for_each_safe(topic_hashtable, bkt, node, entry, node)
   {
-    size_t key_len = strlen(entry->key);
+    strcat(local_buf, entry->key);
+    strcat(local_buf, "\n");
+    buf_len += strlen(entry->key) + 1;
 
-    // TODO: reconsider buffer size in terms of pids array
-    if (buf_len + key_len + 1 < PRINT_BUF_SIZE - 100 /*tmp*/) {
-      strcat(local_buf, entry->key);
-      strcat(local_buf, "\nsubscribers:\n");
-      buf_len += key_len + 1;
-
-      for (int i = 0; i < entry->topic.subscriber_num; i++) {
-        char num_str[13];
-        scnprintf(num_str, sizeof(num_str), "%u ", entry->topic.subscriber_pids[i]);
-        strcat(local_buf, num_str);
-        // TODO: count pids string length
-      }
-
-      strcat(local_buf, "\npublisher queues:\n");
-      struct publisher_queue_node * pub_node = entry->topic.publisher_queues;
-      while (pub_node) {
-        char num_str[21];
-        scnprintf(num_str, sizeof(num_str), "pubpid=%u :\n", pub_node->pid);
-        strcat(local_buf, num_str);
-        // TODO: count pids string length
-
-        struct rb_root * root = &pub_node->entries;
-        struct rb_node * node;
-        for (node = rb_first(root); node; node = rb_next(node)) {
-          struct entry_node * en = container_of(node, struct entry_node, node);
-
-          char num_str_timestamp[25];
-          char num_str_msg_addr[25];
-          char num_str_rc[16];
-          char num_str_usc[16];
-
-          scnprintf(num_str_timestamp, sizeof(num_str_timestamp), "time=%lld ", en->timestamp);
-          scnprintf(
-            num_str_msg_addr, sizeof(num_str_msg_addr), "addr=%lld ", en->msg_virtual_address);
-          scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
-          scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
-
-          strcat(local_buf, num_str_timestamp);
-          strcat(local_buf, num_str_msg_addr);
-          strcat(local_buf, num_str_rc);
-          strcat(local_buf, num_str_usc);
-        }
-
-        pub_node = pub_node->next;
-      }
-
-      strcat(local_buf, "\n");
-    } else {
-      printk(KERN_WARNING "buffer is full, cannot serialize all topic info\n");
-      break;
+    strcat(local_buf, " subscriber_pids:");
+    buf_len += 17;
+    for (int i = 0; i < entry->topic.subscriber_num; i++) {
+      char num_str[10];
+      scnprintf(num_str, sizeof(num_str), " %u", entry->topic.subscriber_pids[i]);
+      strcat(local_buf, num_str);
+      buf_len += 10;
     }
+    strcat(local_buf, "\n");
+    buf_len += 1;
+
+    strcat(local_buf, " publishers:\n");
+    buf_len += 13;
+
+    struct publisher_queue_node * pub_node = entry->topic.publisher_queues;
+    while (pub_node) {
+      char num_str[20];
+      scnprintf(num_str, sizeof(num_str), "  pid=%u:\n", pub_node->pid);
+      strcat(local_buf, num_str);
+      buf_len += 20;
+
+      struct rb_root * root = &pub_node->entries;
+      struct rb_node * node;
+      for (node = rb_first(root); node; node = rb_next(node)) {
+        struct entry_node * en = container_of(node, struct entry_node, node);
+
+        char num_str_timestamp[30];
+        char num_str_msg_addr[20];
+        char num_str_rc[10];
+        char num_str_usc[10];
+
+        scnprintf(num_str_timestamp, sizeof(num_str_timestamp), "time=%lld ", en->timestamp);
+        scnprintf(
+          num_str_msg_addr, sizeof(num_str_msg_addr), "addr=%lld ", en->msg_virtual_address);
+        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
+        scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
+
+        strcat(local_buf, "   entry: ");
+        strcat(local_buf, num_str_timestamp);
+        strcat(local_buf, num_str_msg_addr);
+        strcat(local_buf, num_str_rc);
+        strcat(local_buf, num_str_usc);
+        buf_len += 80;
+
+        if (buf_len * 2 > buf_size) {
+          buf_size *= 2;
+          local_buf = krealloc(local_buf, buf_size, GFP_KERNEL);
+        }
+      }
+
+      pub_node = pub_node->next;
+    }
+    strcat(local_buf, "\n\n");
+    buf_len += 2;
   }
 
-  return scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
+  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
+
+  kfree(local_buf);
+
+  return ret;
 }
 
 static struct kobject * status_kobj;
