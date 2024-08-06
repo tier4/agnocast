@@ -841,28 +841,31 @@ int receive_and_update(
     return -1;
   }
 
-  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
-  if (!publisher_queue) {
-    printk(
-      KERN_WARNING "publisher queue publisher_pid=%d not found in %s (receive_and_update)\n",
-      publisher_pid, topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    printk(KERN_WARNING "topic_name %s not found (receive_and_update)\n", topic_name);
     return -1;
   }
 
-  // Count number of nodes that have greater timestamp than the current message entry.
-  // If the count is greater than qos_depth, the current message is ignored.
-  if (publisher_queue->queue_size > qos_depth) {
-    uint32_t older_count = 0;
-    struct rb_node * next_node = rb_next(&en->node);
-    while (next_node) {
-      older_count++;
-      next_node = rb_next(next_node);
+  // Count number of nodes that have greater (newer) timestamp than the received message entry.
+  // If the count is greater than qos_depth, the received message is ignored.
+  uint32_t newer_entry_count = 0;
+  struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
+  while (pubq && newer_entry_count <= qos_depth) {
+    for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
+      struct entry_node * compared_en = container_of(node, struct entry_node, node);
+      if (compared_en->timestamp <= msg_timestamp) break;
+      newer_entry_count++;
     }
-    if (older_count > qos_depth) {
-      en->unreceived_subscriber_count--;
-      ioctl_ret->ret = 0;
-      return 0;
-    }
+
+    pubq = pubq->next;
+  }
+
+  if (newer_entry_count > qos_depth) {
+    // Received message is ignored.
+    en->unreceived_subscriber_count--;
+    ioctl_ret->ret = 0;
+    return 0;
   }
 
   en->unreceived_subscriber_count--;
