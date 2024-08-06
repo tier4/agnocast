@@ -35,7 +35,7 @@ uint64_t allocatable_addr = 0x40000000000;
 struct publisher_queue_node
 {
   uint32_t pid;
-  uint32_t queue_size;
+  uint32_t entries_num;
   struct rb_root entries;
   struct publisher_queue_node * next;
 };
@@ -207,7 +207,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
   }
 
   new_node->pid = publisher_pid;
-  new_node->queue_size = 0;
+  new_node->entries_num = 0;
   new_node->entries = RB_ROOT;
 
   new_node->next = wrapper->topic.publisher_queues;
@@ -339,7 +339,7 @@ static int insert_message_entry(
   rb_link_node(&new_node->node, parent, new);
   rb_insert_color(&new_node->node, root);
 
-  publisher_queue->queue_size++;
+  publisher_queue->entries_num++;
 
   printk(
     KERN_INFO
@@ -747,14 +747,14 @@ uint64_t release_removable_oldest_message(
     return -1;
   }
 
-  if (publisher_queue->queue_size <= qos_depth) {
+  if (publisher_queue->entries_num <= qos_depth) {
     ioctl_ret->ret = 0;
     return 0;
   }
 
   const uint32_t leak_warn_threshold =
     (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
-  if (publisher_queue->queue_size > leak_warn_threshold) {
+  if (publisher_queue->entries_num > leak_warn_threshold) {
     printk(
       KERN_WARNING
       "For some reason the reference count of the message is not reduced and the queue size is "
@@ -774,7 +774,7 @@ uint64_t release_removable_oldest_message(
   }
 
   // Number of entries exceeding qos_depth. +1 is for the message to be enqueued later.
-  const uint32_t num_search_entries = publisher_queue->queue_size - qos_depth + 1;
+  const uint32_t num_search_entries = publisher_queue->entries_num - qos_depth + 1;
 
   // The searched message is either deleted or, if a reference count remains, is not deleted.
   // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
@@ -784,7 +784,7 @@ uint64_t release_removable_oldest_message(
 
     if (en->reference_count == 0) {
       rb_erase(&en->node, &publisher_queue->entries);
-      publisher_queue->queue_size--;
+      publisher_queue->entries_num--;
       ioctl_ret->ret = en->msg_virtual_address;
       kfree(en);
 
@@ -801,7 +801,7 @@ uint64_t release_removable_oldest_message(
 
     if (!node) {
       printk(KERN_WARNING
-             "queue_size is inconsistent with actual message entry num "
+             "entries_num is inconsistent with actual message entry num "
              "(release_removable_oldest_message)\n");
       return -1;
     }
