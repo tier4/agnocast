@@ -2,7 +2,6 @@
 
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
-#include "preloaded.hpp"
 
 #include <stdio.h>
 
@@ -18,21 +17,45 @@ int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
 
+static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
+
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
-std::string create_shm_name(const uint32_t pid)
+void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
 {
-  return "/agnocast@" + std::to_string(pid);
-}
+  const std::string shm_name = "/agnocast@" + std::to_string(pid);
 
-void map_rdonly_area(const uint32_t pid, const uint64_t addr)
-{
-  const std::string shm_name = create_shm_name(pid);
-  map_area(shm_name.c_str(), addr, false);
+  int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
+  int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
+  if (shm_fd == -1) {
+    fprintf(stderr, "heaphook: shm_open failed in map_area\n");
+    exit(EXIT_FAILURE);
+  }
+
+  if (writable) {
+    if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
+      fprintf(stderr, "heaphook: ftruncate failed in map_area\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  int prot = PROT_READ | MAP_FIXED;
+  if (writable) prot |= PROT_WRITE;
+
+  void * ret = mmap(
+    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
+    0);
+
+  if (ret == MAP_FAILED) {
+    fprintf(stderr, "heaphook: mmap failed in map_area\n");
+    exit(EXIT_FAILURE);
+  }
+
+  return ret;
 }
 
 void map_rdonly_areas(const char * topic_name)
@@ -50,7 +73,7 @@ void map_rdonly_areas(const char * topic_name)
   for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
     const uint32_t pid = get_shm_args.ret_pids[i];
     const uint64_t addr = get_shm_args.ret_addrs[i];
-    map_rdonly_area(pid, addr);
+    map_area(pid, addr, false);
   }
 }
 
@@ -106,16 +129,19 @@ void wait_for_new_publisher(const uint32_t pid)
 
       const uint32_t publisher_pid = mq_msg.publisher_pid;
       const uint64_t publisher_shm_addr = mq_msg.shm_addr;
-      map_rdonly_area(publisher_pid, publisher_shm_addr);
+      map_area(publisher_pid, publisher_shm_addr, false);
     }
   });
 
   threads.push_back(std::move(th));
 }
 
-void initialize_agnocast()
+void * initialize_agnocast()
 {
-  if (agnocast_fd >= 0) return;
+  if (agnocast_fd >= 0) {
+    perror("Agnocast is already open");
+    exit(EXIT_FAILURE);
+  }
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
@@ -134,11 +160,14 @@ void initialize_agnocast()
     exit(EXIT_FAILURE);
   }
 
-  const std::string shm_name = create_shm_name(pid);
-  initialize_mempool(shm_name.c_str(), new_shm_args.ret_addr);
-
   // open a mq for new publisher appearences
   wait_for_new_publisher(pid);
+
+  if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
+    INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
+  }
+
+  return map_area(pid, new_shm_args.ret_addr, true);
 }
 
 size_t read_mq_msgmax()

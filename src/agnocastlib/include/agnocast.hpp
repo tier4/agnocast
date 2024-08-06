@@ -19,7 +19,7 @@
 namespace agnocast
 {
 
-__attribute__((constructor)) void initialize_agnocast();
+void * initialize_agnocast();
 size_t read_mq_msgmax();
 
 template <typename MessageT>
