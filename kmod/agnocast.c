@@ -673,30 +673,30 @@ int topic_add_sub(
     }
 
     while (ioctl_ret->ret_len < qos_depth) {
-      int min_timestamp = -1;
-      size_t min_i;
+      uint64_t newest_timestamp = 0;
+      size_t newest_i;
       for (size_t i = 0; i < pubq_num; i++) {
         if (backward_trackers[i]) {
           struct entry_node * en = container_of(backward_trackers[i], struct entry_node, node);
-          if (min_timestamp == -1 || en->timestamp < min_timestamp) {
-            min_timestamp = en->timestamp;
-            min_i = i;
+          if (newest_timestamp == 0 || en->timestamp > newest_timestamp) {
+            newest_timestamp = en->timestamp;
+            newest_i = i;
           }
         }
       }
 
-      if (min_timestamp == -1) break;  // all messages are searched
+      if (newest_timestamp == -1) break;  // all messages are searched
 
-      struct entry_node * en = container_of(backward_trackers[min_i], struct entry_node, node);
+      struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
       if (en->published) {
         en->reference_count++;
-        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[min_i];
+        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[newest_i];
         ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
         ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
         ioctl_ret->ret_len++;
       }
 
-      backward_trackers[min_i] = rb_prev(backward_trackers[min_i]);
+      backward_trackers[newest_i] = rb_prev(backward_trackers[newest_i]);
     }
 
     return 0;
