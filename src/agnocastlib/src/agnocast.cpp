@@ -116,8 +116,6 @@ void wait_for_new_publisher(const uint32_t pid)
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
-    std::cout << "thread for new publisher has started" << std::endl;
-
     while (is_running) {
       MqMsgNewPublisher mq_msg;
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
@@ -136,6 +134,7 @@ void wait_for_new_publisher(const uint32_t pid)
   threads.push_back(std::move(th));
 }
 
+// NOTE: Do not use std::cout inside initialize_agnocast thread
 void * initialize_agnocast()
 {
   if (agnocast_fd >= 0) {
