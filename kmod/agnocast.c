@@ -847,10 +847,18 @@ int receive_and_update(
     return -1;
   }
 
+  struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
+  if (!pubq) {
+    printk(
+      KERN_WARNING
+      "publisher queue with topic_name=%s publisher_pid=%d not found (receive_and_update)\n",
+      topic_name, publisher_pid);
+    return -1;
+  }
+
   // Count number of nodes that have greater (newer) timestamp than the received message entry.
   // If the count is greater than qos_depth, the received message is ignored.
   uint32_t newer_entry_count = 0;
-  struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
   while (pubq && newer_entry_count <= qos_depth) {
     for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
       struct entry_node * compared_en = container_of(node, struct entry_node, node);
