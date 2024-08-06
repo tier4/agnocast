@@ -678,14 +678,14 @@ int topic_add_sub(
       for (size_t i = 0; i < pubq_num; i++) {
         if (backward_trackers[i]) {
           struct entry_node * en = container_of(backward_trackers[i], struct entry_node, node);
-          if (newest_timestamp == 0 || en->timestamp > newest_timestamp) {
+          if (en->timestamp > newest_timestamp) {
             newest_timestamp = en->timestamp;
             newest_i = i;
           }
         }
       }
 
-      if (newest_timestamp == -1) break;  // all messages are searched
+      if (newest_timestamp == 0) break;  // all messages are searched
 
       struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
       if (en->published) {
