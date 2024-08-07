@@ -51,7 +51,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     0);
 
   if (ret == MAP_FAILED) {
-    fprintf(stderr, "heaphook: mmap failed in map_area\n");
+    fprintf(stderr, "agnocastlib: mmap failed in map_area\n");
     exit(EXIT_FAILURE);
   }
 
