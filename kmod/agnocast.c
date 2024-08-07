@@ -438,6 +438,7 @@ static ssize_t store_value(
 
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
+  // roughly MAX_QOS_DEPTH * 100 is needed as an initial buffer size
   size_t buf_size = 2048;
 
   char * local_buf = kmalloc(buf_size, GFP_KERNEL);
@@ -496,7 +497,7 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
         strcat(local_buf, num_str_msg_addr);
         strcat(local_buf, num_str_rc);
         strcat(local_buf, num_str_usc);
-        buf_len += 80;
+        buf_len += 10 + 30 + 20 + 10 + 10;
 
         if (buf_len * 2 > buf_size) {
           buf_size *= 2;
