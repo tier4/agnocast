@@ -438,8 +438,8 @@ static ssize_t store_value(
 
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
-  // roughly MAX_QOS_DEPTH * 100 is needed as an initial buffer size
-  size_t buf_size = 2048;
+  // at least 500 bytes would be needed as an initial buffer size
+  size_t buf_size = 1024;
 
   char * local_buf = kmalloc(buf_size, GFP_KERNEL);
   local_buf[0] = '\0';
@@ -458,10 +458,10 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " subscriber_pids:");
     buf_len += 17;
     for (int i = 0; i < entry->topic.subscriber_num; i++) {
-      char num_str[10];
+      char num_str[1 + 10];  // len(UINT32_MAX=4294967295) = 10
       scnprintf(num_str, sizeof(num_str), " %u", entry->topic.subscriber_pids[i]);
       strcat(local_buf, num_str);
-      buf_len += 10;
+      buf_len += 1 + 10;
     }
     strcat(local_buf, "\n");
     buf_len += 1;
@@ -471,33 +471,39 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
     struct publisher_queue_node * pub_node = entry->topic.publisher_queues;
     while (pub_node) {
-      char num_str[20];
+      char num_str[6 + 10 + 2];  // len(UINT32_MAX=4294967295) = 10
       scnprintf(num_str, sizeof(num_str), "  pid=%u:\n", pub_node->pid);
       strcat(local_buf, num_str);
-      buf_len += 20;
+      buf_len += 6 + 10 + 2;
 
       struct rb_root * root = &pub_node->entries;
       struct rb_node * node;
       for (node = rb_first(root); node; node = rb_next(node)) {
         struct entry_node * en = container_of(node, struct entry_node, node);
 
-        char num_str_timestamp[30];
-        char num_str_msg_addr[20];
-        char num_str_rc[10];
-        char num_str_usc[10];
+        strcat(local_buf, "   entry: ");
+        buf_len += 10;
 
+        char num_str_timestamp[5 + 20 + 1];  // len(UINT64_MAX=18446744073709551615) = 20
         scnprintf(num_str_timestamp, sizeof(num_str_timestamp), "time=%lld ", en->timestamp);
+        strcat(local_buf, num_str_timestamp);
+        buf_len += 5 + 20 + 1;
+
+        char num_str_msg_addr[5 + 20 + 1];  // len(UINT64_MAX=18446744073709551615) = 20
         scnprintf(
           num_str_msg_addr, sizeof(num_str_msg_addr), "addr=%lld ", en->msg_virtual_address);
-        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
-        scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
-
-        strcat(local_buf, "   entry: ");
-        strcat(local_buf, num_str_timestamp);
         strcat(local_buf, num_str_msg_addr);
+        buf_len += 5 + 20 + 1;
+
+        char num_str_rc[3 + 2 + 1];  // len(MAX_SUBSCRIBER_NUM=16) = 2
+        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
         strcat(local_buf, num_str_rc);
+        buf_len += 3 + 2 + 1;
+
+        char num_str_usc[4 + 2 + 1];  // len(MAX_SUBSCRIBER_NUM=16) = 2
+        scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
         strcat(local_buf, num_str_usc);
-        buf_len += 10 + 30 + 20 + 10 + 10;
+        buf_len += 4 + 2 + 1;
 
         if (buf_len * 2 > buf_size) {
           buf_size *= 2;
