@@ -38,7 +38,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
 
   if (writable) {
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
-      fprintf(stderr, "heaphook: ftruncate failed in map_area\n");
+      fprintf(stderr, "agnocastlib: ftruncate failed in map_area\n");
       exit(EXIT_FAILURE);
     }
   }
