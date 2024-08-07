@@ -32,7 +32,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    fprintf(stderr, "heaphook: shm_open failed in map_area\n");
+    fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
     exit(EXIT_FAILURE);
   }
 
