@@ -769,7 +769,9 @@ uint64_t release_removable_oldest_message(
     return -1;
   }
 
-  if (publisher_queue->entries_num <= qos_depth) {
+  // -1 is for the message to be enqueued later.
+  const uint32_t target_entries_num = qos_depth - 1;
+  if (publisher_queue->entries_num <= target_entries_num) {
     ioctl_ret->ret = 0;
     return 0;
   }
@@ -795,8 +797,8 @@ uint64_t release_removable_oldest_message(
     return -1;
   }
 
-  // Number of entries exceeding qos_depth. +1 is for the message to be enqueued later.
-  const uint32_t num_search_entries = publisher_queue->entries_num - qos_depth + 1;
+  // Number of entries exceeding qos_depth.
+  const uint32_t num_search_entries = publisher_queue->entries_num - target_entries_num;
 
   // The searched message is either deleted or, if a reference count remains, is not deleted.
   // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
