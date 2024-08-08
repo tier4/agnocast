@@ -41,7 +41,7 @@ static bool mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-__thread bool no_hook = false;
+__thread bool is_in_hooked_call = false;
 
 void initialize_mempool()
 {
@@ -149,14 +149,14 @@ void * malloc(size_t size)
 {
   static malloc_type original_malloc = reinterpret_cast<malloc_type>(dlsym(RTLD_NEXT, "malloc"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_malloc(size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_malloc_wrapped(size);
-  no_hook = false;
+  is_in_hooked_call = false;
 
   return ret;
 }
@@ -165,12 +165,12 @@ void free(void * ptr)
 {
   static free_type original_free = reinterpret_cast<free_type>(dlsym(RTLD_NEXT, "free"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     original_free(ptr);
     return;
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
 
   auto it = aligned2orig->find(ptr);
@@ -180,21 +180,21 @@ void free(void * ptr)
   }
 
   tlsf_free_wrapped(ptr);
-  no_hook = false;
+  is_in_hooked_call = false;
 }
 
 void * calloc(size_t num, size_t size)
 {
   static calloc_type original_calloc = reinterpret_cast<calloc_type>(dlsym(RTLD_NEXT, "calloc"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_calloc(num, size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_calloc_wrapped(num, size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -203,11 +203,11 @@ void * realloc(void * ptr, size_t new_size)
   static realloc_type original_realloc =
     reinterpret_cast<realloc_type>(dlsym(RTLD_NEXT, "realloc"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_realloc(ptr, new_size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
 
   auto it = aligned2orig->find(ptr);
@@ -217,7 +217,7 @@ void * realloc(void * ptr, size_t new_size)
   }
 
   void * ret = tlsf_realloc_wrapped(ptr, new_size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -226,14 +226,14 @@ int posix_memalign(void ** memptr, size_t alignment, size_t size)
   static posix_memalign_type original_posix_memalign =
     reinterpret_cast<posix_memalign_type>(dlsym(RTLD_NEXT, "posix_memalign"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_posix_memalign(memptr, alignment, size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   *memptr = tlsf_aligned_malloc(alignment, size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return 0;
 }
 
@@ -242,14 +242,14 @@ void * memalign(size_t alignment, size_t size)
   static memalign_type original_memalign =
     reinterpret_cast<memalign_type>(dlsym(RTLD_NEXT, "memalign"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_memalign(alignment, size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(alignment, size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -258,14 +258,14 @@ void * aligned_alloc(size_t alignment, size_t size)
   static aligned_alloc_type original_aligned_alloc =
     reinterpret_cast<aligned_alloc_type>(dlsym(RTLD_NEXT, "aligned_alloc"));
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_aligned_alloc(alignment, size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(alignment, size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -274,14 +274,14 @@ void * valloc(size_t size)
   static valloc_type original_valloc = reinterpret_cast<valloc_type>(dlsym(RTLD_NEXT, "valloc"));
   static size_t page_size = sysconf(_SC_PAGESIZE);
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_valloc(size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(page_size, size);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -293,14 +293,14 @@ void * pvalloc(size_t size)
   static size_t page_size = sysconf(_SC_PAGESIZE);
   size_t rounded_up = size + (page_size - size % page_size) % page_size;
 
-  if (no_hook) {
+  if (is_in_hooked_call) {
     return original_pvalloc(size);
   }
 
-  no_hook = true;
+  is_in_hooked_call = true;
   check_mempool_initialized();
   void * ret = tlsf_aligned_malloc(page_size, rounded_up);
-  no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
