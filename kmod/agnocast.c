@@ -436,6 +436,7 @@ static ssize_t store_value(
   return count;
 }
 
+#define BUFFER_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
   // at least 500 bytes would be needed as an initial buffer size
@@ -458,10 +459,10 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " subscriber_pids:");
     buf_len += 17;
     for (int i = 0; i < entry->topic.subscriber_num; i++) {
-      char num_str[20];
+      char num_str[BUFFER_SIZE];
       scnprintf(num_str, sizeof(num_str), " %u", entry->topic.subscriber_pids[i]);
       strcat(local_buf, num_str);
-      buf_len += 20;
+      buf_len += BUFFER_SIZE;
     }
     strcat(local_buf, "\n");
     buf_len += 1;
@@ -471,10 +472,10 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
     struct publisher_queue_node * pub_node = entry->topic.publisher_queues;
     while (pub_node) {
-      char num_str[20];
+      char num_str[BUFFER_SIZE];
       scnprintf(num_str, sizeof(num_str), "  pid=%u:\n", pub_node->pid);
       strcat(local_buf, num_str);
-      buf_len += 20;
+      buf_len += BUFFER_SIZE;
 
       struct rb_root * root = &pub_node->entries;
       struct rb_node * node;
@@ -484,26 +485,26 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
         strcat(local_buf, "   entry: ");
         buf_len += 10;
 
-        char num_str_timestamp[30];
+        char num_str_timestamp[BUFFER_SIZE];
         scnprintf(num_str_timestamp, sizeof(num_str_timestamp), "time=%lld ", en->timestamp);
         strcat(local_buf, num_str_timestamp);
-        buf_len += 30;
+        buf_len += BUFFER_SIZE;
 
-        char num_str_msg_addr[30];
+        char num_str_msg_addr[BUFFER_SIZE];
         scnprintf(
           num_str_msg_addr, sizeof(num_str_msg_addr), "addr=%lld ", en->msg_virtual_address);
         strcat(local_buf, num_str_msg_addr);
-        buf_len += 30;
+        buf_len += BUFFER_SIZE;
 
-        char num_str_rc[10];
+        char num_str_rc[BUFFER_SIZE];
         scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
         strcat(local_buf, num_str_rc);
-        buf_len += 10;
+        buf_len += BUFFER_SIZE;
 
-        char num_str_usc[10];
+        char num_str_usc[BUFFER_SIZE];
         scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
         strcat(local_buf, num_str_usc);
-        buf_len += 10;
+        buf_len += BUFFER_SIZE;
 
         if (buf_len * 2 > buf_size) {
           buf_size *= 2;
