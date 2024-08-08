@@ -1,8 +1,8 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include "preloaded.hpp"
 
+#include "agnocast.hpp"
 #include "tlsf/tlsf.h"
 
 #include <dlfcn.h>
@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <string>
 #include <unordered_map>
 
@@ -37,45 +38,16 @@ static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
-static bool mempool_initialized = false;
+static std::atomic<bool> mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void map_area(const char * shm_name, const uint64_t shm_addr, const bool writable)
+__thread bool is_in_hooked_call = false;
+
+void initialize_mempool()
 {
-  int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
-  int shm_fd = shm_open(shm_name, oflag, 0666);
-  if (shm_fd == -1) {
-    fprintf(stderr, "heaphook: shm_open failed in map_area\n");
-    exit(EXIT_FAILURE);
-  }
+  if (mempool_initialized) return;
 
-  if (writable) {
-    if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
-      fprintf(stderr, "heaphook: ftruncate failed in map_area\n");
-      exit(EXIT_FAILURE);
-    }
-  }
-
-  int prot = PROT_READ | MAP_FIXED;
-  if (writable) prot |= PROT_WRITE;
-
-  void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
-    0);
-
-  if (ret == MAP_FAILED) {
-    fprintf(stderr, "heaphook: mmap failed in map_area\n");
-    exit(EXIT_FAILURE);
-  }
-
-  if (writable) {
-    mempool_ptr = reinterpret_cast<char *>(ret);
-  }
-}
-
-void initialize_mempool(const char * shm_name, const uint64_t shm_addr)
-{
   pthread_mutex_lock(&init_mtx);
 
   if (mempool_initialized) {
@@ -91,7 +63,9 @@ void initialize_mempool(const char * shm_name, const uint64_t shm_addr)
     ADDITIONAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
 
-  map_area(shm_name, shm_addr, true);
+  void * ret = agnocast::initialize_agnocast();
+
+  mempool_ptr = reinterpret_cast<char *>(ret);
 
   memset(mempool_ptr, 0, INITIAL_MEMPOOL_SIZE);
   init_memory_pool(INITIAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
@@ -100,6 +74,7 @@ void initialize_mempool(const char * shm_name, const uint64_t shm_addr)
   // aligned2orig.reserve(10000000);
 
   mempool_initialized = true;
+
   pthread_mutex_unlock(&init_mtx);
 }
 
@@ -169,29 +144,30 @@ extern "C" {
 void * malloc(size_t size)
 {
   static malloc_type original_malloc = reinterpret_cast<malloc_type>(dlsym(RTLD_NEXT, "malloc"));
-  static __thread bool malloc_no_hook = false;
 
-  if (!mempool_initialized || malloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_malloc(size);
   }
 
-  malloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_malloc_wrapped(size);
-  malloc_no_hook = false;
+  is_in_hooked_call = false;
+
   return ret;
 }
 
 void free(void * ptr)
 {
   static free_type original_free = reinterpret_cast<free_type>(dlsym(RTLD_NEXT, "free"));
-  static __thread bool free_no_hook = false;
 
-  if (!mempool_initialized || free_no_hook) {
+  if (is_in_hooked_call) {
     original_free(ptr);
     return;
   }
 
-  free_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -200,21 +176,21 @@ void free(void * ptr)
   }
 
   tlsf_free_wrapped(ptr);
-  free_no_hook = false;
+  is_in_hooked_call = false;
 }
 
 void * calloc(size_t num, size_t size)
 {
   static calloc_type original_calloc = reinterpret_cast<calloc_type>(dlsym(RTLD_NEXT, "calloc"));
-  static __thread bool calloc_no_hook = false;
 
-  if (!mempool_initialized || calloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_calloc(num, size);
   }
 
-  calloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_calloc_wrapped(num, size);
-  calloc_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -222,13 +198,13 @@ void * realloc(void * ptr, size_t new_size)
 {
   static realloc_type original_realloc =
     reinterpret_cast<realloc_type>(dlsym(RTLD_NEXT, "realloc"));
-  static __thread bool realloc_no_hook = false;
 
-  if (!mempool_initialized || realloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_realloc(ptr, new_size);
   }
 
-  realloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -237,7 +213,7 @@ void * realloc(void * ptr, size_t new_size)
   }
 
   void * ret = tlsf_realloc_wrapped(ptr, new_size);
-  realloc_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -245,15 +221,15 @@ int posix_memalign(void ** memptr, size_t alignment, size_t size)
 {
   static posix_memalign_type original_posix_memalign =
     reinterpret_cast<posix_memalign_type>(dlsym(RTLD_NEXT, "posix_memalign"));
-  static __thread bool posix_memalign_no_hook = false;
 
-  if (!mempool_initialized || posix_memalign_no_hook) {
+  if (is_in_hooked_call) {
     return original_posix_memalign(memptr, alignment, size);
   }
 
-  posix_memalign_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   *memptr = tlsf_aligned_malloc(alignment, size);
-  posix_memalign_no_hook = false;
+  is_in_hooked_call = false;
   return 0;
 }
 
@@ -261,15 +237,15 @@ void * memalign(size_t alignment, size_t size)
 {
   static memalign_type original_memalign =
     reinterpret_cast<memalign_type>(dlsym(RTLD_NEXT, "memalign"));
-  static __thread bool memalign_no_hook = false;
 
-  if (!mempool_initialized || memalign_no_hook) {
+  if (is_in_hooked_call) {
     return original_memalign(alignment, size);
   }
 
-  memalign_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(alignment, size);
-  memalign_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -277,31 +253,31 @@ void * aligned_alloc(size_t alignment, size_t size)
 {
   static aligned_alloc_type original_aligned_alloc =
     reinterpret_cast<aligned_alloc_type>(dlsym(RTLD_NEXT, "aligned_alloc"));
-  static __thread bool aligned_alloc_no_hook = false;
 
-  if (!mempool_initialized || aligned_alloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_aligned_alloc(alignment, size);
   }
 
-  aligned_alloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(alignment, size);
-  aligned_alloc_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
 void * valloc(size_t size)
 {
   static valloc_type original_valloc = reinterpret_cast<valloc_type>(dlsym(RTLD_NEXT, "valloc"));
-  static __thread bool valloc_no_hook = false;
   static size_t page_size = sysconf(_SC_PAGESIZE);
 
-  if (!mempool_initialized || valloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_valloc(size);
   }
 
-  valloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(page_size, size);
-  valloc_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -310,17 +286,17 @@ void * pvalloc(size_t size)
 {
   static pvalloc_type original_pvalloc =
     reinterpret_cast<pvalloc_type>(dlsym(RTLD_NEXT, "pvalloc"));
-  static __thread bool pvalloc_no_hook = false;
   static size_t page_size = sysconf(_SC_PAGESIZE);
   size_t rounded_up = size + (page_size - size % page_size) % page_size;
 
-  if (!mempool_initialized || pvalloc_no_hook) {
+  if (is_in_hooked_call) {
     return original_pvalloc(size);
   }
 
-  pvalloc_no_hook = true;
+  is_in_hooked_call = true;
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(page_size, rounded_up);
-  pvalloc_no_hook = false;
+  is_in_hooked_call = false;
   return ret;
 }
 
@@ -328,6 +304,7 @@ size_t malloc_usable_size(void * ptr)
 {
   static malloc_usable_size_type original_malloc_usable_size =
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
+  initialize_mempool();
   size_t ret = original_malloc_usable_size(ptr);
   return ret;
 }

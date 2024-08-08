@@ -7,6 +7,8 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(tlsf REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(agnocastlib REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -24,7 +26,7 @@ include(CheckSymbolExists)
 check_symbol_exists(mallinfo2 malloc.h HAVE_MALLINFO2)
 
 add_library(preloaded SHARED src/preloaded.cpp)
-target_link_libraries(preloaded PRIVATE tlsf::tlsf)
+target_link_libraries(preloaded PRIVATE agnocastlib::agnocast tlsf::tlsf ${rclcpp_LIBRARIES})
 if(HAVE_MALLINFO2)
   target_compile_definitions(preloaded
     PRIVATE
@@ -32,26 +34,6 @@ if(HAVE_MALLINFO2)
   )
 endif()
 
-target_include_directories(preloaded PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
+install(TARGETS preloaded DESTINATION lib)
 
-install(TARGETS preloaded
-  EXPORT export_${PROJECT_NAME}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
-)
-
-install(
-  DIRECTORY include/
-  DESTINATION include
-)
-
-install(TARGETS preloaded DESTINATION lib/${PROJECT_NAME})
-
-ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_include_directories(include)
 ament_package()
