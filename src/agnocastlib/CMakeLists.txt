@@ -8,7 +8,6 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(agnocast_heaphook REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -25,8 +24,6 @@ add_library(agnocast SHARED src/agnocast.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast
-  PRIVATE
-    agnocast_heaphook::preloaded
   ${rclcpp_LIBRARIES}
 )
 

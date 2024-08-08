@@ -29,7 +29,6 @@ namespace agnocast
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
-void map_rdonly_area(const uint32_t pid, const uint64_t addr);
 void map_rdonly_areas(const char * topic_name);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
