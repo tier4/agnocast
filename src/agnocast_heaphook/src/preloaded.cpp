@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <string>
 #include <unordered_map>
 
@@ -37,7 +38,7 @@ static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
-static bool mempool_initialized = false;
+static std::atomic<bool> mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
