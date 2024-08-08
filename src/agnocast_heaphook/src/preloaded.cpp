@@ -46,6 +46,15 @@ __thread bool is_in_hooked_call = false;
 
 void initialize_mempool()
 {
+  if (mempool_initialized) return;
+
+  pthread_mutex_lock(&init_mtx);
+
+  if (mempool_initialized) {
+    pthread_mutex_unlock(&init_mtx);
+    return;
+  }
+
   if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
     INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
@@ -65,20 +74,6 @@ void initialize_mempool()
   // aligned2orig.reserve(10000000);
 
   mempool_initialized = true;
-}
-
-void check_mempool_initialized()
-{
-  if (mempool_initialized) return;
-
-  pthread_mutex_lock(&init_mtx);
-
-  if (mempool_initialized) {
-    pthread_mutex_unlock(&init_mtx);
-    return;
-  }
-
-  initialize_mempool();
 
   pthread_mutex_unlock(&init_mtx);
 }
@@ -155,7 +150,7 @@ void * malloc(size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_malloc_wrapped(size);
   is_in_hooked_call = false;
 
@@ -172,7 +167,7 @@ void free(void * ptr)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -193,7 +188,7 @@ void * calloc(size_t num, size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_calloc_wrapped(num, size);
   is_in_hooked_call = false;
   return ret;
@@ -209,7 +204,7 @@ void * realloc(void * ptr, size_t new_size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
 
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
@@ -232,7 +227,7 @@ int posix_memalign(void ** memptr, size_t alignment, size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   *memptr = tlsf_aligned_malloc(alignment, size);
   is_in_hooked_call = false;
   return 0;
@@ -248,7 +243,7 @@ void * memalign(size_t alignment, size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(alignment, size);
   is_in_hooked_call = false;
   return ret;
@@ -264,7 +259,7 @@ void * aligned_alloc(size_t alignment, size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(alignment, size);
   is_in_hooked_call = false;
   return ret;
@@ -280,7 +275,7 @@ void * valloc(size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(page_size, size);
   is_in_hooked_call = false;
   return ret;
@@ -299,7 +294,7 @@ void * pvalloc(size_t size)
   }
 
   is_in_hooked_call = true;
-  check_mempool_initialized();
+  initialize_mempool();
   void * ret = tlsf_aligned_malloc(page_size, rounded_up);
   is_in_hooked_call = false;
   return ret;
@@ -309,7 +304,7 @@ size_t malloc_usable_size(void * ptr)
 {
   static malloc_usable_size_type original_malloc_usable_size =
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
-  check_mempool_initialized();
+  initialize_mempool();
   size_t ret = original_malloc_usable_size(ptr);
   return ret;
 }
