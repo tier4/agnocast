@@ -37,6 +37,7 @@ struct publisher_queue_node
   uint32_t pid;
   uint32_t entries_num;
   struct rb_root entries;
+  bool publisher_exited;
   struct publisher_queue_node * next;
 };
 
@@ -209,6 +210,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
   new_node->pid = publisher_pid;
   new_node->entries_num = 0;
   new_node->entries = RB_ROOT;
+  new_node->publisher_exited = true;
 
   new_node->next = wrapper->topic.publisher_queues;
   wrapper->topic.publisher_queues = new_node;
@@ -1002,16 +1004,20 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
     ioctl_ret->ret_pids[index] = node->pid;
-    for (int j = 0; j < pid_index; j++) {
-      if (process_ids[j] == node->pid) {
-        ioctl_ret->ret_addrs[index] = shm_addrs[j];
-        index++;
-        break;
+    if (!node->publisher_exited) { // Publisher is alive
+      ioctl_ret->ret_pids[index] = node->pid;
+      for (int j = 0; j < pid_index; j++) {
+        if (process_ids[j] == node->pid) {
+          ioctl_ret->ret_addrs[index] = shm_addrs[j];
+          index++;
+          break;
+        }
       }
     }
-
     node = node->next;
   }
+  ioctl_ret->ret_publisher_num = index;
+
 
   return 0;
 }
@@ -1197,12 +1203,85 @@ static struct class * agnocast_class;
 static struct device * agnocast_device;
 
 // =========================================
-// Handler for process exit
+// Handler for publisher process exit
+void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en, struct rb_root * root){
+  publisher_queue->entries_num--;
+  rb_erase(&en->node, root);
+  kfree(en);
+}
+
+void publisher_exit(struct publisher_queue_node * publisher_queue){
+  struct rb_root * root = &publisher_queue->entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+    // unreceived_subscriber_count is not checked when releasing the message.
+    if (en->reference_count == 0){
+      free_entry_node(publisher_queue, en, root);
+    }
+  }
+
+  publisher_queue->publisher_exited = true;
+}
+
+void exit_if_publisher(struct topic_wrapper * entry){
+    struct publisher_queue_node * publisher_queue = entry->topic.publisher_queues;
+    struct publisher_queue_node dummy_head;
+    dummy_head.next = publisher_queue;
+    struct publisher_queue_node * prev_pub_queue = &dummy_head;
+
+    while (publisher_queue) {
+      if (publisher_queue->pid != current->pid){ 
+        prev_pub_queue = publisher_queue;
+        publisher_queue = publisher_queue->next;
+        continue;
+      }
+
+      printk(KERN_INFO "Process %d is exiting as a publisher.\n", current->pid);
+
+      publisher_exit(publisher_queue);
+      if (publisher_queue->entries_num == 0) { // Delete the publisher_queue_node since there are no entry_node remains.
+        entry->topic.publisher_num--;
+        prev_pub_queue->next = publisher_queue->next;
+        kfree(publisher_queue);
+      }
+
+      break;
+    }
+    entry->topic.publisher_queues = dummy_head.next;
+}
 
 // TODO: Modify agnocast kmod's data structure to keep its validity
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
-  printk(KERN_INFO "Process %d is exiting.\n", current->pid);
+  mutex_lock(&global_mutex);
+
+  struct topic_wrapper * entry;
+  struct hlist_node * node;
+  int bkt;
+
+  // TODO: Introduce a mechanism to quickly determine if it is an Agnocast-related process.
+
+  hash_for_each_safe(topic_hashtable, bkt, node, entry, node)
+  {
+    // Exit handler for publisher
+    exit_if_publisher(entry);
+
+    // Exit handler for subscriber
+    // exit_if_subscriber(entry);
+
+    // Check if we can release the topic_wrapper
+    if (entry->topic.publisher_num == 0 && entry->topic.subscriber_num == 0){
+      hash_del(&entry->node);
+      if (entry->key) {
+        kfree(entry->key);
+      }
+      kfree(entry);
+    }
+  }
+
+  mutex_unlock(&global_mutex);
   return 0;
 }
 
