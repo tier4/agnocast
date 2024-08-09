@@ -782,7 +782,7 @@ uint64_t release_msgs_to_meet_depth(
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
     printk(
-      KERN_WARNING "publisher (pid=%d) not found in %s (release_removable_oldest_message)\n",
+      KERN_WARNING "publisher (pid=%d) not found in %s (release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
   }
@@ -798,7 +798,7 @@ uint64_t release_msgs_to_meet_depth(
       KERN_WARNING
       "For some reason the reference count of the message is not reduced and the queue size is "
       "huge: publisher queue publisher_pid=%d, topic_name=%s "
-      "(release_removable_oldest_message)\n",
+      "(release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
   }
@@ -807,7 +807,7 @@ uint64_t release_msgs_to_meet_depth(
   if (!node) {
     printk(
       KERN_WARNING
-      "Failed to get message entries in publisher (pid=%d) (release_removable_oldest_message)\n",
+      "Failed to get message entries in publisher (pid=%d) (release_msgs_to_meet_depth)\n",
       publisher_pid);
     return -1;
   }
@@ -824,7 +824,7 @@ uint64_t release_msgs_to_meet_depth(
     if (!node) {
       printk(KERN_WARNING
              "entries_num is inconsistent with actual message entry num "
-             "(release_removable_oldest_message)\n");
+             "(release_msgs_to_meet_depth)\n");
       return -1;
     }
 
@@ -839,7 +839,7 @@ uint64_t release_msgs_to_meet_depth(
     printk(
       KERN_INFO
       "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
-      "(release_removable_oldest_message)\n",
+      "(release_msgs_to_meet_depth)\n",
       topic_name, publisher_pid, qos_depth);
   }
 
