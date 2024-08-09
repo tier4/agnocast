@@ -818,13 +818,13 @@ uint64_t release_msgs_to_meet_depth(
   // The searched message is either deleted or, if a reference count remains, is not deleted.
   // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
   // QoS.
-  for (uint32_t i = 0; i < num_search_entries; i++) {
+  for (uint32_t _ = 0; _ < num_search_entries; _++) {
     struct entry_node * en = container_of(node, struct entry_node, node);
 
     if (en->reference_count == 0) {
       rb_erase(&en->node, &publisher_queue->entries);
       publisher_queue->entries_num--;
-      ioctl_ret->ret_released_addrs[i] = en->msg_virtual_address;
+      ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
       ioctl_ret->ret_len++;
       kfree(en);
 
