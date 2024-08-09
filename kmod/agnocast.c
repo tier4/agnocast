@@ -820,30 +820,27 @@ uint64_t release_msgs_to_meet_depth(
   // QoS.
   for (uint32_t _ = 0; _ < num_search_entries; _++) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-
-    if (en->reference_count == 0) {
-      rb_erase(&en->node, &publisher_queue->entries);
-      publisher_queue->entries_num--;
-      ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-      ioctl_ret->ret_len++;
-      kfree(en);
-
-      printk(
-        KERN_INFO
-        "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
-        "(release_removable_oldest_message)\n",
-        topic_name, publisher_pid, qos_depth);
-    }
-
-    // This is not counted in a Queue size of QoS.
     node = rb_next(node);
-
     if (!node) {
       printk(KERN_WARNING
              "entries_num is inconsistent with actual message entry num "
              "(release_removable_oldest_message)\n");
       return -1;
     }
+
+    if (en->reference_count > 0) continue;  // This is not counted in a Queue size of QoS.
+
+    ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+    ioctl_ret->ret_len++;
+    publisher_queue->entries_num--;
+    rb_erase(&en->node, &publisher_queue->entries);
+    kfree(en);
+
+    printk(
+      KERN_INFO
+      "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
+      "(release_removable_oldest_message)\n",
+      topic_name, publisher_pid, qos_depth);
   }
 
   return 0;
