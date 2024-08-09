@@ -599,14 +599,6 @@ union ioctl_publisher_args {
   };
 };
 
-struct ioctl_enqueue_entry_args
-{
-  char * topic_name;
-  uint32_t publisher_pid;
-  uint64_t msg_virtual_address;
-  uint64_t timestamp;
-};
-
 union ioctl_update_entry_args {
   struct
   {
@@ -642,14 +634,20 @@ union ioctl_publish_args {
   };
 };
 
-union ioctl_release_oldest_args {
+union ioctl_enqueue_and_release_args {
   struct
   {
     char * topic_name;
     uint32_t publisher_pid;
     uint32_t qos_depth;
+    uint64_t msg_virtual_address;
+    uint64_t timestamp;
   };
-  uint64_t ret;
+  struct
+  {
+    uint32_t ret_len;
+    uint64_t ret_released_addrs[MAX_QOS_DEPTH];  // TODO: reconsider length
+  };
 };
 
 union ioctl_new_shm_args {
@@ -774,21 +772,22 @@ int publisher_queue_add(
 
 #define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, union ioctl_publisher_args)
 
-#define AGNOCAST_RELEASE_MSG_CMD _IOW('P', 3, union ioctl_release_oldest_args)
-uint64_t release_removable_oldest_message(
+#define AGNOCAST_ENQUEUE_AND_RELEASE_CMD _IOW('E', 1, union ioctl_enqueue_and_release_args)
+uint64_t release_msgs_to_meet_depth(
   const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
-  union ioctl_release_oldest_args * ioctl_ret)
+  union ioctl_enqueue_and_release_args * ioctl_ret)
 {
+  ioctl_ret->ret_len = 0;
+
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
     printk(
-      KERN_WARNING "publisher (pid=%d) not found in %s (release_removable_oldest_message)\n",
+      KERN_WARNING "publisher (pid=%d) not found in %s (release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
   }
 
   if (publisher_queue->entries_num <= qos_depth) {
-    ioctl_ret->ret = 0;
     return 0;
   }
 
@@ -799,7 +798,7 @@ uint64_t release_removable_oldest_message(
       KERN_WARNING
       "For some reason the reference count of the message is not reduced and the queue size is "
       "huge: publisher queue publisher_pid=%d, topic_name=%s "
-      "(release_removable_oldest_message)\n",
+      "(release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
   }
@@ -808,50 +807,55 @@ uint64_t release_removable_oldest_message(
   if (!node) {
     printk(
       KERN_WARNING
-      "Failed to get message entries in publisher (pid=%d) (release_removable_oldest_message)\n",
+      "Failed to get message entries in publisher (pid=%d) (release_msgs_to_meet_depth)\n",
       publisher_pid);
     return -1;
   }
 
-  // Number of entries exceeding qos_depth. +1 is for the message to be enqueued later.
-  const uint32_t num_search_entries = publisher_queue->entries_num - qos_depth + 1;
+  // Number of entries exceeding qos_depth
+  const uint32_t num_search_entries = publisher_queue->entries_num - qos_depth;
 
   // The searched message is either deleted or, if a reference count remains, is not deleted.
   // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
   // QoS.
   for (uint32_t _ = 0; _ < num_search_entries; _++) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-
-    if (en->reference_count == 0) {
-      rb_erase(&en->node, &publisher_queue->entries);
-      publisher_queue->entries_num--;
-      ioctl_ret->ret = en->msg_virtual_address;
-      kfree(en);
-
-      printk(
-        KERN_INFO
-        "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
-        "(release_removable_oldest_message)\n",
-        topic_name, publisher_pid, qos_depth);
-      return 0;
-    }
-
-    // This is not counted in a Queue size of QoS.
     node = rb_next(node);
-
     if (!node) {
       printk(KERN_WARNING
              "entries_num is inconsistent with actual message entry num "
-             "(release_removable_oldest_message)\n");
+             "(release_msgs_to_meet_depth)\n");
       return -1;
     }
+
+    if (en->reference_count > 0) continue;  // This is not counted in a Queue size of QoS.
+
+    ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+    ioctl_ret->ret_len++;
+    publisher_queue->entries_num--;
+    rb_erase(&en->node, &publisher_queue->entries);
+    kfree(en);
+
+    printk(
+      KERN_INFO
+      "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
+      "(release_msgs_to_meet_depth)\n",
+      topic_name, publisher_pid, qos_depth);
   }
 
-  ioctl_ret->ret = 0;
   return 0;
 }
 
-#define AGNOCAST_ENQUEUE_ENTRY_CMD _IOW('E', 1, struct ioctl_enqueue_entry_args)
+uint64_t enqueue_and_release(
+  const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, const uint64_t timestamp,
+  union ioctl_enqueue_and_release_args * ioctl_ret)
+{
+  if (insert_message_entry(topic_name, publisher_pid, msg_virtual_address, timestamp) == -1) {
+    return -1;
+  }
+  return release_msgs_to_meet_depth(topic_name, publisher_pid, qos_depth, ioctl_ret);
+}
 
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
 
@@ -1020,11 +1024,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   union ioctl_add_topic_sub_args add_topic_sub_args;
   struct ioctl_subscriber_args sub_args;
   union ioctl_publisher_args pub_args;
-  struct ioctl_enqueue_entry_args enqueue_args;
+  union ioctl_enqueue_and_release_args enqueue_release_args;
   union ioctl_update_entry_args entry_args;
   union ioctl_receive_msg_args receive_msg_args;
   union ioctl_publish_args publish_args;
-  union ioctl_release_oldest_args release_args;
   union ioctl_new_shm_args new_shm_args;
   union ioctl_get_shm_args get_shm_args;
 
@@ -1082,28 +1085,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       ret = remove_publisher_queue(topic_name_buf, pub_args.publisher_pid);
       break;
-    case AGNOCAST_RELEASE_MSG_CMD:
+    case AGNOCAST_ENQUEUE_AND_RELEASE_CMD:
       if (copy_from_user(
-            &release_args, (union ioctl_release_oldest_args __user *)arg, sizeof(release_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)release_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = release_removable_oldest_message(
-        topic_name_buf, release_args.publisher_pid, release_args.qos_depth, &release_args);
-      if (copy_to_user((uint64_t __user *)arg, &release_args, sizeof(release_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_ENQUEUE_ENTRY_CMD:
-      if (copy_from_user(
-            &enqueue_args, (struct ioctl_enqueue_entry_args __user *)arg, sizeof(enqueue_args)))
+            &enqueue_release_args, (union ioctl_enqueue_and_release_args __user *)arg,
+            sizeof(enqueue_release_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
-            topic_name_buf, (char __user *)enqueue_args.topic_name, sizeof(topic_name_buf)))
+            topic_name_buf, (char __user *)enqueue_release_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = insert_message_entry(
-        topic_name_buf, enqueue_args.publisher_pid, enqueue_args.msg_virtual_address,
-        enqueue_args.timestamp);
+      ret = enqueue_and_release(
+        topic_name_buf, enqueue_release_args.publisher_pid, enqueue_release_args.qos_depth,
+        enqueue_release_args.msg_virtual_address, enqueue_release_args.timestamp,
+        &enqueue_release_args);
+      if (copy_to_user((uint64_t __user *)arg, &enqueue_release_args, sizeof(enqueue_release_args)))
+        goto unlock_mutex_and_return;
       break;
     case AGNOCAST_INCREMENT_RC_CMD:
       if (copy_from_user(

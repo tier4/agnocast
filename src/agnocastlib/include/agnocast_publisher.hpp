@@ -88,36 +88,22 @@ public:
 
   message_ptr<MessageT> borrow_loaned_message(MessageT * ptr)
   {
-    while (true) {
-      union ioctl_release_oldest_args release_args;
-      release_args.topic_name = topic_name_;
-      release_args.publisher_pid = publisher_pid_;
-      release_args.qos_depth = static_cast<uint32_t>(qos_.depth());
-      if (ioctl(agnocast_fd, AGNOCAST_RELEASE_MSG_CMD, &release_args) < 0) {
-        perror("AGNOCAST_RELEASE_MSG_CMD failed");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      if (release_args.ret == 0) {  // Queue size of QoS is met.
-        break;
-      } else {
-        MessageT * release_ptr = reinterpret_cast<MessageT *>(release_args.ret);
-        delete release_ptr;
-      }
-    }
-
     uint64_t timestamp = agnocast_get_timestamp();
-
-    struct ioctl_enqueue_entry_args enqueue_args;
-    enqueue_args.topic_name = topic_name_;
-    enqueue_args.publisher_pid = publisher_pid_;
-    enqueue_args.msg_virtual_address = reinterpret_cast<uint64_t>(ptr);
-    enqueue_args.timestamp = timestamp;
-    if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_ENTRY_CMD, &enqueue_args) < 0) {
-      perror("AGNOCAST_ENQUEUE_ENTRY_CMD failed");
+    union ioctl_enqueue_and_release_args ioctl_args;
+    ioctl_args.topic_name = topic_name_;
+    ioctl_args.publisher_pid = publisher_pid_;
+    ioctl_args.qos_depth = static_cast<uint32_t>(qos_.depth());
+    ioctl_args.msg_virtual_address = reinterpret_cast<uint64_t>(ptr);
+    ioctl_args.timestamp = timestamp;
+    if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_AND_RELEASE_CMD, &ioctl_args) < 0) {
+      perror("AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < ioctl_args.ret_len; i++) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(ioctl_args.ret_released_addrs[i]);
+      delete release_ptr;
     }
 
     return message_ptr<MessageT>(ptr, topic_name_, publisher_pid_, timestamp);
