@@ -43,7 +43,7 @@ struct publisher_queue_node
 
 struct topic_struct
 {
-  unsigned int publisher_num;
+  unsigned int publisher_num;  // This also includes publishers that have already exited.
   struct publisher_queue_node * publisher_queues;  // linked list
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
@@ -1004,7 +1004,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
     ioctl_ret->ret_pids[index] = node->pid;
-    if (!node->publisher_exited) { // Publisher is alive
+    if (!node->publisher_exited) {  // Publisher is alive
       ioctl_ret->ret_pids[index] = node->pid;
       for (int j = 0; j < pid_index; j++) {
         if (process_ids[j] == node->pid) {
@@ -1017,7 +1017,6 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
     node = node->next;
   }
   ioctl_ret->ret_publisher_num = index;
-
 
   return 0;
 }
@@ -1186,7 +1185,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(const struct device * dev, umode_t * mode)
+static char * agnocast_devnode(struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1204,20 +1203,23 @@ static struct device * agnocast_device;
 
 // =========================================
 // Handler for publisher process exit
-void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en, struct rb_root * root){
+void free_entry_node(
+  struct publisher_queue_node * publisher_queue, struct entry_node * en, struct rb_root * root)
+{
   publisher_queue->entries_num--;
   rb_erase(&en->node, root);
   kfree(en);
 }
 
-void publisher_exit(struct publisher_queue_node * publisher_queue){
+void publisher_exit(struct publisher_queue_node * publisher_queue)
+{
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->reference_count == 0){
+    if (en->reference_count == 0) {
       free_entry_node(publisher_queue, en, root);
     }
   }
@@ -1225,34 +1227,35 @@ void publisher_exit(struct publisher_queue_node * publisher_queue){
   publisher_queue->publisher_exited = true;
 }
 
-void exit_if_publisher(struct topic_wrapper * entry){
-    struct publisher_queue_node * publisher_queue = entry->topic.publisher_queues;
-    struct publisher_queue_node dummy_head;
-    dummy_head.next = publisher_queue;
-    struct publisher_queue_node * prev_pub_queue = &dummy_head;
+void exit_if_publisher(struct topic_wrapper * entry)
+{
+  struct publisher_queue_node * publisher_queue = entry->topic.publisher_queues;
+  struct publisher_queue_node dummy_head;
+  dummy_head.next = publisher_queue;
+  struct publisher_queue_node * prev_pub_queue = &dummy_head;
 
-    while (publisher_queue) {
-      if (publisher_queue->pid != current->pid){ 
-        prev_pub_queue = publisher_queue;
-        publisher_queue = publisher_queue->next;
-        continue;
-      }
-
-      printk(KERN_INFO "Process %d is exiting as a publisher.\n", current->pid);
-
-      publisher_exit(publisher_queue);
-      if (publisher_queue->entries_num == 0) { // Delete the publisher_queue_node since there are no entry_node remains.
-        entry->topic.publisher_num--;
-        prev_pub_queue->next = publisher_queue->next;
-        kfree(publisher_queue);
-      }
-
-      break;
+  while (publisher_queue) {
+    if (publisher_queue->pid != current->pid) {
+      prev_pub_queue = publisher_queue;
+      publisher_queue = publisher_queue->next;
+      continue;
     }
-    entry->topic.publisher_queues = dummy_head.next;
+
+    printk(KERN_INFO "Process %d is exiting as a publisher.\n", current->pid);
+
+    publisher_exit(publisher_queue);
+    if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
+                                              // entry_node remains.
+      entry->topic.publisher_num--;
+      prev_pub_queue->next = publisher_queue->next;
+      kfree(publisher_queue);
+    }
+
+    break;
+  }
+  entry->topic.publisher_queues = dummy_head.next;
 }
 
-// TODO: Modify agnocast kmod's data structure to keep its validity
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
@@ -1261,7 +1264,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   struct hlist_node * node;
   int bkt;
 
-  // TODO: Introduce a mechanism to quickly determine if it is an Agnocast-related process.
+  // TODO: Introduce a function to quickly determine if it is an Agnocast-related process.
 
   hash_for_each_safe(topic_hashtable, bkt, node, entry, node)
   {
@@ -1272,7 +1275,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     // exit_if_subscriber(entry);
 
     // Check if we can release the topic_wrapper
-    if (entry->topic.publisher_num == 0 && entry->topic.subscriber_num == 0){
+    if (entry->topic.publisher_num == 0 && entry->topic.subscriber_num == 0) {
       hash_del(&entry->node);
       if (entry->key) {
         kfree(entry->key);
@@ -1316,7 +1319,7 @@ static int agnocast_init(void)
   printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create("agnocast_class");
+  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
