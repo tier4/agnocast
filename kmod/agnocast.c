@@ -43,7 +43,7 @@ struct publisher_queue_node
 
 struct topic_struct
 {
-  unsigned int publisher_num;  // This also includes publishers that have already exited.
+  unsigned int publisher_queue_num;  // This also includes publishers that have already exited.
   struct publisher_queue_node * publisher_queues;  // linked list
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
@@ -105,7 +105,7 @@ static int insert_topic(const char * topic_name)
     return -1;
   }
 
-  wrapper->topic.publisher_num = 0;
+  wrapper->topic.publisher_queue_num = 0;
   wrapper->topic.publisher_queues = NULL;
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
@@ -215,7 +215,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
   new_node->next = wrapper->topic.publisher_queues;
   wrapper->topic.publisher_queues = new_node;
 
-  wrapper->topic.publisher_num++;
+  wrapper->topic.publisher_queue_num++;
 
   return 0;
 }
@@ -396,7 +396,7 @@ static int remove_publisher_queue(const char * topic_name, uint32_t publisher_pi
   while (node) {
     if (publisher_pid == node->pid) {
       prev->next = node->next;
-      wrapper->topic.publisher_num--;
+      wrapper->topic.publisher_queue_num--;
       free_rb_tree(&node->entries);
       printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", publisher_pid, topic_name);
       return 0;
@@ -993,7 +993,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
     return -1;
   }
 
-  if (wrapper->topic.publisher_num > MAX_PUBLISHER_NUM) {
+  if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
     printk(KERN_WARNING "publishers for %s topic are too much\n", topic_name);
     return -1;
   }
@@ -1210,7 +1210,7 @@ void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry
   kfree(en);
 }
 
-void publisher_exit(struct publisher_queue_node * publisher_queue)
+void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1242,10 +1242,10 @@ void exit_if_publisher(struct topic_wrapper * wrapper)
 
     printk(KERN_INFO "Process %d is exiting as a publisher.\n", current->pid);
 
-    publisher_exit(publisher_queue);
+    handle_publisher_exit(publisher_queue);
     if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
                                               // entry_node remains.
-      wrapper->topic.publisher_num--;
+      wrapper->topic.publisher_queue_num--;
       prev_pub_queue->next = publisher_queue->next;
       kfree(publisher_queue);
     }
@@ -1270,11 +1270,10 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     // Exit handler for publisher
     exit_if_publisher(wrapper);
 
-    // Exit handler for subscriber
-    // exit_if_subscriber(wrapper);
+    // TODO: Exit handler for subscriber
 
     // Check if we can release the topic_wrapper
-    if (wrapper->topic.publisher_num == 0 && wrapper->topic.subscriber_num == 0) {
+    if (wrapper->topic.publisher_queue_num == 0 && wrapper->topic.subscriber_num == 0) {
       // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
       // leak occurs.
       WARN_ON(wrapper->topic.publisher_queues == NULL);
