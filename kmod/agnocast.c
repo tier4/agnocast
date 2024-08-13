@@ -1003,7 +1003,6 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   int index = 0;
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
-    ioctl_ret->ret_pids[index] = node->pid;
     if (!node->publisher_exited) {  // Publisher is alive
       ioctl_ret->ret_pids[index] = node->pid;
       for (int j = 0; j < pid_index; j++) {
