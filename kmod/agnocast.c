@@ -1159,7 +1159,8 @@ void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry
   kfree(en);
 }
 
-void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
+void handle_publisher_exit(
+  struct publisher_queue_node * publisher_queue, struct topic_wrapper * wrapper)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1173,6 +1174,10 @@ void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
   }
 
   publisher_queue->publisher_exited = true;
+
+  printk(
+    KERN_INFO "The exit handler for process %d on topic %s has finished executing.\n", current->pid,
+    wrapper->key);
 }
 
 void pre_handler_publisher(struct topic_wrapper * wrapper)
@@ -1189,9 +1194,7 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
       continue;
     }
 
-    printk(KERN_INFO "Process %d is exiting as a publisher.\n", current->pid);
-
-    handle_publisher_exit(publisher_queue);
+    handle_publisher_exit(publisher_queue, wrapper);
     if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
                                               // entry_node remains.
       wrapper->topic.publisher_queue_num--;
