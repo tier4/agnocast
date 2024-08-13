@@ -80,6 +80,7 @@ public:
     add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                  ? static_cast<uint32_t>(qos.depth())
                                  : 0;
+    add_topic_args.subscriber_pid = subscriber_pid;
     if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
       perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
       close(agnocast_fd);
@@ -124,6 +125,7 @@ public:
 
         union ioctl_receive_msg_args receive_args;
         receive_args.topic_name = topic_name;
+        receive_args.subscriber_pid = subscriber_pid;
         receive_args.publisher_pid = mq_msg.publisher_pid;
         receive_args.msg_timestamp = mq_msg.timestamp;
         receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
