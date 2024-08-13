@@ -1001,7 +1001,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   int index = 0;
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
-    if (node->publisher_exited) {  // if the publisher has already exited
+    if (node->publisher_exited) {
       node = node->next;
       continue;
     }
