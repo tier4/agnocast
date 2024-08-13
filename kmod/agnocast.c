@@ -1001,14 +1001,16 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   int index = 0;
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
-    if (!node->publisher_exited) {  // Publisher is alive
-      ioctl_ret->ret_pids[index] = node->pid;
-      for (int j = 0; j < pid_index; j++) {
-        if (process_ids[j] == node->pid) {
-          ioctl_ret->ret_addrs[index] = shm_addrs[j];
-          index++;
-          break;
-        }
+    if (node->publisher_exited) {  // if the publisher has already exited
+      node = node->next;
+      continue;
+    }
+    ioctl_ret->ret_pids[index] = node->pid;
+    for (int j = 0; j < pid_index; j++) {
+      if (process_ids[j] == node->pid) {
+        ioctl_ret->ret_addrs[index] = shm_addrs[j];
+        index++;
+        break;
       }
     }
     node = node->next;
@@ -1182,7 +1184,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(const struct device * dev, umode_t * mode)
+static char * agnocast_devnode(struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1200,9 +1202,9 @@ static struct device * agnocast_device;
 
 // =========================================
 // Handler for publisher process exit
-void free_entry_node(
-  struct publisher_queue_node * publisher_queue, struct entry_node * en, struct rb_root * root)
+void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en)
 {
+  struct rb_root * root = &publisher_queue->entries;
   publisher_queue->entries_num--;
   rb_erase(&en->node, root);
   kfree(en);
@@ -1217,7 +1219,7 @@ void publisher_exit(struct publisher_queue_node * publisher_queue)
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->reference_count == 0) {
-      free_entry_node(publisher_queue, en, root);
+      free_entry_node(publisher_queue, en);
     }
   }
 
@@ -1316,7 +1318,7 @@ static int agnocast_init(void)
   printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create("agnocast_class");
+  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
