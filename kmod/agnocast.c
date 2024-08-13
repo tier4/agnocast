@@ -372,7 +372,6 @@ static int remove_subscriber_pid(const char * topic_name, uint32_t pid)
   return 0;
 }
 
-
 // =========================================
 // "/sys/module/agnocast/status/*"
 
@@ -1226,7 +1225,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     if (wrapper->topic.publisher_queue_num == 0 && wrapper->topic.subscriber_num == 0) {
       // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
       // leak occurs.
-      WARN_ON(wrapper->topic.publisher_queues == NULL);
+      WARN_ON(wrapper->topic.publisher_queues != NULL);
 
       hash_del(&wrapper->node);
       if (wrapper->key) {
