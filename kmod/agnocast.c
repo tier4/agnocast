@@ -1226,9 +1226,9 @@ void publisher_exit(struct publisher_queue_node * publisher_queue)
   publisher_queue->publisher_exited = true;
 }
 
-void exit_if_publisher(struct topic_wrapper * entry)
+void exit_if_publisher(struct topic_wrapper * wrapper)
 {
-  struct publisher_queue_node * publisher_queue = entry->topic.publisher_queues;
+  struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
   struct publisher_queue_node dummy_head;
   dummy_head.next = publisher_queue;
   struct publisher_queue_node * prev_pub_queue = &dummy_head;
@@ -1245,41 +1245,45 @@ void exit_if_publisher(struct topic_wrapper * entry)
     publisher_exit(publisher_queue);
     if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
                                               // entry_node remains.
-      entry->topic.publisher_num--;
+      wrapper->topic.publisher_num--;
       prev_pub_queue->next = publisher_queue->next;
       kfree(publisher_queue);
     }
 
     break;
   }
-  entry->topic.publisher_queues = dummy_head.next;
+  wrapper->topic.publisher_queues = dummy_head.next;
 }
 
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
 
-  struct topic_wrapper * entry;
+  struct topic_wrapper * wrapper;
   struct hlist_node * node;
   int bkt;
 
   // TODO: Introduce a function to quickly determine if it is an Agnocast-related process.
 
-  hash_for_each_safe(topic_hashtable, bkt, node, entry, node)
+  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
     // Exit handler for publisher
-    exit_if_publisher(entry);
+    exit_if_publisher(wrapper);
 
     // Exit handler for subscriber
-    // exit_if_subscriber(entry);
+    // exit_if_subscriber(wrapper);
 
     // Check if we can release the topic_wrapper
-    if (entry->topic.publisher_num == 0 && entry->topic.subscriber_num == 0) {
-      hash_del(&entry->node);
-      if (entry->key) {
-        kfree(entry->key);
+    if (wrapper->topic.publisher_num == 0 && wrapper->topic.subscriber_num == 0) {
+      // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
+      // leak occurs.
+      WARN_ON(wrapper->topic.publisher_queues == NULL);
+
+      hash_del(&wrapper->node);
+      if (wrapper->key) {
+        kfree(wrapper->key);
       }
-      kfree(entry);
+      kfree(wrapper);
     }
   }
 
