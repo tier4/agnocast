@@ -210,7 +210,7 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
   new_node->pid = publisher_pid;
   new_node->entries_num = 0;
   new_node->entries = RB_ROOT;
-  new_node->publisher_exited = true;
+  new_node->publisher_exited = false;
 
   new_node->next = wrapper->topic.publisher_queues;
   wrapper->topic.publisher_queues = new_node;
