@@ -79,17 +79,6 @@ static unsigned long agnocast_hash(const char * str)
   return hash_min(hash, AGNOCAST_HASH_BITS);
 }
 
-static void free_rb_tree(struct rb_root * root)
-{
-  struct rb_node * next = rb_first(root);
-  while (next) {
-    struct entry_node * en = rb_entry(next, struct entry_node, node);
-    next = rb_next(next);
-    rb_erase(&en->node, root);
-    kfree(en);
-  }
-}
-
 static int insert_topic(const char * topic_name)
 {
   struct topic_wrapper * wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
@@ -383,35 +372,6 @@ static int remove_subscriber_pid(const char * topic_name, uint32_t pid)
   return 0;
 }
 
-static int remove_publisher_queue(const char * topic_name, uint32_t publisher_pid)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (remove_publisher_queue)\n", topic_name);
-    return -1;
-  }
-
-  struct publisher_queue_node * prev = wrapper->topic.publisher_queues;
-  struct publisher_queue_node * node = wrapper->topic.publisher_queues;
-  while (node) {
-    if (publisher_pid == node->pid) {
-      prev->next = node->next;
-      wrapper->topic.publisher_queue_num--;
-      free_rb_tree(&node->entries);
-      printk(KERN_INFO "publisher (pid=%d) is removed from %s\n", publisher_pid, topic_name);
-      return 0;
-    }
-
-    prev = node;
-    node = node->next;
-  }
-
-  printk(
-    KERN_WARNING
-    "tried to remove publisher (pid=%d), but not found in %s (remove_publisher_queue)\n",
-    publisher_pid, topic_name);
-  return -1;
-}
 
 // =========================================
 // "/sys/module/agnocast/status/*"
@@ -772,8 +732,6 @@ int publisher_queue_add(
   return 0;
 }
 
-#define AGNOCAST_PUBLISHER_REMOVE_CMD _IOW('P', 2, union ioctl_publisher_args)
-
 #define AGNOCAST_ENQUEUE_AND_RELEASE_CMD _IOW('E', 1, union ioctl_enqueue_and_release_args)
 uint64_t release_msgs_to_meet_depth(
   const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
@@ -1080,14 +1038,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       ret = publisher_queue_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
       if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
         goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_PUBLISHER_REMOVE_CMD:
-      if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = remove_publisher_queue(topic_name_buf, pub_args.publisher_pid);
       break;
     case AGNOCAST_ENQUEUE_AND_RELEASE_CMD:
       if (copy_from_user(
