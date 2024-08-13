@@ -1226,7 +1226,7 @@ void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
   publisher_queue->publisher_exited = true;
 }
 
-void exit_if_publisher(struct topic_wrapper * wrapper)
+void pre_handler_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
   struct publisher_queue_node dummy_head;
@@ -1268,7 +1268,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
     // Exit handler for publisher
-    exit_if_publisher(wrapper);
+    pre_handler_publisher(wrapper);
 
     // TODO: Exit handler for subscriber
 
