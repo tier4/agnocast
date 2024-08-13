@@ -998,8 +998,6 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
     return -1;
   }
 
-  ioctl_ret->ret_publisher_num = wrapper->topic.publisher_num;
-
   int index = 0;
   struct publisher_queue_node * node = wrapper->topic.publisher_queues;
   while (node) {
