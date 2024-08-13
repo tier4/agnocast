@@ -34,6 +34,7 @@ class message_ptr
 
     union ioctl_update_entry_args entry_args;
     entry_args.topic_name = topic_name_;
+    entry_args.subscriber_pid = getpid();
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
     if (ioctl(agnocast_fd, AGNOCAST_DECREMENT_RC_CMD, &entry_args) < 0) {
@@ -49,6 +50,7 @@ class message_ptr
   {
     union ioctl_update_entry_args entry_args;
     entry_args.topic_name = topic_name_;
+    entry_args.subscriber_pid = getpid();
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
     if (ioctl(agnocast_fd, AGNOCAST_INCREMENT_RC_CMD, &entry_args) < 0) {
