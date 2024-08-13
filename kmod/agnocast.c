@@ -1184,7 +1184,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(struct device * dev, umode_t * mode)
+static char * agnocast_devnode(const struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1318,7 +1318,7 @@ static int agnocast_init(void)
   printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
+  agnocast_class = class_create("agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
