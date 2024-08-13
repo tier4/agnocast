@@ -1264,6 +1264,7 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
   wrapper->topic.publisher_queues = dummy_head.next;
 }
 
+
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
