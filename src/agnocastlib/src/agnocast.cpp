@@ -200,6 +200,7 @@ size_t read_mq_msgmax()
 
 static void shutdown_agnocast()
 {
+  std::cout << "shutdown_agnocast started" << std::endl;
   is_running = false;
 
   if (mq_close(mq_new_publisher) == -1) {
@@ -212,11 +213,11 @@ static void shutdown_agnocast()
     perror("mq_unlink failed");
   }
 
-  std::cout << "shutting down agnocast.." << std::endl;
-
   for (auto & th : threads) {
     th.join();
   }
+
+  std::cout << "shutdown_agnocast completed" << std::endl;
 }
 
 class Cleanup
