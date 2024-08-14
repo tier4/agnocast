@@ -16,6 +16,8 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
+int writable_shm_fd;
+std::vector<int> rdonly_shm_fds;
 
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 
@@ -34,6 +36,11 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   if (shm_fd == -1) {
     fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
     exit(EXIT_FAILURE);
+  }
+  if (writable) {
+    writable_shm_fd = shm_fd;
+  } else {
+    rdonly_shm_fds.push_back(shm_fd);
   }
 
   if (writable) {
