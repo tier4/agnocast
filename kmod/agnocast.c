@@ -62,11 +62,14 @@ struct entry_node
   uint64_t timestamp;  // rbtree key
   uint64_t msg_virtual_address;
   uint32_t reference_count;
+  uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
   bool published;
   /*
    * NOTE:
    *   unreceived_subscriber_count currently has no effect on the release timing of the message.
-   *   However, it is retained for future use such as early release or logging.
+   *   It is retained for future use such as early release or logging. However, since the count
+   *   is not correctly decremented when a subscriber exits, the value of
+   *   unreceived_subscriber_count becomes unreliable as soon as even one subscriber exits.
    */
   uint32_t unreceived_subscriber_count;
 };
@@ -240,7 +243,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
+  const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
@@ -252,12 +255,13 @@ static int increment_message_entry_rc(
     return -1;
   }
 
+  en->referencing_subscriber_pids[en->reference_count] = subscriber_pid;
   en->reference_count++;
   return 0;
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
+  const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
@@ -269,15 +273,23 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  if (en->reference_count == 0) {
+  bool referencing = false;
+  for (int i = 0; i < en->reference_count; i++) {
+    if (en->referencing_subscriber_pids[i] == subscriber_pid) {
+      referencing = true;
+    }
+    if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
+      en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
+    }
+  }
+  if (!referencing) {
     printk(
       KERN_WARNING
-      "tried to decrement reference count 0 with topic_name=%s publisher_pid=%d "
+      "subscriber (pid=%d) is not referencing topic_name=%s publisher_pid=%d "
       "timestamp=%lld (decrement_message_entry_rc)\n",
-      topic_name, publisher_pid, msg_timestamp);
+      subscriber_pid, topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
-
   en->reference_count--;
   return 0;
 }
@@ -324,6 +336,9 @@ static int insert_message_entry(
   new_node->timestamp = timestamp;
   new_node->msg_virtual_address = msg_virtual_address;
   new_node->reference_count = 0;
+  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+    new_node->referencing_subscriber_pids[i] = 0;
+  }
   new_node->unreceived_subscriber_count = 0;
   new_node->published = false;
 
@@ -339,40 +354,8 @@ static int insert_message_entry(
   return 0;
 }
 
-static int remove_subscriber_pid(const char * topic_name, uint32_t pid)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (remove_subscriber_pid)\n", topic_name);
-    return -1;
-  }
-
-  bool found = false;
-  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-    if (pid == wrapper->topic.subscriber_pids[i]) {
-      found = true;
-    }
-
-    if (found && i < MAX_SUBSCRIBER_NUM - 1) {
-      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
-    }
-  }
-
-  if (!found) {
-    printk(
-      KERN_WARNING
-      "tried to remove subscriber (pid=%d), but not found in %s (remove_subscriber_pid)\n",
-      pid, topic_name);
-    return -1;
-  }
-
-  wrapper->topic.subscriber_num--;
-
-  printk(KERN_INFO "subscriber (pid=%d) is removed from %s\n", pid, topic_name);
-  return 0;
-}
-
 // =========================================
+
 // "/sys/module/agnocast/status/*"
 
 static int value;
@@ -530,6 +513,7 @@ union ioctl_add_topic_sub_args {
   {
     char * topic_name;
     uint32_t qos_depth;
+    uint32_t subscriber_pid;
   };
   struct
   {
@@ -564,6 +548,7 @@ union ioctl_update_entry_args {
   struct
   {
     char * topic_name;
+    uint32_t subscriber_pid;
     uint32_t publisher_pid;
     uint64_t msg_timestamp;
   };
@@ -574,6 +559,7 @@ union ioctl_receive_msg_args {
   struct
   {
     char * topic_name;
+    uint32_t subscriber_pid;
     uint32_t publisher_pid;
     uint64_t msg_timestamp;
     uint32_t qos_depth;
@@ -628,7 +614,8 @@ union ioctl_get_shm_args {
 
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 int topic_add_sub(
-  const char * topic_name, uint32_t qos_depth, union ioctl_add_topic_sub_args * ioctl_ret)
+  const char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
+  union ioctl_add_topic_sub_args * ioctl_ret)
 {
   ioctl_ret->ret_len = 0;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -666,6 +653,7 @@ int topic_add_sub(
 
       struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
       if (en->published) {
+        en->referencing_subscriber_pids[en->reference_count] = subscriber_pid;
         en->reference_count++;
         ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[newest_i];
         ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
@@ -689,8 +677,6 @@ int topic_add_sub(
 }
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
-
-#define AGNOCAST_SUBSCRIBER_REMOVE_CMD _IOW('S', 2, struct ioctl_subscriber_args)
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
 int publisher_queue_add(
@@ -822,8 +808,8 @@ uint64_t enqueue_and_release(
 
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 int receive_and_update(
-  char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp, uint32_t qos_depth,
-  union ioctl_receive_msg_args * ioctl_ret)
+  char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp,
+  uint32_t qos_depth, union ioctl_receive_msg_args * ioctl_ret)
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
@@ -872,6 +858,7 @@ int receive_and_update(
   }
 
   en->unreceived_subscriber_count--;
+  en->referencing_subscriber_pids[en->reference_count] = subscriber_pid;
   en->reference_count++;
   ioctl_ret->ret = en->msg_virtual_address;
   return 0;
@@ -1006,7 +993,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)add_topic_sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = topic_add_sub(topic_name_buf, add_topic_sub_args.qos_depth, &add_topic_sub_args);
+      ret = topic_add_sub(
+        topic_name_buf, add_topic_sub_args.qos_depth, add_topic_sub_args.subscriber_pid,
+        &add_topic_sub_args);
       if (copy_to_user(
             (union ioctl_add_topic_sub_args __user *)arg, &add_topic_sub_args,
             sizeof(add_topic_sub_args)))
@@ -1019,14 +1008,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = insert_subscriber_pid(topic_name_buf, sub_args.pid);
-      break;
-    case AGNOCAST_SUBSCRIBER_REMOVE_CMD:
-      if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = remove_subscriber_pid(topic_name_buf, sub_args.pid);
       break;
     case AGNOCAST_PUBLISHER_ADD_CMD:
       if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
@@ -1061,7 +1042,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = increment_message_entry_rc(
-        topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
+        topic_name_buf, entry_args.subscriber_pid, entry_args.publisher_pid,
+        entry_args.msg_timestamp);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
@@ -1071,7 +1053,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = decrement_message_entry_rc(
-        topic_name_buf, entry_args.publisher_pid, entry_args.msg_timestamp);
+        topic_name_buf, entry_args.subscriber_pid, entry_args.publisher_pid,
+        entry_args.msg_timestamp);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       if (copy_from_user(
@@ -1082,8 +1065,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = receive_and_update(
-        topic_name_buf, receive_msg_args.publisher_pid, receive_msg_args.msg_timestamp,
-        receive_msg_args.qos_depth, &receive_msg_args);
+        topic_name_buf, receive_msg_args.subscriber_pid, receive_msg_args.publisher_pid,
+        receive_msg_args.msg_timestamp, receive_msg_args.qos_depth, &receive_msg_args);
       if (copy_to_user(
             (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
             sizeof(receive_msg_args)))
@@ -1159,8 +1142,7 @@ void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry
   kfree(en);
 }
 
-void handle_publisher_exit(
-  struct publisher_queue_node * publisher_queue, struct topic_wrapper * wrapper)
+void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1174,10 +1156,6 @@ void handle_publisher_exit(
   }
 
   publisher_queue->publisher_exited = true;
-
-  printk(
-    KERN_INFO "The exit handler for process %d on topic %s has finished executing.\n", current->pid,
-    wrapper->key);
 }
 
 void pre_handler_publisher(struct topic_wrapper * wrapper)
@@ -1194,7 +1172,12 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
       continue;
     }
 
-    handle_publisher_exit(publisher_queue, wrapper);
+    handle_publisher_exit(publisher_queue);
+
+    printk(
+      KERN_INFO "The publisher exit handler for process %d on topic %s has finished executing.\n",
+      current->pid, wrapper->key);
+
     if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
                                               // entry_node remains.
       wrapper->topic.publisher_queue_num--;
@@ -1207,22 +1190,106 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
   wrapper->topic.publisher_queues = dummy_head.next;
 }
 
+// Decrement the reference count, then free the entry node if it reaches zero and publisher has
+// already exited.
+void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
+{
+  struct rb_root * root = &publisher_queue->entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+    bool referencing = false;
+    for (int i = 0; i < en->reference_count; i++) {
+      if (en->referencing_subscriber_pids[i] == current->pid) {
+        referencing = true;
+      }
+
+      if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
+        en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
+      }
+    }
+
+    if (!referencing) continue;
+
+    en->reference_count--;
+
+    // unreceived_subscriber_count is not checked when releasing the message.
+    if (en->reference_count == 0 && publisher_queue->publisher_exited) {
+      free_entry_node(publisher_queue, en);
+    }
+  }
+}
+
+void pre_handler_subscriber(struct topic_wrapper * wrapper)
+{
+  bool was_subscribing = false;
+  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+    if (wrapper->topic.subscriber_pids[i] == current->pid) {
+      was_subscribing = true;
+    }
+    if (was_subscribing && i < MAX_SUBSCRIBER_NUM - 1) {
+      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
+    }
+  }
+
+  if (!was_subscribing) return;
+
+  struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
+  struct publisher_queue_node dummy_head;
+  dummy_head.next = publisher_queue;
+  struct publisher_queue_node * prev_pub_queue = &dummy_head;
+
+  while (publisher_queue) {
+    handler_subscriber_exit(publisher_queue);
+
+    printk(
+      KERN_INFO "The subscriber exit handler for process %d on topic %s has finished executing.\n",
+      current->pid, wrapper->key);
+
+    if (publisher_queue->entries_num == 0 && publisher_queue->publisher_exited) {
+      wrapper->topic.publisher_queue_num--;
+      prev_pub_queue->next = publisher_queue->next;
+      kfree(publisher_queue);
+      publisher_queue = prev_pub_queue->next;
+    } else {
+      publisher_queue = publisher_queue->next;
+    }
+  }
+  wrapper->topic.publisher_queues = dummy_head.next;
+
+  wrapper->topic.subscriber_num--;
+}
+
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
 
+  // Quickly determine if it is an Agnocast-related process.
+  bool agnocast_related = false;
+  for (int i = 0; i < pid_index; i++) {
+    if (process_ids[i] == current->pid) {
+      agnocast_related = true;
+      break;
+    }
+  }
+
+  if (!agnocast_related) {
+    mutex_unlock(&global_mutex);
+    return 0;
+  }
+
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
   int bkt;
-
-  // TODO: Introduce a function to quickly determine if it is an Agnocast-related process.
 
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
     // Exit handler for publisher
     pre_handler_publisher(wrapper);
 
-    // TODO: Exit handler for subscriber
+    // Exit handler for subscriber
+    pre_handler_subscriber(wrapper);
 
     // Check if we can release the topic_wrapper
     if (wrapper->topic.publisher_queue_num == 0 && wrapper->topic.subscriber_num == 0) {
