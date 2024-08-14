@@ -271,15 +271,6 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  if (en->reference_count == 0) {
-    printk(
-      KERN_WARNING
-      "tried to decrement reference count 0 with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld (decrement_message_entry_rc)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return -1;
-  }
-
   bool referencing = false;
   for (int i = 0; i < en->reference_count; i++) {
     if (en->referencing_subscriber_pids[i] == subscriber_pid) {
@@ -288,6 +279,14 @@ static int decrement_message_entry_rc(
     if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
       en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
     }
+  }
+  if (!referencing) {
+    printk(
+      KERN_WARNING
+      "subscriber (pid=%d) is not referencing topic_name=%s publisher_pid=%d "
+      "timestamp=%lld (decrement_message_entry_rc)\n",
+      subscriber_pid, topic_name, publisher_pid, msg_timestamp);
+    return -1;
   }
   en->reference_count--;
   return 0;
