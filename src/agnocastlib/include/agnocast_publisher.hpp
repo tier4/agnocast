@@ -23,8 +23,6 @@ namespace agnocast
 extern int agnocast_fd;
 uint64_t agnocast_get_timestamp();
 
-size_t read_mq_msgmax();
-
 std::string create_mq_name(const char * topic_name, const uint32_t pid);
 
 template <typename MessageT>
