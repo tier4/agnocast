@@ -67,7 +67,9 @@ struct entry_node
   /*
    * NOTE:
    *   unreceived_subscriber_count currently has no effect on the release timing of the message.
-   *   However, it is retained for future use such as early release or logging.
+   *   It is retained for future use such as early release or logging. However, since the count
+   *   is not correctly decremented when a subscriber exits, the value of
+   *   unreceived_subscriber_count becomes unreliable as soon as even one subscriber exits.
    */
   uint32_t unreceived_subscriber_count;
 };
