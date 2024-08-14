@@ -19,8 +19,9 @@ std::vector<std::thread> threads;
 /*
   If wait_for_new_publisher(), which is called within initialize_agnocast(),
   performs operations that manipulate heap-allocated resources like strings,
-  it won't work correctly. Therefore, in shutdown_agnocast(), the PID will
-  be re-acquired, the mq_name will be generated, and the unlink operation will be performed.
+  it won't work correctly. To address this, only the mq file descriptor will
+  be stored as a global variable. In shutdown_agnocast(), the PID will be
+  re-acquired, the mq_name will be generated, and the unlink operation will be performed.
 */
 mqd_t mq_new_publisher;
 
