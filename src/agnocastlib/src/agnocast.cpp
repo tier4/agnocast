@@ -16,8 +16,7 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
-int writable_shm_fd;
-std::vector<int> rdonly_shm_fds;
+std::vector<int> shm_fds;
 
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 
@@ -37,11 +36,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
     exit(EXIT_FAILURE);
   }
-  if (writable) {
-    writable_shm_fd = shm_fd;
-  } else {
-    rdonly_shm_fds.push_back(shm_fd);
-  }
+  shm_fds.push_back(shm_fd);
 
   if (writable) {
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
@@ -199,6 +194,18 @@ size_t read_mq_msgmax()
 static void shutdown_agnocast()
 {
   is_running = false;
+
+  for (int fd : shm_fds) {
+    if (close(fd) == -1) {
+      perror("close shm_fd failed");
+    }
+  }
+
+  const uint32_t pid = getpid();
+  const std::string shm_name = "/agnocast@" + std::to_string(pid);
+  if (shm_unlink(shm_name.c_str()) == -1) {
+    perror("shm_unlink failed");
+  }
 
   std::cout << "shutting down agnocast.." << std::endl;
 
