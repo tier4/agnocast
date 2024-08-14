@@ -1190,7 +1190,8 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
 
 // Decrement the reference count, then free the entry node if it reaches zero and publisher has
 // already exited.
-void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
+void handler_subscriber_exit(
+  struct publisher_queue_node * publisher_queue, struct topic_wrapper * wrapper)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1237,9 +1238,7 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
     }
   }
 
-  if (!was_subscribing) {
-    return;
-  }
+  if (!was_subscribing) return;
 
   struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
   struct publisher_queue_node dummy_head;
@@ -1247,7 +1246,7 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
   struct publisher_queue_node * prev_pub_queue = &dummy_head;
 
   while (publisher_queue) {
-    handler_subscriber_exit(publisher_queue);
+    handler_subscriber_exit(publisher_queue, wrapper);
 
     if (publisher_queue->entries_num == 0 && publisher_queue->publisher_exited) {
       wrapper->topic.publisher_queue_num--;
