@@ -1209,9 +1209,7 @@ void handler_subscriber_exit(
       }
     }
 
-    if (!referencing) {
-      continue;
-    }
+    if (!referencing) continue;
 
     en->reference_count--;
 
