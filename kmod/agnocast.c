@@ -1189,7 +1189,7 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
 }
 
 // Decrement the reference count, then free the entry node if it reaches zero and publisher has
-// already exited..
+// already exited.
 void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
