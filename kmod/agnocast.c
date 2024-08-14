@@ -1191,7 +1191,7 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
 
 // Decrement the reference count, then free the entry node if it reaches zero and publisher has
 // already exited..
-void handler_subscriber_exit(struct publisher_queue_node * publisher_queue, uint32_t current_pid)
+void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1200,7 +1200,7 @@ void handler_subscriber_exit(struct publisher_queue_node * publisher_queue, uint
     node = rb_next(node);
     bool referencing = false;
     for (int i = 0; i < en->reference_count; i++) {
-      if (en->referencing_subscriber_pids[i] == current_pid) {
+      if (en->referencing_subscriber_pids[i] == current->pid) {
         referencing = true;
       }
 
@@ -1242,15 +1242,13 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
     return;
   }
 
-  wrapper->topic.subscriber_num--;
-
   struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
   struct publisher_queue_node dummy_head;
   dummy_head.next = publisher_queue;
   struct publisher_queue_node * prev_pub_queue = &dummy_head;
 
   while (publisher_queue) {
-    handler_subscriber_exit(publisher_queue, current->pid);
+    handler_subscriber_exit(publisher_queue);
 
     if (publisher_queue->entries_num == 0 && publisher_queue->publisher_exited) {
       wrapper->topic.publisher_queue_num--;
@@ -1262,6 +1260,8 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
     }
   }
   wrapper->topic.publisher_queues = dummy_head.next;
+
+  wrapper->topic.subscriber_num--;
 }
 
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
