@@ -16,6 +16,14 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
+/*
+  If wait_for_new_publisher(), which is called within initialize_agnocast(),
+  performs operations that manipulate heap-allocated resources like strings,
+  it won't work correctly. To address this, only the mq file descriptor will
+  be stored as a global variable. In shutdown_agnocast(), the PID will be
+  re-acquired, the mq_name will be generated, and the unlink operation will be performed.
+*/
+mqd_t mq_new_publisher;
 
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 
@@ -113,6 +121,7 @@ void wait_for_new_publisher(const uint32_t pid)
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+  mq_new_publisher = mq;
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
@@ -191,13 +200,24 @@ size_t read_mq_msgmax()
 
 static void shutdown_agnocast()
 {
+  std::cout << "shutdown_agnocast started" << std::endl;
   is_running = false;
 
-  std::cout << "shutting down agnocast.." << std::endl;
+  if (mq_close(mq_new_publisher) == -1) {
+    perror("mq_close failed");
+  }
+
+  const uint32_t pid = getpid();
+  const std::string mq_name = "/new_publisher@" + std::to_string(pid);
+  if (mq_unlink(mq_name.c_str()) == -1) {
+    perror("mq_unlink failed");
+  }
 
   for (auto & th : threads) {
     th.join();
   }
+
+  std::cout << "shutdown_agnocast completed" << std::endl;
 }
 
 class Cleanup
