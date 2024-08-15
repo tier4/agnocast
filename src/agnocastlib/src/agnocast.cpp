@@ -16,13 +16,7 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
-/*
-  If wait_for_new_publisher(), which is called within initialize_agnocast(),
-  performs operations that manipulate heap-allocated resources like strings,
-  it won't work correctly. To address this, only the mq file descriptor will
-  be stored as a global variable. In shutdown_agnocast(), the PID will be
-  re-acquired, the mq_name will be generated, and the unlink operation will be performed.
-*/
+std::vector<int> shm_fds;
 mqd_t mq_new_publisher;
 
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
@@ -43,6 +37,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
     exit(EXIT_FAILURE);
   }
+  shm_fds.push_back(shm_fd);
 
   if (writable) {
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
@@ -202,12 +197,31 @@ static void shutdown_agnocast()
 {
   std::cout << "shutdown_agnocast started" << std::endl;
   is_running = false;
+  /*
+   * TODO:
+   *   It might seem odd to re-acquire the PID and regenerate mq_name and shm_name.
+   *   However, this approach was taken because the code that stored the `mq_name`
+   *   and `shm_name` strings as global variables didn't work. The reason it didn't
+   *   work is likely related to the fact that initialize_agnocast() cannot use heap
+   *   memory. Once this issue is resolved, this implementation will be revised.
+   */
+  const uint32_t pid = getpid();
+
+  for (int fd : shm_fds) {
+    if (close(fd) == -1) {
+      perror("close shm_fd failed");
+    }
+  }
+
+  const std::string shm_name = "/agnocast@" + std::to_string(pid);
+  if (shm_unlink(shm_name.c_str()) == -1) {
+    perror("shm_unlink failed");
+  }
 
   if (mq_close(mq_new_publisher) == -1) {
     perror("mq_close failed");
   }
 
-  const uint32_t pid = getpid();
   const std::string mq_name = "/new_publisher@" + std::to_string(pid);
   if (mq_unlink(mq_name.c_str()) == -1) {
     perror("mq_unlink failed");
