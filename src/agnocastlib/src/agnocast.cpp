@@ -17,6 +17,7 @@ int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
 std::vector<int> shm_fds;
+mqd_t mq_new_publisher;
 
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 
@@ -115,6 +116,7 @@ void wait_for_new_publisher(const uint32_t pid)
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+  mq_new_publisher = mq;
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
@@ -193,7 +195,9 @@ size_t read_mq_msgmax()
 
 static void shutdown_agnocast()
 {
+  std::cout << "shutdown_agnocast started" << std::endl;
   is_running = false;
+  const uint32_t pid = getpid();
 
   for (int fd : shm_fds) {
     if (close(fd) == -1) {
@@ -201,17 +205,25 @@ static void shutdown_agnocast()
     }
   }
 
-  const uint32_t pid = getpid();
   const std::string shm_name = "/agnocast@" + std::to_string(pid);
   if (shm_unlink(shm_name.c_str()) == -1) {
     perror("shm_unlink failed");
   }
 
-  std::cout << "shutting down agnocast.." << std::endl;
+  if (mq_close(mq_new_publisher) == -1) {
+    perror("mq_close failed");
+  }
+
+  const std::string mq_name = "/new_publisher@" + std::to_string(pid);
+  if (mq_unlink(mq_name.c_str()) == -1) {
+    perror("mq_unlink failed");
+  }
 
   for (auto & th : threads) {
     th.join();
   }
+
+  std::cout << "shutdown_agnocast completed" << std::endl;
 }
 
 class Cleanup
