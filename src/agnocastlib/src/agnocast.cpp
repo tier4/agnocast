@@ -197,6 +197,12 @@ static void shutdown_agnocast()
 {
   std::cout << "shutdown_agnocast started" << std::endl;
   is_running = false;
+  /*
+    It might seem odd to re-acquire the PID and regenerate mq_name and shm_name.
+    However, this approach was taken because storing mq_name and shm_name as
+    global variables didn't work. The issue likely stems from code within
+    initialize_agnocast() that interacts with heap-allocated memory.
+  */
   const uint32_t pid = getpid();
 
   for (int fd : shm_fds) {
