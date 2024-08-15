@@ -1318,7 +1318,7 @@ static struct kprobe kp = {
 
 static int agnocast_init(void)
 {
-  printk(KERN_INFO "Hello, World!\n");
+  printk(KERN_INFO "Agnocast installed!\n");
 
   mutex_init(&global_mutex);
 
@@ -1348,7 +1348,6 @@ static int agnocast_init(void)
   return 0;
 }
 
-// TODO: Implement memory free later
 static void free_all_topics(void)
 {
   struct topic_wrapper * wrapper;
@@ -1381,7 +1380,7 @@ static void free_all_topics(void)
 
 static void agnocast_exit(void)
 {
-  printk(KERN_INFO "Goodbye\n");
+  printk(KERN_INFO "Agnocast removed!\n");
 
   free_all_topics();
 
