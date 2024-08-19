@@ -15,6 +15,10 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
+static int major;
+static struct class * agnocast_class;
+static struct device * agnocast_device;
+
 #define MAX_PUBLISHER_NUM 16  // only for ioctl_get_shm_args currently
 #define MAX_SUBSCRIBER_NUM 16
 
@@ -86,13 +90,13 @@ static int insert_topic(const char * topic_name)
 {
   struct topic_wrapper * wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
   if (!wrapper) {
-    printk(KERN_WARNING "kmalloc failed (insert_topic)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
     return -1;
   }
 
   wrapper->key = kstrdup(topic_name, GFP_KERNEL);
   if (!wrapper->key) {
-    printk(KERN_WARNING "kstrdup failed (insert_topic)\n");
+    dev_warn(agnocast_device, "kstrdup failed. (insert_topic)\n");
     kfree(wrapper);
     return -1;
   }
@@ -125,16 +129,18 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (insert_subscriber_pid)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (insert_subscriber_pid)\n", topic_name);
     return -1;
   }
 
   // check whether subscriber_pids is full
   if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
-    printk(
-      KERN_WARNING
-      "subscribers for topic_name=%s reached MAX_SUBSCRIBER_NUM=%d, so a new subscriber cannot be "
-      "added (insert_subscriber_pid)\n",
+    dev_warn(
+      agnocast_device,
+      "Subscribers for the topic (topic_name=%s) reached the upper bound (MAX_SUBSCRIBER_NUM=%d), "
+      "so a new subscriber cannot be "
+      "added. (insert_subscriber_pid)\n",
       topic_name, MAX_SUBSCRIBER_NUM);
     return -1;
   }
@@ -142,9 +148,11 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
   // check whether pid already exists in subscriber_pids
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
     if (pid == wrapper->topic.subscriber_pids[i]) {
-      printk(
-        KERN_WARNING "subscriber (pid=%d) already exists in %s (insert_subscriber_pid)\n", pid,
-        topic_name);
+      dev_warn(
+        agnocast_device,
+        "Subscriber (pid=%d) already exists in the topic (topic_name=%s). "
+        "(insert_subscriber_pid)\n",
+        pid, topic_name);
       return -1;
     }
   }
@@ -152,7 +160,10 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
   wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
   wrapper->topic.subscriber_num++;
 
-  printk(KERN_INFO "subscriber (pid=%d) is added to %s\n", pid, topic_name);
+  dev_info(
+    agnocast_device,
+    "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_pid)\n", pid,
+    topic_name);
   return 0;
 }
 
@@ -161,7 +172,8 @@ static struct publisher_queue_node * find_publisher_queue(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (find_publisher_queue)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (find_publisher_queue)\n", topic_name);
     return NULL;
   }
 
@@ -181,21 +193,24 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (insert_publisher_queue)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (insert_publisher_queue)\n", topic_name);
     return -1;
   }
 
   struct publisher_queue_node * node = find_publisher_queue(topic_name, publisher_pid);
   if (node) {
-    printk(
-      KERN_INFO "publisher (pid=%d) already exists in topic_name=%s (insert_publisher_queue)\n",
+    dev_info(
+      agnocast_device,
+      "Publisher (publisher_pid=%d) already exists in the topic (topic_name=%s). "
+      "(insert_publisher_queue)\n",
       publisher_pid, topic_name);
     return -1;
   }
 
   struct publisher_queue_node * new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
   if (!new_node) {
-    printk(KERN_WARNING "kmalloc failed (insert_publisher_queue)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_queue)\n");
     return -1;
   }
 
@@ -217,9 +232,9 @@ static struct entry_node * find_message_entry(
 {
   struct publisher_queue_node * pubq = find_publisher_queue(topic_name, publisher_pid);
   if (!pubq) {
-    printk(
-      KERN_WARNING
-      "publisher queue with topic_name=%s publisher_pid=%d not found (find_message_entry)\n",
+    dev_warn(
+      agnocast_device,
+      "Publisher queue (topic_name=%s publisher_pid=%d) not found. (find_message_entry)\n",
       topic_name, publisher_pid);
     return NULL;
   }
@@ -247,9 +262,9 @@ static int increment_message_entry_rc(
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
       "(increment_message_entry_rc)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
@@ -265,9 +280,9 @@ static int decrement_message_entry_rc(
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
       "(decrement_message_entry_rc)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
@@ -283,10 +298,10 @@ static int decrement_message_entry_rc(
     }
   }
   if (!referencing) {
-    printk(
-      KERN_WARNING
-      "subscriber (pid=%d) is not referencing topic_name=%s publisher_pid=%d "
-      "timestamp=%lld (decrement_message_entry_rc)\n",
+    dev_warn(
+      agnocast_device,
+      "Subscriber (pid=%d) is not referencing (topic_name=%s publisher_pid=%d "
+      "timestamp=%lld). (decrement_message_entry_rc)\n",
       subscriber_pid, topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
@@ -299,9 +314,10 @@ static int insert_message_entry(
 {
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
-    printk(
-      KERN_WARNING "publisher (pid=%d) not found in %s (insert_message_entry)\n", publisher_pid,
-      topic_name);
+    dev_warn(
+      agnocast_device,
+      "Publisher (pid=%d) not found in the topic (topic_name=%s). (insert_message_entry)\n",
+      publisher_pid, topic_name);
     return -1;
   }
 
@@ -318,9 +334,10 @@ static int insert_message_entry(
     } else if (timestamp > this->timestamp) {
       new = &((*new)->rb_right);
     } else {
-      printk(
-        KERN_WARNING
-        "message entry timestamp=%lld already exists in publisher (pid=%d) queue in %s "
+      dev_warn(
+        agnocast_device,
+        "Message entry (timestamp=%lld) already exists in the publisher (pid=%d) queue in the "
+        "topic (topic_name=%s). "
         "(insert_message_entry)\n",
         timestamp, publisher_pid, topic_name);
       return -1;
@@ -329,7 +346,7 @@ static int insert_message_entry(
 
   struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   if (!new_node) {
-    printk(KERN_WARNING "kmalloc failed (insert_message_entry)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (insert_message_entry)\n");
     return -1;
   }
 
@@ -347,9 +364,9 @@ static int insert_message_entry(
 
   publisher_queue->entries_num++;
 
-  printk(
-    KERN_INFO
-    "enqueue entry: topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld",
+  pr_devel(
+    "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
+    "(insert_message_entry)",
     topic_name, publisher_pid, msg_virtual_address, timestamp);
   return 0;
 }
@@ -493,16 +510,18 @@ int topic_add_pub(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
-    printk(KERN_INFO "Topic %s already exists (topic_add_pub)\n", topic_name);
+    dev_info(
+      agnocast_device, "Topic (topic_name=%s) already exists. (topic_add_pub)\n", topic_name);
     return 0;
   }
 
   if (insert_topic(topic_name) < 0) {
-    printk(KERN_WARNING "Failed to add a new topic %s (topic_add_pub)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s). (topic_add_pub)\n", topic_name);
     return -1;
   }
 
-  printk(KERN_INFO "Topic %s added\n", topic_name);
+  dev_info(agnocast_device, "Topic (topic_name=%s) added. (topic_add_pub)\n", topic_name);
   return 0;
 }
 
@@ -620,7 +639,8 @@ int topic_add_sub(
   ioctl_ret->ret_len = 0;
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
-    printk(KERN_INFO "Topic %s already exists (topic_add_sub)\n", topic_name);
+    dev_info(
+      agnocast_device, "Topic (topic_name=%s) already exists. (topic_add_sub)\n", topic_name);
 
     if (qos_depth == 0) return 0;  // transient local is disabled
 
@@ -668,11 +688,12 @@ int topic_add_sub(
   }
 
   if (insert_topic(topic_name) < 0) {
-    printk(KERN_WARNING "Failed to add a new topic %s (topic_add_sub)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s). (topic_add_sub)\n", topic_name);
     return -1;
   }
 
-  printk(KERN_INFO "Topic %s added\n", topic_name);
+  dev_info(agnocast_device, "Topic (topic_name=%s) added. (topic_add_sub)\n", topic_name);
   return 0;
 }
 
@@ -688,7 +709,8 @@ int publisher_queue_add(
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (publisher_queue_add)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (publisher_queue_add)\n", topic_name);
     return -1;
   }
 
@@ -703,7 +725,7 @@ int publisher_queue_add(
   }
 
   if (!found) {
-    printk(KERN_WARNING "publisher (pid=%d) not found (publisher_queue_add)\n", pid);
+    dev_warn(agnocast_device, "Publisher (pid=%d) not found. (publisher_queue_add)\n", pid);
     return -1;
   }
 
@@ -713,7 +735,8 @@ int publisher_queue_add(
     ioctl_ret->ret_subscriber_pids, wrapper->topic.subscriber_pids,
     wrapper->topic.subscriber_num * sizeof(uint32_t));
 
-  printk(KERN_INFO "publisher (pid=%d) is added to %s\n", pid, topic_name);
+  dev_info(
+    agnocast_device, "Publisher (pid=%d) is added to the topic (topic_name=%s)\n", pid, topic_name);
   return 0;
 }
 
@@ -726,8 +749,9 @@ uint64_t release_msgs_to_meet_depth(
 
   struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
   if (!publisher_queue) {
-    printk(
-      KERN_WARNING "publisher (pid=%d) not found in %s (release_msgs_to_meet_depth)\n",
+    dev_warn(
+      agnocast_device,
+      "Publisher (pid=%d) not found in the topic (topic_name=%s). (release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
   }
@@ -739,10 +763,10 @@ uint64_t release_msgs_to_meet_depth(
   const uint32_t leak_warn_threshold =
     (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
   if (publisher_queue->entries_num > leak_warn_threshold) {
-    printk(
-      KERN_WARNING
+    dev_warn(
+      agnocast_device,
       "For some reason the reference count of the message is not reduced and the queue size is "
-      "huge: publisher queue publisher_pid=%d, topic_name=%s "
+      "huge: publisher queue (publisher_pid=%d, topic_name=%s). "
       "(release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name);
     return -1;
@@ -750,9 +774,9 @@ uint64_t release_msgs_to_meet_depth(
 
   struct rb_node * node = rb_first(&publisher_queue->entries);
   if (!node) {
-    printk(
-      KERN_WARNING
-      "Failed to get message entries in publisher (pid=%d) (release_msgs_to_meet_depth)\n",
+    dev_warn(
+      agnocast_device,
+      "Failed to get message entries in publisher (pid=%d). (release_msgs_to_meet_depth)\n",
       publisher_pid);
     return -1;
   }
@@ -767,9 +791,10 @@ uint64_t release_msgs_to_meet_depth(
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
     if (!node) {
-      printk(KERN_WARNING
-             "entries_num is inconsistent with actual message entry num "
-             "(release_msgs_to_meet_depth)\n");
+      dev_warn(
+        agnocast_device,
+        "entries_num is inconsistent with actual message entry num. "
+        "(release_msgs_to_meet_depth)\n");
       return -1;
     }
 
@@ -781,11 +806,12 @@ uint64_t release_msgs_to_meet_depth(
     rb_erase(&en->node, &publisher_queue->entries);
     kfree(en);
 
-    printk(
-      KERN_INFO
-      "Release oldest message in %s publisher_pid=%d with qos_depth=%d "
+    dev_dbg(
+      agnocast_device,
+      "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic "
+      "(topic_name=%s) with qos_depth %d. "
       "(release_msgs_to_meet_depth)\n",
-      topic_name, publisher_pid, qos_depth);
+      publisher_pid, topic_name, qos_depth);
   }
 
   return 0;
@@ -813,26 +839,27 @@ int receive_and_update(
 {
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+    dev_warn(
+      agnocast_device,
+      "Message entry with (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
       "(receive_and_update)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
 
   if (en->unreceived_subscriber_count == 0) {
-    printk(
-      KERN_WARNING
-      "tried to decrement unreceived_subscriber_count 0 with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld (receive_and_update)\n",
+    dev_warn(
+      agnocast_device,
+      "Tried to decrement unreceived_subscriber_count 0 with (topic_name=%s publisher_pid=%d "
+      "timestamp=%lld). (receive_and_update)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (receive_and_update)\n", topic_name);
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (receive_and_update)\n", topic_name);
     return -1;
   }
 
@@ -871,25 +898,25 @@ int publish_msg(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (publish_msg)\n", topic_name);
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publish_msg)\n", topic_name);
     return -1;
   }
 
   struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
   if (!en) {
-    printk(
-      KERN_WARNING
-      "message entry with topic_name=%s publisher_pid=%d timestamp=%lld not found "
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
       "(publish_msg)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
 
   if (en->published) {
-    printk(
-      KERN_WARNING
-      "tried to already published message with topic_name=%s publisher_pid=%d "
-      "timestamp=%lld (publish_msg)\n",
+    dev_warn(
+      agnocast_device,
+      "Tried to already published message (topic_name=%s publisher_pid=%d "
+      "timestamp=%lld). (publish_msg)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
@@ -909,7 +936,7 @@ int publish_msg(
 int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
   if (pid_index >= MAX_PROCESS_NUM) {
-    printk(KERN_WARNING "processes are too much (new_shm_addr)\n");
+    dev_warn(agnocast_device, "Too many processes! (new_shm_addr)\n");
     return -1;
   }
 
@@ -933,12 +960,13 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    printk(KERN_WARNING "topic_name %s not found (get_shm)\n", topic_name);
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_shm)\n", topic_name);
     return -1;
   }
 
   if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
-    printk(KERN_WARNING "publishers for %s topic are too much\n", topic_name);
+    dev_warn(
+      agnocast_device, "Too many publishers of the topic (topic_name=%d)! (get_shm)\n", topic_name);
     return -1;
   }
 
@@ -1128,10 +1156,6 @@ static struct file_operations fops = {
   .unlocked_ioctl = agnocast_ioctl,
 };
 
-static int major;
-static struct class * agnocast_class;
-static struct device * agnocast_device;
-
 // =========================================
 // Handler for publisher process exit
 void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en)
@@ -1174,10 +1198,6 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
 
     handle_publisher_exit(publisher_queue);
 
-    printk(
-      KERN_INFO "The publisher exit handler for process %d on topic %s has finished executing.\n",
-      current->pid, wrapper->key);
-
     if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
                                               // entry_node remains.
       wrapper->topic.publisher_queue_num--;
@@ -1188,6 +1208,12 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
     break;
   }
   wrapper->topic.publisher_queues = dummy_head.next;
+
+  dev_info(
+    agnocast_device,
+    "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
+    "(pre_handler_publisher)\n",
+    current->pid, wrapper->key);
 }
 
 // Decrement the reference count, then free the entry node if it reaches zero and publisher has
@@ -1243,10 +1269,6 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
   while (publisher_queue) {
     handler_subscriber_exit(publisher_queue);
 
-    printk(
-      KERN_INFO "The subscriber exit handler for process %d on topic %s has finished executing.\n",
-      current->pid, wrapper->key);
-
     if (publisher_queue->entries_num == 0 && publisher_queue->publisher_exited) {
       wrapper->topic.publisher_queue_num--;
       prev_pub_queue->next = publisher_queue->next;
@@ -1259,6 +1281,12 @@ void pre_handler_subscriber(struct topic_wrapper * wrapper)
   wrapper->topic.publisher_queues = dummy_head.next;
 
   wrapper->topic.subscriber_num--;
+
+  dev_info(
+    agnocast_device,
+    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
+    "(pre_handler_subscriber)\n",
+    current->pid, wrapper->key);
 }
 
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
@@ -1318,8 +1346,6 @@ static struct kprobe kp = {
 
 static int agnocast_init(void)
 {
-  printk(KERN_INFO "Agnocast installed!\n");
-
   mutex_init(&global_mutex);
 
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
@@ -1333,17 +1359,18 @@ static int agnocast_init(void)
     kobject_put(status_kobj);
   }
 
-  if (register_kprobe(&kp) < 0) {
-    printk(KERN_INFO "register_kprobe failed, returned %d\n", ret);
-    return ret;
-  }
-  printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
-
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
   agnocast_class = class_create("agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+
+  if (ret = register_kprobe(&kp) < 0) {
+    dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
+    return ret;
+  }
+
+  dev_info(agnocast_device, "Agnocast installed!\n");
 
   return 0;
 }
@@ -1379,7 +1406,7 @@ static void free_all_topics(void)
 
 static void agnocast_exit(void)
 {
-  printk(KERN_INFO "Agnocast removed!\n");
+  dev_info(agnocast_device, "Agnocast removed!\n");
 
   free_all_topics();
 

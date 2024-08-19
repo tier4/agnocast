@@ -38,6 +38,17 @@ Unload kmod.
 sudo rmmod agnocast
 ```
 
+## Debug
+To use dynamic_debug for dynamically outputting debug logs, please run the following command as su:
+```
+echo 'file agnocast.c -p' > /sys/kernel/debug/dynamic_debug/control
+```
+
+If CONFIG_DYNAMIC_DEBUG is not enabled and this doesn't work, perform a debug build with:
+```
+make CFLAGS_agnocast.o="-DDEBUG"
+```
+
 ## (For developer) Setup pre-commit
 
 The following command allows clang-format to be run before each commit.
