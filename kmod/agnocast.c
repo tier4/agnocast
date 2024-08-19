@@ -364,7 +364,7 @@ static int insert_message_entry(
 
   publisher_queue->entries_num++;
 
-  pr_devel(
+  dev_dbg(
     "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
     "(insert_message_entry)",
     topic_name, publisher_pid, msg_virtual_address, timestamp);
