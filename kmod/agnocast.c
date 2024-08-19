@@ -1116,7 +1116,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(const struct device * dev, umode_t * mode)
+static char * agnocast_devnode(struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1340,7 +1340,7 @@ static int agnocast_init(void)
   printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create("agnocast_class");
+  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
@@ -1358,7 +1358,7 @@ static void free_all_topics(void)
   {
     struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
     while (publisher_queue) {
-      struct publisher_queue_node * = publisher_queue_next = publisher_queue->next;
+      struct publisher_queue_node * publisher_queue_next = publisher_queue->next;
       struct rb_root * root = &publisher_queue->entries;
       struct rb_node * node = rb_first(root);
       while (node) {
