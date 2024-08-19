@@ -1,4 +1,3 @@
-#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/hash.h>       // hash_64
