@@ -1357,8 +1357,9 @@ static void free_all_topics(void)
   hash_for_each_safe(topic_hashtable, bkt, tmp, wrapper, node)
   {
     struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
+    struct publisher_queue_node * publisher_queue_next;
     while (publisher_queue) {
-      publisher_queue = publisher_queue->next;
+      publisher_queue_next = publisher_queue->next;
       struct rb_root * root = &publisher_queue->entries;
       struct rb_node * node = rb_first(root);
       while (node) {
@@ -1368,6 +1369,7 @@ static void free_all_topics(void)
       }
 
       kfree(publisher_queue);
+      publisher_queue = publisher_queue_next;
     }
 
     hash_del(&wrapper->node);
