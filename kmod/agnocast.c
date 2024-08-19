@@ -1360,7 +1360,7 @@ static void free_all_topics(void)
     struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
     struct publisher_queue_node * publisher_queue_next;
     while (publisher_queue) {
-      publisher_queue_next = publisher_queue->next;
+      struct publisher_queue_node * = publisher_queue_next = publisher_queue->next;
       struct rb_root * root = &publisher_queue->entries;
       struct rb_node * node = rb_first(root);
       while (node) {
