@@ -1318,7 +1318,7 @@ static struct kprobe kp = {
 
 static int agnocast_init(void)
 {
-  printk(KERN_INFO "Hello, World!\n");
+  printk(KERN_INFO "Agnocast installed!\n");
 
   mutex_init(&global_mutex);
 
@@ -1348,27 +1348,38 @@ static int agnocast_init(void)
   return 0;
 }
 
-// TODO: Implement memory free later
 static void free_all_topics(void)
 {
-  struct topic_wrapper * entry;
+  struct topic_wrapper * wrapper;
   struct hlist_node * tmp;
   int bkt;
 
-  hash_for_each_safe(topic_hashtable, bkt, tmp, entry, node)
+  hash_for_each_safe(topic_hashtable, bkt, tmp, wrapper, node)
   {
-    hash_del(&entry->node);
-    if (entry->key) {
-      kfree(entry->key);
+    struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
+    while (publisher_queue) {
+      struct publisher_queue_node * publisher_queue_next = publisher_queue->next;
+      struct rb_root * root = &publisher_queue->entries;
+      struct rb_node * node = rb_first(root);
+      while (node) {
+        struct entry_node * en = rb_entry(node, struct entry_node, node);
+        node = rb_next(node);
+        free_entry_node(publisher_queue, en);
+      }
+
+      kfree(publisher_queue);
+      publisher_queue = publisher_queue_next;
     }
-    // TODO: free messages
-    kfree(entry);
+
+    hash_del(&wrapper->node);
+    kfree(wrapper->key);
+    kfree(wrapper);
   }
 }
 
 static void agnocast_exit(void)
 {
-  printk(KERN_INFO "Goodbye\n");
+  printk(KERN_INFO "Agnocast removed!\n");
 
   free_all_topics();
 
