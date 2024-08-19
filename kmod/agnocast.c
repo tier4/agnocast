@@ -1,3 +1,4 @@
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/hash.h>       // hash_64
@@ -1373,9 +1374,7 @@ static void free_all_topics(void)
     }
 
     hash_del(&wrapper->node);
-    if (wrapper->key) {
-      kfree(wrapper->key);
-    }
+    kfree(wrapper->key);
     kfree(wrapper);
   }
 }
