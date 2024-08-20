@@ -200,9 +200,9 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
 
   struct publisher_queue_node * node = find_publisher_queue(topic_name, publisher_pid);
   if (node) {
-    dev_info(
+    dev_warn(
       agnocast_device,
-      "Publisher (publisher_pid=%d) already exists in the topic (topic_name=%s). "
+      "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
       "(insert_publisher_queue)\n",
       publisher_pid, topic_name);
     return -1;
