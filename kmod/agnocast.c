@@ -12,6 +12,7 @@
 #include <linux/string.h>  // strcmp, strdup
 #include <linux/sysfs.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -1116,7 +1117,11 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
 static char * agnocast_devnode(const struct device * dev, umode_t * mode)
+#else
+static char * agnocast_devnode(struct device * dev, umode_t * mode)
+#endif
 {
   if (mode) {
     *mode = 0666;
@@ -1340,7 +1345,13 @@ static int agnocast_init(void)
   printk(KERN_INFO "Planted kprobe at %p\n", kp.addr);
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
   agnocast_class = class_create("agnocast_class");
+#else
+  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
+#endif
+
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
