@@ -22,9 +22,6 @@ else ifeq ($(shell expr $(KERNEL_MAJOR) = 6), 1)
 endif
 
 
-
-
-
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
