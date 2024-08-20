@@ -365,6 +365,7 @@ static int insert_message_entry(
   publisher_queue->entries_num++;
 
   dev_dbg(
+    agnocast_device,
     "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
     "(insert_message_entry)",
     topic_name, publisher_pid, msg_virtual_address, timestamp);
@@ -966,7 +967,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 
   if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
     dev_warn(
-      agnocast_device, "Too many publishers of the topic (topic_name=%d)! (get_shm)\n", topic_name);
+      agnocast_device, "Too many publishers of the topic (topic_name=%s)! (get_shm)\n", topic_name);
     return -1;
   }
 
@@ -1144,7 +1145,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(const struct device * dev, umode_t * mode)
+static char * agnocast_devnode(struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1360,12 +1361,13 @@ static int agnocast_init(void)
   }
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create("agnocast_class");
+  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 
-  if (ret = register_kprobe(&kp) < 0) {
+  ret = register_kprobe(&kp);
+  if (ret < 0) {
     dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
