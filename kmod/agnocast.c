@@ -937,7 +937,9 @@ int publish_msg(
 int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
   if (pid_index >= MAX_PROCESS_NUM) {
-    dev_warn(agnocast_device, "Too many processes! (new_shm_addr)\n");
+    dev_warn(
+      agnocast_device, "Too many processes (MAX_PROCESS_NUM=%d)! (new_shm_addr)\n",
+      MAX_PROCESS_NUM);
     return -1;
   }
 
@@ -967,7 +969,9 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 
   if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
     dev_warn(
-      agnocast_device, "Too many publishers of the topic (topic_name=%s)! (get_shm)\n", topic_name);
+      agnocast_device,
+      "Too many publishers (MAX_PUBLISHER_NUM=%d) of the topic (topic_name=%s)! (get_shm)\n",
+      MAX_PUBLISHER_NUM, topic_name);
     return -1;
   }
 
@@ -1145,7 +1149,7 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
-static char * agnocast_devnode(struct device * dev, umode_t * mode)
+static char * agnocast_devnode(const struct device * dev, umode_t * mode)
 {
   if (mode) {
     *mode = 0666;
@@ -1361,7 +1365,7 @@ static int agnocast_init(void)
   }
 
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
-  agnocast_class = class_create(THIS_MODULE, "agnocast_class");
+  agnocast_class = class_create("agnocast_class");
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
