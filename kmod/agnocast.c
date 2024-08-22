@@ -366,7 +366,7 @@ static int insert_message_entry(
 
   dev_dbg(
     agnocast_device,
-    "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
+    "Insert a message entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
     "(insert_message_entry)",
     topic_name, publisher_pid, msg_virtual_address, timestamp);
   return 0;
