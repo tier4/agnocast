@@ -43,7 +43,6 @@ To use dynamic_debug for dynamically outputting debug logs, please run the follo
 ```
 sudo su
 echo 'file agnocast.c +p' > /sys/kernel/debug/dynamic_debug/control
-exit
 ```
 
 Check if dynamic_debug is enabled by running the following command. If the right side of the `=` is `p`, it is enabled. (If it's `_`, it is disabled.)
