@@ -46,7 +46,7 @@ echo 'file agnocast.c +p' > /sys/kernel/debug/dynamic_debug/control
 exit
 ```
 
-Check if dynamic debug output is enabled by running the following command. If the right side of the '=' is 'p', it is enabled. (If it's '_', it is disabled.)
+Check if dynamic_debug is enabled by running the following command. If the right side of the `=` is `p`, it is enabled. (If it's `_`, it is disabled.)
 ```
 sudo cat /sys/kernel/debug/dynamic_debug/control | grep "agnocast.c"
 /.../agnocast/kmod/agnocast.c:810 [agnocast]release_msgs_to_meet_depth =p "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic (topic_name=%s) with qos_depth %d. (release_msgs_to_meet_depth)\012"
