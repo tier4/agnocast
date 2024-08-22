@@ -35,40 +35,12 @@ void wait_for_new_publisher(const uint32_t pid);
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid);
 
-template <typename MessageT>
-class Subscription
+class SubscriptionBase
 {
-  std::pair<mqd_t, std::string> mq_subscription;
-
 public:
-  Subscription(
-    const char * topic_name, const rclcpp::QoS & qos,
-    std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  union ioctl_add_topic_sub_args initialize(
+    const pid_t subscriber_pid, const char * topic_name, const rclcpp::QoS & qos)
   {
-    const pid_t subscriber_pid = getpid();
-    std::string mq_name = create_mq_name(topic_name, subscriber_pid);
-    struct mq_attr attr;
-    attr.mq_flags = 0;                        // Blocking queue
-    attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
-    attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
-    /*
-     * NOTE:
-     *   Maximum number of messages in the queue.
-     *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
-     *   Although this limit can be changed by editing the file, here mq_maxmsg is used without
-     * being changed. If mq_send() is called when the message queue is full, it will block until the
-     * queue is free, so this value may need to be reconsidered in the future.
-     */
-    attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
-
-    mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
-    if (mq == -1) {
-      perror("mq_open failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-    mq_subscription = std::make_pair(mq, mq_name);
-
     /*
      * NOTE:
      *   When transient local is enabled, if there is a requirement to execute callbacks with
@@ -97,6 +69,46 @@ public:
     }
 
     map_rdonly_areas(topic_name);
+
+    return add_topic_args;
+  }
+};
+
+template <typename MessageT>
+class CallbackSubscription : public SubscriptionBase
+{
+  std::pair<mqd_t, std::string> mq_subscription;
+
+public:
+  CallbackSubscription(
+    const char * topic_name, const rclcpp::QoS & qos,
+    std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  {
+    const pid_t subscriber_pid = getpid();
+    union ioctl_add_topic_sub_args add_topic_args = initialize(subscriber_pid, topic_name, qos);
+
+    std::string mq_name = create_mq_name(topic_name, subscriber_pid);
+    struct mq_attr attr;
+    attr.mq_flags = 0;                        // Blocking queue
+    attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
+    attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
+    /*
+     * NOTE:
+     *   Maximum number of messages in the queue.
+     *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
+     *   Although this limit can be changed by editing the file, here mq_maxmsg is used without
+     * being changed. If mq_send() is called when the message queue is full, it will block until the
+     * queue is free, so this value may need to be reconsidered in the future.
+     */
+    attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
+
+    mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+    if (mq == -1) {
+      perror("mq_open failed");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+    mq_subscription = std::make_pair(mq, mq_name);
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
@@ -156,7 +168,7 @@ public:
     threads.push_back(std::move(th));
   }
 
-  ~Subscription()
+  ~CallbackSubscription()
   {
     /* It's best to notify the publisher and have it call mq_close, but currently
     this is not being done. The message queue is destroyed when the publisher process exits. */
