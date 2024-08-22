@@ -916,7 +916,7 @@ int publish_msg(
   if (en->published) {
     dev_warn(
       agnocast_device,
-      "Tried to already published message (topic_name=%s publisher_pid=%d "
+      "Tried to publish a message that has already been published. (topic_name=%s publisher_pid=%d "
       "timestamp=%lld). (publish_msg)\n",
       topic_name, publisher_pid, msg_timestamp);
     return -1;
