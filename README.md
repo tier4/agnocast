@@ -53,7 +53,7 @@ sudo cat /sys/kernel/debug/dynamic_debug/control | grep "agnocast.c"
 /.../agnocast/kmod/agnocast.c:367 [agnocast]insert_message_entry =p "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). (insert_message_entry)"
 ```
 
-To use dynamic_debug, the Linux kernel configuration must have CONFIG_DYNAMIC_DEBUG set to y.
+To use dynamic_debug, the Linux kernel configuration must have CONFIG_DYNAMIC_DEBUG set to `y`.
 If CONFIG_DYNAMIC_DEBUG is not enabled in your environment, perform a debug build with:
 ```
 make CFLAGS_agnocast.o="-DDEBUG"
