@@ -39,7 +39,7 @@ sudo rmmod agnocast
 ```
 
 ## Debug
-To use dynamic_debug for dynamically outputting debug logs, please run the following command as su:
+To use dynamic_debug for dynamically outputting debug logs, please run the following command as super user:
 ```
 sudo su
 echo 'file agnocast.c +p' > /sys/kernel/debug/dynamic_debug/control
