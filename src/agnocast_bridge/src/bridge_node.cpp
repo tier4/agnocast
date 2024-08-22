@@ -6,7 +6,7 @@ using std::placeholders::_1;
 
 class BridgeNode : public rclcpp::Node
 {
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>>
+  std::shared_ptr<agnocast::CallbackSubscription<sample_interfaces::msg::DynamicSizeArray>>
     agnocast_subscriber_;
   rclcpp::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_;
 

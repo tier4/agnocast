@@ -21,8 +21,10 @@ class MinimalSubscriber : public rclcpp::Node
   std::vector<uint64_t> timestamp_ids_;
   int timestamp_idx_ = 0;
 
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_dynamic_;
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>> sub_static_;
+  std::shared_ptr<agnocast::CallbackSubscription<sample_interfaces::msg::DynamicSizeArray>>
+    sub_dynamic_;
+  std::shared_ptr<agnocast::CallbackSubscription<sample_interfaces::msg::StaticSizeArray>>
+    sub_static_;
 
   void callback_dynamic(
     const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
