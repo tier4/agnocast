@@ -44,7 +44,8 @@ class MinimalPubSub : public rclcpp::Node
   }
 
   std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_dynamic_;
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>> sub_static_;
+  std::shared_ptr<agnocast::CallbackSubscription<sample_interfaces::msg::StaticSizeArray>>
+    sub_static_;
   int count_;
 
   std::vector<uint64_t> timestamps_;
