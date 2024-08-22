@@ -138,8 +138,8 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
   if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
     dev_warn(
       agnocast_device,
-      "Subscribers for the topic (topic_name=%s) reached the upper bound (MAX_SUBSCRIBER_NUM=%d), "
-      "so a new subscriber cannot be "
+      "The number of subscribers for the topic (topic_name=%s) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
       "added. (insert_subscriber_pid)\n",
       topic_name, MAX_SUBSCRIBER_NUM);
     return -1;
@@ -366,7 +366,8 @@ static int insert_message_entry(
 
   dev_dbg(
     agnocast_device,
-    "Insert a message entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). "
+    "Insert a message entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld "
+    "timestamp=%lld). "
     "(insert_message_entry)",
     topic_name, publisher_pid, msg_virtual_address, timestamp);
   return 0;
@@ -938,7 +939,9 @@ int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
   if (pid_index >= MAX_PROCESS_NUM) {
     dev_warn(
-      agnocast_device, "Too many processes (MAX_PROCESS_NUM=%d)! (new_shm_addr)\n",
+      agnocast_device,
+      "The number of processes has reached the upper bound (MAX_PROCESS_NUM=%d), "
+      "so no new shared memory segments can be allocated. (new_shm_addr)\n",
       MAX_PROCESS_NUM);
     return -1;
   }
@@ -970,7 +973,9 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
   if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
-      "Too many publishers (MAX_PUBLISHER_NUM=%d) of the topic (topic_name=%s)! (get_shm)\n",
+      "The number of publishers for the topic (topic_name=%s) reached the "
+      "upper bound (MAX_PUBLISHER_NUM=%d), so no new subscriber can be "
+      "added. (get_shm)\n",
       MAX_PUBLISHER_NUM, topic_name);
     return -1;
   }
