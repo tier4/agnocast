@@ -14,12 +14,8 @@ KERNEL_MINOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 2)
 #       ...
 #   }
 # Therefore, add -std=gnu11 to suppress this error.
-ifeq ($(shell expr $(KERNEL_MAJOR) \< 5), 1)
+ifeq ($(shell expr $(KERNEL_MAJOR) \< 5 \| $(KERNEL_MAJOR) = 5 \& $(KERNEL_MINOR) \<= 17), 1)
   CFLAGS_agnocast.o += -std=gnu11
-else ifeq ($(shell expr $(KERNEL_MAJOR) = 5), 1)
-  ifeq ($(shell expr $(KERNEL_MINOR) \<= 17), 1)
-    CFLAGS_agnocast.o += -std=gnu11
-  endif
 endif
 
 
@@ -27,12 +23,8 @@ endif
 # -Wdeclaration-after-statement, which requires all variables used within
 # a function to be declared at the beginning of the function. To suppress
 # this, we should add -Wno-declaration-after-statement.
-ifeq ($(shell expr $(KERNEL_MAJOR) \< 6), 1)
+ifeq ($(shell expr $(KERNEL_MAJOR) \< 6 \| $(KERNEL_MAJOR) = 6 \& $(KERNEL_MINOR) \<= 4), 1)
   CFLAGS_agnocast.o += -Wno-declaration-after-statement
-else ifeq ($(shell expr $(KERNEL_MAJOR) = 6), 1)
-  ifeq ($(shell expr $(KERNEL_MINOR) \<= 4), 1)
-    CFLAGS_agnocast.o += -Wno-declaration-after-statement
-  endif
 endif
 
 
