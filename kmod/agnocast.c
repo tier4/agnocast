@@ -1429,9 +1429,8 @@ static void free_all_topics(void)
 static void agnocast_exit(void)
 {
   mutex_lock(&global_mutex);
-  dev_info(agnocast_device, "Agnocast removed!\n");
-
   free_all_topics();
+  mutex_unlock(&global_mutex);
 
   // Decrement reference count
   kobject_put(status_kobj);
@@ -1441,7 +1440,8 @@ static void agnocast_exit(void)
   unregister_chrdev(major, "agnocast");
 
   unregister_kprobe(&kp);
-  mutex_unlock(&global_mutex);
+
+  dev_info(agnocast_device, "Agnocast removed!\n");
 }
 
 module_init(agnocast_init) module_exit(agnocast_exit)
