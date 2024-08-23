@@ -195,7 +195,7 @@ size_t read_mq_msgmax()
 
 static void shutdown_agnocast()
 {
-  std::cout << "shutdown_agnocast started" << std::endl;
+  std::cout << "[Info]: shutdown_agnocast started" << std::endl;
   is_running = false;
   /*
    * TODO:
@@ -231,7 +231,7 @@ static void shutdown_agnocast()
     th.join();
   }
 
-  std::cout << "shutdown_agnocast completed" << std::endl;
+  std::cout << "[Info]: shutdown_agnocast completed" << std::endl;
 }
 
 class Cleanup
