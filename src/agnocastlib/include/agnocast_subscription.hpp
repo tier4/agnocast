@@ -181,4 +181,21 @@ public:
   }
 };
 
+template <typename MessageT>
+class TakeSubscription : public SubscriptionBase
+{
+  uint64_t last_taken_timestamp;
+
+public:
+  TakeSubscription(const char * topic_name, const rclcpp::QoS & qos) : last_taken_timestamp(0)
+  {
+    initialize(getpid(), topic_name, qos);
+  }
+
+  agnocast::message_ptr<MessageT> take()
+  {
+    // TODO
+  }
+};
+
 }  // namespace agnocast
