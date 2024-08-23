@@ -112,7 +112,7 @@ public:
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
-      std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
+      std::cout << "[Info]: callback thread for " << topic_name << " has been started" << std::endl;
 
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
