@@ -977,7 +977,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
       "The number of publishers for the topic (topic_name=%s) reached the "
       "upper bound (MAX_PUBLISHER_NUM=%d), so no new subscriber can be "
       "added. (get_shm)\n",
-      MAX_PUBLISHER_NUM, topic_name);
+      topic_name, MAX_PUBLISHER_NUM);
     return -1;
   }
 
