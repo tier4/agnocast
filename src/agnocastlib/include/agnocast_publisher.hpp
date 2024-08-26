@@ -106,7 +106,7 @@ public:
       delete release_ptr;
     }
 
-    return message_ptr<MessageT>(ptr, topic_name_, publisher_pid_, timestamp);
+    return message_ptr<MessageT>(ptr, topic_name_, publisher_pid_, timestamp, false);
   }
 
   void publish(message_ptr<MessageT> && message)
