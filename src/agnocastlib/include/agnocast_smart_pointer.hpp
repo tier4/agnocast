@@ -74,14 +74,14 @@ public:
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_)
   {
-    std::cout << "[Error]: copy constructor is no supported yet" << std::endl;
+    std::cout << "[Error]: copy constructor is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   message_ptr & operator=(const message_ptr & r)
   {
-    std::cout << "[Error]: copy assignment operator is no supported yet" << std::endl;
+    std::cout << "[Error]: copy assignment operator is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -92,21 +92,21 @@ public:
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_)
   {
-    std::cout << "[Error]: move constructor is no supported yet" << std::endl;
+    std::cout << "[Error]: move constructor is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   message_ptr & operator=(message_ptr && r)
   {
-    std::cout << "[Error]: move assignment operator is no supported yet" << std::endl;
+    std::cout << "[Error]: move assignment operator is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   T & operator*() const noexcept
   {
-    std::cout << "[Error]: operator*() is no supported yet" << std::endl;
+    std::cout << "[Error]: operator*() is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
