@@ -27,11 +27,11 @@ When a process first calls malloc or other memory related functions, Agnocast st
 
 #### Creattion of a publisher
 
-When a process calls `create_publisher` for topic `T`, then the shared memory of the process should be mapped by processes which has a subscription for `T`.
-Thus in the `create_publisher`, the following procedures are executed:
+When a process calls `create_publisher` for a topic `T`, the shared memory of the process should be mapped by processes which have a subscription for `T`.
+Thus the following procedures are executed:
 
 1. The publisher process gets the infomation about subscribers already registerd for the topic `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl.
-2. The publisher process opens a message queue and send the sahred memory infomation in order to notify the subscribers already created for the topic `T` that a publisher is registered.
+2. The publisher process opens a message queue and send the shared memory infomation in order to notify the subscribers already created for the topic `T` that a new publisher is registered.
 3. The subscriber process receives the message and maps the publisher's shared memory area with a read-only privilege.
 
 ##### Creation of a subscriber
@@ -48,11 +48,12 @@ In Agnocast, there is exactly one writable process and there are some read-only 
 Suppose the writable process's id is `pid`, then the shared memory is named as "/agnocast@pid".
 The name should start with '/' and should not include '/' any more.
 
-Message queue is created also for each process.
+Message queue is also created for each process.
 Suppose the process's id is `pid`, then the message queue is named as "/new_publisher@pid".
-The restriction for the name is the same as the shared memory one.
+The restriction for the name is the same as the shared memory.
 
 
 ## Known issues
- - The `INITIAL_MEMPOOL_SIZE` is fixed to 100MB, but the size of it is configured for each process based on the computational cost.
- - When a heaphook fails to allocate a new memory due to the lack of enough mempool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
+ - The `INITIAL_MEMPOOL_SIZE` is fixed to 100MB, but the size of it should be configured for each process based on how much memory the process will use.
+ - When a heaphook fails to allocate a memory due to the lack of enough mempool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
+ - The current implementation suppose that the memory after 0x40000000000 is always allocatable, though it is not investigated in detail.
