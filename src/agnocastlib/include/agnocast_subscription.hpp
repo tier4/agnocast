@@ -112,7 +112,7 @@ public:
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
-      std::cout << "callback thread for " << topic_name << " has been started" << std::endl;
+      std::cout << "[Info]: callback thread for " << topic_name << " has been started" << std::endl;
 
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
@@ -178,6 +178,23 @@ public:
     if (mq_unlink(mq_subscription.second.c_str()) == -1) {
       perror("mq_unlink failed");
     }
+  }
+};
+
+template <typename MessageT>
+class TakeSubscription : public SubscriptionBase
+{
+  uint64_t last_taken_timestamp;
+
+public:
+  TakeSubscription(const char * topic_name, const rclcpp::QoS & qos) : last_taken_timestamp(0)
+  {
+    initialize(getpid(), topic_name, qos);
+  }
+
+  agnocast::message_ptr<MessageT> take()
+  {
+    // TODO
   }
 };
 

@@ -509,7 +509,7 @@ static struct attribute_group attribute_group = {
 // /dev/agnocast
 
 #define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
-int topic_add_pub(const char * topic_name)
+static int topic_add_pub(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
@@ -635,7 +635,7 @@ union ioctl_get_shm_args {
 };
 
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
-int topic_add_sub(
+static int topic_add_sub(
   const char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
   union ioctl_add_topic_sub_args * ioctl_ret)
 {
@@ -703,7 +703,7 @@ int topic_add_sub(
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-int publisher_queue_add(
+static int publisher_queue_add(
   const char * topic_name, uint32_t pid, union ioctl_publisher_args * ioctl_ret)
 {
   if (insert_publisher_queue(topic_name, pid) == -1) {
@@ -744,7 +744,7 @@ int publisher_queue_add(
 }
 
 #define AGNOCAST_ENQUEUE_AND_RELEASE_CMD _IOW('E', 1, union ioctl_enqueue_and_release_args)
-uint64_t release_msgs_to_meet_depth(
+static uint64_t release_msgs_to_meet_depth(
   const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
   union ioctl_enqueue_and_release_args * ioctl_ret)
 {
@@ -820,7 +820,7 @@ uint64_t release_msgs_to_meet_depth(
   return 0;
 }
 
-uint64_t enqueue_and_release(
+static uint64_t enqueue_and_release(
   const char * topic_name, const uint32_t publisher_pid, const uint32_t qos_depth,
   const uint64_t msg_virtual_address, const uint64_t timestamp,
   union ioctl_enqueue_and_release_args * ioctl_ret)
@@ -836,7 +836,7 @@ uint64_t enqueue_and_release(
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
 
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
-int receive_and_update(
+static int receive_and_update(
   char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp,
   uint32_t qos_depth, union ioctl_receive_msg_args * ioctl_ret)
 {
@@ -895,7 +895,7 @@ int receive_and_update(
 }
 
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
-int publish_msg(
+static int publish_msg(
   char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp,
   union ioctl_publish_args * ioctl_ret)
 {
@@ -936,7 +936,7 @@ int publish_msg(
 }
 
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
+static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
   if (pid_index >= MAX_PROCESS_NUM) {
     dev_warn(
@@ -961,7 +961,7 @@ int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 static DEFINE_MUTEX(global_mutex);
 
 #define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)
-int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
+static int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
 {
   // get all publisher id and addr from topic_name
 
@@ -977,7 +977,7 @@ int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
       "The number of publishers for the topic (topic_name=%s) reached the "
       "upper bound (MAX_PUBLISHER_NUM=%d), so no new subscriber can be "
       "added. (get_shm)\n",
-      MAX_PUBLISHER_NUM, topic_name);
+      topic_name, MAX_PUBLISHER_NUM);
     return -1;
   }
 
@@ -1173,7 +1173,7 @@ static struct file_operations fops = {
 
 // =========================================
 // Handler for publisher process exit
-void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en)
+static void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en)
 {
   struct rb_root * root = &publisher_queue->entries;
   publisher_queue->entries_num--;
@@ -1181,7 +1181,7 @@ void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry
   kfree(en);
 }
 
-void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
+static void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1197,7 +1197,7 @@ void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
   publisher_queue->publisher_exited = true;
 }
 
-void pre_handler_publisher(struct topic_wrapper * wrapper)
+static void pre_handler_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
   struct publisher_queue_node dummy_head;
@@ -1233,7 +1233,7 @@ void pre_handler_publisher(struct topic_wrapper * wrapper)
 
 // Decrement the reference count, then free the entry node if it reaches zero and publisher has
 // already exited.
-void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
+static void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
 {
   struct rb_root * root = &publisher_queue->entries;
   struct rb_node * node = rb_first(root);
@@ -1262,7 +1262,7 @@ void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
   }
 }
 
-void pre_handler_subscriber(struct topic_wrapper * wrapper)
+static void pre_handler_subscriber(struct topic_wrapper * wrapper)
 {
   bool was_subscribing = false;
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
@@ -1428,9 +1428,9 @@ static void free_all_topics(void)
 
 static void agnocast_exit(void)
 {
-  dev_info(agnocast_device, "Agnocast removed!\n");
-
+  mutex_lock(&global_mutex);
   free_all_topics();
+  mutex_unlock(&global_mutex);
 
   // Decrement reference count
   kobject_put(status_kobj);
@@ -1440,6 +1440,8 @@ static void agnocast_exit(void)
   unregister_chrdev(major, "agnocast");
 
   unregister_kprobe(&kp);
+
+  dev_info(agnocast_device, "Agnocast removed!\n");
 }
 
 module_init(agnocast_init) module_exit(agnocast_exit)
