@@ -25,7 +25,7 @@ When a process first calls malloc or other memory related functions, Agnocast st
 2. open a writable shared memory on the allocatable area, with `shm_open`, `ftruncate` and `mmap` system calls.
 3. create a thread and open a message queue so that the process can recognize a emergence of a new publisher later.
 
-#### Creattion of a publisher
+#### Creation of a publisher
 
 When a process calls `create_publisher` for a topic `T`, the shared memory of the process should be mapped by processes which have a subscription for `T`.
 Thus the following procedures are executed:
