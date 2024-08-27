@@ -102,6 +102,13 @@ std::string create_mq_name(const char * topic_name, const uint32_t pid)
 
 void wait_for_new_publisher(const uint32_t pid)
 {
+  static bool is_initialized = false;
+
+  if (is_initialized) {
+    return;
+  }
+  is_initialized = true;
+
   const std::string mq_name = "/new_publisher@" + std::to_string(pid);
 
   struct mq_attr attr;
@@ -162,9 +169,6 @@ void * initialize_agnocast()
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-
-  // open a mq for new publisher appearences
-  wait_for_new_publisher(pid);
 
   if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
     INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
