@@ -66,7 +66,7 @@ struct entry_node
   struct rb_node node;
   uint64_t timestamp;  // rbtree key
   uint64_t msg_virtual_address;
-  uint32_t reference_count;
+  uint32_t subscriber_reference_count;
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
   bool published;
   /*
@@ -272,7 +272,7 @@ static int decrement_message_entry_rc(
   }
 
   bool referencing = false;
-  for (int i = 0; i < en->reference_count; i++) {
+  for (int i = 0; i < en->subscriber_reference_count; i++) {
     if (en->referencing_subscriber_pids[i] == subscriber_pid) {
       referencing = true;
     }
@@ -288,7 +288,7 @@ static int decrement_message_entry_rc(
       subscriber_pid, topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
-  en->reference_count--;
+  en->subscriber_reference_count--;
   return 0;
 }
 
@@ -335,7 +335,7 @@ static int insert_message_entry(
 
   new_node->timestamp = timestamp;
   new_node->msg_virtual_address = msg_virtual_address;
-  new_node->reference_count = 0;
+  new_node->subscriber_reference_count = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     new_node->referencing_subscriber_pids[i] = 0;
   }
@@ -443,7 +443,7 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
         buf_len += BUFFER_SIZE;
 
         char num_str_rc[BUFFER_SIZE];
-        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->reference_count);
+        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->subscriber_reference_count);
         strcat(local_buf, num_str_rc);
         buf_len += BUFFER_SIZE;
 
@@ -658,8 +658,8 @@ static int topic_add_sub(
 
       struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
       if (en->published) {
-        en->referencing_subscriber_pids[en->reference_count] = subscriber_pid;
-        en->reference_count++;
+        en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+        en->subscriber_reference_count++;
         ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[newest_i];
         ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
         ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
@@ -783,7 +783,8 @@ static uint64_t release_msgs_to_meet_depth(
       return -1;
     }
 
-    if (en->reference_count > 0) continue;  // This is not counted in a Queue size of QoS.
+    // This is not counted in a Queue size of QoS.
+    if (en->subscriber_reference_count > 0) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -868,8 +869,8 @@ static int receive_and_update(
   }
 
   en->unreceived_subscriber_count--;
-  en->referencing_subscriber_pids[en->reference_count] = subscriber_pid;
-  en->reference_count++;
+  en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+  en->subscriber_reference_count++;
   ioctl_ret->ret = en->msg_virtual_address;
   return 0;
 }
@@ -1158,7 +1159,7 @@ static void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->reference_count == 0) {
+    if (en->subscriber_reference_count == 0) {
       free_entry_node(publisher_queue, en);
     }
   }
@@ -1210,7 +1211,7 @@ static void handler_subscriber_exit(struct publisher_queue_node * publisher_queu
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     bool referencing = false;
-    for (int i = 0; i < en->reference_count; i++) {
+    for (int i = 0; i < en->subscriber_reference_count; i++) {
       if (en->referencing_subscriber_pids[i] == current->pid) {
         referencing = true;
       }
@@ -1222,10 +1223,10 @@ static void handler_subscriber_exit(struct publisher_queue_node * publisher_queu
 
     if (!referencing) continue;
 
-    en->reference_count--;
+    en->subscriber_reference_count--;
 
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->reference_count == 0 && publisher_queue->publisher_exited) {
+    if (en->subscriber_reference_count == 0 && publisher_queue->publisher_exited) {
       free_entry_node(publisher_queue, en);
     }
   }
