@@ -28,12 +28,12 @@ class message_ptr
   const char * topic_name_;
   uint32_t publisher_pid_;
   uint64_t timestamp_;
-  bool need_release_;
+  bool need_rc_update_;
 
   void release()
   {
     if (ptr_ == nullptr) return;
-    if (!need_release_) return;
+    if (!need_rc_update_) return;
 
     union ioctl_update_entry_args entry_args;
     entry_args.topic_name = topic_name_;
@@ -57,12 +57,13 @@ public:
   message_ptr() {}
 
   explicit message_ptr(
-    T * ptr, const char * topic_name, uint32_t publisher_pid, uint64_t timestamp, bool need_release)
+    T * ptr, const char * topic_name, uint32_t publisher_pid, uint64_t timestamp,
+    bool need_rc_update)
   : ptr_(ptr),
     topic_name_(topic_name),
     publisher_pid_(publisher_pid),
     timestamp_(timestamp),
-    need_release_(need_release)
+    need_rc_update_(need_rc_update)
   {
   }
 
