@@ -53,6 +53,7 @@ public:
                                  ? static_cast<uint32_t>(qos.depth())
                                  : 0;
     add_topic_args.subscriber_pid = subscriber_pid;
+    // add subscriber info in the kernel module and get shared memory info by topic_name
     if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
       perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
       close(agnocast_fd);

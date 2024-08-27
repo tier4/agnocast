@@ -529,8 +529,7 @@ union ioctl_add_topic_sub_args {
   };
 };
 
-struct ioctl_subscriber_args
-{
+union ioctl_subscriber_args {
   struct
   {
     char * topic_name;
@@ -682,7 +681,58 @@ static int topic_add_sub(
   return 0;
 }
 
-#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, struct ioctl_subscriber_args)
+#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
+static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
+{
+  // get all publisher id and addr from topic_name
+
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_shm)\n", topic_name);
+    return -1;
+  }
+
+  if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
+    dev_warn(
+      agnocast_device,
+      "The number of publishers for the topic (topic_name=%s) reached the "
+      "upper bound (MAX_PUBLISHER_NUM=%d), so no new subscriber can be "
+      "added. (get_shm)\n",
+      topic_name, MAX_PUBLISHER_NUM);
+    return -1;
+  }
+
+  int index = 0;
+  struct publisher_queue_node * node = wrapper->topic.publisher_queues;
+  while (node) {
+    if (node->publisher_exited) {
+      node = node->next;
+      continue;
+    }
+    ioctl_ret->ret_pids[index] = node->pid;
+    for (int j = 0; j < pid_index; j++) {
+      if (process_ids[j] == node->pid) {
+        ioctl_ret->ret_addrs[index] = shm_addrs[j];
+        index++;
+        break;
+      }
+    }
+    node = node->next;
+  }
+  ioctl_ret->ret_publisher_num = index;
+
+  return 0;
+}
+
+static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscriber_args * ioctl_ret)
+{
+  int ret = insert_subscriber_pid(topic_name, pid);
+  if (ret < 0) return ret;
+
+  ret = get_shm(topic_name, ioctl_ret);
+
+  return ret;
+}
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
 static int publisher_queue_add(
@@ -941,56 +991,13 @@ static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 
 static DEFINE_MUTEX(global_mutex);
 
-#define AGNOCAST_GET_SHM_CMD _IOW('I', 2, union ioctl_get_shm_args)
-static int get_shm(char * topic_name, union ioctl_get_shm_args * ioctl_ret)
-{
-  // get all publisher id and addr from topic_name
-
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_shm)\n", topic_name);
-    return -1;
-  }
-
-  if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
-    dev_warn(
-      agnocast_device,
-      "The number of publishers for the topic (topic_name=%s) reached the "
-      "upper bound (MAX_PUBLISHER_NUM=%d), so no new subscriber can be "
-      "added. (get_shm)\n",
-      topic_name, MAX_PUBLISHER_NUM);
-    return -1;
-  }
-
-  int index = 0;
-  struct publisher_queue_node * node = wrapper->topic.publisher_queues;
-  while (node) {
-    if (node->publisher_exited) {
-      node = node->next;
-      continue;
-    }
-    ioctl_ret->ret_pids[index] = node->pid;
-    for (int j = 0; j < pid_index; j++) {
-      if (process_ids[j] == node->pid) {
-        ioctl_ret->ret_addrs[index] = shm_addrs[j];
-        index++;
-        break;
-      }
-    }
-    node = node->next;
-  }
-  ioctl_ret->ret_publisher_num = index;
-
-  return 0;
-}
-
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
   int ret = 0;
   char topic_name_buf[256];
   union ioctl_add_topic_sub_args add_topic_sub_args;
-  struct ioctl_subscriber_args sub_args;
+  union ioctl_subscriber_args sub_args;
   union ioctl_publisher_args pub_args;
   union ioctl_enqueue_and_release_args enqueue_release_args;
   union ioctl_update_entry_args entry_args;
@@ -1021,12 +1028,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_SUBSCRIBER_ADD_CMD:
-      if (copy_from_user(&sub_args, (struct ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
+      if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = insert_subscriber_pid(topic_name_buf, sub_args.pid);
+      ret = subscriber_add(topic_name_buf, sub_args.pid, &sub_args);
+      if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
+        goto unlock_mutex_and_return;
       break;
     case AGNOCAST_PUBLISHER_ADD_CMD:
       if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
@@ -1098,17 +1107,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       ret = new_shm_addr(new_shm_args.pid, &new_shm_args);
       if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_GET_SHM_CMD:
-      if (copy_from_user(
-            &get_shm_args, (union ioctl_get_shm_args __user *)arg, sizeof(get_shm_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)get_shm_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = get_shm(topic_name_buf, &get_shm_args);
-      if (copy_to_user((union ioctl_get_shm_args __user *)arg, &get_shm_args, sizeof(get_shm_args)))
         goto unlock_mutex_and_return;
       break;
     default:

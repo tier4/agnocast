@@ -61,18 +61,6 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   return ret;
 }
 
-void map_rdonly_areas(const char * topic_name)
-{
-  // get shared memory info from topic_name from kernel module
-  union ioctl_get_shm_args get_shm_args;
-  get_shm_args.topic_name = topic_name;
-  if (ioctl(agnocast_fd, AGNOCAST_GET_SHM_CMD, &get_shm_args) < 0) {
-    perror("AGNOCAST_GET_SHM_CMD failed");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-}
-
 std::string create_mq_name(const char * topic_name, const uint32_t pid)
 {
   std::string mq_name = std::string(topic_name) + "@" + std::to_string(pid);
