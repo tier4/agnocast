@@ -71,13 +71,6 @@ void map_rdonly_areas(const char * topic_name)
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-
-  // map read-only shared memory through heaphook
-  for (uint32_t i = 0; i < get_shm_args.ret_publisher_num; i++) {
-    const uint32_t pid = get_shm_args.ret_pids[i];
-    const uint64_t addr = get_shm_args.ret_addrs[i];
-    map_area(pid, addr, false);
-  }
 }
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid)

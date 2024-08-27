@@ -68,7 +68,12 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    map_rdonly_areas(topic_name);
+    // map read-only shared memory through heaphook
+    for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
+      const uint32_t pid = subscriber_args.ret_pids[i];
+      const uint64_t addr = subscriber_args.ret_addrs[i];
+      map_area(pid, addr, false);
+    }
 
     return add_topic_args;
   }

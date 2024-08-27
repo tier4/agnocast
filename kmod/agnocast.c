@@ -531,8 +531,17 @@ union ioctl_add_topic_sub_args {
 
 struct ioctl_subscriber_args
 {
-  char * topic_name;
-  uint32_t pid;
+  struct
+  {
+    char * topic_name;
+    uint32_t pid;
+  };
+  struct
+  {
+    uint32_t ret_publisher_num;
+    uint32_t ret_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
+  };
 };
 
 union ioctl_publisher_args {
@@ -605,16 +614,6 @@ union ioctl_enqueue_and_release_args {
 union ioctl_new_shm_args {
   uint32_t pid;
   uint64_t ret_addr;
-};
-
-union ioctl_get_shm_args {
-  const char * topic_name;
-  struct
-  {
-    uint32_t ret_publisher_num;
-    uint32_t ret_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
-  };
 };
 
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
@@ -998,7 +997,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   union ioctl_receive_msg_args receive_msg_args;
   union ioctl_publish_args publish_args;
   union ioctl_new_shm_args new_shm_args;
-  union ioctl_get_shm_args get_shm_args;
 
   switch (cmd) {
     case AGNOCAST_TOPIC_ADD_PUB_CMD:

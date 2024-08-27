@@ -32,11 +32,22 @@ union ioctl_add_topic_sub_args {
 };
 #pragma GCC diagnostic pop
 
-struct ioctl_subscriber_args
-{
-  const char * topic_name;
-  uint32_t pid;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_subscriber_args {
+  struct
+  {
+    const char * topic_name;
+    uint32_t pid;
+  };
+  struct
+  {
+    uint32_t ret_publisher_num;
+    uint32_t ret_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
+  };
 };
+#pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -124,19 +135,6 @@ union ioctl_new_shm_args {
   uint32_t pid;
   uint64_t ret_addr;
 };
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_get_shm_args {
-  const char * topic_name;
-  struct
-  {
-    uint32_t ret_publisher_num;
-    uint32_t ret_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
-  };
-};
-#pragma GCC diagnostic pop
 
 #define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
