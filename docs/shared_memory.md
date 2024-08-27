@@ -12,7 +12,7 @@ See official man page: <https://man7.org/linux/man-pages/man7/shm_overview.7.htm
 
 ### Detailed usage
 
-There are three invocations for shared meomry related procedures.
+There are three invocations for shared memory related procedures.
 
 #### Initialization of a process
 
