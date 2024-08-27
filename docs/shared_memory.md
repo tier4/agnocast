@@ -1,16 +1,14 @@
 
 ## What is shared memory in Linux?
 
-See official man page: https://man7.org/linux/man-pages/man7/shm_overview.7.html
-
+See official man page: <https://man7.org/linux/man-pages/man7/shm_overview.7.html>
 
 ## How shared memory is used in Agnocast?
 
 ### Basic usage
 
- - A publisher opens a shared memory with a writable privilege.
- - A subscriber opens the shared memory with a read-only privilege which the corresponsing publisher opened.
-
+- A publisher opens a shared memory with a writable privilege.
+- A subscriber opens the shared memory with a read-only privilege which the corresponsing publisher opened.
 
 ### Detailed usage
 
@@ -41,7 +39,6 @@ When a process calls `create_subscription` for topic `T`, then the process maps 
 1. get the information about the publishers for the topic `T` through `AGNOCAST_SUBSCRIBER_ADD_CMD` ioctl.
 2. map the publisher's shared memories with a read-only privilege.
 
-
 ### Naming rule and restrictions
 
 In Agnocast, there is exactly one writable process and there are some read-only processes for a shared memory.
@@ -52,8 +49,8 @@ Message queue is also created for each process.
 Suppose the process's id is `pid`, then the message queue is named as "/new_publisher@pid".
 The restriction for the name is the same as the shared memory.
 
-
 ## Known issues
- - The `INITIAL_MEMPOOL_SIZE` is fixed to 100MB, but the size of it should be configured for each process based on how much memory the process will use.
- - When a heaphook fails to allocate a memory due to the lack of enough memory pool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
- - The current implementation suppose that the memory after 0x40000000000 is always allocatable, though it is not investigated in detail.
+
+- The `INITIAL_MEMPOOL_SIZE` is fixed to 100MB, but the size of it should be configured for each process based on how much memory the process will use.
+- When a heaphook fails to allocate a memory due to the lack of enough memory pool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
+- The current implementation suppose that the memory after 0x40000000000 is always allocatable, though it is not investigated in detail.
