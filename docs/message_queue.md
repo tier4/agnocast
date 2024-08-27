@@ -38,7 +38,7 @@ The message queue is used in the following way:
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic is published.
 - When a subscriber process receives the notification, then it gets the topic content through `AGNOCAST_RECEIVE_MSG_CMD` ioctl and executes the corresponding callback.
 
-Thus, the definition of the message is the following
+Thus, the definition of the message is the following.
 
 ```c
 struct MqMsgAgnocast {
