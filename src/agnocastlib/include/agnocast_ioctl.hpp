@@ -8,8 +8,8 @@ namespace agnocast
 {
 
 // TODO: These values should be reconsidered
-#define MAX_PUBLISHER_NUM 16
-#define MAX_SUBSCRIBER_NUM 16
+#define MAX_PUBLISHER_NUM 2
+#define MAX_SUBSCRIBER_NUM 8
 
 #define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
 
