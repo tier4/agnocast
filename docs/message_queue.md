@@ -21,7 +21,7 @@ The message queue is used in the following way:
 - When a publisher process calls `create_publisher` for a topic `T`, it gets information about subscribers for `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl, and opens an existing message queue to notify to the subscribers that a new publisher is created.
 - When a subscriber process receives the notification, then it maps the sender's shared memory with a read-only privilege.
 
-Thus, the definition of the message is the following.
+Thus, the definition of the message is as follows.
 
 ```c
 struct MqMsgNewPublisher {
