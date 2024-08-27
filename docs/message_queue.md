@@ -34,9 +34,9 @@ struct MqMsgNewPublisher {
 
 The message queue is used in the following way
 
-- When a process calls `create_subscription` for a topic `T`, it opens a new message queue as a receiver.
-- When a process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic is published.
-- When a process receives the notification, then it gets the topic content through `AGNOCAST_RECEIVE_MSG_CMD` ioctl and executes the corresponding callback.
+- When a subscriber process calls `create_subscription` for a topic `T`, it opens a new message queue as a receiver.
+- When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic is published.
+- When a subscriber process receives the notification, then it gets the topic content through `AGNOCAST_RECEIVE_MSG_CMD` ioctl and executes the corresponding callback.
 
 Thus, the definition of the message is the following
 
