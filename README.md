@@ -61,7 +61,7 @@ Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentati
 
 ## (For developer) Setup pre-commit
 
-The following command allows clang-format to be run before each commit.
+The following command allows `clang-format` and `markdownlint` to be run before each commit.
 
 ```
 bash scripts/setup_pre_commit
