@@ -1,7 +1,7 @@
 
 ## What is shared memory in Linux?
 
-See official man page: https://github.com/autowarefoundation/autoware/blob/b35b75ccbd122c82be4a6dde870640646066058f/.clang-tidy-ci#L163
+See official man page: https://man7.org/linux/man-pages/man7/shm_overview.7.html
 
 
 ## How shared memory is used in Agnocast?
