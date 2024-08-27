@@ -49,18 +49,18 @@ struct MqMsgAgnocast {
 
 ### Naming rules and restrictions
 
-Suppose that "pid" is the process id of the process who opens the message queue as a receiver and "topic_name" is the topic name corresponding to the message queue.
+Suppose that `pid` is the process id of the process who opens the message queue as a receiver and `topic_name` is the topic name corresponding to the message queue.
 
-- The message queue name for the new publisher notification is "/new_publisher@pid".
-- The message queue name for the topic publish notification is "topic_name@pid"
+- The message queue name for the new publisher notification is `/new_publisher@pid`.
+- The message queue name for the topic publish notification is `topic_name@pid`.
 
 The restrictions of the naming are
 
-- It must start with "/"
-- It must not include "/" other than the beginning
+- It must start with `/`
+- It must not include `/` other than the beginning
 
-The first rule is satisfied because all topic names start with "/".
-The satisfy the second rule, all the occurrence of "/" in topic names are replaced for "_".
+The first rule is satisfied because all topic names start with `/`.
+The satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
 
 ## Known issues
 
