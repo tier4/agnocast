@@ -32,7 +32,7 @@ struct MqMsgNewPublisher {
 
 #### Notification of a topic publish
 
-The message queue is used in the following way
+The message queue is used in the following way:
 
 - When a subscriber process calls `create_subscription` for a topic `T`, it opens a new message queue as a receiver.
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic is published.
