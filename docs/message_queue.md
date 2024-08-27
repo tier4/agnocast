@@ -56,8 +56,8 @@ Suppose that `pid` is the process id of the process who opens the message queue 
 
 The restrictions of the naming are
 
-- It must start with `/`
-- It must not include `/` other than the beginning
+- It must start with `/`,
+- and, it must not include `/` other than the beginning.
 
 The first rule is satisfied because all topic names start with `/`.
 The satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
