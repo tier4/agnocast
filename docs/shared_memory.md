@@ -30,8 +30,8 @@ When a process first calls malloc or other memory related functions, Agnocast st
 When a process calls `create_publisher` for a topic `T`, the shared memory of the process should be mapped by processes which have a subscription for `T`.
 Thus the following procedures are executed:
 
-1. The publisher process gets the infomation about subscribers already registerd for the topic `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl.
-2. The publisher process opens a message queue and send the shared memory infomation in order to notify the subscribers already created for the topic `T` that a new publisher is registered.
+1. The publisher process gets the information about subscribers already registerd for the topic `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl.
+2. The publisher process opens a message queue and send the shared memory information in order to notify the subscribers already created for the topic `T` that a new publisher is registered.
 3. The subscriber process receives the message and maps the publisher's shared memory area with a read-only privilege.
 
 ##### Creation of a subscriber
