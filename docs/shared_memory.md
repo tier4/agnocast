@@ -32,7 +32,7 @@ Thus the following procedures are executed:
 2. The publisher process opens a message queue and send the shared memory information in order to notify the subscribers already created for the topic `T` that a new publisher is registered.
 3. The subscriber process receives the message and maps the publisher's shared memory area with a read-only privilege.
 
-##### Creation of a subscriber
+#### Creation of a subscriber
 
 When a process calls `create_subscription` for topic `T`, then the process maps the corresponding publisher's shared memory area with a read-only privilege in the following steps:
 
