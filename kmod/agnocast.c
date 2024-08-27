@@ -20,8 +20,9 @@ static int major;
 static struct class * agnocast_class;
 static struct device * agnocast_device;
 
-#define MAX_PUBLISHER_NUM 16  // only for ioctl_get_shm_args currently
-#define MAX_SUBSCRIBER_NUM 16
+// TODO: should be made larger when applied for Autoware
+#define MAX_PUBLISHER_NUM 2   // At least 2 is required for sample application
+#define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 
 // =========================================
 // data structure
