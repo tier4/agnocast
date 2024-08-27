@@ -60,7 +60,7 @@ The restrictions of the naming are
 - and, it must not include `/` other than the beginning.
 
 The first rule is satisfied because all topic names start with `/`.
-The satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
+To satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
 
 ## Known issues
 
