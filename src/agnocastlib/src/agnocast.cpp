@@ -102,7 +102,7 @@ std::string create_mq_name(const char * topic_name, const uint32_t pid)
 
 void wait_for_new_publisher(const uint32_t pid)
 {
-  static bool is_initialized = false;
+  static std::atomic<bool> is_initialized = false;
 
   if (is_initialized) {
     return;
