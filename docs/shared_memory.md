@@ -16,7 +16,7 @@ There are three invocations for shared memory related procedures.
 
 #### Initialization of a process
 
-All processes linked with Agnocast open a shared memory, which is writable only for the process.
+Each process linked with Agnocast opens a shared memory, which is writable only for the process.
 When a process first calls malloc or other memory related functions, Agnocast starts and the shared memory is opened in the following steps:
 
 1. get an allocatable area through `AGNOCAST_NEW_SHM_CMD` ioctl.
