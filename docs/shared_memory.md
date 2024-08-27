@@ -9,7 +9,7 @@ See official man page: https://man7.org/linux/man-pages/man7/shm_overview.7.html
 ### Basic usage
 
  - A publisher opens a shared memory with a writable privilege.
- - A subscriber opens the shared memory with an only readable privilege which the corresponsing publisher opened.
+ - A subscriber opens the shared memory with a read-only privilege which the corresponsing publisher opened.
 
 
 ### Detailed usage
