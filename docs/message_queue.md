@@ -15,7 +15,7 @@ There are two different usages of message queue in Agnocast.
 
 #### Notification of a new publisher
 
-The message queue is used in the following way
+The message queue is used in the following way:
 
 - When Agnocast is initialized, a new message queue is opened as a receiver.
 - When a publisher process calls `create_publisher` for a topic `T`, it gets information about subscribers for `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl, and opens an existing message queue to notify to the subscribers that a new publisher is created.
