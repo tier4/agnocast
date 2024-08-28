@@ -1,5 +1,5 @@
 obj-m := agnocast.o
-CFLAGS_agnocast.o :=
+CFLAGS_agnocast.o := -Wall -Werror
 
 KERNEL_VERSION := $(shell uname -r)
 KERNEL_MAJOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 1)
