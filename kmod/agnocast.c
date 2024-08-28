@@ -37,6 +37,7 @@ uint64_t shm_addrs[MAX_PROCESS_NUM];
 
 // TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
+#define WRITABLE_MEMORY_SIZE 0x0040000000
 
 struct publisher_queue_node
 {
@@ -932,8 +933,8 @@ static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
   process_ids[pid_index] = pid;
   shm_addrs[pid_index] = allocatable_addr;
 
-  // TODO: allocate 0x00400000000 size for each process, currently
-  allocatable_addr += 0x00400000000;
+  // TODO: allocate WRITABLE_MEMORY_SIZE sized writable memory area for each process, currently.
+  allocatable_addr += WRITABLE_MEMORY_SIZE;
 
   ioctl_ret->ret_addr = shm_addrs[pid_index];
   pid_index++;
