@@ -46,12 +46,12 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     }
   }
 
-  int prot = PROT_READ | MAP_FIXED;
+  int prot = PROT_READ;
   if (writable) prot |= PROT_WRITE;
 
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
-    0);
+    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot,
+    MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     fprintf(stderr, "agnocastlib: mmap failed in map_area\n");
