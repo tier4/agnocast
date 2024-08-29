@@ -22,7 +22,7 @@ class MinimalSubscriber : public rclcpp::Node
   std::vector<uint64_t> timestamps_;
   std::vector<uint64_t> timestamp_ids_;
   int timestamp_idx_ = 0;
-  pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_t timestamp_mtx = PTHREAD_MUTEX_INITIALIZER;
 
   std::shared_ptr<agnocast::CallbackSubscription<sample_interfaces::msg::DynamicSizeArray>>
     sub_dynamic_;
@@ -32,10 +32,10 @@ class MinimalSubscriber : public rclcpp::Node
   void callback_dynamic(
     const agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
   {
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&timestamp_mtx);
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&timestamp_mtx);
 
     RCLCPP_INFO(
       this->get_logger(), "I heard dynamic message: addr=%016lx",
@@ -45,10 +45,10 @@ class MinimalSubscriber : public rclcpp::Node
   void callback_static(
     const agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> & message)
   {
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&timestamp_mtx);
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&timestamp_mtx);
 
     RCLCPP_INFO(
       this->get_logger(), "I heard static message: addr=%016lx",
