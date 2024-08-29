@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <set>
 
 namespace agnocast
 {
@@ -29,8 +30,18 @@ uint64_t agnocast_get_timestamp()
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
+// TODO: when called from initialize_agnocast(), map_area() should not exit, but return NULL
 void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
 {
+  static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
+  static std::set<uint32_t> mapped_publisher_pids;
+
+  pthread_mutex_lock(&mapped_pid_mtx);
+  const bool inserted = mapped_publisher_pids.insert(pid).second;
+  pthread_mutex_unlock(&mapped_pid_mtx);
+
+  if (!inserted) return NULL;
+
   const std::string shm_name = "/agnocast@" + std::to_string(pid);
 
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
@@ -38,6 +49,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   if (shm_fd == -1) {
     perror("shm_open failed");
     close(agnocast_fd);
+    if (writable) return NULL;
     exit(EXIT_FAILURE);
   }
   shm_fds.push_back(shm_fd);
@@ -46,20 +58,19 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
       perror("ftruncate failed");
       close(agnocast_fd);
-      exit(EXIT_FAILURE);
+      return NULL;
     }
   }
 
-  int prot = PROT_READ | MAP_FIXED;
-  if (writable) prot |= PROT_WRITE;
-
+  int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
-    0);
+    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot,
+    MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     perror("mmap failed");
     close(agnocast_fd);
+    if (writable) return NULL;
     exit(EXIT_FAILURE);
   }
 
