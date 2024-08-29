@@ -36,14 +36,16 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
+    perror("shm_open failed");
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
   shm_fds.push_back(shm_fd);
 
   if (writable) {
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
-      fprintf(stderr, "agnocastlib: ftruncate failed in map_area\n");
+      perror("ftruncate failed");
+      close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
   }
@@ -56,7 +58,8 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     0);
 
   if (ret == MAP_FAILED) {
-    fprintf(stderr, "agnocastlib: mmap failed in map_area\n");
+    perror("mmap failed");
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
