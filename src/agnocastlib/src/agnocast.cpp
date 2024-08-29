@@ -30,22 +30,17 @@ uint64_t agnocast_get_timestamp()
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
-bool is_mapped(const uint32_t pid)
+void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
 {
   static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
   static std::set<uint32_t> mapped_publisher_pids;
 
   pthread_mutex_lock(&mapped_pid_mtx);
-
-  const auto ret = mapped_publisher_pids.insert(pid);
-
+  const bool inserted = mapped_publisher_pids.insert(pid).second;
   pthread_mutex_unlock(&mapped_pid_mtx);
 
-  return !ret.second;
-}
+  if (!inserted) return NULL;
 
-void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
-{
   const std::string shm_name = "/agnocast@" + std::to_string(pid);
 
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
@@ -139,8 +134,6 @@ void wait_for_new_publisher(const uint32_t pid)
       }
 
       const uint32_t publisher_pid = mq_msg.publisher_pid;
-      if (is_mapped(publisher_pid)) continue;
-
       const uint64_t publisher_shm_addr = mq_msg.shm_addr;
       map_area(publisher_pid, publisher_shm_addr, false);
     }

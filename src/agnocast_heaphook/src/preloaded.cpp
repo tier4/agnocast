@@ -1,5 +1,6 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include <cstdlib>
 #endif
 
 #include "agnocast.hpp"
@@ -64,6 +65,9 @@ void initialize_mempool()
   }
 
   void * ret = agnocast::initialize_agnocast();
+  if (ret == NULL) {
+    exit(EXIT_FAILURE);
+  }
 
   mempool_ptr = reinterpret_cast<char *>(ret);
 
