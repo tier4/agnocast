@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <set>
 
 namespace agnocast
 {
@@ -27,6 +28,24 @@ uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+}
+
+bool is_mapped(const uint32_t pid)
+{
+  static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
+  static std::set<uint32_t> mapped_publisher_pids;
+
+  pthread_mutex_lock(&mapped_pid_mtx);
+
+  if (mapped_publisher_pids.count(pid) > 0) {
+    pthread_mutex_unlock(&mapped_pid_mtx);
+    return true;
+  }
+
+  mapped_publisher_pids.insert(pid);
+
+  pthread_mutex_unlock(&mapped_pid_mtx);
+  return false;
 }
 
 void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
@@ -48,12 +67,12 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
     }
   }
 
-  int prot = PROT_READ | MAP_FIXED;
+  int prot = PROT_READ;
   if (writable) prot |= PROT_WRITE;
 
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot, MAP_SHARED | MAP_FIXED, shm_fd,
-    0);
+    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot,
+    MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     fprintf(stderr, "agnocastlib: mmap failed in map_area\n");
@@ -124,6 +143,8 @@ void wait_for_new_publisher(const uint32_t pid)
       }
 
       const uint32_t publisher_pid = mq_msg.publisher_pid;
+      if (is_mapped(publisher_pid)) continue;
+
       const uint64_t publisher_shm_addr = mq_msg.shm_addr;
       map_area(publisher_pid, publisher_shm_addr, false);
     }

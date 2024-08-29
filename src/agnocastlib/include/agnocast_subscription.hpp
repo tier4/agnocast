@@ -32,6 +32,7 @@ extern std::atomic<bool> is_running;
 void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
+bool is_mapped(const uint32_t pid);
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid);
 
@@ -75,6 +76,8 @@ public:
     // map read-only shared memory through heaphook
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
       const uint32_t pid = subscriber_args.ret_pids[i];
+      if (is_mapped(pid)) continue;
+
       const uint64_t addr = subscriber_args.ret_addrs[i];
       map_area(pid, addr, false);
     }
