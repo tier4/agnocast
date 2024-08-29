@@ -60,6 +60,9 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    // Open a mq for new publisher appearences.
+    wait_for_new_publisher(subscriber_pid);
+
     union ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
     subscriber_args.topic_name = topic_name;

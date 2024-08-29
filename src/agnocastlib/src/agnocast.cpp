@@ -19,6 +19,8 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 mqd_t mq_new_publisher;
 
+static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 
 uint64_t agnocast_get_timestamp()
@@ -83,6 +85,17 @@ std::string create_mq_name(const char * topic_name, const uint32_t pid)
 
 void wait_for_new_publisher(const uint32_t pid)
 {
+  pthread_mutex_lock(&wait_newpub_mtx);
+
+  static bool is_initialized = false;
+  if (is_initialized) {
+    pthread_mutex_unlock(&wait_newpub_mtx);
+    return;
+  }
+  is_initialized = true;
+
+  pthread_mutex_unlock(&wait_newpub_mtx);
+
   const std::string mq_name = "/new_publisher@" + std::to_string(pid);
 
   struct mq_attr attr;
@@ -143,9 +156,6 @@ void * initialize_agnocast()
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-
-  // open a mq for new publisher appearences
-  wait_for_new_publisher(pid);
 
   if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
     INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
