@@ -29,7 +29,6 @@ template <typename MessageT>
 class Publisher
 {
   const char * topic_name_;
-  std::string topic_name_cpp_;
   uint32_t publisher_pid_;
   rclcpp::QoS qos_;
   std::unordered_map<std::string, mqd_t>
@@ -39,8 +38,7 @@ class Publisher
 public:
   Publisher(std::string topic_name, const rclcpp::QoS & qos) : qos_(qos)
   {
-    topic_name_cpp_ = topic_name;
-    topic_name_ = topic_name_cpp_.c_str();
+    topic_name_ = topic_name.c_str();
     publisher_pid_ = getpid();
 
     if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_PUB_CMD, topic_name_) < 0) {
