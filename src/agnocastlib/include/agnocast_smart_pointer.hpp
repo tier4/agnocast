@@ -4,7 +4,6 @@
 
 #include <fcntl.h>
 #include <mqueue.h>
-#include <semaphore.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>

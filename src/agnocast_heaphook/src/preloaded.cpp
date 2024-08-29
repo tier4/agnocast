@@ -33,8 +33,7 @@ using pvalloc_type = void * (*)(size_t);
 using malloc_usable_size_type = size_t (*)(void *);
 
 static char * mempool_ptr;
-static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;     // default: 100MB
-static size_t ADDITIONAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
+static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -57,10 +56,6 @@ void initialize_mempool()
 
   if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
     INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
-  }
-
-  if (const char * env_p = std::getenv("ADDITIONAL_MEMPOOL_SIZE")) {
-    ADDITIONAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
 
   void * ret = agnocast::initialize_agnocast();
@@ -90,23 +85,13 @@ static void * tlsf_allocate_internal(F allocate)
 
   void * ret = allocate();
 
-  size_t multiplier = 1;
-  while (ret == NULL) {
-    void * addr = mmap(
-      NULL, multiplier * ADDITIONAL_MEMPOOL_SIZE, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    add_new_area(addr, multiplier * ADDITIONAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
+  pthread_mutex_unlock(&tlsf_mtx);
 
-    // TODO: printf cannot be used
-    // fprintf(
-    //   stderr, "TLSF memory pool exhausted: %lu bytes additionally mmaped.\n",
-    //   multiplier * ADDITIONAL_MEMPOOL_SIZE);
-
-    ret = allocate();
-    multiplier *= 2;
+  if (ret == NULL) {
+    perror("mempool expansion is not supported yet");
+    exit(EXIT_FAILURE);
   }
 
-  pthread_mutex_unlock(&tlsf_mtx);
   return ret;
 }
 
