@@ -7,7 +7,6 @@
 
 #include <fcntl.h>
 #include <mqueue.h>
-#include <semaphore.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -15,7 +14,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 
 namespace agnocast
 {
