@@ -729,9 +729,7 @@ static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscribe
   int ret = insert_subscriber_pid(topic_name, pid);
   if (ret < 0) return ret;
 
-  ret = get_shm(topic_name, ioctl_ret);
-
-  return ret;
+  return get_shm(topic_name, ioctl_ret);
 }
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
