@@ -29,7 +29,7 @@ namespace agnocast
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
-void map_rdonly_areas(const char * topic_name);
+void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
@@ -53,6 +53,7 @@ public:
                                  ? static_cast<uint32_t>(qos.depth())
                                  : 0;
     add_topic_args.subscriber_pid = subscriber_pid;
+    // add subscriber info in the kernel module and get shared memory info by topic_name
     if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
       perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
       close(agnocast_fd);
@@ -62,7 +63,7 @@ public:
     // Open a mq for new publisher appearences.
     wait_for_new_publisher(subscriber_pid);
 
-    struct ioctl_subscriber_args subscriber_args;
+    union ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
     subscriber_args.topic_name = topic_name;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
@@ -71,7 +72,12 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    map_rdonly_areas(topic_name);
+    // map read-only shared memory through heaphook
+    for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
+      const uint32_t pid = subscriber_args.ret_pids[i];
+      const uint64_t addr = subscriber_args.ret_addrs[i];
+      map_area(pid, addr, false);
+    }
 
     return add_topic_args;
   }
