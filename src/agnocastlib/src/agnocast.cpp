@@ -37,15 +37,11 @@ bool is_mapped(const uint32_t pid)
 
   pthread_mutex_lock(&mapped_pid_mtx);
 
-  if (mapped_publisher_pids.count(pid) > 0) {
-    pthread_mutex_unlock(&mapped_pid_mtx);
-    return true;
-  }
-
-  mapped_publisher_pids.insert(pid);
+  const auto ret = mapped_publisher_pids.insert(pid);
 
   pthread_mutex_unlock(&mapped_pid_mtx);
-  return false;
+
+  return !ret.second;
 }
 
 void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
