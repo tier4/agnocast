@@ -30,6 +30,7 @@ uint64_t agnocast_get_timestamp()
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
+// TODO: when called from initialize_agnocast(), map_area() should not exit, but return NULL
 void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
 {
   static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -47,6 +48,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
     fprintf(stderr, "agnocastlib: shm_open failed in map_area\n");
+    if (writable) return NULL;
     exit(EXIT_FAILURE);
   }
   shm_fds.push_back(shm_fd);
@@ -54,7 +56,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   if (writable) {
     if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
       fprintf(stderr, "agnocastlib: ftruncate failed in map_area\n");
-      exit(EXIT_FAILURE);
+      return NULL;
     }
   }
 
@@ -65,6 +67,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
 
   if (ret == MAP_FAILED) {
     fprintf(stderr, "agnocastlib: mmap failed in map_area\n");
+    if (writable) return NULL;
     exit(EXIT_FAILURE);
   }
 
