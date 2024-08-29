@@ -28,7 +28,7 @@ std::string create_mq_name(const char * topic_name, const uint32_t pid);
 template <typename MessageT>
 class Publisher
 {
-  const char * topic_name_;
+  std::string topic_name_;
   uint32_t publisher_pid_;
   rclcpp::QoS qos_;
   std::unordered_map<std::string, mqd_t>
@@ -36,12 +36,12 @@ class Publisher
                  // is not currently implemented.
 
 public:
-  Publisher(std::string topic_name, const rclcpp::QoS & qos) : qos_(qos)
+  Publisher(const std::string & topic_name, const rclcpp::QoS & qos)
+  : topic_name_(topic_name), qos_(qos)
   {
-    topic_name_ = topic_name.c_str();
     publisher_pid_ = getpid();
 
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_PUB_CMD, topic_name_) < 0) {
+    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_PUB_CMD, topic_name_.c_str()) < 0) {
       perror("AGNOCAST_TOPIC_ADD_PUB_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
@@ -49,7 +49,7 @@ public:
 
     union ioctl_publisher_args pub_args;
     pub_args.publisher_pid = publisher_pid_;
-    pub_args.topic_name = topic_name_;
+    pub_args.topic_name = topic_name_.c_str();
     if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
       perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
       close(agnocast_fd);
@@ -88,7 +88,7 @@ public:
   {
     uint64_t timestamp = agnocast_get_timestamp();
     union ioctl_enqueue_and_release_args ioctl_args;
-    ioctl_args.topic_name = topic_name_;
+    ioctl_args.topic_name = topic_name_.c_str();
     ioctl_args.publisher_pid = publisher_pid_;
     ioctl_args.qos_depth = static_cast<uint32_t>(qos_.depth());
     ioctl_args.msg_virtual_address = reinterpret_cast<uint64_t>(ptr);
@@ -104,16 +104,16 @@ public:
       delete release_ptr;
     }
 
-    return message_ptr<MessageT>(ptr, topic_name_, publisher_pid_, timestamp, false);
+    return message_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
   }
 
   void publish(message_ptr<MessageT> && message)
   {
-    if (topic_name_ != message.get_topic_name()) return;  // string comparison?
+    if (topic_name_.c_str() != message.get_topic_name()) return;  // string comparison?
     if (publisher_pid_ != message.get_publisher_pid()) return;
 
     union ioctl_publish_args publish_args;
-    publish_args.topic_name = topic_name_;
+    publish_args.topic_name = topic_name_.c_str();
     publish_args.publisher_pid = publisher_pid_;
     publish_args.msg_timestamp = message.get_timestamp();
     if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
@@ -125,7 +125,7 @@ public:
     for (uint32_t i = 0; i < publish_args.ret_len; i++) {
       uint32_t pid = publish_args.ret_pids[i];
 
-      std::string mq_name = create_mq_name(topic_name_, pid);
+      std::string mq_name = create_mq_name(topic_name_.c_str(), pid);
       mqd_t mq;
       if (opened_mqs.find(mq_name) != opened_mqs.end()) {
         mq = opened_mqs[mq_name];
