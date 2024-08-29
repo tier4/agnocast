@@ -65,6 +65,8 @@ void initialize_mempool()
 
   void * ret = agnocast::initialize_agnocast();
   if (ret == NULL) {
+    fprintf(stderr, "preloaded: initialize_agnocast failed\n");
+    pthread_mutex_unlock(&init_mtx);
     exit(EXIT_FAILURE);
   }
 
