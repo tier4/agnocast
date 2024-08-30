@@ -28,7 +28,7 @@ namespace agnocast
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
-void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable);
+void map_read_only_area(const uint32_t pid, const uint64_t shm_addr);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
@@ -75,7 +75,7 @@ public:
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
       const uint32_t pid = subscriber_args.ret_pids[i];
       const uint64_t addr = subscriber_args.ret_addrs[i];
-      map_area(pid, addr, false);
+      map_read_only_area(pid, addr);
     }
 
     return add_topic_args;
