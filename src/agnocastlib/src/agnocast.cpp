@@ -149,8 +149,6 @@ void wait_for_new_publisher(const uint32_t pid)
 // NOTE: Do not use std::cout inside initialize_agnocast thread
 void * initialize_agnocast()
 {
-  printf("hoge\n");
-
   if (agnocast_fd >= 0) {
     perror("Agnocast is already open");
     exit(EXIT_FAILURE);
