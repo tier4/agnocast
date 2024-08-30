@@ -7,6 +7,7 @@
 
 #include <fcntl.h>
 #include <mqueue.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -144,6 +145,19 @@ public:
         perror("mq_send failed");
       }
     }
+  }
+
+  uint32_t get_subscription_count() const
+  {
+    union ioctl_get_subscriber_num_args get_subscriber_count_args;
+    get_subscriber_count_args.topic_name = topic_name_.c_str();
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      perror("AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    return get_subscriber_count_args.ret_subscriber_num;
   }
 };
 
