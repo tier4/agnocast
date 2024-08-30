@@ -151,8 +151,8 @@ public:
   {
     union ioctl_get_subscription_count_args get_subscription_count_args;
     get_subscription_count_args.topic_name = topic_name_.c_str();
-    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIPTION_COUT_CMD, &get_subscription_count_args) < 0) {
-      perror("AGNOCAST_GET_SUBSCRIPTION_COUT_CMD failed");
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD, &get_subscription_count_args) < 0) {
+      perror("AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
