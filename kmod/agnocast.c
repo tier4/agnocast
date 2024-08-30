@@ -615,6 +615,11 @@ union ioctl_new_shm_args {
   uint64_t ret_addr;
 };
 
+union ioctl_get_subscription_count_args {
+  const char * topic_name;
+  uint32_t ret_subscription_count;
+};
+
 #define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 static int topic_add_sub(
   const char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
@@ -988,6 +993,21 @@ static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
   return 0;
 }
 
+#define AGNOCAST_GET_SUBSCRIPTION_COUT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
+static int get_subscription_count(
+  char * topic_name, union ioctl_get_subscription_count_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (get_subscription_count)\n", topic_name);
+    return -1;
+  }
+
+  ioctl_ret->ret_subscription_count = wrapper->topic.subscriber_num;
+  return 0;
+}
+
 static DEFINE_MUTEX(global_mutex);
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -1003,6 +1023,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   union ioctl_receive_msg_args receive_msg_args;
   union ioctl_publish_args publish_args;
   union ioctl_new_shm_args new_shm_args;
+  union ioctl_get_subscription_count_args get_subscription_count_args;
 
   switch (cmd) {
     case AGNOCAST_TOPIC_ADD_PUB_CMD:
@@ -1106,6 +1127,21 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       ret = new_shm_addr(new_shm_args.pid, &new_shm_args);
       if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
+        goto unlock_mutex_and_return;
+      break;
+    case AGNOCAST_GET_SUBSCRIPTION_COUT_CMD:
+      if (copy_from_user(
+            &get_subscription_count_args, (union ioctl_get_subscription_count_args __user *)arg,
+            sizeof(get_subscription_count_args)))
+        goto unlock_mutex_and_return;
+      if (copy_from_user(
+            topic_name_buf, (char __user *)get_subscription_count_args.topic_name,
+            sizeof(topic_name_buf)))
+        goto unlock_mutex_and_return;
+      ret = get_subscription_count(topic_name_buf, &get_subscription_count_args);
+      if (copy_to_user(
+            (union ioctl_get_subscription_count_args __user *)arg, &get_subscription_count_args,
+            sizeof(get_subscription_count_args)))
         goto unlock_mutex_and_return;
       break;
     default:
