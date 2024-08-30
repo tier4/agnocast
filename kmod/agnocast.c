@@ -1129,7 +1129,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
       break;
-    case AGNOCAST_GET_SUBSCRIPTION_COUT_CMD:
+    case AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD:
       if (copy_from_user(
             &get_subscription_count_args, (union ioctl_get_subscription_count_args __user *)arg,
             sizeof(get_subscription_count_args)))
