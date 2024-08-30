@@ -20,8 +20,6 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 mqd_t mq_new_publisher = -1;
 
-static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
-
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();
@@ -100,6 +98,8 @@ std::string create_mq_name(const char * topic_name, const uint32_t pid)
 
 void wait_for_new_publisher(const uint32_t pid)
 {
+  static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
+
   pthread_mutex_lock(&wait_newpub_mtx);
 
   static bool is_initialized = false;
