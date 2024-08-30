@@ -149,15 +149,15 @@ public:
 
   uint32_t get_subscription_count() const
   {
-    union ioctl_get_subscription_count_args get_subscription_count_args;
-    get_subscription_count_args.topic_name = topic_name_.c_str();
-    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD, &get_subscription_count_args) < 0) {
-      perror("AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD failed");
+    union ioctl_get_subscriber_num_args get_subscriber_count_args;
+    get_subscriber_count_args.topic_name = topic_name_.c_str();
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      perror("AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
 
-    return get_subscription_count_args.ret_subscription_count;
+    return get_subscriber_count_args.ret_subscriber_num;
   }
 };
 

@@ -136,9 +136,9 @@ union ioctl_new_shm_args {
   uint64_t ret_addr;
 };
 
-union ioctl_get_subscription_count_args {
+union ioctl_get_subscriber_num_args {
   const char * topic_name;
-  uint32_t ret_subscription_count;
+  uint32_t ret_subscriber_num;
 };
 
 #define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
@@ -150,6 +150,6 @@ union ioctl_get_subscription_count_args {
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-#define AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
+#define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
 
 }  // namespace agnocast
