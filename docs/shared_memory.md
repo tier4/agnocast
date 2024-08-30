@@ -51,6 +51,5 @@ The restriction for the name is the same as the shared memory.
 
 ## Known issues
 
-- The `INITIAL_MEMPOOL_SIZE` is fixed to 100MB, but the size of it should be configured for each process based on how much memory the process will use.
 - When a heaphook fails to allocate a memory due to the lack of enough memory pool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
 - The current implementation suppose that the memory after 0x40000000000 is always allocatable, though it is not investigated in detail.

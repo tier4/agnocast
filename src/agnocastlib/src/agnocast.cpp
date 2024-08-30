@@ -22,8 +22,6 @@ mqd_t mq_new_publisher = -1;
 
 static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
-
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();
@@ -54,8 +52,11 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   }
   shm_fds.push_back(shm_fd);
 
+  const char * mempool_size_env = std::getenv("MRMPOOL_SIZE");
+  const size_t mempool_size = std::stoull(std::string(mempool_size_env));
+
   if (writable) {
-    if (ftruncate(shm_fd, INITIAL_MEMPOOL_SIZE) == -1) {
+    if (ftruncate(shm_fd, mempool_size) == -1) {
       perror("ftruncate failed");
       close(agnocast_fd);
       return NULL;
@@ -64,8 +65,8 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
 
   int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), INITIAL_MEMPOOL_SIZE, prot,
-    MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd, 0);
+    reinterpret_cast<void *>(shm_addr), mempool_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE,
+    shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     perror("mmap failed");
@@ -169,10 +170,6 @@ void * initialize_agnocast()
     perror("AGNOCAST_GET_SHM_CMD failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
-  }
-
-  if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
-    INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
   }
 
   return map_area(pid, new_shm_args.ret_addr, true);

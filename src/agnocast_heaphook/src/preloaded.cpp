@@ -33,7 +33,6 @@ using pvalloc_type = void * (*)(size_t);
 using malloc_usable_size_type = size_t (*)(void *);
 
 static char * mempool_ptr;
-static size_t INITIAL_MEMPOOL_SIZE = 100 * 1000 * 1000;  // default: 100MB
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -54,9 +53,13 @@ void initialize_mempool()
     return;
   }
 
-  if (const char * env_p = std::getenv("INITIAL_MEMPOOL_SIZE")) {
-    INITIAL_MEMPOOL_SIZE = std::stoull(std::string(env_p));
+  const char * mempool_size_env = std::getenv("MRMPOOL_SIZE");
+  if (!mempool_size_env) {
+    pthread_mutex_unlock(&init_mtx);
+    fprintf(stderr, "MRMPOOL_SIZE is not set in environment variable\n");
+    exit(EXIT_FAILURE);
   }
+  const size_t mempool_size = std::stoull(std::string(mempool_size_env));
 
   void * ret = agnocast::initialize_agnocast();
   if (ret == NULL) {
@@ -67,8 +70,8 @@ void initialize_mempool()
 
   mempool_ptr = reinterpret_cast<char *>(ret);
 
-  memset(mempool_ptr, 0, INITIAL_MEMPOOL_SIZE);
-  init_memory_pool(INITIAL_MEMPOOL_SIZE, mempool_ptr);  // tlsf library function
+  memset(mempool_ptr, 0, mempool_size);
+  init_memory_pool(mempool_size, mempool_ptr);  // tlsf library function
 
   aligned2orig = new std::unordered_map<void *, void *>();
   // aligned2orig.reserve(10000000);
@@ -88,7 +91,7 @@ static void * tlsf_allocate_internal(F allocate)
   pthread_mutex_unlock(&tlsf_mtx);
 
   if (ret == NULL) {
-    perror("mempool expansion is not supported yet");
+    fprintf(stderr, "mempool expansion is not supported yet\n");
     exit(EXIT_FAILURE);
   }
 
