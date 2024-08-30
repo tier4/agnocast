@@ -18,7 +18,7 @@ int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
 std::vector<int> shm_fds;
-mqd_t mq_new_publisher;
+mqd_t mq_new_publisher = -1;
 
 static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -240,13 +240,15 @@ static void shutdown_agnocast()
     perror("shm_unlink failed");
   }
 
-  if (mq_close(mq_new_publisher) == -1) {
-    perror("mq_close failed");
-  }
+  if (mq_new_publisher != -1) {
+    if (mq_close(mq_new_publisher) == -1) {
+      perror("mq_close failed");
+    }
 
-  const std::string mq_name = "/new_publisher@" + std::to_string(pid);
-  if (mq_unlink(mq_name.c_str()) == -1) {
-    perror("mq_unlink failed");
+    const std::string mq_name = "/new_publisher@" + std::to_string(pid);
+    if (mq_unlink(mq_name.c_str()) == -1) {
+      perror("mq_unlink failed");
+    }
   }
 
   for (auto & th : threads) {
