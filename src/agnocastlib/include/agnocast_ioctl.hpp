@@ -150,6 +150,6 @@ union ioctl_get_subscription_count_args {
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-#define AGNOCAST_GET_SUBSCRIPTION_COUT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
+#define AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
 
 }  // namespace agnocast
