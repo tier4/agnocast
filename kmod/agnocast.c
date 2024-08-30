@@ -993,7 +993,7 @@ static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
   return 0;
 }
 
-#define AGNOCAST_GET_SUBSCRIPTION_COUT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
+#define AGNOCAST_GET_SUBSCRIPTION_COUNT_CMD _IOW('G', 1, union ioctl_get_subscription_count_args)
 static int get_subscription_count(
   char * topic_name, union ioctl_get_subscription_count_args * ioctl_ret)
 {
