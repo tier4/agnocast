@@ -187,7 +187,6 @@ void * initialize_agnocast()
     close(agnocast_fd);
     return NULL;
   }
-  
   return map_writable_area(pid, new_shm_args.ret_addr);
 }
 
