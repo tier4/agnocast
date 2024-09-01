@@ -728,6 +728,8 @@ static uint64_t release_msgs_to_meet_depth(
     rb_erase(&en->node, &wrapper->topic.entries);
     kfree(en);
 
+    wrapper->topic.entries_num--;
+
     dev_dbg(
       agnocast_device,
       "Release oldest message in the publisher_info (publisher_pid=%d) of the topic "
