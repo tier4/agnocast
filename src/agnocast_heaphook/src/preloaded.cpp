@@ -53,7 +53,7 @@ void initialize_mempool()
     return;
   }
 
-  const char * mempool_size_env = std::getenv("MRMPOOL_SIZE");
+  const char * mempool_size_env = std::getenv("MEMPOOL_SIZE");
   if (!mempool_size_env) {
     pthread_mutex_unlock(&init_mtx);
     fprintf(stderr, "MRMPOOL_SIZE is not set in environment variable\n");
