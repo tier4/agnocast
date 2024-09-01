@@ -38,19 +38,21 @@ uint64_t shm_addrs[MAX_PROCESS_NUM];
 // TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
 
-struct publisher_queue_node
+struct publisher_info
 {
   uint32_t pid;
   uint32_t entries_num;
-  struct rb_root entries;
-  bool publisher_exited;
-  struct publisher_queue_node * next;
+  struct publisher_info * next;
 };
 
 struct topic_struct
 {
-  unsigned int publisher_queue_num;  // This also includes publishers that have already exited.
-  struct publisher_queue_node * publisher_queues;  // linked list
+  uint32_t entries_num;
+  struct rb_root entries;
+  struct publisher_info *
+    pub_info;  // This linked list also includes publishers that have already exited.
+  uint32_t non_exited_publisher_num;
+  uint32_t non_exited_publisher_pids[MAX_PUBLISHER_NUM];
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
@@ -66,6 +68,7 @@ struct entry_node
 {
   struct rb_node node;
   uint64_t timestamp;  // rbtree key
+  uint32_t publisher_pid;
   uint64_t msg_virtual_address;
   uint32_t subscriber_reference_count;
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
@@ -103,8 +106,13 @@ static int insert_topic(const char * topic_name)
     return -1;
   }
 
-  wrapper->topic.publisher_queue_num = 0;
-  wrapper->topic.publisher_queues = NULL;
+  wrapper->topic.entries_num = 0;
+  wrapper->topic.entries = RB_ROOT;
+  wrapper->topic.pub_info = NULL;
+  wrapper->topic.non_exited_publisher_num = 0;
+  for (int i = 0; i < MAX_PUBLISHER_NUM; i++) {
+    wrapper->topic.non_exited_publisher_pids[i] = 0;
+  }
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     wrapper->topic.subscriber_pids[i] = 0;
@@ -169,62 +177,43 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
   return 0;
 }
 
-static struct publisher_queue_node * find_publisher_queue(
-  const char * topic_name, uint32_t publisher_pid)
+static struct publisher_info * find_publisher_info(
+  const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (find_publisher_queue)\n", topic_name);
-    return NULL;
-  }
-
-  struct publisher_queue_node * node = wrapper->topic.publisher_queues;
-  while (node) {
-    if (publisher_pid == node->pid) {
-      return node;
+  struct publisher_info * info = wrapper->topic.pub_info;
+  while (info) {
+    if (publisher_pid == info->pid) {
+      return info;
     }
 
-    node = node->next;
+    info = info->next;
   }
 
   return NULL;
 }
 
-static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pid)
+static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (insert_publisher_queue)\n", topic_name);
-    return -1;
-  }
-
-  struct publisher_queue_node * node = find_publisher_queue(topic_name, publisher_pid);
-  if (node) {
+  struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
+  if (info) {
     dev_warn(
       agnocast_device,
       "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
-      "(insert_publisher_queue)\n",
-      publisher_pid, topic_name);
+      "(insert_publisher_info)\n",
+      publisher_pid, wrapper->key);
     return -1;
   }
 
-  struct publisher_queue_node * new_node = kmalloc(sizeof(struct publisher_queue_node), GFP_KERNEL);
-  if (!new_node) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_queue)\n");
+  struct publisher_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
+  if (!new_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
     return -1;
   }
 
-  new_node->pid = publisher_pid;
-  new_node->entries_num = 0;
-  new_node->entries = RB_ROOT;
-  new_node->publisher_exited = false;
-
-  new_node->next = wrapper->topic.publisher_queues;
-  wrapper->topic.publisher_queues = new_node;
-
-  wrapper->topic.publisher_queue_num++;
+  new_info->pid = publisher_pid;
+  new_info->entries_num = 0;
+  new_info->next = wrapper->topic.pub_info;
+  wrapper->topic.pub_info = new_info;
 
   return 0;
 }
@@ -232,16 +221,14 @@ static int insert_publisher_queue(const char * topic_name, uint32_t publisher_pi
 static struct entry_node * find_message_entry(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
-  struct publisher_queue_node * pubq = find_publisher_queue(topic_name, publisher_pid);
-  if (!pubq) {
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
     dev_warn(
-      agnocast_device,
-      "Publisher queue (topic_name=%s publisher_pid=%d) not found. (find_message_entry)\n",
-      topic_name, publisher_pid);
+      agnocast_device, "Topic (topic_name=%s) not found. (find_message_entry)\n", topic_name);
     return NULL;
   }
 
-  struct rb_root * root = &pubq->entries;
+  struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
 
   while (*new) {
@@ -251,7 +238,7 @@ static struct entry_node * find_message_entry(
       new = &((*new)->rb_left);
     } else if (msg_timestamp > this->timestamp) {
       new = &((*new)->rb_right);
-    } else {
+    } else {  // It is not expected for there to be messages with exactly the same timestamp.
       return this;
     }
   }
@@ -296,16 +283,14 @@ static int decrement_message_entry_rc(
 static int insert_message_entry(
   const char * topic_name, uint32_t publisher_pid, uint64_t msg_virtual_address, uint64_t timestamp)
 {
-  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
-  if (!publisher_queue) {
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
     dev_warn(
-      agnocast_device,
-      "Publisher (pid=%d) not found in the topic (topic_name=%s). (insert_message_entry)\n",
-      publisher_pid, topic_name);
+      agnocast_device, "Topic (topic_name=%s) not found. (find_message_entry)\n", topic_name);
     return -1;
   }
 
-  struct rb_root * root = &publisher_queue->entries;
+  struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
   struct rb_node * parent = NULL;
 
@@ -335,6 +320,7 @@ static int insert_message_entry(
   }
 
   new_node->timestamp = timestamp;
+  new_node->publisher_pid = publisher_pid;
   new_node->msg_virtual_address = msg_virtual_address;
   new_node->subscriber_reference_count = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
@@ -346,7 +332,18 @@ static int insert_message_entry(
   rb_link_node(&new_node->node, parent, new);
   rb_insert_color(&new_node->node, root);
 
-  publisher_queue->entries_num++;
+  struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
+  if (info) {
+    dev_warn(
+      agnocast_device,
+      "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
+      "(insert_message_entry)\n",
+      publisher_pid, topic_name);
+    return -1;
+  }
+  info->entries_num++;
+
+  wrapper->topic.entries_num++;
 
   dev_dbg(
     agnocast_device,
@@ -386,90 +383,9 @@ static ssize_t store_value(
 #define BUFFER_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
-  // at least 500 bytes would be needed as an initial buffer size
-  size_t buf_size = 1024;
+  // TODO: Implement show_all for debugging.
 
-  char * local_buf = kmalloc(buf_size, GFP_KERNEL);
-  local_buf[0] = '\0';
-
-  struct topic_wrapper * entry;
-  struct hlist_node * node;
-  int bkt;
-  size_t buf_len = 0;
-
-  hash_for_each_safe(topic_hashtable, bkt, node, entry, node)
-  {
-    strcat(local_buf, entry->key);
-    strcat(local_buf, "\n");
-    buf_len += strlen(entry->key) + 1;
-
-    strcat(local_buf, " subscriber_pids:");
-    buf_len += 17;
-    for (int i = 0; i < entry->topic.subscriber_num; i++) {
-      char num_str[BUFFER_SIZE];
-      scnprintf(num_str, sizeof(num_str), " %u", entry->topic.subscriber_pids[i]);
-      strcat(local_buf, num_str);
-      buf_len += BUFFER_SIZE;
-    }
-    strcat(local_buf, "\n");
-    buf_len += 1;
-
-    strcat(local_buf, " publishers:\n");
-    buf_len += 13;
-
-    struct publisher_queue_node * pub_node = entry->topic.publisher_queues;
-    while (pub_node) {
-      char num_str[BUFFER_SIZE];
-      scnprintf(num_str, sizeof(num_str), "  pid=%u:\n", pub_node->pid);
-      strcat(local_buf, num_str);
-      buf_len += BUFFER_SIZE;
-
-      struct rb_root * root = &pub_node->entries;
-      struct rb_node * node;
-      for (node = rb_first(root); node; node = rb_next(node)) {
-        struct entry_node * en = container_of(node, struct entry_node, node);
-
-        strcat(local_buf, "   entry: ");
-        buf_len += 10;
-
-        char num_str_timestamp[BUFFER_SIZE];
-        scnprintf(num_str_timestamp, sizeof(num_str_timestamp), "time=%lld ", en->timestamp);
-        strcat(local_buf, num_str_timestamp);
-        buf_len += BUFFER_SIZE;
-
-        char num_str_msg_addr[BUFFER_SIZE];
-        scnprintf(
-          num_str_msg_addr, sizeof(num_str_msg_addr), "addr=%lld ", en->msg_virtual_address);
-        strcat(local_buf, num_str_msg_addr);
-        buf_len += BUFFER_SIZE;
-
-        char num_str_rc[BUFFER_SIZE];
-        scnprintf(num_str_rc, sizeof(num_str_rc), "rc=%d ", en->subscriber_reference_count);
-        strcat(local_buf, num_str_rc);
-        buf_len += BUFFER_SIZE;
-
-        char num_str_usc[BUFFER_SIZE];
-        scnprintf(num_str_usc, sizeof(num_str_usc), "usc=%d\n", en->unreceived_subscriber_count);
-        strcat(local_buf, num_str_usc);
-        buf_len += BUFFER_SIZE;
-
-        if (buf_len * 2 > buf_size) {
-          buf_size *= 2;
-          local_buf = krealloc(local_buf, buf_size, GFP_KERNEL);
-        }
-      }
-
-      pub_node = pub_node->next;
-    }
-    strcat(local_buf, "\n");
-    buf_len += 1;
-  }
-
-  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
-
-  kfree(local_buf);
-
-  return ret;
+  return -1;
 }
 
 static struct kobject * status_kobj;
@@ -633,45 +549,8 @@ static int topic_add_sub(
 
     if (qos_depth == 0) return 0;  // transient local is disabled
 
-    // Return qos_depth messages in order from newest to oldest for transient local
-    struct rb_node * backward_trackers[MAX_PUBLISHER_NUM];
-    uint32_t pids[MAX_PUBLISHER_NUM];
-    struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
-    uint32_t pubq_num = 0;
-    while (pubq) {
-      backward_trackers[pubq_num] = rb_last(&pubq->entries);
-      pids[pubq_num] = pubq->pid;
-      pubq = pubq->next;
-      pubq_num++;
-    }
-
-    while (ioctl_ret->ret_len < qos_depth) {
-      uint64_t newest_timestamp = 0;
-      size_t newest_i;
-      for (size_t i = 0; i < pubq_num; i++) {
-        if (backward_trackers[i]) {
-          struct entry_node * en = container_of(backward_trackers[i], struct entry_node, node);
-          if (en->timestamp > newest_timestamp) {
-            newest_timestamp = en->timestamp;
-            newest_i = i;
-          }
-        }
-      }
-
-      if (newest_timestamp == 0) break;  // all messages are searched
-
-      struct entry_node * en = container_of(backward_trackers[newest_i], struct entry_node, node);
-      if (en->published) {
-        en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
-        en->subscriber_reference_count++;
-        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = pids[newest_i];
-        ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
-        ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-        ioctl_ret->ret_len++;
-      }
-
-      backward_trackers[newest_i] = rb_prev(backward_trackers[newest_i]);
-    }
+    // TODO: Implement transient local
+    dev_err(agnocast_device, "transient local is not supported yet.");
 
     return 0;
   }
@@ -697,7 +576,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  if (wrapper->topic.publisher_queue_num > MAX_PUBLISHER_NUM) {
+  if (wrapper->topic.non_exited_publisher_num > MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of publishers for the topic (topic_name=%s) reached the "
@@ -707,24 +586,16 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  int index = 0;
-  struct publisher_queue_node * node = wrapper->topic.publisher_queues;
-  while (node) {
-    if (node->publisher_exited) {
-      node = node->next;
-      continue;
-    }
-    ioctl_ret->ret_pids[index] = node->pid;
+  for (int i = 0; i < wrapper->topic.non_exited_publisher_num; i++) {
+    ioctl_ret->ret_pids[i] = wrapper->topic.non_exited_publisher_pids[i];
     for (int j = 0; j < pid_index; j++) {
-      if (process_ids[j] == node->pid) {
-        ioctl_ret->ret_addrs[index] = shm_addrs[j];
-        index++;
+      if (process_ids[j] == wrapper->topic.non_exited_publisher_pids[i]) {
+        ioctl_ret->ret_addrs[i] = shm_addrs[j];
         break;
       }
     }
-    node = node->next;
   }
-  ioctl_ret->ret_publisher_num = index;
+  ioctl_ret->ret_publisher_num = wrapper->topic.non_exited_publisher_num;
 
   return 0;
 }
@@ -739,17 +610,16 @@ static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscribe
 }
 
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-static int publisher_queue_add(
+static int publisher_add(
   const char * topic_name, uint32_t pid, union ioctl_publisher_args * ioctl_ret)
 {
-  if (insert_publisher_queue(topic_name, pid) == -1) {
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publisher_add)\n", topic_name);
     return -1;
   }
 
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (publisher_queue_add)\n", topic_name);
+  if (insert_publisher_info(wrapper, pid) == -1) {
     return -1;
   }
 
@@ -764,7 +634,7 @@ static int publisher_queue_add(
   }
 
   if (!found) {
-    dev_warn(agnocast_device, "Publisher (pid=%d) not found. (publisher_queue_add)\n", pid);
+    dev_warn(agnocast_device, "Publisher (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
   }
 
@@ -786,8 +656,16 @@ static uint64_t release_msgs_to_meet_depth(
 {
   ioctl_ret->ret_len = 0;
 
-  struct publisher_queue_node * publisher_queue = find_publisher_queue(topic_name, publisher_pid);
-  if (!publisher_queue) {
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (release_msgs_to_meet_depth)\n",
+      topic_name);
+    return -1;
+  }
+
+  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_pid);
+  if (!pub_info) {
     dev_warn(
       agnocast_device,
       "Publisher (pid=%d) not found in the topic (topic_name=%s). (release_msgs_to_meet_depth)\n",
@@ -795,23 +673,23 @@ static uint64_t release_msgs_to_meet_depth(
     return -1;
   }
 
-  if (publisher_queue->entries_num <= qos_depth) {
+  if (pub_info->entries_num <= qos_depth) {
     return 0;
   }
 
   const uint32_t leak_warn_threshold =
     (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
-  if (publisher_queue->entries_num > leak_warn_threshold) {
+  if (pub_info->entries_num > leak_warn_threshold) {
     dev_warn(
       agnocast_device,
-      "For some reason the reference count of the message is not reduced and the queue size is "
-      "huge: publisher queue (publisher_pid=%d, topic_name=%s). "
+      "For some reason, the reference count hasn't been decremented, causing the number of "
+      "messages for this publisher to increase. (publisher_pid=%d, topic_name=%s, entries_num=%d)."
       "(release_msgs_to_meet_depth)\n",
-      publisher_pid, topic_name);
+      publisher_pid, topic_name, pub_info->entries_num);
     return -1;
   }
 
-  struct rb_node * node = rb_first(&publisher_queue->entries);
+  struct rb_node * node = rb_first(&wrapper->topic.entries);
   if (!node) {
     dev_warn(
       agnocast_device,
@@ -821,12 +699,12 @@ static uint64_t release_msgs_to_meet_depth(
   }
 
   // Number of entries exceeding qos_depth
-  const uint32_t num_search_entries = publisher_queue->entries_num - qos_depth;
+  uint32_t num_search_entries = pub_info->entries_num - qos_depth;
 
   // The searched message is either deleted or, if a reference count remains, is not deleted.
   // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
   // QoS.
-  for (uint32_t _ = 0; _ < num_search_entries; _++) {
+  while (num_search_entries > 0) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
     if (!node) {
@@ -837,18 +715,22 @@ static uint64_t release_msgs_to_meet_depth(
       return -1;
     }
 
+    if (en->publisher_pid != publisher_pid) continue;
+
+    num_search_entries--;
+
     // This is not counted in a Queue size of QoS.
     if (en->subscriber_reference_count > 0) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
-    publisher_queue->entries_num--;
-    rb_erase(&en->node, &publisher_queue->entries);
+    pub_info->entries_num--;
+    rb_erase(&en->node, &wrapper->topic.entries);
     kfree(en);
 
     dev_dbg(
       agnocast_device,
-      "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic "
+      "Release oldest message in the publisher_info (publisher_pid=%d) of the topic "
       "(topic_name=%s) with qos_depth %d. "
       "(release_msgs_to_meet_depth)\n",
       publisher_pid, topic_name, qos_depth);
@@ -904,15 +786,10 @@ static int receive_and_update(
   // Count number of nodes that have greater (newer) timestamp than the received message entry.
   // If the count is greater than qos_depth, the received message is ignored.
   uint32_t newer_entry_count = 0;
-  struct publisher_queue_node * pubq = wrapper->topic.publisher_queues;
-  while (pubq && newer_entry_count <= qos_depth) {
-    for (struct rb_node * node = rb_last(&pubq->entries); node; node = rb_prev(node)) {
-      struct entry_node * compared_en = container_of(node, struct entry_node, node);
-      if (compared_en->timestamp <= msg_timestamp) break;
-      newer_entry_count++;
-    }
-
-    pubq = pubq->next;
+  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+    struct entry_node * compared_en = container_of(node, struct entry_node, node);
+    if (compared_en->timestamp <= msg_timestamp) break;
+    newer_entry_count++;
   }
 
   if (newer_entry_count > qos_depth) {
@@ -1062,7 +939,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = publisher_queue_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
+      ret = publisher_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
       if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1172,139 +1049,6 @@ static struct file_operations fops = {
   .unlocked_ioctl = agnocast_ioctl,
 };
 
-// =========================================
-// Handler for publisher process exit
-static void free_entry_node(struct publisher_queue_node * publisher_queue, struct entry_node * en)
-{
-  struct rb_root * root = &publisher_queue->entries;
-  publisher_queue->entries_num--;
-  rb_erase(&en->node, root);
-  kfree(en);
-}
-
-static void handle_publisher_exit(struct publisher_queue_node * publisher_queue)
-{
-  struct rb_root * root = &publisher_queue->entries;
-  struct rb_node * node = rb_first(root);
-  while (node) {
-    struct entry_node * en = rb_entry(node, struct entry_node, node);
-    node = rb_next(node);
-    // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->subscriber_reference_count == 0) {
-      free_entry_node(publisher_queue, en);
-    }
-  }
-
-  publisher_queue->publisher_exited = true;
-}
-
-static void pre_handler_publisher(struct topic_wrapper * wrapper)
-{
-  struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
-  struct publisher_queue_node dummy_head;
-  dummy_head.next = publisher_queue;
-  struct publisher_queue_node * prev_pub_queue = &dummy_head;
-
-  while (publisher_queue) {
-    if (publisher_queue->pid != current->pid) {
-      prev_pub_queue = publisher_queue;
-      publisher_queue = publisher_queue->next;
-      continue;
-    }
-
-    handle_publisher_exit(publisher_queue);
-
-    if (publisher_queue->entries_num == 0) {  // Delete the publisher_queue_node since there are no
-                                              // entry_node remains.
-      wrapper->topic.publisher_queue_num--;
-      prev_pub_queue->next = publisher_queue->next;
-      kfree(publisher_queue);
-    }
-
-    break;
-  }
-  wrapper->topic.publisher_queues = dummy_head.next;
-
-  dev_info(
-    agnocast_device,
-    "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_publisher)\n",
-    current->pid, wrapper->key);
-}
-
-// Decrement the reference count, then free the entry node if it reaches zero and publisher has
-// already exited.
-static void handler_subscriber_exit(struct publisher_queue_node * publisher_queue)
-{
-  struct rb_root * root = &publisher_queue->entries;
-  struct rb_node * node = rb_first(root);
-  while (node) {
-    struct entry_node * en = rb_entry(node, struct entry_node, node);
-    node = rb_next(node);
-    bool referencing = false;
-    for (int i = 0; i < en->subscriber_reference_count; i++) {
-      if (en->referencing_subscriber_pids[i] == current->pid) {
-        referencing = true;
-      }
-
-      if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
-        en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
-      }
-    }
-
-    if (!referencing) continue;
-
-    en->subscriber_reference_count--;
-
-    // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->subscriber_reference_count == 0 && publisher_queue->publisher_exited) {
-      free_entry_node(publisher_queue, en);
-    }
-  }
-}
-
-static void pre_handler_subscriber(struct topic_wrapper * wrapper)
-{
-  bool was_subscribing = false;
-  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-    if (wrapper->topic.subscriber_pids[i] == current->pid) {
-      was_subscribing = true;
-    }
-    if (was_subscribing && i < MAX_SUBSCRIBER_NUM - 1) {
-      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
-    }
-  }
-
-  if (!was_subscribing) return;
-
-  struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
-  struct publisher_queue_node dummy_head;
-  dummy_head.next = publisher_queue;
-  struct publisher_queue_node * prev_pub_queue = &dummy_head;
-
-  while (publisher_queue) {
-    handler_subscriber_exit(publisher_queue);
-
-    if (publisher_queue->entries_num == 0 && publisher_queue->publisher_exited) {
-      wrapper->topic.publisher_queue_num--;
-      prev_pub_queue->next = publisher_queue->next;
-      kfree(publisher_queue);
-      publisher_queue = prev_pub_queue->next;
-    } else {
-      publisher_queue = publisher_queue->next;
-    }
-  }
-  wrapper->topic.publisher_queues = dummy_head.next;
-
-  wrapper->topic.subscriber_num--;
-
-  dev_info(
-    agnocast_device,
-    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_subscriber)\n",
-    current->pid, wrapper->key);
-}
-
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
@@ -1323,31 +1067,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     return 0;
   }
 
-  struct topic_wrapper * wrapper;
-  struct hlist_node * node;
-  int bkt;
-
-  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
-  {
-    // Exit handler for publisher
-    pre_handler_publisher(wrapper);
-
-    // Exit handler for subscriber
-    pre_handler_subscriber(wrapper);
-
-    // Check if we can release the topic_wrapper
-    if (wrapper->topic.publisher_queue_num == 0 && wrapper->topic.subscriber_num == 0) {
-      // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
-      // leak occurs.
-      WARN_ON(wrapper->topic.publisher_queues != NULL);
-
-      hash_del(&wrapper->node);
-      if (wrapper->key) {
-        kfree(wrapper->key);
-      }
-      kfree(wrapper);
-    }
-  }
+  // TODO: Implement an exit handler.
 
   mutex_unlock(&global_mutex);
   return 0;
@@ -1400,31 +1120,7 @@ static int agnocast_init(void)
 
 static void free_all_topics(void)
 {
-  struct topic_wrapper * wrapper;
-  struct hlist_node * tmp;
-  int bkt;
-
-  hash_for_each_safe(topic_hashtable, bkt, tmp, wrapper, node)
-  {
-    struct publisher_queue_node * publisher_queue = wrapper->topic.publisher_queues;
-    while (publisher_queue) {
-      struct publisher_queue_node * publisher_queue_next = publisher_queue->next;
-      struct rb_root * root = &publisher_queue->entries;
-      struct rb_node * node = rb_first(root);
-      while (node) {
-        struct entry_node * en = rb_entry(node, struct entry_node, node);
-        node = rb_next(node);
-        free_entry_node(publisher_queue, en);
-      }
-
-      kfree(publisher_queue);
-      publisher_queue = publisher_queue_next;
-    }
-
-    hash_del(&wrapper->node);
-    kfree(wrapper->key);
-    kfree(wrapper);
-  }
+  // TODO: Implement memory deallocation when 'rmmod' is called.
 }
 
 static void agnocast_exit(void)
