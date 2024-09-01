@@ -50,7 +50,7 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   }
   shm_fds.push_back(shm_fd);
 
-  const char * mempool_size_env = std::getenv("MRMPOOL_SIZE");
+  const char * mempool_size_env = std::getenv("MEMPOOL_SIZE");
   const size_t mempool_size = std::stoull(std::string(mempool_size_env));
 
   if (writable) {
