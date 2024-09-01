@@ -91,7 +91,6 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr)
 {
   if (already_mapped(pid)) return;
   if (map_area(pid, shm_addr, false) == NULL) exit(EXIT_FAILURE);
-  return;
 }
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid)
