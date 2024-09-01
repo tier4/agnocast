@@ -644,6 +644,8 @@ static int publisher_add(
   if (insert_publisher_info(wrapper, pid) == -1) {
     return -1;
   }
+  wrapper->topic.non_exited_publisher_pids[wrapper->topic.non_exited_publisher_num] = pid;
+  wrapper->topic.non_exited_publisher_num++;
 
   // set shm addr to ioctl_ret
   bool found = false;
