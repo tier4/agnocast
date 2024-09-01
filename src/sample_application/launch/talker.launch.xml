@@ -1,6 +1,6 @@
 <launch>
     <node pkg="sample_application" exec="talker" name="talker_node" output="screen">
         <env name="LD_PRELOAD" value="libpreloaded.so" />
-        <env name="MRMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
+        <env name="MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
     </node>
 </launch>
