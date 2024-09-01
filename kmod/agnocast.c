@@ -226,10 +226,12 @@ static int increment_publisher_info(struct topic_wrapper * wrapper, uint32_t pub
       agnocast_device,
       "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
       "(increment_publisher_info)\n",
-      publisher_pid, topic_name);
+      publisher_pid, wrapper->key);
     return -1;
   }
   info->entries_num++;
+
+  return 0;
 }
 
 static int decrement_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
@@ -240,10 +242,12 @@ static int decrement_publisher_info(struct topic_wrapper * wrapper, uint32_t pub
       agnocast_device,
       "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
       "(decrement_publisher_info)\n",
-      publisher_pid, topic_name);
+      publisher_pid, wrapper->key);
     return -1;
   }
   info->entries_num--;
+
+  return 0;
 }
 
 static struct entry_node * find_message_entry(
@@ -360,7 +364,7 @@ static int insert_message_entry(
   rb_link_node(&new_node->node, parent, new);
   rb_insert_color(&new_node->node, root);
 
-  increment_publisher_info(wrapper, publisher_pid);
+  if (increment_publisher_info(wrapper, publisher_pid) == -1) return -1;
   wrapper->topic.entries_num++;
 
   dev_dbg(
@@ -742,7 +746,7 @@ static uint64_t release_msgs_to_meet_depth(
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
-    decrement_publisher_info(wrapper, publisher_pid);
+    if (decrement_publisher_info(wrapper, publisher_pid) == -1) return -1;
     rb_erase(&en->node, &wrapper->topic.entries);
     kfree(en);
 
