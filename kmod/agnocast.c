@@ -198,7 +198,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   if (info) {
     dev_warn(
       agnocast_device,
-      "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
+      "Publisher (pid=%d) once existed in the topic (topic_name=%s). "
       "(insert_publisher_info)\n",
       publisher_pid, wrapper->key);
     return -1;
@@ -641,11 +641,22 @@ static int publisher_add(
     return -1;
   }
 
-  if (insert_publisher_info(wrapper, pid) == -1) {
-    return -1;
+  for (int i = 0; i < wrapper->topic.non_exited_publisher_num; i++) {
+    if (wrapper->topic.non_exited_publisher_num[i] == pid) {
+      dev_warn(
+        agnocast_device,
+        "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
+        "(publisher_add)\n",
+        pid, wrapper->key);
+      return -1;
+    }
   }
   wrapper->topic.non_exited_publisher_pids[wrapper->topic.non_exited_publisher_num] = pid;
   wrapper->topic.non_exited_publisher_num++;
+
+  if (insert_publisher_info(wrapper, pid) == -1) {
+    return -1;
+  }
 
   // set shm addr to ioctl_ret
   bool found = false;
