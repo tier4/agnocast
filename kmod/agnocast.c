@@ -221,7 +221,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
 static int increment_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
-  if (info) {
+  if (!info) {
     dev_warn(
       agnocast_device,
       "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
@@ -237,7 +237,7 @@ static int increment_publisher_info(struct topic_wrapper * wrapper, uint32_t pub
 static int decrement_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
-  if (info) {
+  if (!info) {
     dev_warn(
       agnocast_device,
       "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
