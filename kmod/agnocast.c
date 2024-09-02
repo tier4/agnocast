@@ -48,7 +48,6 @@ struct publisher_info
 
 struct topic_struct
 {
-  uint32_t entries_num;
   struct rb_root entries;
   uint32_t publisher_info_num;
   struct publisher_info *
@@ -106,7 +105,6 @@ static int insert_topic(const char * topic_name)
     return -1;
   }
 
-  wrapper->topic.entries_num = 0;
   wrapper->topic.entries = RB_ROOT;
   wrapper->topic.publisher_info_num = 0;  // This also includes publishers that have already exited.
   wrapper->topic.pub_info = NULL;
@@ -363,7 +361,6 @@ static int insert_message_entry(
   rb_insert_color(&new_node->node, root);
 
   if (increment_publisher_info(wrapper, publisher_pid) == -1) return -1;
-  wrapper->topic.entries_num++;
 
   dev_dbg(
     agnocast_device,
@@ -758,8 +755,6 @@ static uint64_t release_msgs_to_meet_depth(
     if (decrement_publisher_info(wrapper, publisher_pid) == -1) return -1;
     rb_erase(&en->node, &wrapper->topic.entries);
     kfree(en);
-
-    wrapper->topic.entries_num--;
 
     dev_dbg(
       agnocast_device,
