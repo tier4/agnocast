@@ -193,7 +193,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   if (info) {
     dev_warn(
       agnocast_device,
-      "Publisher (pid=%d) once existed in the topic (topic_name=%s). "
+      "Publisher (pid=%d) already exist in the topic (topic_name=%s). "
       "(insert_publisher_info)\n",
       publisher_pid, wrapper->key);
     return -1;
