@@ -50,7 +50,7 @@ struct topic_struct
 {
   struct rb_root entries;
   uint32_t publisher_info_num;
-  struct publisher_info * pub_info;
+  struct publisher_info * pub_info_list;
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
@@ -106,7 +106,7 @@ static int insert_topic(const char * topic_name)
 
   wrapper->topic.entries = RB_ROOT;
   wrapper->topic.publisher_info_num = 0;  // This also includes publishers that have already exited.
-  wrapper->topic.pub_info = NULL;
+  wrapper->topic.pub_info_list = NULL;
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     wrapper->topic.subscriber_pids[i] = 0;
@@ -174,7 +174,7 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
 static struct publisher_info * find_publisher_info(
   const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  struct publisher_info * info = wrapper->topic.pub_info;
+  struct publisher_info * info = wrapper->topic.pub_info_list;
   while (info) {
     if (publisher_pid == info->pid) {
       return info;
@@ -207,8 +207,8 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->pid = publisher_pid;
   new_info->entries_num = 0;
   new_info->exited = false;
-  new_info->next = wrapper->topic.pub_info;
-  wrapper->topic.pub_info = new_info;
+  new_info->next = wrapper->topic.pub_info_list;
+  wrapper->topic.pub_info_list = new_info;
 
   return 0;
 }
@@ -607,7 +607,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   }
 
   int index = 0;
-  struct publisher_info * pub_info = wrapper->topic.pub_info;
+  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
     if (pub_info->exited) {
       pub_info = pub_info->next;
@@ -820,13 +820,12 @@ static int receive_and_update(
     struct entry_node * compared_en = container_of(node, struct entry_node, node);
     if (compared_en->timestamp <= msg_timestamp) break;
     newer_entry_count++;
-  }
-
-  if (newer_entry_count > qos_depth) {
-    // Received message is ignored.
-    en->unreceived_subscriber_count--;
-    ioctl_ret->ret = 0;
-    return 0;
+    if (newer_entry_count > qos_depth) {
+      // Received message is ignored.
+      en->unreceived_subscriber_count--;
+      ioctl_ret->ret = 0;
+      return 0;
+    }
   }
 
   en->unreceived_subscriber_count--;
