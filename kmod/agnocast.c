@@ -50,8 +50,7 @@ struct topic_struct
 {
   struct rb_root entries;
   uint32_t publisher_info_num;
-  struct publisher_info *
-    pub_info;  // This linked list also includes publishers that have already exited.
+  struct publisher_info * pub_info;
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
