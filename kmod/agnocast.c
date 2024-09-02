@@ -42,6 +42,7 @@ struct publisher_info
 {
   uint32_t pid;
   uint32_t entries_num;
+  bool exited;
   struct publisher_info * next;
 };
 
@@ -49,10 +50,9 @@ struct topic_struct
 {
   uint32_t entries_num;
   struct rb_root entries;
+  uint32_t publisher_info_num;
   struct publisher_info *
     pub_info;  // This linked list also includes publishers that have already exited.
-  uint32_t non_exited_publisher_num;
-  uint32_t non_exited_publisher_pids[MAX_PUBLISHER_NUM];
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
@@ -108,11 +108,8 @@ static int insert_topic(const char * topic_name)
 
   wrapper->topic.entries_num = 0;
   wrapper->topic.entries = RB_ROOT;
+  wrapper->topic.publisher_info_num = 0;  // This also includes publishers that have already exited.
   wrapper->topic.pub_info = NULL;
-  wrapper->topic.non_exited_publisher_num = 0;
-  for (int i = 0; i < MAX_PUBLISHER_NUM; i++) {
-    wrapper->topic.non_exited_publisher_pids[i] = 0;
-  }
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     wrapper->topic.subscriber_pids[i] = 0;
@@ -212,6 +209,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
 
   new_info->pid = publisher_pid;
   new_info->entries_num = 0;
+  new_info->exited = false;
   new_info->next = wrapper->topic.pub_info;
   wrapper->topic.pub_info = new_info;
 
@@ -599,7 +597,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  if (wrapper->topic.non_exited_publisher_num > MAX_PUBLISHER_NUM) {
+  if (wrapper->topic.publisher_info_num > MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of publishers for the topic (topic_name=%s) reached the "
@@ -609,16 +607,25 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  for (int i = 0; i < wrapper->topic.non_exited_publisher_num; i++) {
-    ioctl_ret->ret_pids[i] = wrapper->topic.non_exited_publisher_pids[i];
+  int index = 0;
+  struct publisher_info * pub_info = wrapper->topic.pub_info;
+  while (pub_info) {
+    if (pub_info->exited) {
+      pub_info = pub_info->next;
+      continue;
+    }
+    ioctl_ret->ret_pids[index] = pub_info->pid;
     for (int j = 0; j < pid_index; j++) {
-      if (process_ids[j] == wrapper->topic.non_exited_publisher_pids[i]) {
-        ioctl_ret->ret_addrs[i] = shm_addrs[j];
+      if (process_ids[j] == pub_info->pid) {
+        ioctl_ret->ret_addrs[index] = shm_addrs[j];
+        index++;
         break;
       }
     }
+    pub_info = pub_info->next;
   }
-  ioctl_ret->ret_publisher_num = wrapper->topic.non_exited_publisher_num;
+
+  ioctl_ret->ret_publisher_num = index;
 
   return 0;
 }
@@ -642,22 +649,10 @@ static int publisher_add(
     return -1;
   }
 
-  for (int i = 0; i < wrapper->topic.non_exited_publisher_num; i++) {
-    if (wrapper->topic.non_exited_publisher_pids[i] == pid) {
-      dev_warn(
-        agnocast_device,
-        "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
-        "(publisher_add)\n",
-        pid, wrapper->key);
-      return -1;
-    }
-  }
-  wrapper->topic.non_exited_publisher_pids[wrapper->topic.non_exited_publisher_num] = pid;
-  wrapper->topic.non_exited_publisher_num++;
-
   if (insert_publisher_info(wrapper, pid) == -1) {
     return -1;
   }
+  wrapper->topic.publisher_info_num++;
 
   // set shm addr to ioctl_ret
   bool found = false;
