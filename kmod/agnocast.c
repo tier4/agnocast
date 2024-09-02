@@ -316,7 +316,7 @@ static int insert_message_entry(
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (find_message_entry)\n", topic_name);
+      agnocast_device, "Topic (topic_name=%s) not found. (insert_message_entry)\n", topic_name);
     return -1;
   }
 
