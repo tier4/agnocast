@@ -270,7 +270,7 @@ static struct entry_node * find_message_entry(
       new = &((*new)->rb_left);
     } else if (msg_timestamp > this->timestamp) {
       new = &((*new)->rb_right);
-    } else {  // It is not expected for there to be messages with exactly the same timestamp.
+    } else {  // TODO: It is not expected for there to be messages with exactly the same timestamp.
       return this;
     }
   }
@@ -406,8 +406,9 @@ static ssize_t store_value(
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
   // TODO: Implement show_all for debugging.
+  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", "Not yet implemented.");
 
-  return -1;
+  return ret;
 }
 
 static struct kobject * status_kobj;
