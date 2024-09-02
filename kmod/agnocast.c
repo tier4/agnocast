@@ -642,7 +642,7 @@ static int publisher_add(
   }
 
   for (int i = 0; i < wrapper->topic.non_exited_publisher_num; i++) {
-    if (wrapper->topic.non_exited_publisher_num[i] == pid) {
+    if (wrapper->topic.non_exited_publisher_pids[i] == pid) {
       dev_warn(
         agnocast_device,
         "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
