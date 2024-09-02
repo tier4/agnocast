@@ -266,7 +266,10 @@ static struct entry_node * find_message_entry(
       new = &((*new)->rb_left);
     } else if (msg_timestamp > this->timestamp) {
       new = &((*new)->rb_right);
-    } else {  // TODO: It is not expected for there to be messages with exactly the same timestamp.
+    } else {
+      // TODO: Previously, each publisher had its own tree, so timestamps did not overlap. However,
+      // with unification, there is a slight possibility of timestamp conflict. This could be
+      // resolved by using a timestamp and PID pair, but it is not implemented yet.
       return this;
     }
   }
