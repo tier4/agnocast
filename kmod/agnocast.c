@@ -1112,6 +1112,7 @@ static bool check_and_set_exit_if_found(struct topic_wrapper * wrapper)
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
     if (pub_info->pid != current->pid) {
+      pub_info = pub_info->next;
       continue;
     }
     pub_info->exited = true;
@@ -1192,10 +1193,10 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
         wrapper->key, current->pid);
     }
 
-    // TODO: Exit handler for subscriber
+    //  TODO: Exit handler for subscriber
 
     // Check if we can release the topic_wrapper
-    if (wrapper->topic.pub_info_num != 0 || wrapper->topic.subscriber_num != 0) {
+    if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
       // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
       // leak occurs.
       WARN_ON(wrapper->topic.pub_info_list != NULL);
