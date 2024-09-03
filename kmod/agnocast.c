@@ -660,8 +660,21 @@ static int topic_add_sub(
 
     if (qos_depth == 0) return 0;  // transient local is disabled
 
-    // TODO: Implement transient local
-    dev_err(agnocast_device, "transient local is not supported yet.");
+    // Return qos_depth messages in order from newest to oldest for transient local
+    struct rb_node * node;
+    for (node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+      struct entry_node * en = container_of(node, struct entry_node, node);
+      if (en->published) {
+        en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+        en->subscriber_reference_count++;
+        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
+        ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+        ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+        ioctl_ret->ret_len++;
+
+        if (ioctl_ret->ret_len == qos_depth) break;
+      }
+    }
 
     return 0;
   }
