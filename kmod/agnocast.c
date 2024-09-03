@@ -1087,7 +1087,7 @@ static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * 
   kfree(en);
 }
 
-static bool set_exited_if_publisher(struct topic_wrapper * wrapper)
+static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
@@ -1096,19 +1096,19 @@ static bool set_exited_if_publisher(struct topic_wrapper * wrapper)
       continue;
     }
     pub_info->exited = true;
-    return true;
+    return pub_info;
   }
-  return false;
+  return NULL;
 }
 
-static void delete_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
+static void delete_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   struct publisher_info dummy_head;
   dummy_head.next = pub_info;
   struct publisher_info * prev_pub_info = &dummy_head;
   while (pub_info) {
-    if (pub_info->pid != publisher_pid) {
+    if (pub_info->pid != current->pid) {
       prev_pub_info = pub_info;
       pub_info = pub_info->next;
       continue;
@@ -1123,8 +1123,8 @@ static void delete_publisher_info(struct topic_wrapper * wrapper, uint32_t publi
 
 static int pre_handler_publisher(struct topic_wrapper * wrapper)
 {
-  bool was_publishing = set_exited_if_publisher(wrapper);
-  if (!was_publishing) return 0;
+  struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
+  if (!pub_info) return 0;
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
@@ -1133,23 +1133,13 @@ static int pre_handler_publisher(struct topic_wrapper * wrapper)
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
-      if (decrement_entries_num(wrapper, en->publisher_pid) == -1) return -1;
+      pub_info->entries_num--;
       free_entry_node(wrapper, en);
     }
   }
 
-  struct publisher_info * info = find_publisher_info(wrapper, current->pid);
-  if (!info) {
-    dev_warn(
-      agnocast_device,
-      "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
-      "(insert_publisher_info)\n",
-      current->pid, wrapper->key);
-    return -1;
-  }
-
-  if (info->entries_num == 0) {
-    delete_publisher_info(wrapper, current->pid);
+  if (pub_info->entries_num == 0) {
+    delete_publisher_info(wrapper);
     wrapper->topic.pub_info_num--;
   }
 
