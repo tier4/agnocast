@@ -35,15 +35,15 @@ using malloc_usable_size_type = size_t (*)(void *);
 static char * mempool_ptr;
 static std::unordered_map<void *, void *> * aligned2orig;
 
-static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
-static std::atomic<bool> mempool_initialized = false;
-
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 __thread bool is_in_hooked_call = false;
 
 void initialize_mempool()
 {
+  static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
+  static std::atomic<bool> mempool_initialized = false;
+
   if (mempool_initialized) return;
 
   pthread_mutex_lock(&init_mtx);
