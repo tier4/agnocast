@@ -19,6 +19,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 static int major;
 static struct class * agnocast_class;
 static struct device * agnocast_device;
+static DEFINE_MUTEX(global_mutex);
 
 // TODO: should be made larger when applied for Autoware
 #define MAX_PUBLISHER_NUM 2   // At least 2 is required for sample application
@@ -403,6 +404,8 @@ static ssize_t store_value(
 #define BUFFER_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
+  mutex_lock(&global_mutex);
+
   // at least 500 bytes would be needed as an initial buffer size
   size_t buf_size = 1024;
 
@@ -490,6 +493,8 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
   ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
 
   kfree(local_buf);
+
+  mutex_unlock(&global_mutex);
 
   return ret;
 }
@@ -998,8 +1003,6 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
   ioctl_ret->ret_subscriber_num = wrapper->topic.subscriber_num;
   return 0;
 }
-
-static DEFINE_MUTEX(global_mutex);
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
