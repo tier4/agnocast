@@ -44,11 +44,11 @@ void initialize_mempool()
   static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
   static std::atomic<bool> mempool_initialized = false;
 
-  // cppcheck-suppress identicalConditionAfterEarlyExit
   if (mempool_initialized) return;
 
   pthread_mutex_lock(&init_mtx);
 
+  // cppcheck-suppress identicalConditionAfterEarlyExit
   if (mempool_initialized) {
     pthread_mutex_unlock(&init_mtx);
     return;
