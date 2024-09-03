@@ -246,15 +246,8 @@ static int decrement_entries_num(struct topic_wrapper * wrapper, uint32_t publis
 }
 
 static struct entry_node * find_message_entry(
-  const char * topic_name, uint32_t publisher_pid, uint64_t msg_timestamp)
+  struct topic_wrapper * wrapper, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (find_message_entry)\n", topic_name);
-    return NULL;
-  }
-
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
 
@@ -279,7 +272,15 @@ static struct entry_node * find_message_entry(
 static int decrement_message_entry_rc(
   const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
+      topic_name);
+    return -1;
+  }
+
+  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
@@ -787,7 +788,14 @@ static int receive_and_update(
   char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp,
   uint32_t qos_depth, union ioctl_receive_msg_args * ioctl_ret)
 {
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (receive_and_update)\n", topic_name);
+    return -1;
+  }
+
+  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
@@ -803,13 +811,6 @@ static int receive_and_update(
       "Tried to decrement unreceived_subscriber_count 0 with (topic_name=%s publisher_pid=%d "
       "timestamp=%lld). (receive_and_update)\n",
       topic_name, publisher_pid, msg_timestamp);
-    return -1;
-  }
-
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (receive_and_update)\n", topic_name);
     return -1;
   }
 
@@ -846,7 +847,7 @@ static int publish_msg(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(topic_name, publisher_pid, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
