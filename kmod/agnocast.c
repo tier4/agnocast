@@ -464,6 +464,11 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
       strcat(local_buf, "referencing:=[");
       buf_len += 14;
       for (int i = 0; i < en->subscriber_reference_count; i++) {
+        if (i > 0) {
+          strcat(local_buf, ", ");
+          buf_len += 2;
+        }
+
         char num_str[BUFFER_SIZE];
         scnprintf(num_str, sizeof(num_str), "%u", en->referencing_subscriber_pids[i]);
         strcat(local_buf, num_str);
