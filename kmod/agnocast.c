@@ -1161,6 +1161,77 @@ static int pre_handler_publisher(struct topic_wrapper * wrapper)
   return 0;
 }
 
+static bool check_and_remove_subscriber(struct topic_wrapper * wrapper)
+{
+  bool was_subscribing = false;
+  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+    if (wrapper->topic.subscriber_pids[i] == current->pid) {
+      was_subscribing = true;
+    }
+    if (was_subscribing && i < MAX_SUBSCRIBER_NUM - 1) {
+      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
+    }
+  }
+  return was_subscribing;
+}
+static bool check_and_remove_referencing_subscriber(struct entry_node * en)
+{
+  bool referencing = false;
+  for (int i = 0; i < en->subscriber_reference_count; i++) {
+    if (en->referencing_subscriber_pids[i] == current->pid) {
+      referencing = true;
+    }
+    if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
+      en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
+    }
+  }
+  return referencing;
+}
+static int pre_handler_subscriber(struct topic_wrapper * wrapper)
+{
+  bool was_subscribing = check_and_remove_subscriber(wrapper);
+  if (!was_subscribing) return 0;
+  wrapper->topic.subscriber_num--;
+  // Decrement the reference count, then free the entry node if it reaches zero and publisher has
+  // already exited.
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+    bool referencing = check_and_remove_referencing_subscriber(en);
+    if (!referencing) continue;
+    en->subscriber_reference_count--;
+    bool exited = false;
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      if (pub_info->pid == en->publisher_pid) {
+        if (pub_info->exited) {
+          exited = true;
+        }
+        break;
+      }
+      pub_info = pub_info->next;
+    }
+    if (!exited) continue;
+    // unreceived_subscriber_count is not checked when releasing the message.
+    if (en->subscriber_reference_count == 0) {
+      decrement_entries_num(wrapper, en->publisher_pid);
+      free_entry_node(wrapper, en);
+      if (pub_info->entries_num == 0) {
+        delete_publisher_info(wrapper, current->pid);
+        wrapper->topic.pub_info_num--;
+      }
+    }
+  }
+  dev_info(
+    agnocast_device,
+    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
+    "(pre_handler_subscriber)\n",
+    current->pid, wrapper->key);
+  return 0;
+}
+
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
@@ -1193,7 +1264,14 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
         wrapper->key, current->pid);
     }
 
-    //  TODO: Exit handler for subscriber
+    // Exit handler for subscriber
+    if (pre_handler_subscriber(wrapper) == -1) {
+      dev_warn(
+        agnocast_device,
+        "pre_handler_subscriber failed (topic_name=%s, pid=%d)."
+        "(pre_handler_do_exit)\n",
+        wrapper->key, current->pid);
+    }
 
     // Check if we can release the topic_wrapper
     if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
