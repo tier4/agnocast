@@ -32,7 +32,6 @@ using pvalloc_type = void * (*)(size_t);
 
 using malloc_usable_size_type = size_t (*)(void *);
 
-static char * mempool_ptr;
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -68,8 +67,7 @@ void initialize_mempool()
     exit(EXIT_FAILURE);
   }
 
-  mempool_ptr = reinterpret_cast<char *>(ret);
-
+  const char * mempool_ptr = reinterpret_cast<char *>(ret);
   memset(mempool_ptr, 0, mempool_size);
   init_memory_pool(mempool_size, mempool_ptr);  // tlsf library function
 
