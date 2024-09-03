@@ -33,6 +33,8 @@ using pvalloc_type = void * (*)(size_t);
 using malloc_usable_size_type = size_t (*)(void *);
 
 static char * mempool_ptr;
+
+static pthread_mutex_t align_mtx = PTHREAD_MUTEX_INITIALIZER;
 static std::unordered_map<void *, void *> * aligned2orig;
 
 static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -73,8 +75,10 @@ void initialize_mempool()
   memset(mempool_ptr, 0, mempool_size);
   init_memory_pool(mempool_size, mempool_ptr);  // tlsf library function
 
+  pthread_mutex_lock(&align_mtx);
   aligned2orig = new std::unordered_map<void *, void *>();
   // aligned2orig.reserve(10000000);
+  pthread_mutex_unlock(&align_mtx);
 
   mempool_initialized = true;
 
@@ -125,7 +129,10 @@ static void * tlsf_aligned_malloc(size_t alignment, size_t size)
   void * addr = tlsf_malloc_wrapped(alignment + size);
   void * aligned = reinterpret_cast<void *>(
     reinterpret_cast<uint64_t>(addr) + alignment - reinterpret_cast<uint64_t>(addr) % alignment);
+
+  pthread_mutex_lock(&align_mtx);
   (*aligned2orig)[aligned] = addr;
+  pthread_mutex_unlock(&align_mtx);
 
   // printf("In tlsf_aligned_malloc: orig=%p -> aligned=%p\n", addr, aligned);
 
@@ -162,11 +169,13 @@ void free(void * ptr)
   is_in_hooked_call = true;
   initialize_mempool();
 
+  pthread_mutex_lock(&align_mtx);
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
     ptr = it->second;
     aligned2orig->erase(it);
   }
+  pthread_mutex_unock(&align_mtx);
 
   tlsf_free_wrapped(ptr);
   is_in_hooked_call = false;
@@ -199,11 +208,13 @@ void * realloc(void * ptr, size_t new_size)
   is_in_hooked_call = true;
   initialize_mempool();
 
+  pthread_mutex_lock(&align_mtx);
   auto it = aligned2orig->find(ptr);
   if (it != aligned2orig->end()) {
     ptr = it->second;
     aligned2orig->erase(ptr);
   }
+  pthread_mutex_unlock(&align_mtx);
 
   void * ret = tlsf_realloc_wrapped(ptr, new_size);
   is_in_hooked_call = false;
