@@ -403,8 +403,88 @@ static ssize_t store_value(
 #define BUFFER_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
-  // TODO: Implement show_all for debugging.
-  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", "Not yet implemented.");
+  // at least 500 bytes would be needed as an initial buffer size
+  size_t buf_size = 1024;
+
+  char * local_buf = kmalloc(buf_size, GFP_KERNEL);
+  local_buf[0] = '\0';
+
+  struct topic_wrapper * wrapper;
+  struct hlist_node * node;
+  int bkt;
+  size_t buf_len = 0;
+
+  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
+  {
+    strcat(local_buf, wrapper->key);
+    strcat(local_buf, "\n");
+    buf_len += strlen(wrapper->key) + 1;
+
+    strcat(local_buf, " subscriber_pids:");
+    buf_len += 17;
+    for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+      char num_str[BUFFER_SIZE];
+      scnprintf(num_str, sizeof(num_str), " %u", wrapper->topic.subscriber_pids[i]);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_SIZE;
+    }
+    strcat(local_buf, "\n");
+    buf_len += 1;
+
+    strcat(local_buf, " publishers:\n");
+    buf_len += 13;
+
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      char num_str[BUFFER_SIZE * 3];
+      scnprintf(
+        num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+        pub_info->entries_num, pub_info->exited);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_SIZE * 3;
+
+      pub_info = pub_info->next;
+    }
+
+    strcat(local_buf, " entries:\n");
+    buf_len += 10;
+
+    struct rb_root * root = &wrapper->topic.entries;
+    struct rb_node * node;
+    for (node = rb_first(root); node; node = rb_next(node)) {
+      struct entry_node * en = container_of(node, struct entry_node, node);
+
+      char num_str[BUFFER_SIZE * 4];
+      scnprintf(
+        num_str, sizeof(num_str), "  time=%lld, pid=%u, addr=%lld, published=%d, ", en->timestamp,
+        en->publisher_pid, en->msg_virtual_address, en->published);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_SIZE * 4;
+
+      strcat(local_buf, "referencing:=[");
+      buf_len += 14;
+      for (int i = 0; i < en->subscriber_reference_count; i++) {
+        char num_str[BUFFER_SIZE];
+        scnprintf(num_str, sizeof(num_str), "%u", en->referencing_subscriber_pids[i]);
+        strcat(local_buf, num_str);
+        buf_len += BUFFER_SIZE;
+      }
+      strcat(local_buf, "]\n");
+      buf_len += 2;
+
+      if (buf_len * 2 > buf_size) {
+        buf_size *= 2;
+        local_buf = krealloc(local_buf, buf_size, GFP_KERNEL);
+      }
+    }
+
+    strcat(local_buf, "\n");
+    buf_len += 1;
+  }
+
+  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
+
+  kfree(local_buf);
 
   return ret;
 }
