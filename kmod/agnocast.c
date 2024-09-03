@@ -1107,7 +1107,7 @@ static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * 
   kfree(en);
 }
 
-static bool check_and_set_exit_if_found(struct topic_wrapper * wrapper)
+static bool check_and_set_exit_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
@@ -1123,7 +1123,7 @@ static bool check_and_set_exit_if_found(struct topic_wrapper * wrapper)
 
 static int pre_handler_publisher(struct topic_wrapper * wrapper)
 {
-  bool was_publishing = check_and_set_exit_if_found(wrapper);
+  bool was_publishing = check_and_set_exit_if_publisher(wrapper);
   if (!was_publishing) return 0;
 
   struct rb_root * root = &wrapper->topic.entries;
