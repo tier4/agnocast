@@ -49,7 +49,7 @@ struct publisher_info
 struct topic_struct
 {
   struct rb_root entries;
-  uint32_t publisher_info_num;
+  uint32_t pub_info_num;
   struct publisher_info * pub_info_list;
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
@@ -105,7 +105,7 @@ static int insert_topic(const char * topic_name)
   }
 
   wrapper->topic.entries = RB_ROOT;
-  wrapper->topic.publisher_info_num = 0;  // This also includes publishers that have already exited.
+  wrapper->topic.pub_info_num = 0;  // This also includes publishers that have already exited.
   wrapper->topic.pub_info_list = NULL;
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
@@ -596,7 +596,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  if (wrapper->topic.publisher_info_num > MAX_PUBLISHER_NUM) {
+  if (wrapper->topic.pub_info_num > MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of publishers for the topic (topic_name=%s) reached the "
@@ -651,7 +651,7 @@ static int publisher_add(
   if (insert_publisher_info(wrapper, pid) == -1) {
     return -1;
   }
-  wrapper->topic.publisher_info_num++;
+  wrapper->topic.pub_info_num++;
 
   // set shm addr to ioctl_ret
   bool found = false;
