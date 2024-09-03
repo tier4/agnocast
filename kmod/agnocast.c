@@ -401,7 +401,7 @@ static ssize_t store_value(
   return count;
 }
 
-#define BUFFER_SIZE 30
+#define BUFFER_UNIT_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
   mutex_lock(&global_mutex);
@@ -426,10 +426,10 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " subscriber_pids:");
     buf_len += 17;
     for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-      char num_str[BUFFER_SIZE];
+      char num_str[BUFFER_UNIT_SIZE];
       scnprintf(num_str, sizeof(num_str), " %u", wrapper->topic.subscriber_pids[i]);
       strcat(local_buf, num_str);
-      buf_len += BUFFER_SIZE;
+      buf_len += BUFFER_UNIT_SIZE;
     }
     strcat(local_buf, "\n");
     buf_len += 1;
@@ -439,12 +439,12 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
     struct publisher_info * pub_info = wrapper->topic.pub_info_list;
     while (pub_info) {
-      char num_str[BUFFER_SIZE * 3];
+      char num_str[BUFFER_UNIT_SIZE * 3];
       scnprintf(
         num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
         pub_info->entries_num, pub_info->exited);
       strcat(local_buf, num_str);
-      buf_len += BUFFER_SIZE * 3;
+      buf_len += BUFFER_UNIT_SIZE * 3;
 
       pub_info = pub_info->next;
     }
@@ -457,12 +457,12 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     for (node = rb_first(root); node; node = rb_next(node)) {
       struct entry_node * en = container_of(node, struct entry_node, node);
 
-      char num_str[BUFFER_SIZE * 4];
+      char num_str[BUFFER_UNIT_SIZE * 4];
       scnprintf(
         num_str, sizeof(num_str), "  time=%lld, pid=%u, addr=%lld, published=%d, ", en->timestamp,
         en->publisher_pid, en->msg_virtual_address, en->published);
       strcat(local_buf, num_str);
-      buf_len += BUFFER_SIZE * 4;
+      buf_len += BUFFER_UNIT_SIZE * 4;
 
       strcat(local_buf, "referencing:=[");
       buf_len += 14;
@@ -472,10 +472,10 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
           buf_len += 2;
         }
 
-        char num_str[BUFFER_SIZE];
+        char num_str[BUFFER_UNIT_SIZE];
         scnprintf(num_str, sizeof(num_str), "%u", en->referencing_subscriber_pids[i]);
         strcat(local_buf, num_str);
-        buf_len += BUFFER_SIZE;
+        buf_len += BUFFER_UNIT_SIZE;
       }
       strcat(local_buf, "]\n");
       buf_len += 2;
