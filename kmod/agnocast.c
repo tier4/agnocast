@@ -661,8 +661,7 @@ static int topic_add_sub(
     if (qos_depth == 0) return 0;  // transient local is disabled
 
     // Return qos_depth messages in order from newest to oldest for transient local
-    struct rb_node * node;
-    for (node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+    for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
       struct entry_node * en = container_of(node, struct entry_node, node);
       if (en->published) {
         en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
