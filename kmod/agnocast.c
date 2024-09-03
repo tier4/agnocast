@@ -213,26 +213,6 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   return 0;
 }
 
-static void delete_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
-{
-  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-  struct publisher_info dummy_head;
-  dummy_head.next = pub_info;
-  struct publisher_info * prev_pub_info = &dummy_head;
-  while (pub_info) {
-    if (pub_info->pid != publisher_pid) {
-      prev_pub_info = pub_info;
-      pub_info = pub_info->next;
-      continue;
-    }
-
-    prev_pub_info->next = pub_info->next;
-    kfree(pub_info);
-    break;
-  }
-  wrapper->topic.pub_info_list = dummy_head.next;
-}
-
 static int increment_entries_num(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
@@ -1107,7 +1087,7 @@ static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * 
   kfree(en);
 }
 
-static bool check_and_set_exit_if_publisher(struct topic_wrapper * wrapper)
+static bool set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
@@ -1121,9 +1101,29 @@ static bool check_and_set_exit_if_publisher(struct topic_wrapper * wrapper)
   return false;
 }
 
+static void delete_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
+{
+  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+  struct publisher_info dummy_head;
+  dummy_head.next = pub_info;
+  struct publisher_info * prev_pub_info = &dummy_head;
+  while (pub_info) {
+    if (pub_info->pid != publisher_pid) {
+      prev_pub_info = pub_info;
+      pub_info = pub_info->next;
+      continue;
+    }
+
+    prev_pub_info->next = pub_info->next;
+    kfree(pub_info);
+    break;
+  }
+  wrapper->topic.pub_info_list = dummy_head.next;
+}
+
 static int pre_handler_publisher(struct topic_wrapper * wrapper)
 {
-  bool was_publishing = check_and_set_exit_if_publisher(wrapper);
+  bool was_publishing = set_exited_if_publisher(wrapper);
   if (!was_publishing) return 0;
 
   struct rb_root * root = &wrapper->topic.entries;
