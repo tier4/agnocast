@@ -18,25 +18,7 @@
 #include <string>
 #include <unordered_map>
 
-using malloc_type = void * (*)(size_t);
-using free_type = void (*)(void *);
-using calloc_type = void * (*)(size_t, size_t);
-using realloc_type = void * (*)(void *, size_t);
-
-// Aligned allocation
-using posix_memalign_type = int (*)(void **, size_t, size_t);
-using memalign_type = void * (*)(size_t, size_t);
-using aligned_alloc_type = void * (*)(size_t, size_t);
-using valloc_type = void * (*)(size_t);
-using pvalloc_type = void * (*)(size_t);
-
-using malloc_usable_size_type = size_t (*)(void *);
-
-static char * mempool_ptr;
 static std::unordered_map<void *, void *> * aligned2orig;
-
-static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
-static std::atomic<bool> mempool_initialized = false;
 
 static pthread_mutex_t tlsf_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -44,10 +26,14 @@ __thread bool is_in_hooked_call = false;
 
 void initialize_mempool()
 {
+  static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
+  static std::atomic<bool> mempool_initialized = false;
+
   if (mempool_initialized) return;
 
   pthread_mutex_lock(&init_mtx);
 
+  // cppcheck-suppress identicalConditionAfterEarlyExit
   if (mempool_initialized) {
     pthread_mutex_unlock(&init_mtx);
     return;
@@ -68,8 +54,7 @@ void initialize_mempool()
     exit(EXIT_FAILURE);
   }
 
-  mempool_ptr = reinterpret_cast<char *>(ret);
-
+  char * mempool_ptr = reinterpret_cast<char *>(ret);
   memset(mempool_ptr, 0, mempool_size);
   init_memory_pool(mempool_size, mempool_ptr);  // tlsf library function
 
@@ -136,6 +121,7 @@ extern "C" {
 
 void * malloc(size_t size)
 {
+  using malloc_type = void * (*)(size_t);
   static malloc_type original_malloc = reinterpret_cast<malloc_type>(dlsym(RTLD_NEXT, "malloc"));
 
   if (is_in_hooked_call) {
@@ -152,6 +138,7 @@ void * malloc(size_t size)
 
 void free(void * ptr)
 {
+  using free_type = void (*)(void *);
   static free_type original_free = reinterpret_cast<free_type>(dlsym(RTLD_NEXT, "free"));
 
   if (is_in_hooked_call) {
@@ -174,6 +161,7 @@ void free(void * ptr)
 
 void * calloc(size_t num, size_t size)
 {
+  using calloc_type = void * (*)(size_t, size_t);
   static calloc_type original_calloc = reinterpret_cast<calloc_type>(dlsym(RTLD_NEXT, "calloc"));
 
   if (is_in_hooked_call) {
@@ -189,6 +177,7 @@ void * calloc(size_t num, size_t size)
 
 void * realloc(void * ptr, size_t new_size)
 {
+  using realloc_type = void * (*)(void *, size_t);
   static realloc_type original_realloc =
     reinterpret_cast<realloc_type>(dlsym(RTLD_NEXT, "realloc"));
 
@@ -212,6 +201,7 @@ void * realloc(void * ptr, size_t new_size)
 
 int posix_memalign(void ** memptr, size_t alignment, size_t size)
 {
+  using posix_memalign_type = int (*)(void **, size_t, size_t);
   static posix_memalign_type original_posix_memalign =
     reinterpret_cast<posix_memalign_type>(dlsym(RTLD_NEXT, "posix_memalign"));
 
@@ -228,6 +218,7 @@ int posix_memalign(void ** memptr, size_t alignment, size_t size)
 
 void * memalign(size_t alignment, size_t size)
 {
+  using memalign_type = void * (*)(size_t, size_t);
   static memalign_type original_memalign =
     reinterpret_cast<memalign_type>(dlsym(RTLD_NEXT, "memalign"));
 
@@ -244,6 +235,7 @@ void * memalign(size_t alignment, size_t size)
 
 void * aligned_alloc(size_t alignment, size_t size)
 {
+  using aligned_alloc_type = void * (*)(size_t, size_t);
   static aligned_alloc_type original_aligned_alloc =
     reinterpret_cast<aligned_alloc_type>(dlsym(RTLD_NEXT, "aligned_alloc"));
 
@@ -260,6 +252,7 @@ void * aligned_alloc(size_t alignment, size_t size)
 
 void * valloc(size_t size)
 {
+  using valloc_type = void * (*)(size_t);
   static valloc_type original_valloc = reinterpret_cast<valloc_type>(dlsym(RTLD_NEXT, "valloc"));
   static size_t page_size = sysconf(_SC_PAGESIZE);
 
@@ -277,6 +270,7 @@ void * valloc(size_t size)
 // pvalloc() rounds the size of the allocation up to the next multiple of the system page size.
 void * pvalloc(size_t size)
 {
+  using pvalloc_type = void * (*)(size_t);
   static pvalloc_type original_pvalloc =
     reinterpret_cast<pvalloc_type>(dlsym(RTLD_NEXT, "pvalloc"));
   static size_t page_size = sysconf(_SC_PAGESIZE);
@@ -295,53 +289,54 @@ void * pvalloc(size_t size)
 
 size_t malloc_usable_size(void * ptr)
 {
+  using malloc_usable_size_type = size_t (*)(void *);
   static malloc_usable_size_type orig =
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
   return orig(ptr);
 }
 
-using mallinfo_type = struct mallinfo (*)(void);
 struct mallinfo mallinfo()
 {
+  using mallinfo_type = struct mallinfo (*)(void);
   static mallinfo_type orig = reinterpret_cast<mallinfo_type>(dlsym(RTLD_NEXT, "mallinfo"));
   return orig();
 }
 
 #ifdef HAVE_MALLINFO2
-using mallinfo2_type = struct mallinfo2 (*)(void);
 struct mallinfo2 mallinfo2()
 {
+  using mallinfo2_type = struct mallinfo2 (*)(void);
   static mallinfo2_type orig = reinterpret_cast<mallinfo2_type>(dlsym(RTLD_NEXT, "mallinfo2"));
   return orig();
 }
 #endif
 
-using mallopt_type = int (*)(int, int);
 int mallopt(int param, int value)
 {
+  using mallopt_type = int (*)(int, int);
   static mallopt_type orig = reinterpret_cast<mallopt_type>(dlsym(RTLD_NEXT, "mallopt"));
   return orig(param, value);
 }
 
-using malloc_trim_type = int (*)(size_t);
 int malloc_trim(size_t pad)
 {
+  using malloc_trim_type = int (*)(size_t);
   static malloc_trim_type orig =
     reinterpret_cast<malloc_trim_type>(dlsym(RTLD_NEXT, "malloc_trim"));
   return orig(pad);
 }
 
-using malloc_stats_type = void (*)(void);
 void malloc_stats(void)
 {
+  using malloc_stats_type = void (*)(void);
   static malloc_stats_type orig =
     reinterpret_cast<malloc_stats_type>(dlsym(RTLD_NEXT, "malloc_stats"));
   orig();
 }
 
-using malloc_info_type = int (*)(int, FILE *);
 int malloc_info(int options, FILE * stream)
 {
+  using malloc_info_type = int (*)(int, FILE *);
   static malloc_info_type orig =
     reinterpret_cast<malloc_info_type>(dlsym(RTLD_NEXT, "malloc_info"));
   return orig(options, stream);
