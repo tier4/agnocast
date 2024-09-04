@@ -48,6 +48,22 @@ class message_ptr
     ptr_ = nullptr;
   }
 
+  void increment_rc()
+  {
+    if (!need_rc_update_) return;
+
+    union ioctl_update_entry_args entry_args;
+    entry_args.topic_name = topic_name_;
+    entry_args.subscriber_pid = getpid();
+    entry_args.publisher_pid = publisher_pid_;
+    entry_args.msg_timestamp = timestamp_;
+    if (ioctl(agnocast_fd, AGNOCAST_INCREMENT_RC_CMD, &entry_args) < 0) {
+      perror("AGNOCAST_INCREMENT_RC_CMD failed");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  }
+
 public:
   const char * get_topic_name() { return topic_name_; }
   uint32_t get_publisher_pid() const { return publisher_pid_; }
@@ -72,11 +88,10 @@ public:
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
-    timestamp_(r.timestamp_)
+    timestamp_(r.timestamp_),
+    need_rc_update_(r.need_rc_update_)
   {
-    std::cout << "[Error]: copy constructor is not supported yet" << std::endl;
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    increment_rc();
   }
 
   message_ptr & operator=(const message_ptr & r)
