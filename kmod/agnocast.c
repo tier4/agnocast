@@ -1251,7 +1251,7 @@ static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
   return 0;
 }
 
-static bool check_and_remove_subscriber(struct topic_wrapper * wrapper)
+static bool remove_if_subscriber(struct topic_wrapper * wrapper)
 {
   bool was_subscribing = false;
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
@@ -1264,7 +1264,8 @@ static bool check_and_remove_subscriber(struct topic_wrapper * wrapper)
   }
   return was_subscribing;
 }
-static bool check_and_remove_referencing_subscriber(struct entry_node * en)
+
+static bool remove_if_referencing_subscriber(struct entry_node * en)
 {
   bool referencing = false;
   for (int i = 0; i < en->subscriber_reference_count; i++) {
@@ -1277,11 +1278,14 @@ static bool check_and_remove_referencing_subscriber(struct entry_node * en)
   }
   return referencing;
 }
-static int pre_handler_subscriber(struct topic_wrapper * wrapper)
+
+static int pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 {
-  bool was_subscribing = check_and_remove_subscriber(wrapper);
-  if (!was_subscribing) return 0;
+  bool is_subscriber = remove_if_subscriber(wrapper);
+  if (!is_subscriber) return 0;
+
   wrapper->topic.subscriber_num--;
+
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
   struct rb_root * root = &wrapper->topic.entries;
@@ -1289,9 +1293,11 @@ static int pre_handler_subscriber(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    bool referencing = check_and_remove_referencing_subscriber(en);
+    bool referencing = remove_if_referencing_subscriber(en);
     if (!referencing) continue;
+
     en->subscriber_reference_count--;
+
     bool exited = false;
     struct publisher_info * pub_info = wrapper->topic.pub_info_list;
     while (pub_info) {
@@ -1304,9 +1310,10 @@ static int pre_handler_subscriber(struct topic_wrapper * wrapper)
       pub_info = pub_info->next;
     }
     if (!exited) continue;
+
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->subscriber_reference_count == 0) {
-      decrement_entries_num(wrapper, en->publisher_pid);
+      pub_info->entries_num--;
       free_entry_node(wrapper, en);
       if (pub_info->entries_num == 0) {
         delete_publisher_info(wrapper);
@@ -1355,7 +1362,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     }
 
     // Exit handler for subscriber
-    if (pre_handler_subscriber(wrapper) == -1) {
+    if (pre_handler_subscriber_exit(wrapper) == -1) {
       dev_warn(
         agnocast_device,
         "pre_handler_subscriber failed (topic_name=%s, pid=%d)."
