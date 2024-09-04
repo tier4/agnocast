@@ -1159,8 +1159,7 @@ static bool remove_if_referencing_subscriber(struct entry_node * en)
 
 static int pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 {
-  bool is_subscriber = remove_if_subscriber(wrapper);
-  if (!is_subscriber) return 0;
+  if (!remove_if_subscriber(wrapper)) continue;
 
   wrapper->topic.subscriber_num--;
 
@@ -1171,10 +1170,10 @@ static int pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    bool referencing = remove_if_referencing_subscriber(en);
-    if (!referencing) continue;
+    if (!remove_if_referencing_subscriber(en)) continue;
 
     en->subscriber_reference_count--;
+    if (en->subscriber_reference_count != 0) continue;
 
     bool exited = false;
     struct publisher_info * pub_info = wrapper->topic.pub_info_list;
@@ -1190,13 +1189,11 @@ static int pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     if (!exited) continue;
 
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->subscriber_reference_count == 0) {
-      pub_info->entries_num--;
-      free_entry_node(wrapper, en);
-      if (pub_info->entries_num == 0) {
-        delete_publisher_info(wrapper);
-        wrapper->topic.pub_info_num--;
-      }
+    pub_info->entries_num--;
+    free_entry_node(wrapper, en);
+    if (pub_info->entries_num == 0) {
+      delete_publisher_info(wrapper);
+      wrapper->topic.pub_info_num--;
     }
   }
   dev_info(
