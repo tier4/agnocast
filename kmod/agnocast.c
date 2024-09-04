@@ -1059,7 +1059,7 @@ static struct file_operations fops = {
 
 // =========================================
 // Handler for publisher process exit
-static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
+static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
 {
   rb_erase(&en->node, &wrapper->topic.entries);
   kfree(en);
@@ -1079,7 +1079,7 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
   return NULL;
 }
 
-static void delete_publisher_info(struct topic_wrapper * wrapper)
+static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   struct publisher_info dummy_head;
@@ -1112,12 +1112,12 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
       pub_info->entries_num--;
-      free_entry_node(wrapper, en);
+      remove_entry_node(wrapper, en);
     }
   }
 
   if (pub_info->entries_num == 0) {
-    delete_publisher_info(wrapper);
+    remove_publisher_info(wrapper);
     wrapper->topic.pub_info_num--;
   }
 
@@ -1189,9 +1189,9 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
     // unreceived_subscriber_count is not checked when releasing the message.
     pub_info->entries_num--;
-    free_entry_node(wrapper, en);
+    remove_entry_node(wrapper, en);
     if (pub_info->entries_num == 0) {
-      delete_publisher_info(wrapper);
+      remove_publisher_info(wrapper);
       wrapper->topic.pub_info_num--;
     }
   }
