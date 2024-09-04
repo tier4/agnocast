@@ -1,19 +1,8 @@
 #include "agnocast.h"
 
 #include <linux/device.h>
-#include <linux/fs.h>
-#include <linux/hash.h>       // hash_64
-#include <linux/hashtable.h>  // hash table utilities
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/kobject.h>
+#include <linux/hashtable.h>
 #include <linux/kprobes.h>
-#include <linux/module.h>
-#include <linux/rbtree.h>
-#include <linux/slab.h>    // kmalloc, kfree
-#include <linux/string.h>  // strcmp, strdup
-#include <linux/sysfs.h>
-#include <linux/uaccess.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
