@@ -19,6 +19,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 static int major;
 static struct class * agnocast_class;
 static struct device * agnocast_device;
+static DEFINE_MUTEX(global_mutex);
 
 // TODO: should be made larger when applied for Autoware
 #define MAX_PUBLISHER_NUM 2   // At least 2 is required for sample application
@@ -213,26 +214,6 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   return 0;
 }
 
-static void delete_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
-{
-  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-  struct publisher_info dummy_head;
-  dummy_head.next = pub_info;
-  struct publisher_info * prev_pub_info = &dummy_head;
-  while (pub_info) {
-    if (pub_info->pid != publisher_pid) {
-      prev_pub_info = pub_info;
-      pub_info = pub_info->next;
-      continue;
-    }
-
-    prev_pub_info->next = pub_info->next;
-    kfree(pub_info);
-    break;
-  }
-  wrapper->topic.pub_info_list = dummy_head.next;
-}
-
 static int increment_entries_num(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
@@ -420,11 +401,100 @@ static ssize_t store_value(
   return count;
 }
 
-#define BUFFER_SIZE 30
+#define BUFFER_UNIT_SIZE 30
 static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
 {
-  // TODO: Implement show_all for debugging.
-  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", "Not yet implemented.");
+  mutex_lock(&global_mutex);
+
+  // at least 500 bytes would be needed as an initial buffer size
+  size_t buf_size = 1024;
+
+  char * local_buf = kmalloc(buf_size, GFP_KERNEL);
+  local_buf[0] = '\0';
+
+  struct topic_wrapper * wrapper;
+  struct hlist_node * node;
+  int bkt;
+  size_t buf_len = 0;
+
+  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
+  {
+    strcat(local_buf, wrapper->key);
+    strcat(local_buf, "\n");
+    buf_len += strlen(wrapper->key) + 1;
+
+    strcat(local_buf, " subscriber_pids:");
+    buf_len += 17;
+    for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+      char num_str[BUFFER_UNIT_SIZE];
+      scnprintf(num_str, sizeof(num_str), " %u", wrapper->topic.subscriber_pids[i]);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_UNIT_SIZE;
+    }
+    strcat(local_buf, "\n");
+    buf_len += 1;
+
+    strcat(local_buf, " publishers:\n");
+    buf_len += 13;
+
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      char num_str[BUFFER_UNIT_SIZE * 3];
+      scnprintf(
+        num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+        pub_info->entries_num, pub_info->exited);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_UNIT_SIZE * 3;
+
+      pub_info = pub_info->next;
+    }
+
+    strcat(local_buf, " entries:\n");
+    buf_len += 10;
+
+    struct rb_root * root = &wrapper->topic.entries;
+    struct rb_node * node;
+    for (node = rb_first(root); node; node = rb_next(node)) {
+      struct entry_node * en = container_of(node, struct entry_node, node);
+
+      char num_str[BUFFER_UNIT_SIZE * 4];
+      scnprintf(
+        num_str, sizeof(num_str), "  time=%lld, pid=%u, addr=%lld, published=%d, ", en->timestamp,
+        en->publisher_pid, en->msg_virtual_address, en->published);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_UNIT_SIZE * 4;
+
+      strcat(local_buf, "referencing:=[");
+      buf_len += 14;
+      for (int i = 0; i < en->subscriber_reference_count; i++) {
+        if (i > 0) {
+          strcat(local_buf, ", ");
+          buf_len += 2;
+        }
+
+        char num_str[BUFFER_UNIT_SIZE];
+        scnprintf(num_str, sizeof(num_str), "%u", en->referencing_subscriber_pids[i]);
+        strcat(local_buf, num_str);
+        buf_len += BUFFER_UNIT_SIZE;
+      }
+      strcat(local_buf, "]\n");
+      buf_len += 2;
+
+      if (buf_len * 2 > buf_size) {
+        buf_size *= 2;
+        local_buf = krealloc(local_buf, buf_size, GFP_KERNEL);
+      }
+    }
+
+    strcat(local_buf, "\n");
+    buf_len += 1;
+  }
+
+  ssize_t ret = scnprintf(buf, PAGE_SIZE, "%s\n", local_buf);
+
+  kfree(local_buf);
+
+  mutex_unlock(&global_mutex);
 
   return ret;
 }
@@ -590,8 +660,20 @@ static int topic_add_sub(
 
     if (qos_depth == 0) return 0;  // transient local is disabled
 
-    // TODO: Implement transient local
-    dev_err(agnocast_device, "transient local is not supported yet.");
+    // Return qos_depth messages in order from newest to oldest for transient local
+    for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+      struct entry_node * en = container_of(node, struct entry_node, node);
+      if (en->published) {
+        en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+        en->subscriber_reference_count++;
+        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
+        ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+        ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+        ioctl_ret->ret_len++;
+
+        if (ioctl_ret->ret_len == qos_depth) break;
+      }
+    }
 
     return 0;
   }
@@ -934,8 +1016,6 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
   return 0;
 }
 
-static DEFINE_MUTEX(global_mutex);
-
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1107,7 +1187,8 @@ static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * 
   kfree(en);
 }
 
-static bool check_and_set_exit_if_found(struct topic_wrapper * wrapper)
+
+static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   while (pub_info) {
@@ -1116,16 +1197,36 @@ static bool check_and_set_exit_if_found(struct topic_wrapper * wrapper)
       continue;
     }
     pub_info->exited = true;
-    return true;
+    return pub_info;
   }
-  return false;
+  return NULL;
 }
 
-static int pre_handler_publisher(struct topic_wrapper * wrapper)
+static void delete_publisher_info(struct topic_wrapper * wrapper)
 {
-  bool was_publishing = check_and_set_exit_if_found(wrapper);
-  if (!was_publishing) return 0;
+  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+  struct publisher_info dummy_head;
+  dummy_head.next = pub_info;
+  struct publisher_info * prev_pub_info = &dummy_head;
+  while (pub_info) {
+    if (pub_info->pid != current->pid) {
+      prev_pub_info = pub_info;
+      pub_info = pub_info->next;
+      continue;
+    }
 
+    prev_pub_info->next = pub_info->next;
+    kfree(pub_info);
+    break;
+  }
+  wrapper->topic.pub_info_list = dummy_head.next;
+}
+
+static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
+{
+  struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
+  if (!pub_info) return 0;
+  
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
   while (node) {
@@ -1133,23 +1234,13 @@ static int pre_handler_publisher(struct topic_wrapper * wrapper)
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
-      if (decrement_entries_num(wrapper, en->publisher_pid) == -1) return -1;
+      pub_info->entries_num--;
       free_entry_node(wrapper, en);
     }
   }
 
-  struct publisher_info * info = find_publisher_info(wrapper, current->pid);
-  if (!info) {
-    dev_warn(
-      agnocast_device,
-      "Publisher (pid=%d) doesn't exist in the topic (topic_name=%s). "
-      "(insert_publisher_info)\n",
-      current->pid, wrapper->key);
-    return -1;
-  }
-
-  if (info->entries_num == 0) {
-    delete_publisher_info(wrapper, current->pid);
+  if (pub_info->entries_num == 0) {
+    delete_publisher_info(wrapper);
     wrapper->topic.pub_info_num--;
   }
 
@@ -1219,7 +1310,7 @@ static int pre_handler_subscriber(struct topic_wrapper * wrapper)
       decrement_entries_num(wrapper, en->publisher_pid);
       free_entry_node(wrapper, en);
       if (pub_info->entries_num == 0) {
-        delete_publisher_info(wrapper, current->pid);
+        delete_publisher_info(wrapper);
         wrapper->topic.pub_info_num--;
       }
     }
@@ -1256,7 +1347,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
     // Exit handler for publisher
-    if (pre_handler_publisher(wrapper) == -1) {
+    if (pre_handler_publisher_exit(wrapper) == -1) {
       dev_warn(
         agnocast_device,
         "pre_handler_publisher failed (topic_name=%s, pid=%d)."
