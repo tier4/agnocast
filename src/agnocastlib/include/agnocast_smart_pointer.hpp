@@ -90,11 +90,10 @@ public:
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
-    timestamp_(r.timestamp_)
+    timestamp_(r.timestamp_),
+    need_rc_update_(r.need_rc_update_)
   {
-    std::cout << "[Error]: move constructor is not supported yet" << std::endl;
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    r.ptr_ = nullptr;
   }
 
   message_ptr & operator=(message_ptr && r)

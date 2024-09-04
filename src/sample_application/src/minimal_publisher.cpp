@@ -37,7 +37,11 @@ class MinimalPublisher : public rclcpp::Node
       for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
         message->data.push_back(i + count_);
       }
-      publisher_dynamic_->publish(std::move(message));
+
+      // In order to test move constructor
+      auto moved_message = std::move(message);
+
+      publisher_dynamic_->publish(std::move(moved_message));
     }
 
     {
