@@ -67,7 +67,7 @@ void initialize_mempool()
     exit(EXIT_FAILURE);
   }
 
-  const char * mempool_ptr = reinterpret_cast<char *>(ret);
+  char * mempool_ptr = reinterpret_cast<char *>(ret);
   memset(mempool_ptr, 0, mempool_size);
   init_memory_pool(mempool_size, mempool_ptr);  // tlsf library function
 
