@@ -290,11 +290,9 @@ void * pvalloc(size_t size)
 size_t malloc_usable_size(void * ptr)
 {
   using malloc_usable_size_type = size_t (*)(void *);
-  static malloc_usable_size_type original_malloc_usable_size =
+  static malloc_usable_size_type orig =
     reinterpret_cast<malloc_usable_size_type>(dlsym(RTLD_NEXT, "malloc_usable_size"));
-  initialize_mempool();
-  size_t ret = original_malloc_usable_size(ptr);
-  return ret;
+  return orig(ptr);
 }
 
 struct mallinfo mallinfo()
@@ -309,7 +307,6 @@ struct mallinfo2 mallinfo2()
 {
   using mallinfo2_type = struct mallinfo2 (*)(void);
   static mallinfo2_type orig = reinterpret_cast<mallinfo2_type>(dlsym(RTLD_NEXT, "mallinfo2"));
-  printf("hoge: mallinfo2 called\n");
   return orig();
 }
 #endif
@@ -335,7 +332,6 @@ void malloc_stats(void)
   static malloc_stats_type orig =
     reinterpret_cast<malloc_stats_type>(dlsym(RTLD_NEXT, "malloc_stats"));
   orig();
-  return;
 }
 
 int malloc_info(int options, FILE * stream)
