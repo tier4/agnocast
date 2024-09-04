@@ -1121,7 +1121,7 @@ static void delete_publisher_info(struct topic_wrapper * wrapper)
   wrapper->topic.pub_info_list = dummy_head.next;
 }
 
-static int pre_handler_publisher(struct topic_wrapper * wrapper)
+static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
   if (!pub_info) return 0;
@@ -1175,7 +1175,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
     // Exit handler for publisher
-    if (pre_handler_publisher(wrapper) == -1) {
+    if (pre_handler_publisher_exit(wrapper) == -1) {
       dev_warn(
         agnocast_device,
         "pre_handler_publisher failed (topic_name=%s, pid=%d)."
