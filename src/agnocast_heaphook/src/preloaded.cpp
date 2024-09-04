@@ -175,7 +175,7 @@ void free(void * ptr)
     ptr = it->second;
     aligned2orig->erase(it);
   }
-  pthread_mutex_unock(&align_mtx);
+  pthread_mutex_unlock(&align_mtx);
 
   tlsf_free_wrapped(ptr);
   is_in_hooked_call = false;
