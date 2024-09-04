@@ -1179,6 +1179,78 @@ static struct file_operations fops = {
   .unlocked_ioctl = agnocast_ioctl,
 };
 
+// =========================================
+// Handler for publisher process exit
+static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
+{
+  rb_erase(&en->node, &wrapper->topic.entries);
+  kfree(en);
+}
+
+static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
+{
+  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+  while (pub_info) {
+    if (pub_info->pid != current->pid) {
+      pub_info = pub_info->next;
+      continue;
+    }
+    pub_info->exited = true;
+    return pub_info;
+  }
+  return NULL;
+}
+
+static void delete_publisher_info(struct topic_wrapper * wrapper)
+{
+  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+  struct publisher_info dummy_head;
+  dummy_head.next = pub_info;
+  struct publisher_info * prev_pub_info = &dummy_head;
+  while (pub_info) {
+    if (pub_info->pid != current->pid) {
+      prev_pub_info = pub_info;
+      pub_info = pub_info->next;
+      continue;
+    }
+
+    prev_pub_info->next = pub_info->next;
+    kfree(pub_info);
+    break;
+  }
+  wrapper->topic.pub_info_list = dummy_head.next;
+}
+
+static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
+{
+  struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
+  if (!pub_info) return 0;
+
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+    // unreceived_subscriber_count is not checked when releasing the message.
+    if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
+      pub_info->entries_num--;
+      free_entry_node(wrapper, en);
+    }
+  }
+
+  if (pub_info->entries_num == 0) {
+    delete_publisher_info(wrapper);
+    wrapper->topic.pub_info_num--;
+  }
+
+  dev_info(
+    agnocast_device,
+    "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
+    "(pre_handler_publisher)\n",
+    current->pid, wrapper->key);
+  return 0;
+}
+
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   mutex_lock(&global_mutex);
@@ -1197,7 +1269,35 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     return 0;
   }
 
-  // TODO: Implement an exit handler.
+  struct topic_wrapper * wrapper;
+  struct hlist_node * node;
+  int bkt;
+  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
+  {
+    // Exit handler for publisher
+    if (pre_handler_publisher_exit(wrapper) == -1) {
+      dev_warn(
+        agnocast_device,
+        "pre_handler_publisher failed (topic_name=%s, pid=%d)."
+        "(pre_handler_do_exit)\n",
+        wrapper->key, current->pid);
+    }
+
+    //  TODO: Exit handler for subscriber
+
+    // Check if we can release the topic_wrapper
+    if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
+      // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
+      // leak occurs.
+      WARN_ON(wrapper->topic.pub_info_list != NULL);
+
+      hash_del(&wrapper->node);
+      if (wrapper->key) {
+        kfree(wrapper->key);
+      }
+      kfree(wrapper);
+    }
+  }
 
   mutex_unlock(&global_mutex);
   return 0;
