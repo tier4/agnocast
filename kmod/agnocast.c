@@ -1130,16 +1130,16 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
 
 static bool remove_if_subscriber(struct topic_wrapper * wrapper)
 {
-  bool was_subscribing = false;
+  bool is_subscriber = false;
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
     if (wrapper->topic.subscriber_pids[i] == current->pid) {
-      was_subscribing = true;
+      is_subscriber = true;
     }
-    if (was_subscribing && i < MAX_SUBSCRIBER_NUM - 1) {
+    if (is_subscriber && i < MAX_SUBSCRIBER_NUM - 1) {
       wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
     }
   }
-  return was_subscribing;
+  return is_subscriber;
 }
 
 static bool remove_if_referencing_subscriber(struct entry_node * en)
@@ -1148,6 +1148,7 @@ static bool remove_if_referencing_subscriber(struct entry_node * en)
   for (int i = 0; i < en->subscriber_reference_count; i++) {
     if (en->referencing_subscriber_pids[i] == current->pid) {
       referencing = true;
+      en->subscriber_reference_count--;
     }
     if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
       en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
@@ -1164,28 +1165,22 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
-  struct rb_root * root = &wrapper->topic.entries;
-  struct rb_node * node = rb_first(root);
-  while (node) {
+  for (struct rb_node * node = rb_first(&wrapper->topic.entries); node; node = rb_next(node)) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
-    node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
-    en->subscriber_reference_count--;
     if (en->subscriber_reference_count != 0) continue;
 
-    bool exited = false;
+    bool publisher_exited = false;
     struct publisher_info * pub_info = wrapper->topic.pub_info_list;
     while (pub_info) {
       if (pub_info->pid == en->publisher_pid) {
-        if (pub_info->exited) {
-          exited = true;
-        }
+        if (pub_info->exited) publisher_exited = true;
         break;
       }
       pub_info = pub_info->next;
     }
-    if (!exited) continue;
+    if (!publisher_exited) continue;
 
     // unreceived_subscriber_count is not checked when releasing the message.
     pub_info->entries_num--;
@@ -1195,6 +1190,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
       wrapper->topic.pub_info_num--;
     }
   }
+
   dev_info(
     agnocast_device,
     "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
