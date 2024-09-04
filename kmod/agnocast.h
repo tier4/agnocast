@@ -102,7 +102,6 @@ union ioctl_publish_args {
     uint32_t ret_len;
   };
 };
-#pragma GCC diagnostic pop
 
 union ioctl_new_shm_args {
   uint32_t pid;
