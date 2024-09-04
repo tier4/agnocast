@@ -1,5 +1,7 @@
 #pragma once
 
+#include <linux/types.h>
+
 // TODO: should be made larger when applied for Autoware
 #define MAX_PUBLISHER_NUM 2   // At least 2 is required for sample application
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
