@@ -1352,7 +1352,6 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   int bkt;
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
-    // Exit handler for publisher
     if (pre_handler_publisher_exit(wrapper) == -1) {
       dev_warn(
         agnocast_device,
@@ -1361,7 +1360,6 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
         wrapper->key, current->pid);
     }
 
-    // Exit handler for subscriber
     if (pre_handler_subscriber_exit(wrapper) == -1) {
       dev_warn(
         agnocast_device,
