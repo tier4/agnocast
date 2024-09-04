@@ -104,12 +104,7 @@ public:
     exit(EXIT_FAILURE);
   }
 
-  T & operator*() const noexcept
-  {
-    std::cout << "[Error]: operator*() is not supported yet" << std::endl;
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
+  T & operator*() const noexcept { return *ptr_; }
 
   T * operator->() const noexcept { return ptr_; }
 
