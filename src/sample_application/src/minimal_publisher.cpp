@@ -18,6 +18,13 @@ uint64_t agnocast_get_timestamp()
 
 class MinimalPublisher : public rclcpp::Node
 {
+  void assign_data(sample_interfaces::msg::StaticSizeArray & data)
+  {
+    for (int i = 0; i < 1000; i++) {
+      data.data[i] = (i + count_) % 256;
+    }
+  }
+
   void timer_callback()
   {
     const auto timestamp = agnocast_get_timestamp();
@@ -38,9 +45,7 @@ class MinimalPublisher : public rclcpp::Node
         publisher_static_->borrow_loaned_message();
       message->id = count_;
       message->timestamp = timestamp;
-      for (int i = 0; i < 1000; i++) {
-        message->data[i] = (i + count_) % 256;
-      }
+      assign_data(*message);
       publisher_static_->publish(std::move(message));
     }
 
