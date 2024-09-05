@@ -81,7 +81,7 @@ struct entry_node
   uint32_t unreceived_subscriber_count;
 };
 
-struct process_info * process_info_list = NULL;
+struct process_info * proc_info_list = NULL;
 
 DEFINE_HASHTABLE(topic_hashtable, AGNOCAST_HASH_BITS);
 
@@ -633,14 +633,14 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     }
     ioctl_ret->ret_pids[index] = pub_info->pid;
 
-    struct process_info * process_info = process_info_list;
-    while (process_info) {
-      if (process_info->pid == pub_info->pid) {
-        ioctl_ret->ret_addrs[index] = process_info->shm_addr;
+    struct process_info * proc_info = proc_info_list;
+    while (proc_info) {
+      if (proc_info->pid == pub_info->pid) {
+        ioctl_ret->ret_addrs[index] = proc_info->shm_addr;
         index++;
         break;
       }
-      process_info = process_info->next;
+      proc_info = proc_info->next;
     }
 
     pub_info = pub_info->next;
@@ -675,16 +675,16 @@ static int publisher_add(
   wrapper->topic.pub_info_num++;
 
   // set shm addr to ioctl_ret
-  struct process_info * process_info = process_info_list;
-  while (process_info) {
-    if (process_info->pid == pid) {
-      ioctl_ret->ret_shm_addr = process_info->shm_addr;
+  struct process_info * proc_info = proc_info_list;
+  while (proc_info) {
+    if (proc_info->pid == pid) {
+      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
       break;
     }
-    process_info = process_info->next;
+    proc_info = proc_info->next;
   }
 
-  if (!process_info) {
+  if (!proc_info) {
     dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
   }
@@ -894,17 +894,17 @@ static int publish_msg(
 
 static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
-  struct process_info * new_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
-  new_info->pid = pid;
-  new_info->shm_addr = allocatable_addr;
-  new_info->next = process_info_list;
+  struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
+  new_proc_info->pid = pid;
+  new_proc_info->shm_addr = allocatable_addr;
+  new_proc_info->next = proc_info_list;
 
-  process_info_list = new_info;
+  proc_info_list = new_proc_info;
 
   // TODO: allocate 0x00400000000 size for each process, currently
   allocatable_addr += 0x00400000000;
 
-  ioctl_ret->ret_addr = new_info->shm_addr;
+  ioctl_ret->ret_addr = new_proc_info->shm_addr;
   return 0;
 }
 
@@ -1239,26 +1239,26 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   mutex_lock(&global_mutex);
 
   // Quickly determine if it is an Agnocast-related process.
-  struct process_info * process_info = process_info_list;
+  struct process_info * proc_info = proc_info_list;
   struct process_info dummy_head;
-  dummy_head.next = process_info;
-  struct process_info * prev_process_info = &dummy_head;
-  while (process_info) {
-    if (process_info->pid == current->pid) {
+  dummy_head.next = proc_info;
+  struct process_info * prev_proc_info = &dummy_head;
+  while (proc_info) {
+    if (proc_info->pid == current->pid) {
       break;
     }
-    process_info = process_info->next;
-    prev_process_info = prev_process_info->next;
+    proc_info = proc_info->next;
+    prev_proc_info = prev_proc_info->next;
   }
 
-  if (!process_info) {
+  if (!proc_info) {
     mutex_unlock(&global_mutex);
     return 0;
   }
 
-  prev_process_info->next = process_info->next;
-  kfree(process_info);
-  process_info_list = dummy_head.next;
+  prev_proc_info->next = proc_info->next;
+  kfree(proc_info);
+  proc_info_list = dummy_head.next;
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
