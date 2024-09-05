@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/veqcc/work/agnocast/install/sample_interfaces/include/**",
+        "/home/veqcc/work/agnocast/install/agnocastlib/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/veqcc/work/agnocast/src/agnocastlib/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

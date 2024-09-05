@@ -3,6 +3,7 @@
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kprobes.h>
+#include <linux/slab.h>  // kmalloc, kfree
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
