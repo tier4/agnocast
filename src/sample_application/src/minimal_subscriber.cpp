@@ -37,9 +37,12 @@ class MinimalSubscriber : public rclcpp::Node
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
     pthread_mutex_unlock(&timestamp_mtx);
 
+    // In order to test copy constructor
+    const auto copied_message = message;
+
     RCLCPP_INFO(
       this->get_logger(), "I heard dynamic message: addr=%016lx",
-      reinterpret_cast<uint64_t>(message.get()));
+      reinterpret_cast<uint64_t>(copied_message.get()));
   }
 
   void callback_static(
