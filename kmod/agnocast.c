@@ -1286,7 +1286,7 @@ static int agnocast_init(void)
   return 0;
 }
 
-static void free_all_topics(void)
+static void remove_all_topics(void)
 {
   struct topic_wrapper * wrapper;
   struct hlist_node * tmp;
@@ -1318,7 +1318,7 @@ static void free_all_topics(void)
 static void agnocast_exit(void)
 {
   mutex_lock(&global_mutex);
-  free_all_topics();
+  remove_all_topics();
   mutex_unlock(&global_mutex);
 
   // Decrement reference count
