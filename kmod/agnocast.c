@@ -1191,8 +1191,11 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
-  for (struct rb_node * node = rb_first(&wrapper->topic.entries); node; node = rb_next(node)) {
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
     if (en->subscriber_reference_count != 0) continue;
