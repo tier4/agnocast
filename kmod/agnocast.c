@@ -268,6 +268,32 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
+static int increment_message_entry_rc(
+  const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
+      topic_name);
+    return -1;
+  }
+
+  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
+  if (!en) {
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
+      "(increment_message_entry_rc)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+  en->subscriber_reference_count++;
+  return 0;
+}
+
 static int decrement_message_entry_rc(
   const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -965,6 +991,17 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         &enqueue_release_args);
       if (copy_to_user((uint64_t __user *)arg, &enqueue_release_args, sizeof(enqueue_release_args)))
         goto unlock_mutex_and_return;
+      break;
+    case AGNOCAST_INCREMENT_RC_CMD:
+      if (copy_from_user(
+            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+        goto unlock_mutex_and_return;
+      if (copy_from_user(
+            topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
+        goto unlock_mutex_and_return;
+      ret = increment_message_entry_rc(
+        topic_name_buf, entry_args.subscriber_pid, entry_args.publisher_pid,
+        entry_args.msg_timestamp);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
