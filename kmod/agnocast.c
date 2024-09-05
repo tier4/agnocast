@@ -1316,15 +1316,39 @@ static int agnocast_init(void)
   return 0;
 }
 
-static void free_all_topics(void)
+static void remove_all_topics(void)
 {
-  // TODO: Implement memory deallocation when 'rmmod' is called.
+  struct topic_wrapper * wrapper;
+  struct hlist_node * tmp;
+  int bkt;
+
+  hash_for_each_safe(topic_hashtable, bkt, tmp, wrapper, node)
+  {
+    struct rb_root * root = &wrapper->topic.entries;
+    struct rb_node * node = rb_first(root);
+    while (node) {
+      struct entry_node * en = rb_entry(node, struct entry_node, node);
+      node = rb_next(node);
+      remove_entry_node(wrapper, en);
+    }
+
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      struct publisher_info * pub_info_next = pub_info->next;
+      kfree(pub_info);
+      pub_info = pub_info_next;
+    }
+
+    hash_del(&wrapper->node);
+    kfree(wrapper->key);
+    kfree(wrapper);
+  }
 }
 
 static void agnocast_exit(void)
 {
   mutex_lock(&global_mutex);
-  free_all_topics();
+  remove_all_topics();
   mutex_unlock(&global_mutex);
 
   // Decrement reference count
