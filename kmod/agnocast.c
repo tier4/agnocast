@@ -257,6 +257,32 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
+static int increment_message_entry_rc(
+  const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
+      topic_name);
+    return -1;
+  }
+
+  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
+  if (!en) {
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
+      "(increment_message_entry_rc)\n",
+      topic_name, publisher_pid, msg_timestamp);
+    return -1;
+  }
+
+  en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
+  en->subscriber_reference_count++;
+  return 0;
+}
+
 static int decrement_message_entry_rc(
   const char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -955,6 +981,17 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_to_user((uint64_t __user *)arg, &enqueue_release_args, sizeof(enqueue_release_args)))
         goto unlock_mutex_and_return;
       break;
+    case AGNOCAST_INCREMENT_RC_CMD:
+      if (copy_from_user(
+            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+        goto unlock_mutex_and_return;
+      if (copy_from_user(
+            topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
+        goto unlock_mutex_and_return;
+      ret = increment_message_entry_rc(
+        topic_name_buf, entry_args.subscriber_pid, entry_args.publisher_pid,
+        entry_args.msg_timestamp);
+      break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
             &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
@@ -1048,7 +1085,7 @@ static struct file_operations fops = {
 
 // =========================================
 // Handler for publisher process exit
-static void free_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
+static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
 {
   rb_erase(&en->node, &wrapper->topic.entries);
   kfree(en);
@@ -1068,7 +1105,7 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
   return NULL;
 }
 
-static void delete_publisher_info(struct topic_wrapper * wrapper)
+static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = wrapper->topic.pub_info_list;
   struct publisher_info dummy_head;
@@ -1083,15 +1120,16 @@ static void delete_publisher_info(struct topic_wrapper * wrapper)
 
     prev_pub_info->next = pub_info->next;
     kfree(pub_info);
+    wrapper->topic.pub_info_num--;
     break;
   }
   wrapper->topic.pub_info_list = dummy_head.next;
 }
 
-static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
+static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
-  if (!pub_info) return 0;
+  if (!pub_info) return;
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
@@ -1101,13 +1139,12 @@ static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     // unreceived_subscriber_count is not checked when releasing the message.
     if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
       pub_info->entries_num--;
-      free_entry_node(wrapper, en);
+      remove_entry_node(wrapper, en);
     }
   }
 
   if (pub_info->entries_num == 0) {
-    delete_publisher_info(wrapper);
-    wrapper->topic.pub_info_num--;
+    remove_publisher_info(wrapper);
   }
 
   dev_info(
@@ -1115,7 +1152,74 @@ static int pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
     "(pre_handler_publisher)\n",
     current->pid, wrapper->key);
-  return 0;
+}
+
+static bool remove_if_subscriber(struct topic_wrapper * wrapper)
+{
+  bool is_subscriber = false;
+  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+    if (wrapper->topic.subscriber_pids[i] == current->pid) {
+      is_subscriber = true;
+      wrapper->topic.subscriber_num--;
+    }
+    if (is_subscriber && i < MAX_SUBSCRIBER_NUM - 1) {
+      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
+    }
+  }
+  return is_subscriber;
+}
+
+static bool remove_if_referencing_subscriber(struct entry_node * en)
+{
+  bool referencing = false;
+  for (int i = 0; i < en->subscriber_reference_count; i++) {
+    if (en->referencing_subscriber_pids[i] == current->pid) {
+      referencing = true;
+      en->subscriber_reference_count--;
+    }
+    if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
+      en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
+    }
+  }
+  return referencing;
+}
+
+static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
+{
+  if (!remove_if_subscriber(wrapper)) return;
+
+  // Decrement the reference count, then free the entry node if it reaches zero and publisher has
+  // already exited.
+  for (struct rb_node * node = rb_first(&wrapper->topic.entries); node; node = rb_next(node)) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    if (!remove_if_referencing_subscriber(en)) continue;
+
+    if (en->subscriber_reference_count != 0) continue;
+
+    bool publisher_exited = false;
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      if (pub_info->pid == en->publisher_pid) {
+        if (pub_info->exited) publisher_exited = true;
+        break;
+      }
+      pub_info = pub_info->next;
+    }
+    if (!publisher_exited) continue;
+
+    // unreceived_subscriber_count is not checked when releasing the message.
+    pub_info->entries_num--;
+    remove_entry_node(wrapper, en);
+    if (pub_info->entries_num == 0) {
+      remove_publisher_info(wrapper);
+    }
+  }
+
+  dev_info(
+    agnocast_device,
+    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
+    "(pre_handler_subscriber)\n",
+    current->pid, wrapper->key);
 }
 
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
@@ -1141,16 +1245,9 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   int bkt;
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
-    // Exit handler for publisher
-    if (pre_handler_publisher_exit(wrapper) == -1) {
-      dev_warn(
-        agnocast_device,
-        "pre_handler_publisher failed (topic_name=%s, pid=%d)."
-        "(pre_handler_do_exit)\n",
-        wrapper->key, current->pid);
-    }
+    pre_handler_publisher_exit(wrapper);
 
-    //  TODO: Exit handler for subscriber
+    pre_handler_subscriber_exit(wrapper);
 
     // Check if we can release the topic_wrapper
     if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
