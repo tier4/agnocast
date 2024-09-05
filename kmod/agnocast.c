@@ -35,6 +35,8 @@ struct process_info
   struct process_info * next;
 };
 
+struct process_info * proc_info_list = NULL;
+
 // TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
 
@@ -80,8 +82,6 @@ struct entry_node
    */
   uint32_t unreceived_subscriber_count;
 };
-
-struct process_info * proc_info_list = NULL;
 
 DEFINE_HASHTABLE(topic_hashtable, AGNOCAST_HASH_BITS);
 
