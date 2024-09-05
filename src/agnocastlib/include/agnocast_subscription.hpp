@@ -34,6 +34,11 @@ void wait_for_new_publisher(const uint32_t pid);
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid);
 
+struct SubscriptionOptions
+{
+  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+};
+
 class SubscriptionBase
 {
 public:
@@ -86,12 +91,28 @@ template <typename MessageT>
 class CallbackSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr ros2_node_base_;
 
 public:
   CallbackSubscription(
-    const char * topic_name, const rclcpp::QoS & qos,
-    std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const char * topic_name,
+    const rclcpp::QoS & qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback,
+    agnocast::SubscriptionOptions options)
+  : ros2_node_base_(node)
   {
+    rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
+
+    if (callback_group) {
+      if (!ros2_node_base_->callback_group_in_node(callback_group)) {
+        throw std::runtime_error(
+          "Cannot create agnocast subscription, callback group not in node.");
+      }
+    } else {
+      callback_group = ros2_node_base_->get_default_callback_group();
+    }
+
+    (void)callback_group;
+
     const pid_t subscriber_pid = getpid();
     union ioctl_add_topic_sub_args add_topic_args = initialize(subscriber_pid, topic_name, qos);
 

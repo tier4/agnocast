@@ -50,19 +50,42 @@ std::shared_ptr<Publisher<MessageT>> create_publisher(
 
 template <typename MessageT>
 std::shared_ptr<CallbackSubscription<MessageT>> create_subscription(
-  const char * topic_name, const rclcpp::QoS & qos,
-  std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const char * topic_name,
+  const rclcpp::QoS & qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
 {
-  return std::make_shared<CallbackSubscription<MessageT>>(topic_name, qos, callback);
+  agnocast::SubscriptionOptions options;
+
+  return std::make_shared<CallbackSubscription<MessageT>>(node, topic_name, qos, callback, options);
 }
 
 template <typename MessageT>
 std::shared_ptr<CallbackSubscription<MessageT>> create_subscription(
-  const char * topic_name, size_t qos_history_depth,
-  std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const char * topic_name,
+  size_t qos_history_depth, std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+{
+  agnocast::SubscriptionOptions options;
+
+  return std::make_shared<CallbackSubscription<MessageT>>(
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback, options);
+}
+
+template <typename MessageT>
+std::shared_ptr<CallbackSubscription<MessageT>> create_subscription(
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const char * topic_name,
+  const rclcpp::QoS & qos, std::function<void(const agnocast::message_ptr<MessageT> &)> callback,
+  agnocast::SubscriptionOptions options)
+{
+  return std::make_shared<CallbackSubscription<MessageT>>(node, topic_name, qos, callback, options);
+}
+
+template <typename MessageT>
+std::shared_ptr<CallbackSubscription<MessageT>> create_subscription(
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const char * topic_name,
+  size_t qos_history_depth, std::function<void(const agnocast::message_ptr<MessageT> &)> callback,
+  agnocast::SubscriptionOptions options)
 {
   return std::make_shared<CallbackSubscription<MessageT>>(
-    topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback);
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback, options);
 }
 
 template <typename MessageT>
