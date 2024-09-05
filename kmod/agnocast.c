@@ -1,19 +1,9 @@
 #include "agnocast.h"
 
 #include <linux/device.h>
-#include <linux/fs.h>
-#include <linux/hash.h>       // hash_64
-#include <linux/hashtable.h>  // hash table utilities
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/kobject.h>
+#include <linux/hashtable.h>
 #include <linux/kprobes.h>
-#include <linux/module.h>
-#include <linux/rbtree.h>
-#include <linux/slab.h>    // kmalloc, kfree
-#include <linux/string.h>  // strcmp, strdup
-#include <linux/sysfs.h>
-#include <linux/uaccess.h>
+#include <linux/slab.h>  // kmalloc, kfree
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -1202,8 +1192,11 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
-  for (struct rb_node * node = rb_first(&wrapper->topic.entries); node; node = rb_next(node)) {
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
     if (en->subscriber_reference_count != 0) continue;
@@ -1332,15 +1325,39 @@ static int agnocast_init(void)
   return 0;
 }
 
-static void free_all_topics(void)
+static void remove_all_topics(void)
 {
-  // TODO: Implement memory deallocation when 'rmmod' is called.
+  struct topic_wrapper * wrapper;
+  struct hlist_node * tmp;
+  int bkt;
+
+  hash_for_each_safe(topic_hashtable, bkt, tmp, wrapper, node)
+  {
+    struct rb_root * root = &wrapper->topic.entries;
+    struct rb_node * node = rb_first(root);
+    while (node) {
+      struct entry_node * en = rb_entry(node, struct entry_node, node);
+      node = rb_next(node);
+      remove_entry_node(wrapper, en);
+    }
+
+    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    while (pub_info) {
+      struct publisher_info * pub_info_next = pub_info->next;
+      kfree(pub_info);
+      pub_info = pub_info_next;
+    }
+
+    hash_del(&wrapper->node);
+    kfree(wrapper->key);
+    kfree(wrapper);
+  }
 }
 
 static void agnocast_exit(void)
 {
   mutex_lock(&global_mutex);
-  free_all_topics();
+  remove_all_topics();
   mutex_unlock(&global_mutex);
 
   // Decrement reference count
