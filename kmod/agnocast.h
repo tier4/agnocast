@@ -34,7 +34,8 @@ union ioctl_subscriber_args {
   {
     uint32_t ret_publisher_num;
     uint32_t ret_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 
@@ -47,6 +48,7 @@ union ioctl_publisher_args {
   struct
   {
     uint64_t ret_shm_addr;
+    uint64_t ret_shm_size;
     uint32_t ret_subscriber_len;
     uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
   };
@@ -106,7 +108,11 @@ union ioctl_publish_args {
 };
 
 union ioctl_new_shm_args {
-  uint32_t pid;
+  struct
+  {
+    uint32_t pid;
+    uint64_t shm_size;
+  };
   uint64_t ret_addr;
 };
 

@@ -18,7 +18,7 @@
 namespace agnocast
 {
 
-void * initialize_agnocast();
+void * initialize_agnocast(const uint64_t shm_size);
 size_t read_mq_msgmax();
 
 template <typename MessageT>

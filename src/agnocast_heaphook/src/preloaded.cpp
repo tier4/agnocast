@@ -48,7 +48,7 @@ void initialize_mempool()
   }
   const size_t mempool_size = std::stoull(std::string(mempool_size_env));
 
-  void * ret = agnocast::initialize_agnocast();
+  void * ret = agnocast::initialize_agnocast(mempool_size);
   if (ret == NULL) {
     fprintf(stderr, "preloaded: initialize_agnocast failed\n");
     pthread_mutex_unlock(&init_mtx);
