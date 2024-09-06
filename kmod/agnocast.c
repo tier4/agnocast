@@ -1354,10 +1354,21 @@ static void remove_all_topics(void)
   }
 }
 
+static void remove_all_process_info(void)
+{
+  struct process_info * proc_info = proc_info_list;
+  while (proc_info) {
+    struct process_info * next = proc_info->next;
+    kfree(proc_info);
+    proc_info = next;
+  }
+}
+
 static void agnocast_exit(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
+  remove_all_process_info();
   mutex_unlock(&global_mutex);
 
   // Decrement reference count
