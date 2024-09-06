@@ -18,11 +18,14 @@ static DEFINE_MUTEX(global_mutex);
 
 #define AGNOCAST_HASH_BITS 10  // hash table size : 2^AGNOCAST_HASH_BITS
 
-// TODO: data structures for mapping pid to shm_addr during initialization
-#define MAX_PROCESS_NUM 1024
-uint32_t pid_index = 0;
-uint32_t process_ids[MAX_PROCESS_NUM];
-uint64_t shm_addrs[MAX_PROCESS_NUM];
+struct process_info
+{
+  uint32_t pid;
+  uint64_t shm_addr;
+  struct process_info * next;
+};
+
+struct process_info * proc_info_list = NULL;
 
 // TODO: assume 0x40000000000~ is allocatable
 uint64_t allocatable_addr = 0x40000000000;
@@ -619,13 +622,17 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
       continue;
     }
     ioctl_ret->ret_pids[index] = pub_info->pid;
-    for (int j = 0; j < pid_index; j++) {
-      if (process_ids[j] == pub_info->pid) {
-        ioctl_ret->ret_addrs[index] = shm_addrs[j];
+
+    struct process_info * proc_info = proc_info_list;
+    while (proc_info) {
+      if (proc_info->pid == pub_info->pid) {
+        ioctl_ret->ret_addrs[index] = proc_info->shm_addr;
         index++;
         break;
       }
+      proc_info = proc_info->next;
     }
+
     pub_info = pub_info->next;
   }
 
@@ -658,17 +665,17 @@ static int publisher_add(
   wrapper->topic.pub_info_num++;
 
   // set shm addr to ioctl_ret
-  bool found = false;
-  for (int i = 0; i < pid_index; i++) {
-    if (process_ids[i] == pid) {
-      ioctl_ret->ret_shm_addr = shm_addrs[i];
-      found = true;
+  struct process_info * proc_info = proc_info_list;
+  while (proc_info) {
+    if (proc_info->pid == pid) {
+      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
       break;
     }
+    proc_info = proc_info->next;
   }
 
-  if (!found) {
-    dev_warn(agnocast_device, "Publisher (pid=%d) not found. (publisher_add)\n", pid);
+  if (!proc_info) {
+    dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
   }
 
@@ -877,23 +884,17 @@ static int publish_msg(
 
 static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
 {
-  if (pid_index >= MAX_PROCESS_NUM) {
-    dev_warn(
-      agnocast_device,
-      "The number of processes has reached the upper bound (MAX_PROCESS_NUM=%d), "
-      "so no new shared memory segments can be allocated. (new_shm_addr)\n",
-      MAX_PROCESS_NUM);
-    return -1;
-  }
+  struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
+  new_proc_info->pid = pid;
+  new_proc_info->shm_addr = allocatable_addr;
+  new_proc_info->next = proc_info_list;
 
-  process_ids[pid_index] = pid;
-  shm_addrs[pid_index] = allocatable_addr;
+  proc_info_list = new_proc_info;
 
   // TODO: allocate 0x00400000000 size for each process, currently
   allocatable_addr += 0x00400000000;
 
-  ioctl_ret->ret_addr = shm_addrs[pid_index];
-  pid_index++;
+  ioctl_ret->ret_addr = new_proc_info->shm_addr;
   return 0;
 }
 
@@ -1231,18 +1232,26 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   mutex_lock(&global_mutex);
 
   // Quickly determine if it is an Agnocast-related process.
-  bool agnocast_related = false;
-  for (int i = 0; i < pid_index; i++) {
-    if (process_ids[i] == current->pid) {
-      agnocast_related = true;
+  struct process_info * proc_info = proc_info_list;
+  struct process_info dummy_head;
+  dummy_head.next = proc_info;
+  struct process_info * prev_proc_info = &dummy_head;
+  while (proc_info) {
+    if (proc_info->pid == current->pid) {
       break;
     }
+    proc_info = proc_info->next;
+    prev_proc_info = prev_proc_info->next;
   }
 
-  if (!agnocast_related) {
+  if (!proc_info) {
     mutex_unlock(&global_mutex);
     return 0;
   }
+
+  prev_proc_info->next = proc_info->next;
+  kfree(proc_info);
+  proc_info_list = dummy_head.next;
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
