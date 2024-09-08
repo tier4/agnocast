@@ -3,6 +3,7 @@
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
+#include "agnocast_topic_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -111,8 +112,6 @@ public:
       callback_group = ros2_node_base_->get_default_callback_group();
     }
 
-    (void)callback_group;
-
     const pid_t subscriber_pid = getpid();
     union ioctl_add_topic_sub_args add_topic_args = initialize(subscriber_pid, topic_name, qos);
 
@@ -138,6 +137,8 @@ public:
       exit(EXIT_FAILURE);
     }
     mq_subscription = std::make_pair(mq, mq_name);
+
+    int topic_id = register_callback(callback, mq, callback_group);
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
@@ -190,7 +191,8 @@ public:
         }
         */
 
-        callback(agnocast_ptr);
+        auto callable = create_callable(agnocast_ptr, topic_id);
+        callable();
       }
     });
 

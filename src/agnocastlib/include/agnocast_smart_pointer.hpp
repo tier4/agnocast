@@ -65,6 +65,8 @@ class message_ptr
   }
 
 public:
+  using element_type = T;
+
   const char * get_topic_name() { return topic_name_; }
   uint32_t get_publisher_pid() const { return publisher_pid_; }
   uint64_t get_timestamp() { return timestamp_; }
