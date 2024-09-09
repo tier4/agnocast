@@ -52,6 +52,7 @@ jobs:
     
     - name: run tests
       run: |
+        source /opt/ros/humble/setup.bash
         colcon test --event-handlers console_cohesion+
         colcon test-result --verbose
 
