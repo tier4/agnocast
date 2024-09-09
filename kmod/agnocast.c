@@ -17,16 +17,17 @@ static DEFINE_MUTEX(global_mutex);
 // data structure
 
 #define AGNOCAST_HASH_BITS 10  // hash table size : 2^AGNOCAST_HASH_BITS
+#define PROC_INFO_HASH_BITS 10
 
 struct process_info
 {
   uint32_t pid;
   uint64_t shm_addr;
   uint64_t shm_size;
-  struct process_info * next;
+  struct hlist_node node;
 };
 
-struct process_info * proc_info_list = NULL;
+DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 
 struct publisher_info
 {
@@ -431,16 +432,16 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
   strcat(local_buf, "processes:\n");
   buf_len += 11;
-  struct process_info * proc_info = proc_info_list;
-  while (proc_info) {
+  struct process_info * proc_info;
+  int bkt_proc_info;
+  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
+  {
     char num_str[BUFFER_UNIT_SIZE * 3];
     scnprintf(
       num_str, sizeof(num_str), " pid=%u, addr=%llu, size=%llu\n", proc_info->pid,
       proc_info->shm_addr, proc_info->shm_size);
     strcat(local_buf, num_str);
     buf_len += BUFFER_UNIT_SIZE * 3;
-
-    proc_info = proc_info->next;
   }
   strcat(local_buf, "\n");
   buf_len += 1;
@@ -636,15 +637,16 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     }
     ioctl_ret->ret_pids[index] = pub_info->pid;
 
-    struct process_info * proc_info = proc_info_list;
-    while (proc_info) {
+    struct process_info * proc_info;
+    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
+    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+    {
       if (proc_info->pid == pub_info->pid) {
         ioctl_ret->ret_shm_addrs[index] = proc_info->shm_addr;
         ioctl_ret->ret_shm_sizes[index] = proc_info->shm_size;
         index++;
         break;
       }
-      proc_info = proc_info->next;
     }
 
     pub_info = pub_info->next;
@@ -679,16 +681,18 @@ static int publisher_add(
   wrapper->topic.pub_info_num++;
 
   // set shm addr to ioctl_ret
-  struct process_info * proc_info = proc_info_list;
-  while (proc_info) {
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
     if (proc_info->pid == pid) {
       ioctl_ret->ret_shm_addr = proc_info->shm_addr;
       ioctl_ret->ret_shm_size = proc_info->shm_size;
       break;
     }
-    proc_info = proc_info->next;
   }
 
+  // TODO: Need to check if this applies
   if (!proc_info) {
     dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
@@ -906,9 +910,10 @@ static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_arg
   new_proc_info->pid = pid;
   new_proc_info->shm_addr = allocatable_addr;
   new_proc_info->shm_size = shm_size;
-  new_proc_info->next = proc_info_list;
 
-  proc_info_list = new_proc_info;
+  INIT_HLIST_NODE(&new_proc_info->node);
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   allocatable_addr += shm_size;
 
@@ -1250,26 +1255,26 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   mutex_lock(&global_mutex);
 
   // Quickly determine if it is an Agnocast-related process.
-  struct process_info * proc_info = proc_info_list;
-  struct process_info dummy_head;
-  dummy_head.next = proc_info;
-  struct process_info * prev_proc_info = &dummy_head;
-  while (proc_info) {
-    if (proc_info->pid == current->pid) {
-      break;
+  struct process_info * proc_info;
+  struct hlist_node * tmp;
+  uint32_t hash_val = hash_min(current->pid, PROC_INFO_HASH_BITS);
+  bool agnocast_related = false;
+  hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
+  {
+    if (proc_info->pid != current->pid) {
+      continue;
     }
-    proc_info = proc_info->next;
-    prev_proc_info = prev_proc_info->next;
+
+    hash_del(&proc_info->node);
+    kfree(proc_info);
+    agnocast_related = true;
+    break;
   }
 
-  if (!proc_info) {
+  if (!agnocast_related) {
     mutex_unlock(&global_mutex);
     return 0;
   }
-
-  prev_proc_info->next = proc_info->next;
-  kfree(proc_info);
-  proc_info_list = dummy_head.next;
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
@@ -1374,11 +1379,13 @@ static void remove_all_topics(void)
 
 static void remove_all_process_info(void)
 {
-  struct process_info * proc_info = proc_info_list;
-  while (proc_info) {
-    struct process_info * next = proc_info->next;
+  struct process_info * proc_info;
+  int bkt;
+  struct hlist_node * tmp;
+  hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
+  {
+    hash_del(&proc_info->node);
     kfree(proc_info);
-    proc_info = next;
   }
 }
 
