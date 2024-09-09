@@ -45,6 +45,12 @@ Unload kmod.
 sudo rmmod agnocast
 ```
 
+## Run tests
+
+```bash
+colcon test
+```
+
 ## Debug
 
 To use dynamic_debug for dynamically outputting debug logs, please run the following command as super user:

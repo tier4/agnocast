@@ -49,6 +49,11 @@ Message queue is also created for each process.
 Suppose the process's id is `pid`, then the message queue is named as "/new_publisher@pid".
 The restriction for the name is the same as the shared memory.
 
+## How virtual addresses are decided?
+
+Any process which joins Agnocast has to set `MEMPOOL_SIZE` as an environment variable.
+The passed value is aligned to 100kB.
+
 ## Known issues
 
 - When a heaphook fails to allocate a memory due to the lack of enough memory pool, heaphook tries to add a new memory. However, the added area will not be mapped by the subscribers in the current implementation and in turn Agnocast will not work well.
