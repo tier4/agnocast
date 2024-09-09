@@ -166,11 +166,12 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
 static struct publisher_info * find_publisher_info(
   const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  struct publisher_info *info;
-  hash_for_each_possible(wrapper->topic.pub_info_htable, info, hnode, publisher_pid) {
-      if (info->pid == publisher_pid) {
-          return info;
-      }
+  struct publisher_info * info;
+  hash_for_each_possible(wrapper->topic.pub_info_htable, info, hnode, publisher_pid)
+  {
+    if (info->pid == publisher_pid) {
+      return info;
+    }
   }
 
   return NULL;
@@ -198,7 +199,8 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->entries_num = 0;
   new_info->exited = false;
   INIT_HLIST_NODE(&new_info->hnode);
-  hash_add(wrapper->topic.pub_info_htable, &new_info->hnode, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
+  hash_add(
+    wrapper->topic.pub_info_htable, &new_info->hnode, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
 
   return 0;
 }
@@ -469,16 +471,16 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " publishers:\n");
     buf_len += 13;
 
-    //struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-    //while (pub_info) {
-      //char num_str[BUFFER_UNIT_SIZE * 3];
-      //scnprintf(
-        //num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
-        //pub_info->entries_num, pub_info->exited);
-      //strcat(local_buf, num_str);
-      //buf_len += BUFFER_UNIT_SIZE * 3;
+    // struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    // while (pub_info) {
+    // char num_str[BUFFER_UNIT_SIZE * 3];
+    // scnprintf(
+    // num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+    // pub_info->entries_num, pub_info->exited);
+    // strcat(local_buf, num_str);
+    // buf_len += BUFFER_UNIT_SIZE * 3;
 
-      //pub_info = pub_info->next;
+    // pub_info = pub_info->next;
     //}
 
     strcat(local_buf, " entries:\n");
@@ -628,10 +630,11 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   }
 
   struct publisher_info * pub_info;
-  struct hlist_node *tmp;
+  struct hlist_node * tmp;
   int bkt;
   int index = 0;
-  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode) {
+  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode)
+  {
     if (pub_info->exited) {
       continue;
     }
@@ -1126,9 +1129,10 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
 static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
-  struct hlist_node *tmp;
+  struct hlist_node * tmp;
   int bkt;
-  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode) {
+  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode)
+  {
     if (pub_info->pid != current->pid) {
       continue;
     }
