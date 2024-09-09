@@ -47,7 +47,7 @@ sudo rmmod agnocast
 
 ## Run tests
 
-```
+```bash
 colcon test
 ```
 
