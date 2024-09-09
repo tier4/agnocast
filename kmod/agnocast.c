@@ -471,11 +471,12 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
     struct publisher_info * pub_info;
     int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node){
+    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+    {
       char num_str[BUFFER_UNIT_SIZE * 3];
       scnprintf(
-      num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
-      pub_info->entries_num, pub_info->exited);
+        num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+        pub_info->entries_num, pub_info->exited);
       strcat(local_buf, num_str);
       buf_len += BUFFER_UNIT_SIZE * 3;
     }
