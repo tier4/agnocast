@@ -17,6 +17,8 @@ static DEFINE_MUTEX(global_mutex);
 // data structure
 
 #define AGNOCAST_HASH_BITS 10  // hash table size : 2^AGNOCAST_HASH_BITS
+#define PUB_INFO_HASH_BITS 1
+#define PUB_INFO_HASH_SIZE (1 << PUB_INFO_HASH_BITS)
 
 struct process_info
 {
@@ -33,14 +35,14 @@ struct publisher_info
   uint32_t pid;
   uint32_t entries_num;
   bool exited;
-  struct publisher_info * next;
+  struct hlist_node hnode;
 };
 
 struct topic_struct
 {
   struct rb_root entries;
   uint32_t pub_info_num;
-  struct publisher_info * pub_info_list;
+  DECLARE_HASHTABLE(pub_info_htable, PUB_INFO_HASH_BITS);
   unsigned int subscriber_num;
   uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
 };
@@ -96,7 +98,7 @@ static int insert_topic(const char * topic_name)
 
   wrapper->topic.entries = RB_ROOT;
   wrapper->topic.pub_info_num = 0;  // This also includes publishers that have already exited.
-  wrapper->topic.pub_info_list = NULL;
+  hash_init(wrapper->topic.pub_info_htable);
   wrapper->topic.subscriber_num = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     wrapper->topic.subscriber_pids[i] = 0;
@@ -164,13 +166,11 @@ static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
 static struct publisher_info * find_publisher_info(
   const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  struct publisher_info * info = wrapper->topic.pub_info_list;
-  while (info) {
-    if (publisher_pid == info->pid) {
-      return info;
-    }
-
-    info = info->next;
+  struct publisher_info *info;
+  hash_for_each_possible(wrapper->topic.pub_info_htable, info, hnode, publisher_pid) {
+      if (info->pid == publisher_pid) {
+          return info;
+      }
   }
 
   return NULL;
@@ -197,8 +197,8 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->pid = publisher_pid;
   new_info->entries_num = 0;
   new_info->exited = false;
-  new_info->next = wrapper->topic.pub_info_list;
-  wrapper->topic.pub_info_list = new_info;
+  INIT_HLIST_NODE(&new_info->hnode);
+  hash_add(wrapper->topic.pub_info_htable, &new_info->hnode, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
 
   return 0;
 }
@@ -469,17 +469,17 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " publishers:\n");
     buf_len += 13;
 
-    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-    while (pub_info) {
-      char num_str[BUFFER_UNIT_SIZE * 3];
-      scnprintf(
-        num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
-        pub_info->entries_num, pub_info->exited);
-      strcat(local_buf, num_str);
-      buf_len += BUFFER_UNIT_SIZE * 3;
+    //struct publisher_info * pub_info = wrapper->topic.pub_info_list;
+    //while (pub_info) {
+      //char num_str[BUFFER_UNIT_SIZE * 3];
+      //scnprintf(
+        //num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+        //pub_info->entries_num, pub_info->exited);
+      //strcat(local_buf, num_str);
+      //buf_len += BUFFER_UNIT_SIZE * 3;
 
-      pub_info = pub_info->next;
-    }
+      //pub_info = pub_info->next;
+    //}
 
     strcat(local_buf, " entries:\n");
     buf_len += 10;
@@ -627,15 +627,15 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
+  struct publisher_info * pub_info;
+  struct hlist_node *tmp;
+  int bkt;
   int index = 0;
-  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-  while (pub_info) {
+  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode) {
     if (pub_info->exited) {
-      pub_info = pub_info->next;
       continue;
     }
     ioctl_ret->ret_pids[index] = pub_info->pid;
-
     struct process_info * proc_info = proc_info_list;
     while (proc_info) {
       if (proc_info->pid == pub_info->pid) {
@@ -646,8 +646,6 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
       }
       proc_info = proc_info->next;
     }
-
-    pub_info = pub_info->next;
   }
 
   ioctl_ret->ret_publisher_num = index;
@@ -1127,23 +1125,19 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
 
 static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
-  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-  struct publisher_info dummy_head;
-  dummy_head.next = pub_info;
-  struct publisher_info * prev_pub_info = &dummy_head;
-  while (pub_info) {
+  struct publisher_info * pub_info;
+  struct hlist_node *tmp;
+  int bkt;
+  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode) {
     if (pub_info->pid != current->pid) {
-      prev_pub_info = pub_info;
-      pub_info = pub_info->next;
       continue;
     }
 
-    prev_pub_info->next = pub_info->next;
-    kfree(pub_info);
+    hash_del(&entry->hnode);
     wrapper->topic.pub_info_num--;
+    kfree(pub_info);
     break;
   }
-  wrapper->topic.pub_info_list = dummy_head.next;
 }
 
 static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
