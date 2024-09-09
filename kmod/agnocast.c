@@ -1123,7 +1123,6 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
     pub_info->exited = true;
     return pub_info;
   }
-
   return NULL;
 }
 
