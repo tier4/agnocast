@@ -35,7 +35,7 @@ struct publisher_info
   uint32_t pid;
   uint32_t entries_num;
   bool exited;
-  struct hlist_node hnode;
+  struct hlist_node node;
 };
 
 struct topic_struct
@@ -167,7 +167,8 @@ static struct publisher_info * find_publisher_info(
   const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info;
-  hash_for_each_possible(wrapper->topic.pub_info_htable, info, hnode, publisher_pid)
+  struct hlist_node * tmp;
+  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, info, tmp, node, publisher_pid)
   {
     if (info->pid == publisher_pid) {
       return info;
@@ -198,9 +199,9 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->pid = publisher_pid;
   new_info->entries_num = 0;
   new_info->exited = false;
-  INIT_HLIST_NODE(&new_info->hnode);
+  INIT_HLIST_NODE(&new_info->node);
   hash_add(
-    wrapper->topic.pub_info_htable, &new_info->hnode, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
+    wrapper->topic.pub_info_htable, &new_info->node, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
 
   return 0;
 }
@@ -630,10 +631,9 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   }
 
   struct publisher_info * pub_info;
-  struct hlist_node * tmp;
-  int bkt;
   int index = 0;
-  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode)
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
     if (pub_info->exited) {
       continue;
@@ -1114,15 +1114,16 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
 
 static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
-  struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-  while (pub_info) {
+  struct publisher_info * pub_info;
+  hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, current->pid)
+  {
     if (pub_info->pid != current->pid) {
-      pub_info = pub_info->next;
       continue;
     }
     pub_info->exited = true;
     return pub_info;
   }
+
   return NULL;
 }
 
@@ -1131,13 +1132,13 @@ static void remove_publisher_info(struct topic_wrapper * wrapper)
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
   int bkt;
-  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, hnode)
+  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, node)
   {
     if (pub_info->pid != current->pid) {
       continue;
     }
 
-    hash_del(&entry->hnode);
+    hash_del(&pub_info->node);
     wrapper->topic.pub_info_num--;
     kfree(pub_info);
     break;
@@ -1218,13 +1219,13 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     if (en->subscriber_reference_count != 0) continue;
 
     bool publisher_exited = false;
-    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-    while (pub_info) {
+    struct publisher_info * pub_info;
+    hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, en->publisher_pid)
+    {
       if (pub_info->pid == en->publisher_pid) {
         if (pub_info->exited) publisher_exited = true;
         break;
       }
-      pub_info = pub_info->next;
     }
     if (!publisher_exited) continue;
 
@@ -1280,10 +1281,6 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 
     // Check if we can release the topic_wrapper
     if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
-      // Since there is memory that hasn't been freed before releasing the topic_wrapper, a memory
-      // leak occurs.
-      WARN_ON(wrapper->topic.pub_info_list != NULL);
-
       hash_del(&wrapper->node);
       if (wrapper->key) {
         kfree(wrapper->key);
@@ -1357,11 +1354,14 @@ static void remove_all_topics(void)
       remove_entry_node(wrapper, en);
     }
 
-    struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-    while (pub_info) {
-      struct publisher_info * pub_info_next = pub_info->next;
+    struct publisher_info * pub_info;
+    int bkt_pub_info_htable;
+    struct hlist_node * tmp_pub_info;
+    hash_for_each_safe(
+      wrapper->topic.pub_info_htable, bkt_pub_info_htable, tmp_pub_info, pub_info, node)
+    {
+      hash_del(&pub_info->node);
       kfree(pub_info);
-      pub_info = pub_info_next;
     }
 
     hash_del(&wrapper->node);
