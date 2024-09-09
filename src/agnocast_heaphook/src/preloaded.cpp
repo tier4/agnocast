@@ -46,6 +46,8 @@ void initialize_mempool()
     fprintf(stderr, "MEMPOOL_SIZE is not set in environment variable\n");
     exit(EXIT_FAILURE);
   }
+
+  // TODO(veqcc): mempool_size should be aligned
   const size_t mempool_size = std::stoull(std::string(mempool_size_env));
 
   void * ret = agnocast::initialize_agnocast(mempool_size);
