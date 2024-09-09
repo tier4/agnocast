@@ -28,7 +28,7 @@ namespace agnocast
 extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
-void map_read_only_area(const uint32_t pid, const uint64_t shm_addr);
+void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
@@ -71,11 +71,11 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    // map read-only shared memory through heaphook
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
       const uint32_t pid = subscriber_args.ret_pids[i];
-      const uint64_t addr = subscriber_args.ret_addrs[i];
-      map_read_only_area(pid, addr);
+      const uint64_t addr = subscriber_args.ret_shm_addrs[i];
+      const uint64_t size = subscriber_args.ret_shm_sizes[i];
+      map_read_only_area(pid, addr, size);
     }
 
     return add_topic_args;

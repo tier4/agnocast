@@ -22,13 +22,11 @@ struct process_info
 {
   uint32_t pid;
   uint64_t shm_addr;
+  uint64_t shm_size;
   struct process_info * next;
 };
 
 struct process_info * proc_info_list = NULL;
-
-// TODO: assume 0x40000000000~ is allocatable
-uint64_t allocatable_addr = 0x40000000000;
 
 struct publisher_info
 {
@@ -429,10 +427,27 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
   char * local_buf = kmalloc(buf_size, GFP_KERNEL);
   local_buf[0] = '\0';
 
+  size_t buf_len = 0;
+
+  strcat(local_buf, "processes:\n");
+  buf_len += 11;
+  struct process_info * proc_info = proc_info_list;
+  while (proc_info) {
+    char num_str[BUFFER_UNIT_SIZE * 3];
+    scnprintf(
+      num_str, sizeof(num_str), " pid=%u, addr=%llu, size=%llu\n", proc_info->pid,
+      proc_info->shm_addr, proc_info->shm_size);
+    strcat(local_buf, num_str);
+    buf_len += BUFFER_UNIT_SIZE * 3;
+
+    proc_info = proc_info->next;
+  }
+  strcat(local_buf, "\n");
+  buf_len += 1;
+
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
   int bkt;
-  size_t buf_len = 0;
 
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
@@ -596,8 +611,6 @@ static int topic_add_sub(
 
 static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 {
-  // get all publisher id and addr from topic_name
-
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_shm)\n", topic_name);
@@ -626,7 +639,8 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     struct process_info * proc_info = proc_info_list;
     while (proc_info) {
       if (proc_info->pid == pub_info->pid) {
-        ioctl_ret->ret_addrs[index] = proc_info->shm_addr;
+        ioctl_ret->ret_shm_addrs[index] = proc_info->shm_addr;
+        ioctl_ret->ret_shm_sizes[index] = proc_info->shm_size;
         index++;
         break;
       }
@@ -669,6 +683,7 @@ static int publisher_add(
   while (proc_info) {
     if (proc_info->pid == pid) {
       ioctl_ret->ret_shm_addr = proc_info->shm_addr;
+      ioctl_ret->ret_shm_size = proc_info->shm_size;
       break;
     }
     proc_info = proc_info->next;
@@ -882,17 +897,20 @@ static int publish_msg(
   return 0;
 }
 
-static int new_shm_addr(uint32_t pid, union ioctl_new_shm_args * ioctl_ret)
+static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
+  // TODO: assume 0x40000000000~ (4398046511104) is allocatable
+  static uint64_t allocatable_addr = 0x40000000000;
+
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   new_proc_info->pid = pid;
   new_proc_info->shm_addr = allocatable_addr;
+  new_proc_info->shm_size = shm_size;
   new_proc_info->next = proc_info_list;
 
   proc_info_list = new_proc_info;
 
-  // TODO: allocate 0x00400000000 size for each process, currently
-  allocatable_addr += 0x00400000000;
+  allocatable_addr += shm_size;
 
   ioctl_ret->ret_addr = new_proc_info->shm_addr;
   return 0;
@@ -1037,7 +1055,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             &new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
-      ret = new_shm_addr(new_shm_args.pid, &new_shm_args);
+      ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
       if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
       break;

@@ -38,7 +38,8 @@ bool already_mapped(const uint32_t pid)
   return !inserted;
 }
 
-void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable)
+void * map_area(
+  const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
   const std::string shm_name = "/agnocast@" + std::to_string(pid);
 
@@ -51,11 +52,8 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   }
   shm_fds.push_back(shm_fd);
 
-  const char * mempool_size_env = std::getenv("MEMPOOL_SIZE");
-  const size_t mempool_size = std::stoull(std::string(mempool_size_env));
-
   if (writable) {
-    if (ftruncate(shm_fd, mempool_size) == -1) {
+    if (ftruncate(shm_fd, shm_size) == -1) {
       perror("ftruncate failed");
       close(agnocast_fd);
       return NULL;
@@ -64,8 +62,8 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
 
   int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), mempool_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE,
-    shm_fd, 0);
+    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
+    0);
 
   if (ret == MAP_FAILED) {
     perror("mmap failed");
@@ -76,20 +74,20 @@ void * map_area(const uint32_t pid, const uint64_t shm_addr, const bool writable
   return ret;
 }
 
-void * map_writable_area(const uint32_t pid, const uint64_t shm_addr)
+void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
     close(agnocast_fd);
     return NULL;
   }
 
-  return map_area(pid, shm_addr, true);
+  return map_area(pid, shm_addr, shm_size, true);
 }
 
-void map_read_only_area(const uint32_t pid, const uint64_t shm_addr)
+void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) return;
-  if (map_area(pid, shm_addr, false) == NULL) exit(EXIT_FAILURE);
+  if (map_area(pid, shm_addr, shm_size, false) == NULL) exit(EXIT_FAILURE);
 }
 
 std::string create_mq_name(const char * topic_name, const uint32_t pid)
@@ -156,7 +154,8 @@ void wait_for_new_publisher(const uint32_t pid)
 
       const uint32_t publisher_pid = mq_msg.publisher_pid;
       const uint64_t publisher_shm_addr = mq_msg.shm_addr;
-      map_read_only_area(publisher_pid, publisher_shm_addr);
+      const uint64_t publisher_shm_size = mq_msg.shm_size;
+      map_read_only_area(publisher_pid, publisher_shm_addr, publisher_shm_size);
     }
   });
 
@@ -164,7 +163,7 @@ void wait_for_new_publisher(const uint32_t pid)
 }
 
 // NOTE: Do not use std::cout inside initialize_agnocast thread
-void * initialize_agnocast()
+void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
     perror("Agnocast is already open");
@@ -179,15 +178,15 @@ void * initialize_agnocast()
 
   const uint32_t pid = getpid();
 
-  // get allocatable shared memory addr from kernel module
   union ioctl_new_shm_args new_shm_args;
   new_shm_args.pid = pid;
+  new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
     perror("AGNOCAST_GET_SHM_CMD failed");
     close(agnocast_fd);
     return NULL;
   }
-  return map_writable_area(pid, new_shm_args.ret_addr);
+  return map_writable_area(pid, new_shm_args.ret_addr, shm_size);
 }
 
 size_t read_mq_msgmax()
