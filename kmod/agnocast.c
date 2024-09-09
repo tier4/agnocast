@@ -167,7 +167,8 @@ static struct publisher_info * find_publisher_info(
 {
   struct publisher_info * info;
   struct hlist_node * tmp;
-  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, info, tmp, node, publisher_pid)
+  hash_for_each_possible_safe(
+    wrapper->topic.pub_info_htable, info, tmp, node, hash_min(publisher_pid, PUB_INFO_HASH_BITS))
   {
     if (info->pid == publisher_pid) {
       return info;
@@ -449,7 +450,7 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
   struct topic_wrapper * wrapper;
   int bkt;
-  hash_for_each_safe(topic_hashtable, bkt, wrapper, node)
+  hash_for_each(topic_hashtable, bkt, wrapper, node)
   {
     strcat(local_buf, wrapper->key);
     strcat(local_buf, "\n");
@@ -1112,7 +1113,8 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
 static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
-  hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, current->pid)
+  hash_for_each_possible(
+    wrapper->topic.pub_info_htable, pub_info, node, hash_min(current->pid, PUB_INFO_HASH_BITS))
   {
     if (pub_info->pid != current->pid) {
       continue;
@@ -1128,7 +1130,8 @@ static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
-  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, pub_info, tmp, node, current->pid)
+  hash_for_each_possible_safe(
+    wrapper->topic.pub_info_htable, pub_info, tmp, node, hash_min(current->pid, PUB_INFO_HASH_BITS))
   {
     if (pub_info->pid != current->pid) {
       continue;
@@ -1216,7 +1219,9 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
     bool publisher_exited = false;
     struct publisher_info * pub_info;
-    hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, en->publisher_pid)
+    hash_for_each_possible(
+      wrapper->topic.pub_info_htable, pub_info, node,
+      hash_min(en->publisher_pid, PUB_INFO_HASH_BITS))
     {
       if (pub_info->pid == en->publisher_pid) {
         if (pub_info->exited) publisher_exited = true;
