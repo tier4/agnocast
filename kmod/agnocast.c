@@ -74,7 +74,7 @@ struct entry_node
 
 DEFINE_HASHTABLE(topic_hashtable, AGNOCAST_HASH_BITS);
 
-static unsigned long agnocast_hash(const char * str)
+static unsigned long hash_for_topic_table(const char * str)
 {
   unsigned long hash = full_name_hash(NULL /*namespace*/, str, strlen(str));
   return hash_min(hash, AGNOCAST_HASH_BITS);
@@ -167,8 +167,8 @@ static struct publisher_info * find_publisher_info(
 {
   struct publisher_info * info;
   struct hlist_node * tmp;
-  hash_for_each_possible_safe(
-    wrapper->topic.pub_info_htable, info, tmp, node, hash_min(publisher_pid, PUB_INFO_HASH_BITS))
+  uint32_t hash_val = hash_min(publisher_id, PUB_INFO_HASH_BITS);
+  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, info, tmp, node, hash_val)
   {
     if (info->pid == publisher_pid) {
       return info;
@@ -200,8 +200,8 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->entries_num = 0;
   new_info->exited = false;
   INIT_HLIST_NODE(&new_info->node);
-  hash_add(
-    wrapper->topic.pub_info_htable, &new_info->node, hash_min(publisher_pid, PUB_INFO_HASH_BITS));
+  uint32_t hash_val = hash_min(publisher_id, PUB_INFO_HASH_BITS);
+  hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
 
   return 0;
 }
@@ -637,6 +637,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
       continue;
     }
     ioctl_ret->ret_pids[index] = pub_info->pid;
+
     struct process_info * proc_info = proc_info_list;
     while (proc_info) {
       if (proc_info->pid == pub_info->pid) {
@@ -1113,8 +1114,8 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
 static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
-  hash_for_each_possible(
-    wrapper->topic.pub_info_htable, pub_info, node, hash_min(current->pid, PUB_INFO_HASH_BITS))
+  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
   {
     if (pub_info->pid != current->pid) {
       continue;
@@ -1130,16 +1131,16 @@ static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
-  hash_for_each_possible_safe(
-    wrapper->topic.pub_info_htable, pub_info, tmp, node, hash_min(current->pid, PUB_INFO_HASH_BITS))
+  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, pub_info, tmp, node, hash_val)
   {
     if (pub_info->pid != current->pid) {
       continue;
     }
 
     hash_del(&pub_info->node);
-    wrapper->topic.pub_info_num--;
     kfree(pub_info);
+    wrapper->topic.pub_info_num--;
     break;
   }
 }
@@ -1219,9 +1220,8 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
 
     bool publisher_exited = false;
     struct publisher_info * pub_info;
-    hash_for_each_possible(
-      wrapper->topic.pub_info_htable, pub_info, node,
-      hash_min(en->publisher_pid, PUB_INFO_HASH_BITS))
+    uint32_t hash_val = hash_min(en->publisher_pid, PUB_INFO_HASH_BITS);
+    hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
     {
       if (pub_info->pid == en->publisher_pid) {
         if (pub_info->exited) publisher_exited = true;
