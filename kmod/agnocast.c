@@ -18,7 +18,6 @@ static DEFINE_MUTEX(global_mutex);
 
 #define AGNOCAST_HASH_BITS 10  // hash table size : 2^AGNOCAST_HASH_BITS
 #define PUB_INFO_HASH_BITS 1
-#define PUB_INFO_HASH_SIZE (1 << PUB_INFO_HASH_BITS)
 
 struct process_info
 {
@@ -449,10 +448,8 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
   buf_len += 1;
 
   struct topic_wrapper * wrapper;
-  struct hlist_node * node;
   int bkt;
-
-  hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
+  hash_for_each_safe(topic_hashtable, bkt, wrapper, node)
   {
     strcat(local_buf, wrapper->key);
     strcat(local_buf, "\n");
@@ -472,17 +469,16 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
     strcat(local_buf, " publishers:\n");
     buf_len += 13;
 
-    // struct publisher_info * pub_info = wrapper->topic.pub_info_list;
-    // while (pub_info) {
-    // char num_str[BUFFER_UNIT_SIZE * 3];
-    // scnprintf(
-    // num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
-    // pub_info->entries_num, pub_info->exited);
-    // strcat(local_buf, num_str);
-    // buf_len += BUFFER_UNIT_SIZE * 3;
-
-    // pub_info = pub_info->next;
-    //}
+    struct publisher_info * pub_info;
+    int bkt_pub_info;
+    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node){
+      char num_str[BUFFER_UNIT_SIZE * 3];
+      scnprintf(
+      num_str, sizeof(num_str), "  pid=%u, entries_num=%u, exited=%d\n", pub_info->pid,
+      pub_info->entries_num, pub_info->exited);
+      strcat(local_buf, num_str);
+      buf_len += BUFFER_UNIT_SIZE * 3;
+    }
 
     strcat(local_buf, " entries:\n");
     buf_len += 10;
@@ -630,8 +626,8 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  struct publisher_info * pub_info;
   int index = 0;
+  struct publisher_info * pub_info;
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
@@ -1131,8 +1127,7 @@ static void remove_publisher_info(struct topic_wrapper * wrapper)
 {
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
-  int bkt;
-  hash_for_each_safe(wrapper->topic.pub_info_htable, bkt, tmp, pub_info, node)
+  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, pub_info, tmp, node, current->pid)
   {
     if (pub_info->pid != current->pid) {
       continue;
