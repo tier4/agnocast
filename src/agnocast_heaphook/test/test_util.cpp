@@ -6,14 +6,14 @@
 TEST(agnocast_heaphook, test_aligned)
 {
   size_t address = 102400;
-  size_t aligned_address = memory_align(address);
+  size_t aligned_address = align_memory(address);
   EXPECT_EQ(aligned_address, 102400);
 }
 
 TEST(agnocast_heaphook, test_not_aligned)
 {
   size_t address = 102401;
-  size_t aligned_address = memory_align(address);
+  size_t aligned_address = align_memory(address);
   EXPECT_EQ(aligned_address, 204800);
 }
 
