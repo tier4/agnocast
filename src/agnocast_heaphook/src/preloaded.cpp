@@ -3,6 +3,7 @@
 #endif
 
 #include "agnocast.hpp"
+#include "agnocast_heaphook/util.hpp"
 #include "tlsf/tlsf.h"
 
 #include <dlfcn.h>
@@ -46,9 +47,7 @@ void initialize_mempool()
     fprintf(stderr, "MEMPOOL_SIZE is not set in environment variable\n");
     exit(EXIT_FAILURE);
   }
-
-  // TODO(veqcc): mempool_size should be aligned
-  const size_t mempool_size = std::stoull(std::string(mempool_size_env));
+  const size_t mempool_size = align_memory(std::stoull(std::string(mempool_size_env)));
 
   void * ret = agnocast::initialize_agnocast(mempool_size);
   if (ret == NULL) {
