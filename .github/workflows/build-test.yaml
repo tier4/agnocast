@@ -49,6 +49,10 @@ jobs:
       run: |
         source /opt/ros/humble/setup.bash
         colcon build
+    
+    - name: run tests
+      run: |
+        colcon test
 
     - name: Build kmod
       run: |
