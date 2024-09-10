@@ -74,7 +74,7 @@ struct entry_node
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
-static unsigned long topic_table_hash(const char * str)
+static unsigned long get_topic_hash(const char * str)
 {
   unsigned long hash = full_name_hash(NULL /*namespace*/, str, strlen(str));
   return hash_min(hash, TOPIC_HASH_BITS);
@@ -103,14 +103,14 @@ static int insert_topic(const char * topic_name)
     wrapper->topic.subscriber_pids[i] = 0;
   }
 
-  hash_add(topic_hashtable, &wrapper->node, topic_table_hash(topic_name));
+  hash_add(topic_hashtable, &wrapper->node, get_topic_hash(topic_name));
   return 0;
 }
 
 static struct topic_wrapper * find_topic(const char * topic_name)
 {
   struct topic_wrapper * entry;
-  unsigned long hash_val = topic_table_hash(topic_name);
+  unsigned long hash_val = get_topic_hash(topic_name);
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
