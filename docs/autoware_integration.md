@@ -2,7 +2,7 @@
 
 Basically, take a look at the first Autoware integration Pull Request <https://github.com/tier4/autoware.universe_tmp-agnocast/pull/2>
 
-There are several steps for Agnocast to work with Autoware:
+There are two steps for Agnocast to work with Autoware:
 
 ### Add Agnocast dependencies
 
