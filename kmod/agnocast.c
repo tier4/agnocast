@@ -912,7 +912,7 @@ static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_arg
   new_proc_info->shm_size = shm_size;
 
   INIT_HLIST_NODE(&new_proc_info->node);
-  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   allocatable_addr += shm_size;
