@@ -32,7 +32,7 @@ For packages.xml:
 
 ### Step 2: Replace ROS 2 APIs for Agnocast APIs
 
-The declarations and initializations should be replaced like the following
+The declarations and initializations should be replaced like the following:
 
 ```c++
 // rclcpp::Publisher<MessageType>::SharedPtr message_pub_;
