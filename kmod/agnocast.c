@@ -686,6 +686,8 @@ static int publisher_add(
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
   {
     if (proc_info->pid == pid) {
+      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
+      ioctl_ret->ret_shm_size = proc_info->shm_size;
       proc_info_found = true;
       break;
     }
@@ -695,9 +697,6 @@ static int publisher_add(
     dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
   }
-
-  ioctl_ret->ret_shm_addr = proc_info->shm_addr;
-  ioctl_ret->ret_shm_size = proc_info->shm_size;
 
   // set subscriber info to ioctl_ret
   ioctl_ret->ret_subscriber_len = wrapper->topic.subscriber_num;
