@@ -166,9 +166,8 @@ static struct publisher_info * find_publisher_info(
   const struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * info;
-  struct hlist_node * tmp;
   uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
-  hash_for_each_possible_safe(wrapper->topic.pub_info_htable, info, tmp, node, hash_val)
+  hash_for_each_possible(wrapper->topic.pub_info_htable, info, node, hash_val)
   {
     if (info->pid == publisher_pid) {
       return info;
