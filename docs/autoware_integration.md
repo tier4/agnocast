@@ -6,7 +6,7 @@ There are several steps for Agnocast to work with Autoware:
 
 ### Add Agnocast dependencies
 
-for CMakeLists.txt (`target_library` should be replaced with the corresponding target)
+For CMakeLists.txt (`target_library` should be replaced with the corresponding target):
 
 ```c++
 find_package(agnocastlib REQUIRED)
