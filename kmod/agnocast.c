@@ -682,20 +682,22 @@ static int publisher_add(
   // set shm addr to ioctl_ret
   struct process_info * proc_info;
   uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  bool proc_info_found = false;
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
   {
     if (proc_info->pid == pid) {
-      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
-      ioctl_ret->ret_shm_size = proc_info->shm_size;
+      proc_info_found = true;
       break;
     }
   }
 
-  // TODO: Need to check if this applies
-  if (!proc_info) {
+  if (!proc_info_found) {
     dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", pid);
     return -1;
   }
+
+  ioctl_ret->ret_shm_addr = proc_info->shm_addr;
+  ioctl_ret->ret_shm_size = proc_info->shm_size;
 
   // set subscriber info to ioctl_ret
   ioctl_ret->ret_subscriber_len = wrapper->topic.subscriber_num;
@@ -1259,14 +1261,12 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   bool agnocast_related = false;
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
-    if (proc_info->pid != current->pid) {
-      continue;
+    if (proc_info->pid == current->pid) {
+      hash_del(&proc_info->node);
+      kfree(proc_info);
+      agnocast_related = true;
+      break;
     }
-
-    hash_del(&proc_info->node);
-    kfree(proc_info);
-    agnocast_related = true;
-    break;
   }
 
   if (!agnocast_related) {
