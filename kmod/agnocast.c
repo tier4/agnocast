@@ -16,7 +16,7 @@ static DEFINE_MUTEX(global_mutex);
 // =========================================
 // data structure
 
-#define AGNOCAST_HASH_BITS 10  // hash table size : 2^AGNOCAST_HASH_BITS
+#define TOPIC_HASH_BITS 10  // hash table size : 2^TOPIC_HASH_BITS
 #define PUB_INFO_HASH_BITS 1
 
 struct process_info
@@ -72,12 +72,12 @@ struct entry_node
   uint32_t unreceived_subscriber_count;
 };
 
-DEFINE_HASHTABLE(topic_hashtable, AGNOCAST_HASH_BITS);
+DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
-static unsigned long hash_for_topic_table(const char * str)
+static unsigned long topic_table_hash(const char * str)
 {
   unsigned long hash = full_name_hash(NULL /*namespace*/, str, strlen(str));
-  return hash_min(hash, AGNOCAST_HASH_BITS);
+  return hash_min(hash, TOPIC_HASH_BITS);
 }
 
 static int insert_topic(const char * topic_name)
@@ -103,14 +103,14 @@ static int insert_topic(const char * topic_name)
     wrapper->topic.subscriber_pids[i] = 0;
   }
 
-  hash_add(topic_hashtable, &wrapper->node, agnocast_hash(topic_name));
+  hash_add(topic_hashtable, &wrapper->node, topic_table_hash(topic_name));
   return 0;
 }
 
 static struct topic_wrapper * find_topic(const char * topic_name)
 {
   struct topic_wrapper * entry;
-  unsigned long hash_val = agnocast_hash(topic_name);
+  unsigned long hash_val = topic_table_hash(topic_name);
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
@@ -167,7 +167,7 @@ static struct publisher_info * find_publisher_info(
 {
   struct publisher_info * info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(publisher_id, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_for_each_possible_safe(wrapper->topic.pub_info_htable, info, tmp, node, hash_val)
   {
     if (info->pid == publisher_pid) {
@@ -200,7 +200,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   new_info->entries_num = 0;
   new_info->exited = false;
   INIT_HLIST_NODE(&new_info->node);
-  uint32_t hash_val = hash_min(publisher_id, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
 
   return 0;
@@ -1355,10 +1355,9 @@ static void remove_all_topics(void)
     }
 
     struct publisher_info * pub_info;
-    int bkt_pub_info_htable;
+    int bkt_pub_info;
     struct hlist_node * tmp_pub_info;
-    hash_for_each_safe(
-      wrapper->topic.pub_info_htable, bkt_pub_info_htable, tmp_pub_info, pub_info, node)
+    hash_for_each_safe(wrapper->topic.pub_info_htable, bkt_pub_info, tmp_pub_info, pub_info, node)
     {
       hash_del(&pub_info->node);
       kfree(pub_info);
