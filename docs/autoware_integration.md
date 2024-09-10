@@ -30,7 +30,7 @@ For packages.xml:
 <depend>agnocastlib</depend>
 ```
 
-### Replace ROS 2 APIs for Agnocast APIs
+### Step 2: Replace ROS 2 APIs for Agnocast APIs
 
 The declarations and initializations should be replaced like the following
 
