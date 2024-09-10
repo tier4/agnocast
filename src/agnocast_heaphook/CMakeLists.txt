@@ -10,23 +10,22 @@ find_package(tlsf REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(agnocastlib REQUIRED)
 
+include_directories(include)
+
+add_library(util src/util.cpp)
+
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(${PROJECT_NAME}_test test/test_util.cpp)
+  target_include_directories(${PROJECT_NAME}_test PUBLIC include)
+  target_link_libraries(${PROJECT_NAME}_test util)
 endif()
 
 include(CheckSymbolExists)
 check_symbol_exists(mallinfo2 malloc.h HAVE_MALLINFO2)
 
 add_library(preloaded SHARED src/preloaded.cpp)
-target_link_libraries(preloaded PRIVATE agnocastlib::agnocast tlsf::tlsf ${rclcpp_LIBRARIES})
+target_link_libraries(preloaded PRIVATE agnocastlib::agnocast tlsf::tlsf util ${rclcpp_LIBRARIES})
 if(HAVE_MALLINFO2)
   target_compile_definitions(preloaded
     PRIVATE

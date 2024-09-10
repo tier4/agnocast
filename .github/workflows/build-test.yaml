@@ -49,6 +49,12 @@ jobs:
       run: |
         source /opt/ros/humble/setup.bash
         colcon build
+    
+    - name: run tests
+      run: |
+        source /opt/ros/humble/setup.bash
+        colcon test --event-handlers console_cohesion+
+        colcon test-result --verbose
 
     - name: Build kmod
       run: |
