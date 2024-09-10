@@ -4,7 +4,7 @@ Basically, take a look at the first Autoware integration Pull Request <https://g
 
 There are two steps for Agnocast to work with Autoware:
 
-### Add Agnocast dependencies
+### Step 1: Add Agnocast dependencies
 
 For CMakeLists.txt (`target_library` should be replaced with the corresponding target):
 
