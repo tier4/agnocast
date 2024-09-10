@@ -17,7 +17,7 @@ target_include_directories(target_library PRIVATE
 )
 ```
 
-for launch.xml ( `MEMPOOL_SIZE` can be configured based on how much the process will consume heap memory)
+For launch.xml ( `MEMPOOL_SIZE` can be configured based on how much the process will consume heap memory):
 
 ```xml
 <env name="LD_PRELOAD" value="libpreloaded.so"/>
