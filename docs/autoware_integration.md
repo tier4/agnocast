@@ -24,7 +24,7 @@ For launch.xml ( `MEMPOOL_SIZE` can be configured based on how much the process 
 <env name="MEMPOOL_SIZE" value="134217728"/>  <!-- 128MB -->
 ```
 
-for packages.xml
+For packages.xml:
 
 ```xml
 <depend>agnocastlib</depend>
