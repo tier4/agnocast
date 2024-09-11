@@ -68,7 +68,7 @@ union ioctl_publisher_args {
 };
 #pragma GCC diagnostic pop
 
-#define MAX_RELEASE_NUM 3  // Max to keep union size less than or equal to 32 bytes
+#define MAX_RELEASE_NUM 3  // Max to keep union size equal to 32 bytes
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"

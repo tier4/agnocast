@@ -54,7 +54,7 @@ union ioctl_publisher_args {
   };
 };
 
-#define MAX_RELEASE_NUM 3  // Max to keep union size less than or equal to 32 bytes
+#define MAX_RELEASE_NUM 3  // Max to keep union size equal to 32 bytes
 
 union ioctl_enqueue_and_release_args {
   struct
