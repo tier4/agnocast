@@ -18,6 +18,7 @@ static DEFINE_MUTEX(global_mutex);
 
 #define TOPIC_HASH_BITS 10  // hash table size : 2^TOPIC_HASH_BITS
 #define PUB_INFO_HASH_BITS 1
+#define PUB_INFO_HASH_BITS 3
 #define PROC_INFO_HASH_BITS 10
 
 struct process_info
@@ -38,13 +39,20 @@ struct publisher_info
   struct hlist_node node;
 };
 
+struct subscriber_info
+{
+  uint32_t pid;
+  uint64_t latest_timestamp;
+  struct hlist_node node;
+};
+
 struct topic_struct
 {
   struct rb_root entries;
   uint32_t pub_info_num;
   DECLARE_HASHTABLE(pub_info_htable, PUB_INFO_HASH_BITS);
-  unsigned int subscriber_num;
-  uint32_t subscriber_pids[MAX_SUBSCRIBER_NUM];
+  uint32_t subscriber_num;
+  DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
 };
 
 struct topic_wrapper
@@ -100,9 +108,7 @@ static int insert_topic(const char * topic_name)
   wrapper->topic.pub_info_num = 0;  // This also includes publishers that have already exited.
   hash_init(wrapper->topic.pub_info_htable);
   wrapper->topic.subscriber_num = 0;
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    wrapper->topic.subscriber_pids[i] = 0;
-  }
+  hash_init(wrapper->topic.sub_info_htable);
 
   hash_add(topic_hashtable, &wrapper->node, get_topic_hash(topic_name));
   return 0;
@@ -121,45 +127,63 @@ static struct topic_wrapper * find_topic(const char * topic_name)
   return NULL;
 }
 
-static int insert_subscriber_pid(const char * topic_name, uint32_t pid)
+static struct subscriber_info * find_subscriber_info(
+  const struct topic_wrapper * wrapper, uint32_t subscriber_pid)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (insert_subscriber_pid)\n", topic_name);
-    return -1;
+  struct subscriber_info * info;
+  uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
+  hash_for_each_possible(wrapper->topic.sub_info_htable, info, node, hash_val)
+  {
+    if (info->pid == subscriber_pid) {
+      return info;
+    }
   }
 
-  // check whether subscriber_pids is full
+  return NULL;
+}
+
+static int insert_subscriber_info(const struct topic_wrapper * wrapper, uint32_t subscriber_pid)
+{
   if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of subscribers for the topic (topic_name=%s) reached the upper "
       "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
-      "added. (insert_subscriber_pid)\n",
-      topic_name, MAX_SUBSCRIBER_NUM);
+      "added. (insert_subscriber_info)\n",
+      wrapper->key, MAX_SUBSCRIBER_NUM);
     return -1;
   }
 
-  // check whether pid already exists in subscriber_pids
-  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-    if (pid == wrapper->topic.subscriber_pids[i]) {
-      dev_warn(
-        agnocast_device,
-        "Subscriber (pid=%d) already exists in the topic (topic_name=%s). "
-        "(insert_subscriber_pid)\n",
-        pid, topic_name);
-      return -1;
-    }
+  struct subscriber_info * info = find_subscriber_info(wrapper, subscriber_info);
+  if (info) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber (pid=%d) already exists in the topic (topic_name=%s). "
+      "(insert_subscriber_info)\n",
+      subscriber_pid, wrapper->key);
+    return -1;
   }
 
-  wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = pid;
+  struct subscriber_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
+  if (!new_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
+    return -1;
+  }
+
+  new_info->pid = publisher_pid;
+  new_info->entries_num = 0;
+  new_info->exited = false;
+  INIT_HLIST_NODE(&new_info->node);
+  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
+  hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
+
+  wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = subscriber_pid;
   wrapper->topic.subscriber_num++;
 
   dev_info(
     agnocast_device,
-    "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_pid)\n", pid,
-    topic_name);
+    "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_info)\n",
+    subscriber_pid, topic_name);
   return 0;
 }
 
@@ -180,6 +204,16 @@ static struct publisher_info * find_publisher_info(
 
 static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
+  if (wrapper->topic.pub_info_num == MAX_PUBLISHER_NUM) {
+    dev_warn(
+      agnocast_device,
+      "The number of publishers for the topic (topic_name=%s) reached the upper "
+      "bound (MAX_PUBLISHER_NUM=%d), so no new publisher can be "
+      "added. (insert_publisher_info)\n",
+      wrapper->key, MAX_PUBLISHER_NUM);
+    return -1;
+  }
+
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
   if (info) {
     dev_warn(
@@ -734,7 +768,13 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 
 static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscriber_args * ioctl_ret)
 {
-  if (insert_subscriber_pid(topic_name, pid) == -1) {
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (subscriber_add)\n", topic_name);
+    return -1;
+  }
+
+  if (insert_subscriber_info(topic_name, pid) == -1) {
     return -1;
   }
 
