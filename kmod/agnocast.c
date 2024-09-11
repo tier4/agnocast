@@ -59,7 +59,6 @@ struct entry_node
   uint64_t timestamp;  // rbtree key
   uint32_t publisher_pid;
   uint64_t msg_virtual_address;
-  uint32_t subscriber_reference_count_total;
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
   uint32_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
   bool published;
@@ -238,6 +237,16 @@ static int decrement_entries_num(struct topic_wrapper * wrapper, uint32_t publis
   return 0;
 }
 
+static bool subscriber_reference_count_exist(struct entry_node * en)
+{
+  // Since referencing_subscriber_pids always stores entries in order from the lowest index, if
+  // there's nothing at index 0, it means it doesn't exist.
+  if (en->referencing_subscriber_pids[0] > 0) {
+    return true;
+  }
+  return false;
+}
+
 static int get_referencing_subscriber_index(struct entry_node * en, uint32_t subscriber_pid)
 {
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
@@ -256,7 +265,6 @@ static int insert_referencing_subscriber(struct entry_node * en, uint32_t subscr
       return i;
     }
   }
-
   return -1;
 }
 
@@ -332,7 +340,6 @@ static int increment_message_entry_rc(
   }
 
   en->subscriber_reference_count[index]++;
-  en->subscriber_reference_count_total++;
 
   return 0;
 }
@@ -372,7 +379,6 @@ static int decrement_message_entry_rc(
   if (en->subscriber_reference_count[index] == 0) {
     remove_referencing_subscriber_by_index(en, index);
   }
-  en->subscriber_reference_count_total--;
 
   return 0;
 }
@@ -419,7 +425,6 @@ static int insert_message_entry(
   new_node->timestamp = timestamp;
   new_node->publisher_pid = publisher_pid;
   new_node->msg_virtual_address = msg_virtual_address;
-  new_node->subscriber_reference_count_total = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     new_node->referencing_subscriber_pids[i] = 0;
     new_node->subscriber_reference_count[i] = 0;
@@ -646,7 +651,6 @@ static int topic_add_sub(
         index = insert_referencing_subscriber(en, subscriber_pid);
       }
       en->subscriber_reference_count[index]++;
-      en->subscriber_reference_count_total++;
 
       ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
       ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
@@ -834,7 +838,7 @@ static uint64_t release_msgs_to_meet_depth(
     num_search_entries--;
 
     // This is not counted in a Queue size of QoS.
-    if (en->subscriber_reference_count > 0) continue;
+    if (subscriber_reference_count_exist(en)) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -915,7 +919,6 @@ static int receive_and_update(
     index = insert_referencing_subscriber(en, subscriber_pid);
   }
   en->subscriber_reference_count[index]++;
-  en->subscriber_reference_count_total++;
   ioctl_ret->ret = en->msg_virtual_address;
   return 0;
 }
@@ -1218,7 +1221,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->publisher_pid == current->pid && en->subscriber_reference_count_total == 0) {
+    if (en->publisher_pid == current->pid && !subscriber_reference_count_exist(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
     }
@@ -1258,7 +1261,6 @@ static bool remove_if_referencing_subscriber(struct entry_node * en)
   }
 
   remove_referencing_subscriber_by_index(en, index);
-  en->subscriber_reference_count_total--;
 
   return true;
 }
@@ -1276,7 +1278,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
-    if (en->subscriber_reference_count_total != 0) continue;
+    if (subscriber_reference_count_exist(en)) continue;
 
     bool publisher_exited = false;
     struct publisher_info * pub_info;
