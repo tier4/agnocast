@@ -278,6 +278,29 @@ static void remove_referencing_subscriber_by_index(struct entry_node * en, int i
   return;
 }
 
+static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
+{
+  int index = get_referencing_subscriber_index(en, subscriber_pid);
+  if (index == -1) {
+    index = insert_referencing_subscriber(en, subscriber_pid);
+    if (index == -1) return -1;
+  }
+  en->subscriber_reference_count[index]++;
+  return 0;
+}
+
+static int decrement_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
+{
+  int index = get_referencing_subscriber_index(en, subscriber_pid);
+  if (index == -1) return -1;
+
+  en->subscriber_reference_count[index]--;
+  if (en->subscriber_reference_count[index] == 0) {
+    remove_referencing_subscriber_by_index(en, index);
+  }
+  return 0;
+}
+
 static struct entry_node * find_message_entry(
   struct topic_wrapper * wrapper, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -323,21 +346,15 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  int index = get_referencing_subscriber_index(en, subscriber_pid);
-  if (index == -1) {
-    index = insert_referencing_subscriber(en, subscriber_pid);
-    if (index == -1) {
-      dev_warn(
-        agnocast_device,
-        "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
-        "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-        " (increment_message_entry_rc)\n",
-        en->timestamp, MAX_SUBSCRIBER_NUM);
-      return -1;
-    }
+  if (increment_sub_rc(en, subscriber_pid) == -1) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+      " (increment_message_entry_rc)\n",
+      en->timestamp, MAX_SUBSCRIBER_NUM);
+    return -1;
   }
-
-  en->subscriber_reference_count[index]++;
 
   return 0;
 }
@@ -363,19 +380,13 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  int index = get_referencing_subscriber_index(en, subscriber_pid);
-  if (index == -1) {
+  if (decrement_sub_rc(en, subscriber_pid) == -1) {
     dev_warn(
       agnocast_device,
       "Subscriber (pid=%d) is not referencing (topic_name=%s publisher_pid=%d "
       "timestamp=%lld). (decrement_message_entry_rc)\n",
       subscriber_pid, topic_name, publisher_pid, msg_timestamp);
     return -1;
-  }
-
-  en->subscriber_reference_count[index]--;
-  if (en->subscriber_reference_count[index] == 0) {
-    remove_referencing_subscriber_by_index(en, index);
   }
 
   return 0;
@@ -644,11 +655,15 @@ static int topic_add_sub(
         continue;
       }
 
-      int index = get_referencing_subscriber_index(en, subscriber_pid);
-      if (index == -1) {
-        index = insert_referencing_subscriber(en, subscriber_pid);
+      if (increment_sub_rc(en, subscriber_pid) == -1) {
+        dev_warn(
+          agnocast_device,
+          "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+          "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+          " (topic_add_sub)\n",
+          en->timestamp, MAX_SUBSCRIBER_NUM);
+        return -1;
       }
-      en->subscriber_reference_count[index]++;
 
       ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
       ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
@@ -916,11 +931,15 @@ static int receive_and_update(
   }
 
   en->unreceived_subscriber_count--;
-  int index = get_referencing_subscriber_index(en, subscriber_pid);
-  if (index == -1) {
-    index = insert_referencing_subscriber(en, subscriber_pid);
+  if (increment_sub_rc(en, subscriber_pid) == -1) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+      " (increment_message_entry_rc)\n",
+      en->timestamp, MAX_SUBSCRIBER_NUM);
+    return -1;
   }
-  en->subscriber_reference_count[index]++;
   ioctl_ret->ret = en->msg_virtual_address;
   return 0;
 }
@@ -1263,12 +1282,9 @@ static bool remove_if_subscriber(struct topic_wrapper * wrapper)
 static bool remove_if_referencing_subscriber(struct entry_node * en)
 {
   int index = get_referencing_subscriber_index(en, current->pid);
-  if (index == -1) {
-    return false;
-  }
+  if (index == -1) return false;
 
   remove_referencing_subscriber_by_index(en, index);
-
   return true;
 }
 
