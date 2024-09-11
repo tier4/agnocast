@@ -255,17 +255,6 @@ static int get_referencing_subscriber_index(struct entry_node * en, uint32_t sub
   return -1;
 }
 
-static int insert_referencing_subscriber(struct entry_node * en, uint32_t subscriber_pid)
-{
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_pids[i] == 0) {
-      en->referencing_subscriber_pids[i] = subscriber_pid;
-      return i;
-    }
-  }
-  return -1;
-}
-
 static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
 {
   for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
@@ -282,7 +271,13 @@ static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
 {
   int index = get_referencing_subscriber_index(en, subscriber_pid);
   if (index == -1) {
-    index = insert_referencing_subscriber(en, subscriber_pid);
+    for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+      if (en->referencing_subscriber_pids[i] == 0) {
+        en->referencing_subscriber_pids[i] = subscriber_pid;
+        index = i;
+        break;
+      }
+    }
     if (index == -1) return -1;
   }
   en->subscriber_reference_count[index]++;
