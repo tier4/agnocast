@@ -4,7 +4,7 @@
 
 ## How was this PR tested?
 
-- [ ] sample application
-- [ ] Autoware
+- [ ] sample application (required)
+- [ ] Autoware (required)
 
 ## Notes for reviewers
