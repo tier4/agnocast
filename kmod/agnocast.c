@@ -1192,14 +1192,14 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
   return NULL;
 }
 
-static void remove_publisher_info(struct topic_wrapper * wrapper)
+static void remove_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_for_each_possible_safe(wrapper->topic.pub_info_htable, pub_info, tmp, node, hash_val)
   {
-    if (pub_info->pid != current->pid) {
+    if (pub_info->pid != publisher_pid) {
       continue;
     }
 
@@ -1228,7 +1228,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
   }
 
   if (pub_info->entries_num == 0) {
-    remove_publisher_info(wrapper);
+    remove_publisher_info(wrapper, current->pid);
   }
 
   dev_info(
@@ -1244,12 +1244,16 @@ static bool remove_if_subscriber(struct topic_wrapper * wrapper)
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
     if (wrapper->topic.subscriber_pids[i] == current->pid) {
       is_subscriber = true;
-      wrapper->topic.subscriber_num--;
     }
     if (is_subscriber && i < MAX_SUBSCRIBER_NUM - 1) {
       wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
     }
   }
+
+  if (is_subscriber) {
+    wrapper->topic.subscriber_num--;
+  }
+
   return is_subscriber;
 }
 
@@ -1296,7 +1300,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     pub_info->entries_num--;
     remove_entry_node(wrapper, en);
     if (pub_info->entries_num == 0) {
-      remove_publisher_info(wrapper);
+      remove_publisher_info(wrapper, pub_info->pid);
     }
   }
 
