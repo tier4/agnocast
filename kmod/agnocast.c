@@ -61,7 +61,7 @@ struct entry_node
   uint32_t publisher_pid;
   uint64_t msg_virtual_address;
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
-  uint32_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
+  uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
   bool published;
   /*
    * NOTE:
@@ -238,14 +238,11 @@ static int decrement_entries_num(struct topic_wrapper * wrapper, uint32_t publis
   return 0;
 }
 
-static bool subscriber_reference_count_exist(struct entry_node * en)
+static bool is_subscriber_referencing(struct entry_node * en)
 {
-  // Since referencing_subscriber_pids always stores entries in order from the lowest index, if
-  // there's nothing at index 0, it means it doesn't exist.
-  if (en->referencing_subscriber_pids[0] > 0) {
-    return true;
-  }
-  return false;
+  // Since referencing_subscriber_pids always stores entries in order from the lowest index,
+  // if there's nothing at index 0, it means it doesn't exist.
+  return (en->referencing_subscriber_pids[0] > 0);
 }
 
 static int get_referencing_subscriber_index(struct entry_node * en, uint32_t subscriber_pid)
@@ -843,7 +840,7 @@ static uint64_t release_msgs_to_meet_depth(
     num_search_entries--;
 
     // This is not counted in a Queue size of QoS.
-    if (subscriber_reference_count_exist(en)) continue;
+    if (is_subscriber_referencing(en)) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -1227,7 +1224,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->publisher_pid == current->pid && !subscriber_reference_count_exist(en)) {
+    if (en->publisher_pid == current->pid && !is_subscriber_referencing(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
     }
@@ -1288,7 +1285,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
-    if (subscriber_reference_count_exist(en)) continue;
+    if (is_subscriber_referencing(en)) continue;
 
     bool publisher_exited = false;
     struct publisher_info * pub_info;
