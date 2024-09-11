@@ -20,8 +20,13 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 mqd_t mq_new_publisher = -1;
 
-std::unordered_map<size_t, AgnocastTopicInfo> id2_topic_mq_info;
-std::atomic<int> agnocast_topic_id;
+std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
+std::atomic<int> agnocast_topic_next_id;
+
+bool ok()
+{
+  return is_running.load();
+}
 
 uint64_t agnocast_get_timestamp()
 {

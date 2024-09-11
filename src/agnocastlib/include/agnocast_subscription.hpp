@@ -130,73 +130,28 @@ public:
      */
     attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
 
-    mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+    mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0666, &attr);
     if (mq == -1) {
       perror("mq_open failed");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
+
     mq_subscription = std::make_pair(mq, mq_name);
 
-    int topic_id = register_callback(callback, mq, callback_group);
+    agnocast::register_callback(
+      callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
-    // Create a thread that handles the messages to execute the callback
-    auto th = std::thread([=]() {
-      std::cout << "[Info]: callback thread for " << topic_name << " has been started" << std::endl;
-
-      // If there are messages available and the transient local is enabled, immediately call the
-      // callback.
-      if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        for (int i = add_topic_args.ret_len - 1; i >= 0; i--) {  // older messages first
-          MessageT * ptr = reinterpret_cast<MessageT *>(add_topic_args.ret_last_msg_addrs[i]);
-          agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
-            ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i],
-            true);
-          callback(agnocast_ptr);
-        }
-      }
-
-      MqMsgAgnocast mq_msg;
-
-      while (is_running) {
-        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
-        if (ret == -1) {
-          perror("mq_receive failed");
-          return;
-        }
-
-        union ioctl_receive_msg_args receive_args;
-        receive_args.topic_name = topic_name;
-        receive_args.subscriber_pid = subscriber_pid;
-        receive_args.publisher_pid = mq_msg.publisher_pid;
-        receive_args.msg_timestamp = mq_msg.timestamp;
-        receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
-        if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-          perror("AGNOCAST_RECEIVE_MSG_CMD failed");
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
-        }
-
-        if (receive_args.ret == 0) {  // Number of messages > qos_depth
-          continue;
-        }
-
-        MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret);
+    // TODO: Execute transient local handling in Executor
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      for (int i = add_topic_args.ret_len - 1; i >= 0; i--) {  // older messages first
+        MessageT * ptr = reinterpret_cast<MessageT *>(add_topic_args.ret_last_msg_addrs[i]);
         agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
-          ptr, topic_name, mq_msg.publisher_pid, mq_msg.timestamp, true);
-
-        /*
-        if (subscriber_pid == mq_msg.publisher_pid) {
-          return;
-        }
-        */
-
-        auto callable = create_callable(agnocast_ptr, topic_id);
-        callable();
+          ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i],
+          true);
+        callback(agnocast_ptr);
       }
-    });
-
-    threads.push_back(std::move(th));
+    }
   }
 
   ~CallbackSubscription()

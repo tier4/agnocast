@@ -20,7 +20,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-add_library(agnocast SHARED src/agnocast.cpp)
+add_library(agnocast SHARED src/agnocast.cpp src/agnocast_executor.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast

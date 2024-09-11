@@ -84,17 +84,23 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
 
 struct AgnocastTopicInfo
 {
-  int topic_local_id;
+  uint32_t topic_local_id;
+  const char * topic_name;
+  uint32_t qos_depth;
   mqd_t mqdes;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
+  std::function<std::unique_ptr<AnyObject>(void *, const char *, uint32_t, uint64_t, bool)>
+    message_creator;
 };
 
-extern std::unordered_map<size_t, AgnocastTopicInfo> id2_topic_mq_info;
-extern std::atomic<int> agnocast_topic_id;
+extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
+extern std::atomic<int> agnocast_topic_next_id;
 
 template <typename Func>
-int register_callback(Func method, mqd_t mqdes, rclcpp::CallbackGroup::SharedPtr callback_group)
+static void register_callback(
+  Func method, const char * topic_name, uint32_t qos_depth, mqd_t mqdes,
+  rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   using MessagePtrType = typename callback_first_arg<Func>::type;
   using MessageType = typename MessagePtrType::element_type;
@@ -108,24 +114,32 @@ int register_callback(Func method, mqd_t mqdes, rclcpp::CallbackGroup::SharedPtr
     }
   };
 
-  int id = agnocast_topic_id.fetch_add(1);
-  id2_topic_mq_info[id] = AgnocastTopicInfo{id, mqdes, callback_group, erased_func};
+  auto message_creator = [](
+                           void * ptr, const char * topic_name, uint32_t publisher_pid,
+                           uint64_t timestamp, bool need_rc_update) {
+    return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::message_ptr<MessageType>(
+      static_cast<MessageType *>(ptr), topic_name, publisher_pid, timestamp, need_rc_update));
+  };
 
-  return id;
+  int id = agnocast_topic_next_id.fetch_add(1);
+  id2_topic_mq_info[id] = AgnocastTopicInfo{
+    id, topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
 }
 
-template <typename T>
-std::function<void()> create_callable(const agnocast::message_ptr<T> & msg, int topic_local_id)
+static std::function<void()> create_callable(
+  void * ptr, const char * topic_name, uint32_t publisher_pid, uint64_t timestamp,
+  bool need_rc_update, int topic_local_id)
 {
   auto it = id2_topic_mq_info.find(topic_local_id);
   if (it == id2_topic_mq_info.end()) {
     throw std::runtime_error("callback not found");
   }
 
-  const auto & callback = it->second.callback;
-  return [msg, callback]() {
-    TypedMessagePtr<T> typed_msg(msg);
-    callback(typed_msg);
+  const auto & info = it->second;
+  return [ptr, topic_name, publisher_pid, timestamp, need_rc_update, &info]() {
+    auto typed_msg =
+      info.message_creator(ptr, topic_name, publisher_pid, timestamp, need_rc_update);
+    info.callback(*typed_msg);
   };
 }
 

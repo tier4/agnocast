@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast_executor.hpp"
 #include "agnocast_publisher.hpp"
 #include "agnocast_subscription.hpp"
 #include "agnocast_topic_info.hpp"
@@ -18,7 +19,7 @@
 
 namespace agnocast
 {
-
+bool ok();
 void * initialize_agnocast();
 size_t read_mq_msgmax();
 
