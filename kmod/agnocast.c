@@ -18,7 +18,7 @@ static DEFINE_MUTEX(global_mutex);
 
 #define TOPIC_HASH_BITS 10  // hash table size : 2^TOPIC_HASH_BITS
 #define PUB_INFO_HASH_BITS 1
-#define PUB_INFO_HASH_BITS 3
+#define SUB_INFO_HASH_BITS 3
 #define PROC_INFO_HASH_BITS 10
 
 struct process_info
@@ -49,9 +49,7 @@ struct subscriber_info
 struct topic_struct
 {
   struct rb_root entries;
-  uint32_t pub_info_num;
   DECLARE_HASHTABLE(pub_info_htable, PUB_INFO_HASH_BITS);
-  uint32_t subscriber_num;
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
 };
 
@@ -105,9 +103,7 @@ static int insert_topic(const char * topic_name)
   }
 
   wrapper->topic.entries = RB_ROOT;
-  wrapper->topic.pub_info_num = 0;  // This also includes publishers that have already exited.
   hash_init(wrapper->topic.pub_info_htable);
-  wrapper->topic.subscriber_num = 0;
   hash_init(wrapper->topic.sub_info_htable);
 
   hash_add(topic_hashtable, &wrapper->node, get_topic_hash(topic_name));
@@ -127,6 +123,18 @@ static struct topic_wrapper * find_topic(const char * topic_name)
   return NULL;
 }
 
+static int get_size_sub_info_htable(struct topic_wrapper * wrapper)
+{
+  int count = 0;
+  struct subscriber_info * sub_info;
+  int bkt_sub_info;
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+  {
+    count++;
+  }
+  return count;
+}
+
 static struct subscriber_info * find_subscriber_info(
   const struct topic_wrapper * wrapper, uint32_t subscriber_pid)
 {
@@ -142,9 +150,10 @@ static struct subscriber_info * find_subscriber_info(
   return NULL;
 }
 
-static int insert_subscriber_info(const struct topic_wrapper * wrapper, uint32_t subscriber_pid)
+static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subscriber_pid)
 {
-  if (wrapper->topic.subscriber_num == MAX_SUBSCRIBER_NUM) {
+  int count = get_size_sub_info_htable(wrapper);
+  if (count == MAX_SUBSCRIBER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of subscribers for the topic (topic_name=%s) reached the upper "
@@ -154,7 +163,7 @@ static int insert_subscriber_info(const struct topic_wrapper * wrapper, uint32_t
     return -1;
   }
 
-  struct subscriber_info * info = find_subscriber_info(wrapper, subscriber_info);
+  struct subscriber_info * info = find_subscriber_info(wrapper, subscriber_pid);
   if (info) {
     dev_warn(
       agnocast_device,
@@ -170,21 +179,29 @@ static int insert_subscriber_info(const struct topic_wrapper * wrapper, uint32_t
     return -1;
   }
 
-  new_info->pid = publisher_pid;
-  new_info->entries_num = 0;
-  new_info->exited = false;
+  new_info->pid = subscriber_pid;
+  new_info->latest_timestamp = 0;
   INIT_HLIST_NODE(&new_info->node);
-  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
-  hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
-
-  wrapper->topic.subscriber_pids[wrapper->topic.subscriber_num] = subscriber_pid;
-  wrapper->topic.subscriber_num++;
+  uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
+  hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
 
   dev_info(
     agnocast_device,
     "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_info)\n",
-    subscriber_pid, topic_name);
+    subscriber_pid, wrapper->key);
   return 0;
+}
+
+static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
+{
+  int count = 0;
+  struct publisher_info * pub_info;
+  int bkt_pub_info;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+  {
+    count++;
+  }
+  return count;
 }
 
 static struct publisher_info * find_publisher_info(
@@ -204,7 +221,9 @@ static struct publisher_info * find_publisher_info(
 
 static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
-  if (wrapper->topic.pub_info_num == MAX_PUBLISHER_NUM) {
+  int count = get_size_pub_info_htable(wrapper);
+
+  if (count == MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of publishers for the topic (topic_name=%s) reached the upper "
@@ -554,9 +573,12 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
     strcat(local_buf, " subscriber_pids:");
     buf_len += 17;
-    for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
+    struct subscriber_info * sub_info;
+    int bkt_sub_info;
+    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+    {
       char num_str[BUFFER_UNIT_SIZE];
-      scnprintf(num_str, sizeof(num_str), " %u", wrapper->topic.subscriber_pids[i]);
+      scnprintf(num_str, sizeof(num_str), " %u", sub_info->pid);
       strcat(local_buf, num_str);
       buf_len += BUFFER_UNIT_SIZE;
     }
@@ -728,7 +750,8 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
     return -1;
   }
 
-  if (wrapper->topic.pub_info_num > MAX_PUBLISHER_NUM) {
+  int count = get_size_pub_info_htable(wrapper);
+  if (count > MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
       "The number of publishers for the topic (topic_name=%s) reached the "
@@ -774,7 +797,7 @@ static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscribe
     return -1;
   }
 
-  if (insert_subscriber_info(topic_name, pid) == -1) {
+  if (insert_subscriber_info(wrapper, pid) == -1) {
     return -1;
   }
 
@@ -793,7 +816,6 @@ static int publisher_add(
   if (insert_publisher_info(wrapper, pid) == -1) {
     return -1;
   }
-  wrapper->topic.pub_info_num++;
 
   // set shm addr to ioctl_ret
   struct process_info * proc_info;
@@ -815,10 +837,15 @@ static int publisher_add(
   }
 
   // set subscriber info to ioctl_ret
-  ioctl_ret->ret_subscriber_len = wrapper->topic.subscriber_num;
-  memcpy(
-    ioctl_ret->ret_subscriber_pids, wrapper->topic.subscriber_pids,
-    wrapper->topic.subscriber_num * sizeof(uint32_t));
+  int index = 0;
+  struct subscriber_info * sub_info;
+  int bkt_sub_info;
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+  {
+    ioctl_ret->ret_subscriber_pids[index] = sub_info->pid;
+    index++;
+  }
+  ioctl_ret->ret_subscriber_len = index;
 
   dev_info(
     agnocast_device, "Publisher (pid=%d) is added to the topic (topic_name=%s)\n", pid, topic_name);
@@ -1013,13 +1040,18 @@ static int publish_msg(
     return -1;
   }
 
-  const uint32_t subscriber_num = wrapper->topic.subscriber_num;
+  int index = 0;
+  struct subscriber_info * sub_info;
+  int bkt_sub_info;
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+  {
+    ioctl_ret->ret_pids[index] = sub_info->pid;
+    index++;
+  }
+  ioctl_ret->ret_len = index;
 
   en->published = true;
-  en->unreceived_subscriber_count = subscriber_num;
-
-  ioctl_ret->ret_len = subscriber_num;
-  memcpy(ioctl_ret->ret_pids, wrapper->topic.subscriber_pids, subscriber_num * sizeof(uint32_t));
+  en->unreceived_subscriber_count = index;
 
   return 0;
 }
@@ -1053,7 +1085,8 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
     return -1;
   }
 
-  ioctl_ret->ret_subscriber_num = wrapper->topic.subscriber_num;
+  ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+
   return 0;
 }
 
@@ -1267,7 +1300,6 @@ static void remove_publisher_info(struct topic_wrapper * wrapper, uint32_t publi
 
     hash_del(&pub_info->node);
     kfree(pub_info);
-    wrapper->topic.pub_info_num--;
     break;
   }
 }
@@ -1302,18 +1334,20 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
 
 static bool remove_if_subscriber(struct topic_wrapper * wrapper)
 {
+  struct subscriber_info * sub_info;
+  struct hlist_node * tmp;
+  uint32_t hash_val = hash_min(current->pid, SUB_INFO_HASH_BITS);
   bool is_subscriber = false;
-  for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
-    if (wrapper->topic.subscriber_pids[i] == current->pid) {
-      is_subscriber = true;
+  hash_for_each_possible_safe(wrapper->topic.sub_info_htable, sub_info, tmp, node, hash_val)
+  {
+    if (sub_info->pid != current->pid) {
+      continue;
     }
-    if (is_subscriber && i < MAX_SUBSCRIBER_NUM - 1) {
-      wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
-    }
-  }
 
-  if (is_subscriber) {
-    wrapper->topic.subscriber_num--;
+    hash_del(&sub_info->node);
+    kfree(sub_info);
+    is_subscriber = true;
+    break;
   }
 
   return is_subscriber;
@@ -1404,7 +1438,9 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     pre_handler_subscriber_exit(wrapper);
 
     // Check if we can release the topic_wrapper
-    if (wrapper->topic.pub_info_num == 0 && wrapper->topic.subscriber_num == 0) {
+    int pub_count = get_size_pub_info_htable(wrapper);
+    int sub_count = get_size_sub_info_htable(wrapper);
+    if (pub_count == 0 && sub_count == 0) {
       hash_del(&wrapper->node);
       if (wrapper->key) {
         kfree(wrapper->key);
