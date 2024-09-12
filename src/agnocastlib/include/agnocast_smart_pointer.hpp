@@ -24,7 +24,7 @@ template <typename T>
 class message_ptr
 {
   T * ptr_ = nullptr;
-  const char * topic_name_;
+  std::string topic_name_;
   uint32_t publisher_pid_;
   uint64_t timestamp_;
   bool need_rc_update_;
@@ -35,7 +35,7 @@ class message_ptr
     if (!need_rc_update_) return;
 
     union ioctl_update_entry_args entry_args;
-    entry_args.topic_name = topic_name_;
+    entry_args.topic_name = topic_name_.c_str();
     entry_args.subscriber_pid = getpid();
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
@@ -53,7 +53,7 @@ class message_ptr
     if (!need_rc_update_) return;
 
     union ioctl_update_entry_args entry_args;
-    entry_args.topic_name = topic_name_;
+    entry_args.topic_name = topic_name_.c_str();
     entry_args.subscriber_pid = getpid();
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
@@ -65,14 +65,14 @@ class message_ptr
   }
 
 public:
-  const char * get_topic_name() { return topic_name_; }
+  const std::string get_topic_name() { return topic_name_; }
   uint32_t get_publisher_pid() const { return publisher_pid_; }
   uint64_t get_timestamp() { return timestamp_; }
 
   message_ptr() {}
 
   explicit message_ptr(
-    T * ptr, const char * topic_name, uint32_t publisher_pid, uint64_t timestamp,
+    T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
     bool need_rc_update)
   : ptr_(ptr),
     topic_name_(topic_name),
