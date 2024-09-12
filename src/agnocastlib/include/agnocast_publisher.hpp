@@ -130,7 +130,7 @@ public:
       if (opened_mqs.find(mq_name) != opened_mqs.end()) {
         mq = opened_mqs[mq_name];
       } else {
-        mq = mq_open(mq_name.c_str(), O_WRONLY);
+        mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
         if (mq == -1) {
           perror("mq_open failed");
           continue;
@@ -139,11 +139,13 @@ public:
       }
 
       MqMsgAgnocast mq_msg;
-      mq_msg.publisher_pid = publisher_pid_;
-      mq_msg.timestamp = message.get_timestamp();
+      mq_msg.published = true;
 
       if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        perror("mq_send failed");
+        // EAGAINはO_NONBLOCKで落ちたときの挙動だからOK
+        if (errno != EAGAIN) {
+          perror("mq_send failed");
+        }
       }
     }
   }

@@ -108,11 +108,15 @@ union ioctl_receive_msg_args {
   {
     const char * topic_name;
     uint32_t subscriber_pid;
-    uint32_t publisher_pid;
-    uint64_t msg_timestamp;
     uint32_t qos_depth;
   };
-  uint64_t ret;
+  struct
+  {
+    uint32_t ret_len;
+    uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+    uint64_t ret_timestamps[MAX_QOS_DEPTH];
+    uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+  };
 };
 #pragma GCC diagnostic pop
 
