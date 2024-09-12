@@ -769,8 +769,9 @@ static uint64_t release_msgs_to_meet_depth(
   //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
   //   if there are more messages to release, qos_depth is temporarily not met.
   //   However, it is rare for the subscriber_reference_count of more than MAX_RELEASE_NUM messages
-  //   that are out of qos_depth at a time to be zero, and as long as the publisher's qos_depth is
-  //   greater than the subscriber's qos_depth, it has little effect on system behaviour.
+  //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
+  //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
+  //   system behavior.
   while (num_search_entries > 0 && ioctl_ret->ret_len < MAX_RELEASE_NUM) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
