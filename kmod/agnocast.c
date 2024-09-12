@@ -1440,9 +1440,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     pre_handler_subscriber_exit(wrapper);
 
     // Check if we can release the topic_wrapper
-    int pub_count = get_size_pub_info_htable(wrapper);
-    int sub_count = get_size_sub_info_htable(wrapper);
-    if (pub_count == 0 && sub_count == 0) {
+    if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
       hash_del(&wrapper->node);
       if (wrapper->key) {
         kfree(wrapper->key);
