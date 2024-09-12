@@ -60,8 +60,8 @@ struct entry_node
   uint64_t timestamp;  // rbtree key
   uint32_t publisher_pid;
   uint64_t msg_virtual_address;
-  uint32_t subscriber_reference_count;
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
+  uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
   bool published;
   /*
    * NOTE:
@@ -238,6 +238,64 @@ static int decrement_entries_num(struct topic_wrapper * wrapper, uint32_t publis
   return 0;
 }
 
+static bool is_subscriber_referencing(struct entry_node * en)
+{
+  // Since referencing_subscriber_pids always stores entries in order from the lowest index,
+  // if there's nothing at index 0, it means it doesn't exist.
+  return (en->referencing_subscriber_pids[0] > 0);
+}
+
+static int get_referencing_subscriber_index(struct entry_node * en, uint32_t subscriber_pid)
+{
+  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+    if (en->referencing_subscriber_pids[i] == subscriber_pid) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
+{
+  for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
+    en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
+    en->subscriber_reference_count[i] = en->subscriber_reference_count[i + 1];
+  }
+
+  en->referencing_subscriber_pids[MAX_SUBSCRIBER_NUM - 1] = 0;
+  en->subscriber_reference_count[MAX_SUBSCRIBER_NUM - 1] = 0;
+  return;
+}
+
+static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
+{
+  int index = get_referencing_subscriber_index(en, subscriber_pid);
+  if (index == -1) {
+    for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+      if (en->referencing_subscriber_pids[i] == 0) {
+        en->referencing_subscriber_pids[i] = subscriber_pid;
+        index = i;
+        break;
+      }
+    }
+    if (index == -1) return -1;
+  }
+  en->subscriber_reference_count[index]++;
+  return 0;
+}
+
+static int decrement_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
+{
+  int index = get_referencing_subscriber_index(en, subscriber_pid);
+  if (index == -1) return -1;
+
+  en->subscriber_reference_count[index]--;
+  if (en->subscriber_reference_count[index] == 0) {
+    remove_referencing_subscriber_by_index(en, index);
+  }
+  return 0;
+}
+
 static struct entry_node * find_message_entry(
   struct topic_wrapper * wrapper, uint32_t publisher_pid, uint64_t msg_timestamp)
 {
@@ -283,8 +341,16 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
-  en->subscriber_reference_count++;
+  if (increment_sub_rc(en, subscriber_pid) == -1) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+      " (increment_message_entry_rc)\n",
+      en->timestamp, MAX_SUBSCRIBER_NUM);
+    return -1;
+  }
+
   return 0;
 }
 
@@ -309,16 +375,7 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  bool referencing = false;
-  for (int i = 0; i < en->subscriber_reference_count; i++) {
-    if (en->referencing_subscriber_pids[i] == subscriber_pid) {
-      referencing = true;
-    }
-    if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
-      en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
-    }
-  }
-  if (!referencing) {
+  if (decrement_sub_rc(en, subscriber_pid) == -1) {
     dev_warn(
       agnocast_device,
       "Subscriber (pid=%d) is not referencing (topic_name=%s publisher_pid=%d "
@@ -326,7 +383,7 @@ static int decrement_message_entry_rc(
       subscriber_pid, topic_name, publisher_pid, msg_timestamp);
     return -1;
   }
-  en->subscriber_reference_count--;
+
   return 0;
 }
 
@@ -372,9 +429,9 @@ static int insert_message_entry(
   new_node->timestamp = timestamp;
   new_node->publisher_pid = publisher_pid;
   new_node->msg_virtual_address = msg_virtual_address;
-  new_node->subscriber_reference_count = 0;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     new_node->referencing_subscriber_pids[i] = 0;
+    new_node->subscriber_reference_count[i] = 0;
   }
   new_node->unreceived_subscriber_count = 0;
   new_node->published = false;
@@ -499,7 +556,11 @@ static ssize_t show_all(struct kobject * kobj, struct kobj_attribute * attr, cha
 
       strcat(local_buf, "referencing:=[");
       buf_len += 14;
-      for (int i = 0; i < en->subscriber_reference_count; i++) {
+      for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+        if (en->referencing_subscriber_pids[i] == 0) {
+          break;
+        }
+
         if (i > 0) {
           strcat(local_buf, ", ");
           buf_len += 2;
@@ -585,16 +646,26 @@ static int topic_add_sub(
     // Return qos_depth messages in order from newest to oldest for transient local
     for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
       struct entry_node * en = container_of(node, struct entry_node, node);
-      if (en->published) {
-        en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
-        en->subscriber_reference_count++;
-        ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
-        ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
-        ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-        ioctl_ret->ret_len++;
-
-        if (ioctl_ret->ret_len == qos_depth) break;
+      if (!en->published) {
+        continue;
       }
+
+      if (increment_sub_rc(en, subscriber_pid) == -1) {
+        dev_warn(
+          agnocast_device,
+          "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+          "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+          " (topic_add_sub)\n",
+          en->timestamp, MAX_SUBSCRIBER_NUM);
+        return -1;
+      }
+
+      ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
+      ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+      ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+      ioctl_ret->ret_len++;
+
+      if (ioctl_ret->ret_len == qos_depth) break;
     }
 
     return 0;
@@ -788,7 +859,7 @@ static uint64_t release_msgs_to_meet_depth(
     num_search_entries--;
 
     // This is not counted in a Queue size of QoS.
-    if (en->subscriber_reference_count > 0) continue;
+    if (is_subscriber_referencing(en)) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -864,8 +935,15 @@ static int receive_and_update(
   }
 
   en->unreceived_subscriber_count--;
-  en->referencing_subscriber_pids[en->subscriber_reference_count] = subscriber_pid;
-  en->subscriber_reference_count++;
+  if (increment_sub_rc(en, subscriber_pid) == -1) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+      " (increment_message_entry_rc)\n",
+      en->timestamp, MAX_SUBSCRIBER_NUM);
+    return -1;
+  }
   ioctl_ret->ret = en->msg_virtual_address;
   return 0;
 }
@@ -1140,14 +1218,14 @@ static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wr
   return NULL;
 }
 
-static void remove_publisher_info(struct topic_wrapper * wrapper)
+static void remove_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   struct publisher_info * pub_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_for_each_possible_safe(wrapper->topic.pub_info_htable, pub_info, tmp, node, hash_val)
   {
-    if (pub_info->pid != current->pid) {
+    if (pub_info->pid != publisher_pid) {
       continue;
     }
 
@@ -1169,14 +1247,14 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
     // unreceived_subscriber_count is not checked when releasing the message.
-    if (en->publisher_pid == current->pid && en->subscriber_reference_count == 0) {
+    if (en->publisher_pid == current->pid && !is_subscriber_referencing(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
     }
   }
 
   if (pub_info->entries_num == 0) {
-    remove_publisher_info(wrapper);
+    remove_publisher_info(wrapper, current->pid);
   }
 
   dev_info(
@@ -1192,28 +1270,26 @@ static bool remove_if_subscriber(struct topic_wrapper * wrapper)
   for (int i = 0; i < wrapper->topic.subscriber_num; i++) {
     if (wrapper->topic.subscriber_pids[i] == current->pid) {
       is_subscriber = true;
-      wrapper->topic.subscriber_num--;
     }
     if (is_subscriber && i < MAX_SUBSCRIBER_NUM - 1) {
       wrapper->topic.subscriber_pids[i] = wrapper->topic.subscriber_pids[i + 1];
     }
   }
+
+  if (is_subscriber) {
+    wrapper->topic.subscriber_num--;
+  }
+
   return is_subscriber;
 }
 
 static bool remove_if_referencing_subscriber(struct entry_node * en)
 {
-  bool referencing = false;
-  for (int i = 0; i < en->subscriber_reference_count; i++) {
-    if (en->referencing_subscriber_pids[i] == current->pid) {
-      referencing = true;
-      en->subscriber_reference_count--;
-    }
-    if (referencing && i < MAX_SUBSCRIBER_NUM - 1) {
-      en->referencing_subscriber_pids[i] = en->referencing_subscriber_pids[i + 1];
-    }
-  }
-  return referencing;
+  int index = get_referencing_subscriber_index(en, current->pid);
+  if (index == -1) return false;
+
+  remove_referencing_subscriber_by_index(en, index);
+  return true;
 }
 
 static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
@@ -1229,7 +1305,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     node = rb_next(node);
     if (!remove_if_referencing_subscriber(en)) continue;
 
-    if (en->subscriber_reference_count != 0) continue;
+    if (is_subscriber_referencing(en)) continue;
 
     bool publisher_exited = false;
     struct publisher_info * pub_info;
@@ -1247,7 +1323,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     pub_info->entries_num--;
     remove_entry_node(wrapper, en);
     if (pub_info->entries_num == 0) {
-      remove_publisher_info(wrapper);
+      remove_publisher_info(wrapper, pub_info->pid);
     }
   }
 
