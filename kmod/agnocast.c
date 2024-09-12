@@ -173,9 +173,9 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
     return -1;
   }
 
-  struct subscriber_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
+  struct subscriber_info * new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
   if (!new_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
     return -1;
   }
 
