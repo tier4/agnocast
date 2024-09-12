@@ -42,7 +42,6 @@ struct publisher_info
 struct subscriber_info
 {
   uint32_t pid;
-  uint64_t latest_timestamp;
   struct hlist_node node;
 };
 
@@ -180,7 +179,6 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
   }
 
   new_info->pid = subscriber_pid;
-  new_info->latest_timestamp = 0;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
