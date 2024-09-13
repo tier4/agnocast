@@ -712,14 +712,17 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   return 0;
 }
 
-static int subscriber_add(char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, union ioctl_subscriber_args * ioctl_ret)
+static int subscriber_add(
+  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
+  union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     wrapper = insert_topic(topic_name);
     if (!wrapper) {
       dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n", topic_name);
+        agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n",
+        topic_name);
       return -1;
     }
     dev_info(agnocast_device, "Topic (topic_name=%s) added. (subscriber_add)\n", topic_name);
@@ -769,7 +772,8 @@ static int publisher_add(
     wrapper = insert_topic(topic_name);
     if (!wrapper) {
       dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n", topic_name);
+        agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n",
+        topic_name);
       return -1;
     }
     dev_info(agnocast_device, "Topic (topic_name=%s) added. (publisher_add)\n", topic_name);
