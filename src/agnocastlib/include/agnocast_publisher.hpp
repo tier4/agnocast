@@ -57,6 +57,18 @@ public:
 
     // Send messages to subscribers to notify that a new publisher appears
     for (uint32_t i = 0; i < pub_args.ret_subscriber_len; i++) {
+      if (pub_args.ret_subscriber_pids[i] == publisher_pid_) {
+        /*
+         * NOTE: In ROS2, communication should work fine even if the same process exists as both a
+         * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
+         * Agnocast to topic communication within a component container, the system will explicitly
+         * fail with an error during initialization.
+         */
+        std::cout << "[Error]: This process (pid=" << publisher_pid_
+                  << ") already exists in the topic (topic_name=" << topic_name
+                  << ") as a subscriber." << std::endl;
+        exit(EXIT_FAILURE);
+      }
       const std::string mq_name =
         "/new_publisher@" + std::to_string(pub_args.ret_subscriber_pids[i]);
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
