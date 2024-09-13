@@ -47,15 +47,9 @@ public:
     // Add topic and subscriber info in the kernel module, then get shared memory info by topic_name
     union ioctl_subscriber_args subscriber_args;
     subscriber_args.topic_name = topic_name.c_str();
-    /*
-     * NOTE:
-     *   When transient local is enabled, if there is a requirement to execute callbacks with
-     * strictly new messages, AGNOCAST_TOPIC_ADD_SUB_CMD and AGNOCAST_SUBSCRIBER_ADD_CMD should be
-     * merged into a single ioctl.
-     */
     subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
-                                 ? static_cast<uint32_t>(qos.depth())
-                                 : 0;
+                                  ? static_cast<uint32_t>(qos.depth())
+                                  : 0;
     subscriber_args.subscriber_pid = subscriber_pid;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
@@ -117,11 +111,12 @@ public:
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
       if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {  // older messages first
+        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0;
+             i--) {  // older messages first
           MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
           agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
-            ptr, topic_name, subscriber_args.ret_publisher_pids[i], subscriber_args.ret_timestamps[i],
-            true);
+            ptr, topic_name, subscriber_args.ret_publisher_pids[i],
+            subscriber_args.ret_timestamps[i], true);
           callback(agnocast_ptr);
         }
       }
