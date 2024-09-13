@@ -96,12 +96,12 @@ public:
 };
 
 template <typename MessageT>
-class CallbackSubscription : public SubscriptionBase
+class Subscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription;
 
 public:
-  CallbackSubscription(
+  Subscription(
     const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
   {
@@ -183,7 +183,7 @@ public:
     threads.push_back(std::move(th));
   }
 
-  ~CallbackSubscription()
+  ~Subscription()
   {
     /* It's best to notify the publisher and have it call mq_close, but currently
     this is not being done. The message queue is destroyed when the publisher process exits. */
