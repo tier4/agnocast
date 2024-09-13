@@ -73,6 +73,12 @@ public:
 
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
       if (subscriber_args.ret_pids[i] == subscriber_pid) {
+        /*
+         * NOTE: In ROS2, communication should work fine even if the same process exists as both a
+         * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
+         * Agnocast to topic communication within a component container, the system will explicitly
+         * fail with an error during initialization.
+         */
         std::cout << "[Error]: This process (pid=" << subscriber_pid
                   << ") already exists in the topic (topic_name=" << topic_name
                   << ") as a publisher." << std::endl;
@@ -168,12 +174,6 @@ public:
         MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret);
         agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
           ptr, topic_name, mq_msg.publisher_pid, mq_msg.timestamp, true);
-
-        /*
-        if (subscriber_pid == mq_msg.publisher_pid) {
-          return;
-        }
-        */
 
         callback(agnocast_ptr);
       }
