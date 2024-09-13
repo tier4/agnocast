@@ -38,34 +38,25 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 class SubscriptionBase
 {
 public:
-  union ioctl_add_topic_sub_args initialize(
+  union ioctl_subscriber_args initialize(
     const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
   {
+    // Open a mq for new publisher appearences.
+    wait_for_new_publisher(subscriber_pid);
+
+    // Add topic and subscriber info in the kernel module, then get shared memory info by topic_name
+    union ioctl_subscriber_args subscriber_args;
+    subscriber_args.topic_name = topic_name.c_str();
     /*
      * NOTE:
      *   When transient local is enabled, if there is a requirement to execute callbacks with
      * strictly new messages, AGNOCAST_TOPIC_ADD_SUB_CMD and AGNOCAST_SUBSCRIBER_ADD_CMD should be
      * merged into a single ioctl.
      */
-    union ioctl_add_topic_sub_args add_topic_args;
-    add_topic_args.topic_name = topic_name.c_str();
-    add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
+    subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                  ? static_cast<uint32_t>(qos.depth())
                                  : 0;
-    add_topic_args.subscriber_pid = subscriber_pid;
-    // add subscriber info in the kernel module and get shared memory info by topic_name
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_SUB_CMD, &add_topic_args) < 0) {
-      perror("AGNOCAST_TOPIC_ADD_SUB_CMD failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    // Open a mq for new publisher appearences.
-    wait_for_new_publisher(subscriber_pid);
-
-    union ioctl_subscriber_args subscriber_args;
-    subscriber_args.pid = subscriber_pid;
-    subscriber_args.topic_name = topic_name.c_str();
+    subscriber_args.subscriber_pid = subscriber_pid;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
@@ -79,7 +70,7 @@ public:
       map_read_only_area(pid, addr, size);
     }
 
-    return add_topic_args;
+    return subscriber_args;
   }
 };
 
@@ -94,7 +85,7 @@ public:
     std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
   {
     const pid_t subscriber_pid = getpid();
-    union ioctl_add_topic_sub_args add_topic_args = initialize(subscriber_pid, topic_name, qos);
+    union ioctl_subscriber_args subscriber_args = initialize(subscriber_pid, topic_name, qos);
 
     std::string mq_name = create_mq_name(topic_name, subscriber_pid);
     struct mq_attr attr;
@@ -126,10 +117,10 @@ public:
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
       if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        for (int i = add_topic_args.ret_len - 1; i >= 0; i--) {  // older messages first
-          MessageT * ptr = reinterpret_cast<MessageT *>(add_topic_args.ret_last_msg_addrs[i]);
+        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {  // older messages first
+          MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
           agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
-            ptr, topic_name, add_topic_args.ret_publisher_pids[i], add_topic_args.ret_timestamps[i],
+            ptr, topic_name, subscriber_args.ret_publisher_pids[i], subscriber_args.ret_timestamps[i],
             true);
           callback(agnocast_ptr);
         }

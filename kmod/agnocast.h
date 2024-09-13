@@ -7,8 +7,7 @@
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 
 #define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
-
-union ioctl_add_topic_sub_args {
+union ioctl_subscriber_args {
   struct
   {
     const char * topic_name;
@@ -17,21 +16,10 @@ union ioctl_add_topic_sub_args {
   };
   struct
   {
-    uint32_t ret_len;
+    uint32_t ret_transient_local_num;
     uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
-  };
-};
-
-union ioctl_subscriber_args {
-  struct
-  {
-    const char * topic_name;
-    uint32_t pid;
-  };
-  struct
-  {
     uint32_t ret_publisher_num;
     uint32_t ret_pids[MAX_PUBLISHER_NUM];
     uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
@@ -123,8 +111,6 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
-#define AGNOCAST_TOPIC_ADD_PUB_CMD _IOW('T', 1, char *)
-#define AGNOCAST_TOPIC_ADD_SUB_CMD _IOW('T', 2, union ioctl_add_topic_sub_args)
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
 #define AGNOCAST_ENQUEUE_AND_RELEASE_CMD _IOW('E', 1, union ioctl_enqueue_and_release_args)

@@ -86,19 +86,19 @@ static unsigned long get_topic_hash(const char * str)
   return hash_min(hash, TOPIC_HASH_BITS);
 }
 
-static int insert_topic(const char * topic_name)
+static struct topic_wrapper * insert_topic(const char * topic_name)
 {
   struct topic_wrapper * wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
   if (!wrapper) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
-    return -1;
+    return NULL;
   }
 
   wrapper->key = kstrdup(topic_name, GFP_KERNEL);
   if (!wrapper->key) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_topic)\n");
     kfree(wrapper);
-    return -1;
+    return NULL;
   }
 
   wrapper->topic.entries = RB_ROOT;
@@ -106,7 +106,7 @@ static int insert_topic(const char * topic_name)
   hash_init(wrapper->topic.sub_info_htable);
 
   hash_add(topic_hashtable, &wrapper->node, get_topic_hash(topic_name));
-  return 0;
+  return wrapper;
 }
 
 static struct topic_wrapper * find_topic(const char * topic_name)
@@ -665,76 +665,6 @@ static struct attribute_group attribute_group = {
 
 // =========================================
 // /dev/agnocast
-
-static int topic_add_pub(const char * topic_name)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (wrapper) {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (topic_add_pub)\n", topic_name);
-    return 0;
-  }
-
-  if (insert_topic(topic_name) < 0) {
-    dev_warn(
-      agnocast_device, "Failed to add a new topic (topic_name=%s). (topic_add_pub)\n", topic_name);
-    return -1;
-  }
-
-  dev_info(agnocast_device, "Topic (topic_name=%s) added. (topic_add_pub)\n", topic_name);
-  return 0;
-}
-
-static int topic_add_sub(
-  const char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
-  union ioctl_add_topic_sub_args * ioctl_ret)
-{
-  ioctl_ret->ret_len = 0;
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (wrapper) {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (topic_add_sub)\n", topic_name);
-
-    if (qos_depth == 0) return 0;  // transient local is disabled
-
-    // Return qos_depth messages in order from newest to oldest for transient local
-    for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
-      struct entry_node * en = container_of(node, struct entry_node, node);
-      if (!en->published) {
-        continue;
-      }
-
-      if (increment_sub_rc(en, subscriber_pid) == -1) {
-        dev_warn(
-          agnocast_device,
-          "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
-          "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-          " (topic_add_sub)\n",
-          en->timestamp, MAX_SUBSCRIBER_NUM);
-        return -1;
-      }
-
-      ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
-      ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
-      ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-      ioctl_ret->ret_len++;
-
-      if (ioctl_ret->ret_len == qos_depth) break;
-    }
-
-    return 0;
-  }
-
-  if (insert_topic(topic_name) < 0) {
-    dev_warn(
-      agnocast_device, "Failed to add a new topic (topic_name=%s). (topic_add_sub)\n", topic_name);
-    return -1;
-  }
-
-  dev_info(agnocast_device, "Topic (topic_name=%s) added. (topic_add_sub)\n", topic_name);
-  return 0;
-}
-
 static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -782,16 +712,50 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   return 0;
 }
 
-static int subscriber_add(char * topic_name, uint32_t pid, union ioctl_subscriber_args * ioctl_ret)
+static int subscriber_add(char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (subscriber_add)\n", topic_name);
+    wrapper = insert_topic(topic_name);
+    if (!wrapper) {
+      dev_warn(
+        agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n", topic_name);
+      return -1;
+    }
+    dev_info(agnocast_device, "Topic (topic_name=%s) added. (subscriber_add)\n", topic_name);
+  } else {
+    dev_info(
+      agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
+  }
+
+  if (insert_subscriber_info(wrapper, subscriber_pid) == -1) {
     return -1;
   }
 
-  if (insert_subscriber_info(wrapper, pid) == -1) {
-    return -1;
+  // Return qos_depth messages in order from newest to oldest for transient local
+  ioctl_ret->ret_transient_local_num = 0;
+  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+    if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
+
+    struct entry_node * en = container_of(node, struct entry_node, node);
+    if (!en->published) {
+      continue;
+    }
+
+    if (increment_sub_rc(en, subscriber_pid) == -1) {
+      dev_warn(
+        agnocast_device,
+        "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+        "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+        " (subscriber_add)\n",
+        en->timestamp, MAX_SUBSCRIBER_NUM);
+      return -1;
+    }
+
+    ioctl_ret->ret_publisher_pids[ioctl_ret->ret_transient_local_num] = en->publisher_pid;
+    ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
+    ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
+    ioctl_ret->ret_transient_local_num++;
   }
 
   return get_shm(topic_name, ioctl_ret);
@@ -802,8 +766,16 @@ static int publisher_add(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publisher_add)\n", topic_name);
-    return -1;
+    wrapper = insert_topic(topic_name);
+    if (!wrapper) {
+      dev_warn(
+        agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n", topic_name);
+      return -1;
+    }
+    dev_info(agnocast_device, "Topic (topic_name=%s) added. (publisher_add)\n", topic_name);
+  } else {
+    dev_info(
+      agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
   if (insert_publisher_info(wrapper, pid) == -1) {
@@ -1097,7 +1069,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   char topic_name_buf[256];
-  union ioctl_add_topic_sub_args add_topic_sub_args;
   union ioctl_subscriber_args sub_args;
   union ioctl_publisher_args pub_args;
   union ioctl_enqueue_and_release_args enqueue_release_args;
@@ -1108,34 +1079,13 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   union ioctl_get_subscriber_num_args get_subscriber_num_args;
 
   switch (cmd) {
-    case AGNOCAST_TOPIC_ADD_PUB_CMD:
-      if (copy_from_user(topic_name_buf, (char __user *)arg, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = topic_add_pub(topic_name_buf);
-      break;
-    case AGNOCAST_TOPIC_ADD_SUB_CMD:
-      if (copy_from_user(
-            &add_topic_sub_args, (union ioctl_add_topic_sub_args __user *)arg,
-            sizeof(add_topic_sub_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)add_topic_sub_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = topic_add_sub(
-        topic_name_buf, add_topic_sub_args.qos_depth, add_topic_sub_args.subscriber_pid,
-        &add_topic_sub_args);
-      if (copy_to_user(
-            (union ioctl_add_topic_sub_args __user *)arg, &add_topic_sub_args,
-            sizeof(add_topic_sub_args)))
-        goto unlock_mutex_and_return;
-      break;
     case AGNOCAST_SUBSCRIBER_ADD_CMD:
       if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = subscriber_add(topic_name_buf, sub_args.pid, &sub_args);
+      ret = subscriber_add(topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
