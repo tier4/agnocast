@@ -308,17 +308,6 @@ static int get_referencing_subscriber_index(struct entry_node * en, uint32_t sub
   return -1;
 }
 
-static int insert_referencing_subscriber(struct entry_node * en, uint32_t subscriber_pid)
-{
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_pids[i] == 0) {
-      en->referencing_subscriber_pids[i] = subscriber_pid;
-      return i;
-    }
-  }
-  return -1;
-}
-
 static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
 {
   for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
@@ -335,7 +324,13 @@ static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_pid)
 {
   int index = get_referencing_subscriber_index(en, subscriber_pid);
   if (index == -1) {
-    index = insert_referencing_subscriber(en, subscriber_pid);
+    for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+      if (en->referencing_subscriber_pids[i] == 0) {
+        en->referencing_subscriber_pids[i] = subscriber_pid;
+        index = i;
+        break;
+      }
+    }
     if (index == -1) return -1;
   }
   en->subscriber_reference_count[index]++;
@@ -907,10 +902,19 @@ static uint64_t release_msgs_to_meet_depth(
   // Number of entries exceeding qos_depth
   uint32_t num_search_entries = pub_info->entries_num - qos_depth;
 
-  // The searched message is either deleted or, if a reference count remains, is not deleted.
-  // In both cases, this number of searches is sufficient, as it does not affect the Queue size of
-  // QoS.
-  while (num_search_entries > 0) {
+  // NOTE:
+  //   The searched message is either deleted or, if a reference count remains, is not deleted.
+  //   In both cases, this number of searches is sufficient, as it does not affect the Queue size of
+  //   QoS.
+  //
+  // HACK:
+  //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
+  //   if there are more messages to release, qos_depth is temporarily not met.
+  //   However, it is rare for the subscriber_reference_count of more than MAX_RELEASE_NUM messages
+  //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
+  //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
+  //   system behavior.
+  while (num_search_entries > 0 && ioctl_ret->ret_len < MAX_RELEASE_NUM) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
     if (!node) {
@@ -1438,9 +1442,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     pre_handler_subscriber_exit(wrapper);
 
     // Check if we can release the topic_wrapper
-    int pub_count = get_size_pub_info_htable(wrapper);
-    int sub_count = get_size_sub_info_htable(wrapper);
-    if (pub_count == 0 && sub_count == 0) {
+    if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
       hash_del(&wrapper->node);
       if (wrapper->key) {
         kfree(wrapper->key);

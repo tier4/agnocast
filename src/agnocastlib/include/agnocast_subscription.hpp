@@ -19,6 +19,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -32,13 +33,13 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
 size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
-std::string create_mq_name(const char * topic_name, const uint32_t pid);
+std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 
 class SubscriptionBase
 {
 public:
   union ioctl_add_topic_sub_args initialize(
-    const pid_t subscriber_pid, const char * topic_name, const rclcpp::QoS & qos)
+    const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
   {
     /*
      * NOTE:
@@ -47,7 +48,7 @@ public:
      * merged into a single ioctl.
      */
     union ioctl_add_topic_sub_args add_topic_args;
-    add_topic_args.topic_name = topic_name;
+    add_topic_args.topic_name = topic_name.c_str();
     add_topic_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                  ? static_cast<uint32_t>(qos.depth())
                                  : 0;
@@ -64,7 +65,7 @@ public:
 
     union ioctl_subscriber_args subscriber_args;
     subscriber_args.pid = subscriber_pid;
-    subscriber_args.topic_name = topic_name;
+    subscriber_args.topic_name = topic_name.c_str();
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
@@ -89,7 +90,7 @@ class CallbackSubscription : public SubscriptionBase
 
 public:
   CallbackSubscription(
-    const char * topic_name, const rclcpp::QoS & qos,
+    const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
   {
     const pid_t subscriber_pid = getpid();
@@ -136,7 +137,7 @@ public:
         }
 
         union ioctl_receive_msg_args receive_args;
-        receive_args.topic_name = topic_name;
+        receive_args.topic_name = topic_name.c_str();
         receive_args.subscriber_pid = subscriber_pid;
         receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
         if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
@@ -177,7 +178,8 @@ class TakeSubscription : public SubscriptionBase
   uint64_t last_taken_timestamp;
 
 public:
-  TakeSubscription(const char * topic_name, const rclcpp::QoS & qos) : last_taken_timestamp(0)
+  TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
+  : last_taken_timestamp(0)
   {
     initialize(getpid(), topic_name, qos);
   }

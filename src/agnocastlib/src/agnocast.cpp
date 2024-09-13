@@ -90,9 +90,9 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
   if (map_area(pid, shm_addr, shm_size, false) == NULL) exit(EXIT_FAILURE);
 }
 
-std::string create_mq_name(const char * topic_name, const uint32_t pid)
+std::string create_mq_name(const std::string & topic_name, const uint32_t pid)
 {
-  std::string mq_name = std::string(topic_name) + "@" + std::to_string(pid);
+  std::string mq_name = topic_name + "@" + std::to_string(pid);
 
   if (mq_name[0] != '/') {
     perror("create_mq_name failed");
