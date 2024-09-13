@@ -112,9 +112,8 @@ public:
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
       if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        // clang-format off
-        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {  // older messages first
-          // clang-format on
+        // old messages first
+        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
           MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
           agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
             ptr, topic_name, subscriber_args.ret_publisher_pids[i],
