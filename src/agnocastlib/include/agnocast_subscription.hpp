@@ -72,7 +72,7 @@ public:
     }
 
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-      if (subscriber_args.ret_pids[i] == subscriber_pid) {
+      if ((pid_t)subscriber_args.ret_pids[i] == subscriber_pid) {
         /*
          * NOTE: In ROS2, communication should work fine even if the same process exists as both a
          * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
