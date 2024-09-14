@@ -40,12 +40,6 @@ public:
   {
     publisher_pid_ = getpid();
 
-    if (ioctl(agnocast_fd, AGNOCAST_TOPIC_ADD_PUB_CMD, topic_name_.c_str()) < 0) {
-      perror("AGNOCAST_TOPIC_ADD_PUB_CMD failed");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
     union ioctl_publisher_args pub_args;
     pub_args.publisher_pid = publisher_pid_;
     pub_args.topic_name = topic_name_.c_str();
