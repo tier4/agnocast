@@ -738,6 +738,7 @@ static int subscriber_add(
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+    // A qos_depth of 0 indicates that transient_local is disabled.
     if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
 
     struct entry_node * en = container_of(node, struct entry_node, node);
