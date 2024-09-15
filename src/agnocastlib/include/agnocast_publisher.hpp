@@ -148,7 +148,9 @@ public:
       mq_msg.published = true;
 
       if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        // EAGAINはO_NONBLOCKで落ちたときの挙動だからOK
+        // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
+        // hasn't received it yet. Thus, there's no need to send it again since the notification has
+        // already been sent.
         if (errno != EAGAIN) {
           perror("mq_send failed");
         }

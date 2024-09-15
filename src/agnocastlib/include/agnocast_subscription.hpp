@@ -129,12 +129,6 @@ public:
       MqMsgAgnocast mq_msg;
 
       while (is_running) {
-        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
-        if (ret == -1) {
-          perror("mq_receive failed");
-          return;
-        }
-
         union ioctl_receive_msg_args receive_args;
         receive_args.topic_name = topic_name.c_str();
         receive_args.subscriber_pid = subscriber_pid;
@@ -151,6 +145,12 @@ public:
             ptr, topic_name, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
             true);
           callback(agnocast_ptr);
+        }
+
+        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
+        if (ret == -1) {
+          perror("mq_receive failed");
+          return;
         }
       }
     });
