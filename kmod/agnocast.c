@@ -738,12 +738,12 @@ static int subscriber_add(
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
+  sub_info->latest_timestamp = 0;
+
   struct rb_node * last_node = rb_last(&wrapper->topic.entries);
   if (last_node) {
     struct entry_node * en = container_of(last_node, struct entry_node, node);
     sub_info->latest_timestamp = en->timestamp;
-  } else {
-    sub_info->latest_timestamp = 0;
   }
 
   // Return qos_depth messages in order from newest to oldest for transient local
