@@ -42,7 +42,7 @@ struct publisher_info
 struct subscriber_info
 {
   uint32_t pid;
-  uint64_t latest_timestamp;
+  uint64_t latest_received_timestamp;
   struct hlist_node node;
 };
 
@@ -181,7 +181,7 @@ static struct subscriber_info * insert_subscriber_info(
   }
 
   new_info->pid = subscriber_pid;
-  new_info->latest_timestamp = 0;
+  new_info->latest_received_timestamp = 0;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
@@ -717,7 +717,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 }
 
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t timestamp,
+  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
   union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -739,11 +739,11 @@ static int subscriber_add(
   if (!sub_info) {
     return -1;
   }
-  sub_info->latest_timestamp = timestamp;
+  sub_info->latest_received_timestamp = init_timestamp;
 
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
-  bool updated = false;
+  bool sub_info_updated = false;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     // A qos_depth of 0 indicates that transient_local is disabled.
     if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
@@ -751,9 +751,10 @@ static int subscriber_add(
     struct entry_node * en = container_of(node, struct entry_node, node);
     /*
      * TODO: In the current implementation, the timestamp of the most recently received item is
-     * stored in sub_info->latest_timestamp. If there are older items that haven't been published
-     * yet, they will be ignored, even on the next RECEIVE. To fix this, the implementation should
-     * be changed so that items are inserted into the rb_tree only after they are published.
+     * stored in sub_info->latest_received_timestamp. If there are older items that haven't been
+     * published yet, they will be ignored, even on the next RECEIVE. To fix this, the
+     * implementation should be changed so that items are inserted into the rb_tree only after they
+     * are published.
      */
     if (!en->published) {
       continue;
@@ -774,9 +775,9 @@ static int subscriber_add(
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
 
-    if (!updated) {
-      sub_info->latest_timestamp = en->timestamp;
-      updated = true;
+    if (!sub_info_updated) {
+      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info_updated = true;
     }
   }
 
@@ -963,19 +964,20 @@ static int receive_and_update(
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
 
   ioctl_ret->ret_len = 0;
-  bool updated = false;
-  uint64_t prev_latest_timestamp = sub_info->latest_timestamp;
+  bool sub_info_updated = false;
+  uint64_t prev_latest_received_timestamp = sub_info->latest_received_timestamp;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if ((en->timestamp <= prev_latest_timestamp) || (qos_depth == ioctl_ret->ret_len)) {
+    if ((en->timestamp <= prev_latest_received_timestamp) || (qos_depth == ioctl_ret->ret_len)) {
       break;
     }
 
     /*
      * TODO: In the current implementation, the timestamp of the most recently received item is
-     * stored in sub_info->latest_timestamp. If there are older items that haven't been published
-     * yet, they will be ignored, even on the next RECEIVE. To fix this, the implementation should
-     * be changed so that items are inserted into the rb_tree only after they are published.
+     * stored in sub_info->latest_received_timestamp. If there are older items that haven't been
+     * published yet, they will be ignored, even on the next RECEIVE. To fix this, the
+     * implementation should be changed so that items are inserted into the rb_tree only after they
+     * are published.
      */
     if (!en->published) {
       continue;
@@ -1006,9 +1008,9 @@ static int receive_and_update(
     }
     en->unreceived_subscriber_count--;
 
-    if (!updated) {
-      sub_info->latest_timestamp = en->timestamp;
-      updated = true;
+    if (!sub_info_updated) {
+      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info_updated = true;
     }
   }
 
@@ -1116,7 +1118,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = subscriber_add(
-        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.timestamp, &sub_args);
+        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.init_timestamp,
+        &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
