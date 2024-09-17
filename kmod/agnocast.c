@@ -715,7 +715,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 }
 
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
+  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t timestamp,
   union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -738,7 +738,7 @@ static int subscriber_add(
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
-  sub_info->latest_timestamp = 0;
+  sub_info->latest_timestamp = timestamp;
 
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
@@ -1103,7 +1103,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = subscriber_add(topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, &sub_args);
+      ret = subscriber_add(
+        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.timestamp, &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;

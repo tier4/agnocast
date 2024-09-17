@@ -21,6 +21,7 @@ union ioctl_subscriber_args {
     const char * topic_name;
     uint32_t qos_depth;
     uint32_t subscriber_pid;
+    uint64_t timestamp;
   };
   struct
   {

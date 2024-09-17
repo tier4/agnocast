@@ -52,6 +52,7 @@ public:
                                   ? static_cast<uint32_t>(qos.depth())
                                   : 0;
     subscriber_args.subscriber_pid = subscriber_pid;
+    subscriber_args.timestamp = agnocast_get_timestamp();
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
