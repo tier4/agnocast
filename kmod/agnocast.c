@@ -739,8 +739,12 @@ static int subscriber_add(
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
   struct rb_node * last_node = rb_last(&wrapper->topic.entries);
-  struct entry_node * en = container_of(last_node, struct entry_node, node);
-  sub_info->latest_timestamp = en->timestamp;
+  if (last_node) {
+    struct entry_node * en = container_of(last_node, struct entry_node, node);
+    sub_info->latest_timestamp = en->timestamp;
+  } else {
+    sub_info->latest_timestamp = 0;
+  }
 
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
@@ -953,11 +957,12 @@ static int receive_and_update(
 
   ioctl_ret->ret_len = 0;
   bool updated = false;
+  uint64_t prev_latest_timestamp = sub_info->latest_timestamp;
   // Return qos_depth messages in order from newest to oldest for transient local
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if ((en->timestamp <= sub_info->latest_timestamp) || (qos_depth <= ioctl_ret->ret_len)) {
-      return 0;
+    if ((en->timestamp <= prev_latest_timestamp) || (qos_depth <= ioctl_ret->ret_len)) {
+      break;
     }
 
     if (!en->published) {
