@@ -768,7 +768,7 @@ static int subscriber_add(
     ioctl_ret->ret_transient_local_num++;
 
     if (!updated) {
-      sub_info->latest_timestmp = en->timestamp;
+      sub_info->latest_timestamp = en->timestamp;
       updated = true;
     }
   }
