@@ -967,7 +967,7 @@ static int receive_and_update(
   uint64_t prev_latest_timestamp = sub_info->latest_timestamp;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if ((en->timestamp <= prev_latest_timestamp) || (qos_depth <= ioctl_ret->ret_len)) {
+    if ((en->timestamp <= prev_latest_timestamp) || (qos_depth == ioctl_ret->ret_len)) {
       break;
     }
 
