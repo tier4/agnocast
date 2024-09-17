@@ -101,7 +101,7 @@ union ioctl_receive_msg_args {
   };
   struct
   {
-    uint32_t ret_len;
+    uint16_t ret_len;
     uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];

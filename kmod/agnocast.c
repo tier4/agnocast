@@ -958,7 +958,6 @@ static int receive_and_update(
   ioctl_ret->ret_len = 0;
   bool updated = false;
   uint64_t prev_latest_timestamp = sub_info->latest_timestamp;
-  // Return qos_depth messages in order from newest to oldest for transient local
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     if ((en->timestamp <= prev_latest_timestamp) || (qos_depth <= ioctl_ret->ret_len)) {

@@ -139,7 +139,7 @@ public:
           exit(EXIT_FAILURE);
         }
 
-        for (int i = receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
+        for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
           MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret_last_msg_addrs[i]);
           agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
             ptr, topic_name, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
