@@ -749,6 +749,12 @@ static int subscriber_add(
     if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
 
     struct entry_node * en = container_of(node, struct entry_node, node);
+    /*
+     * TODO: In the current implementation, the timestamp of the most recently received item is
+     * stored in sub_info->latest_timestamp. If there are older items that haven't been published
+     * yet, they will be ignored, even on the next RECEIVE. To fix this, the implementation should
+     * be changed so that items are inserted into the rb_tree only after they are published.
+     */
     if (!en->published) {
       continue;
     }
@@ -965,6 +971,12 @@ static int receive_and_update(
       break;
     }
 
+    /*
+     * TODO: In the current implementation, the timestamp of the most recently received item is
+     * stored in sub_info->latest_timestamp. If there are older items that haven't been published
+     * yet, they will be ignored, even on the next RECEIVE. To fix this, the implementation should
+     * be changed so that items are inserted into the rb_tree only after they are published.
+     */
     if (!en->published) {
       continue;
     }
