@@ -986,7 +986,7 @@ static int receive_and_update(
         agnocast_device,
         "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
         "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-        " (receive_until_qos_depth)\n",
+        " (receive_and_update)\n",
         en->timestamp, MAX_SUBSCRIBER_NUM);
       return -1;
     }
