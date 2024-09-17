@@ -740,15 +740,10 @@ static int subscriber_add(
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
   sub_info->latest_timestamp = 0;
 
-  struct rb_node * last_node = rb_last(&wrapper->topic.entries);
-  if (last_node) {
-    struct entry_node * en = container_of(last_node, struct entry_node, node);
-    sub_info->latest_timestamp = en->timestamp;
-  }
-
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
-  for (struct rb_node * node = last_node; node; node = rb_prev(node)) {
+  bool updated = false;
+  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     // A qos_depth of 0 indicates that transient_local is disabled.
     if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
 
@@ -771,6 +766,11 @@ static int subscriber_add(
     ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
+
+    if (!updated) {
+      sub_info->latest_timestmp = en->timestamp;
+      updated = true;
+    }
   }
 
   return get_shm(topic_name, ioctl_ret);
