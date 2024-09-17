@@ -150,7 +150,8 @@ static struct subscriber_info * find_subscriber_info(
   return NULL;
 }
 
-static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subscriber_pid)
+static struct subscriber_info * insert_subscriber_info(
+  struct topic_wrapper * wrapper, uint32_t subscriber_pid)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -160,7 +161,7 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
       "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
       "added. (insert_subscriber_info)\n",
       wrapper->key, MAX_SUBSCRIBER_NUM);
-    return -1;
+    return NULL;
   }
 
   struct subscriber_info * info = find_subscriber_info(wrapper, subscriber_pid);
@@ -170,13 +171,13 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
       "Subscriber (pid=%d) already exists in the topic (topic_name=%s). "
       "(insert_subscriber_info)\n",
       subscriber_pid, wrapper->key);
-    return -1;
+    return NULL;
   }
 
   struct subscriber_info * new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
   if (!new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
-    return -1;
+    return NULL;
   }
 
   new_info->pid = subscriber_pid;
@@ -189,7 +190,7 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
     agnocast_device,
     "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_info)\n",
     subscriber_pid, wrapper->key);
-  return 0;
+  return new_info;
 }
 
 static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
@@ -219,7 +220,8 @@ static struct publisher_info * find_publisher_info(
   return NULL;
 }
 
-static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
+static struct publisher_info * insert_publisher_info(
+  struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   int count = get_size_pub_info_htable(wrapper);
 
@@ -230,7 +232,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
       "bound (MAX_PUBLISHER_NUM=%d), so no new publisher can be "
       "added. (insert_publisher_info)\n",
       wrapper->key, MAX_PUBLISHER_NUM);
-    return -1;
+    return NULL;
   }
 
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
@@ -240,13 +242,13 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
       "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
       "(insert_publisher_info)\n",
       publisher_pid, wrapper->key);
-    return -1;
+    return NULL;
   }
 
   struct publisher_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
   if (!new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
-    return -1;
+    return NULL;
   }
 
   new_info->pid = publisher_pid;
@@ -256,7 +258,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
 
-  return 0;
+  return new_info;
 }
 
 static int increment_entries_num(struct topic_wrapper * wrapper, uint32_t publisher_pid)
@@ -733,11 +735,10 @@ static int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  if (insert_subscriber_info(wrapper, subscriber_pid) == -1) {
+  struct subscriber_info * sub_info = insert_subscriber_info(wrapper, subscriber_pid);
+  if (!sub_info) {
     return -1;
   }
-
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
   sub_info->latest_timestamp = timestamp;
 
   // Return qos_depth messages in order from newest to oldest for transient local
@@ -794,7 +795,7 @@ static int publisher_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
-  if (insert_publisher_info(wrapper, pid) == -1) {
+  if (!insert_publisher_info(wrapper, pid)) {
     return -1;
   }
 
