@@ -14,7 +14,7 @@ struct MqMsgNewPublisher
 
 struct MqMsgAgnocast
 {
-  bool published;
+  bool dummy;
 };
 
 }  // namespace agnocast

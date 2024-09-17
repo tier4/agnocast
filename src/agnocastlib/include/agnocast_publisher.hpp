@@ -144,9 +144,7 @@ public:
         opened_mqs.insert({mq_name, mq});
       }
 
-      MqMsgAgnocast mq_msg;
-      mq_msg.published = true;
-
+      struct MqMsgAgnocast mq_msg;
       if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
         // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
         // hasn't received it yet. Thus, there's no need to send it again since the notification has

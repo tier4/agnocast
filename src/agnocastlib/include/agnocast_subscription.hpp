@@ -30,7 +30,6 @@ extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
-size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
 std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
