@@ -136,7 +136,7 @@ public:
       if (opened_mqs.find(mq_name) != opened_mqs.end()) {
         mq = opened_mqs[mq_name];
       } else {
-        mq = mq_open(mq_name.c_str(), O_WRONLY);
+        mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
         if (mq == -1) {
           perror("mq_open failed");
           continue;
@@ -144,12 +144,14 @@ public:
         opened_mqs.insert({mq_name, mq});
       }
 
-      MqMsgAgnocast mq_msg;
-      mq_msg.publisher_pid = publisher_pid_;
-      mq_msg.timestamp = message.get_timestamp();
-
+      struct MqMsgAgnocast mq_msg;
       if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        perror("mq_send failed");
+        // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
+        // hasn't received it yet. Thus, there's no need to send it again since the notification has
+        // already been sent.
+        if (errno != EAGAIN) {
+          perror("mq_send failed");
+        }
       }
     }
   }

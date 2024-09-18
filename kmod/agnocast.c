@@ -42,6 +42,7 @@ struct publisher_info
 struct subscriber_info
 {
   uint32_t pid;
+  uint64_t latest_received_timestamp;
   struct hlist_node node;
 };
 
@@ -149,7 +150,8 @@ static struct subscriber_info * find_subscriber_info(
   return NULL;
 }
 
-static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subscriber_pid)
+static struct subscriber_info * insert_subscriber_info(
+  struct topic_wrapper * wrapper, uint32_t subscriber_pid)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -159,7 +161,7 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
       "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
       "added. (insert_subscriber_info)\n",
       wrapper->key, MAX_SUBSCRIBER_NUM);
-    return -1;
+    return NULL;
   }
 
   struct subscriber_info * info = find_subscriber_info(wrapper, subscriber_pid);
@@ -169,16 +171,17 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
       "Subscriber (pid=%d) already exists in the topic (topic_name=%s). "
       "(insert_subscriber_info)\n",
       subscriber_pid, wrapper->key);
-    return -1;
+    return NULL;
   }
 
   struct subscriber_info * new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
   if (!new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
-    return -1;
+    return NULL;
   }
 
   new_info->pid = subscriber_pid;
+  new_info->latest_received_timestamp = 0;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
@@ -187,7 +190,7 @@ static int insert_subscriber_info(struct topic_wrapper * wrapper, uint32_t subsc
     agnocast_device,
     "Subscriber (pid=%d) is added to the topic (topic_name=%s). (insert_subscriber_info)\n",
     subscriber_pid, wrapper->key);
-  return 0;
+  return new_info;
 }
 
 static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
@@ -217,7 +220,8 @@ static struct publisher_info * find_publisher_info(
   return NULL;
 }
 
-static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publisher_pid)
+static struct publisher_info * insert_publisher_info(
+  struct topic_wrapper * wrapper, uint32_t publisher_pid)
 {
   int count = get_size_pub_info_htable(wrapper);
 
@@ -228,7 +232,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
       "bound (MAX_PUBLISHER_NUM=%d), so no new publisher can be "
       "added. (insert_publisher_info)\n",
       wrapper->key, MAX_PUBLISHER_NUM);
-    return -1;
+    return NULL;
   }
 
   struct publisher_info * info = find_publisher_info(wrapper, publisher_pid);
@@ -238,13 +242,13 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
       "Publisher (pid=%d) already exists in the topic (topic_name=%s). "
       "(insert_publisher_info)\n",
       publisher_pid, wrapper->key);
-    return -1;
+    return NULL;
   }
 
   struct publisher_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
   if (!new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
-    return -1;
+    return NULL;
   }
 
   new_info->pid = publisher_pid;
@@ -254,7 +258,7 @@ static int insert_publisher_info(struct topic_wrapper * wrapper, uint32_t publis
   uint32_t hash_val = hash_min(publisher_pid, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
 
-  return 0;
+  return new_info;
 }
 
 static int increment_entries_num(struct topic_wrapper * wrapper, uint32_t publisher_pid)
@@ -713,7 +717,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 }
 
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid,
+  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
   union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -731,17 +735,27 @@ static int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  if (insert_subscriber_info(wrapper, subscriber_pid) == -1) {
+  struct subscriber_info * sub_info = insert_subscriber_info(wrapper, subscriber_pid);
+  if (!sub_info) {
     return -1;
   }
+  sub_info->latest_received_timestamp = init_timestamp;
 
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
+  bool sub_info_updated = false;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     // A qos_depth of 0 indicates that transient_local is disabled.
     if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
 
     struct entry_node * en = container_of(node, struct entry_node, node);
+    /*
+     * TODO: In the current implementation, the timestamp of the most recently received item is
+     * stored in sub_info->latest_received_timestamp. If there are older items that haven't been
+     * published yet, they will be ignored, even on the next RECEIVE. To fix this, the
+     * implementation should be changed so that items are inserted into the rb_tree only after they
+     * are published.
+     */
     if (!en->published) {
       continue;
     }
@@ -760,6 +774,11 @@ static int subscriber_add(
     ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
+
+    if (!sub_info_updated) {
+      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info_updated = true;
+    }
   }
 
   return get_shm(topic_name, ioctl_ret);
@@ -783,7 +802,7 @@ static int publisher_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
-  if (insert_publisher_info(wrapper, pid) == -1) {
+  if (!insert_publisher_info(wrapper, pid)) {
     return -1;
   }
 
@@ -932,8 +951,8 @@ static uint64_t enqueue_and_release(
 }
 
 static int receive_and_update(
-  char * topic_name, uint32_t subscriber_pid, uint32_t publisher_pid, uint64_t msg_timestamp,
-  uint32_t qos_depth, union ioctl_receive_msg_args * ioctl_ret)
+  char * topic_name, uint32_t subscriber_pid, uint32_t qos_depth,
+  union ioctl_receive_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -942,51 +961,59 @@ static int receive_and_update(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_pid, msg_timestamp);
-  if (!en) {
-    dev_warn(
-      agnocast_device,
-      "Message entry with (topic_name=%s publisher_pid=%d timestamp=%lld) not found. "
-      "(receive_and_update)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return -1;
-  }
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
 
-  if (en->unreceived_subscriber_count == 0) {
-    dev_warn(
-      agnocast_device,
-      "Tried to decrement unreceived_subscriber_count 0 with (topic_name=%s publisher_pid=%d "
-      "timestamp=%lld). (receive_and_update)\n",
-      topic_name, publisher_pid, msg_timestamp);
-    return -1;
-  }
-
-  // Count number of nodes that have greater (newer) timestamp than the received message entry.
-  // If the count is greater than qos_depth, the received message is ignored.
-  uint32_t newer_entry_count = 0;
+  ioctl_ret->ret_len = 0;
+  bool sub_info_updated = false;
+  uint64_t prev_latest_received_timestamp = sub_info->latest_received_timestamp;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
-    struct entry_node * compared_en = container_of(node, struct entry_node, node);
-    if (compared_en->timestamp <= msg_timestamp) break;
-    newer_entry_count++;
-    if (newer_entry_count > qos_depth) {
-      // Received message is ignored.
-      en->unreceived_subscriber_count--;
-      ioctl_ret->ret = 0;
-      return 0;
+    struct entry_node * en = container_of(node, struct entry_node, node);
+    if ((en->timestamp <= prev_latest_received_timestamp) || (qos_depth == ioctl_ret->ret_len)) {
+      break;
+    }
+
+    /*
+     * TODO: In the current implementation, the timestamp of the most recently received item is
+     * stored in sub_info->latest_received_timestamp. If there are older items that haven't been
+     * published yet, they will be ignored, even on the next RECEIVE. To fix this, the
+     * implementation should be changed so that items are inserted into the rb_tree only after they
+     * are published.
+     */
+    if (!en->published) {
+      continue;
+    }
+
+    if (increment_sub_rc(en, subscriber_pid) == -1) {
+      dev_warn(
+        agnocast_device,
+        "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+        "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+        " (receive_and_update)\n",
+        en->timestamp, MAX_SUBSCRIBER_NUM);
+      return -1;
+    }
+
+    ioctl_ret->ret_publisher_pids[ioctl_ret->ret_len] = en->publisher_pid;
+    ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
+    ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
+    ioctl_ret->ret_len++;
+
+    if (en->unreceived_subscriber_count == 0) {
+      dev_warn(
+        agnocast_device,
+        "Tried to decrement unreceived_subscriber_count 0 with (topic_name=%s publisher_pid=%d "
+        "timestamp=%lld). (receive_and_update)\n",
+        topic_name, en->publisher_pid, en->timestamp);
+      return -1;
+    }
+    en->unreceived_subscriber_count--;
+
+    if (!sub_info_updated) {
+      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info_updated = true;
     }
   }
 
-  en->unreceived_subscriber_count--;
-  if (increment_sub_rc(en, subscriber_pid) == -1) {
-    dev_warn(
-      agnocast_device,
-      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
-      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-      " (increment_message_entry_rc)\n",
-      en->timestamp, MAX_SUBSCRIBER_NUM);
-    return -1;
-  }
-  ioctl_ret->ret = en->msg_virtual_address;
   return 0;
 }
 
@@ -1090,7 +1117,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = subscriber_add(topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, &sub_args);
+      ret = subscriber_add(
+        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.init_timestamp,
+        &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1150,8 +1179,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = receive_and_update(
-        topic_name_buf, receive_msg_args.subscriber_pid, receive_msg_args.publisher_pid,
-        receive_msg_args.msg_timestamp, receive_msg_args.qos_depth, &receive_msg_args);
+        topic_name_buf, receive_msg_args.subscriber_pid, receive_msg_args.qos_depth,
+        &receive_msg_args);
       if (copy_to_user(
             (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
             sizeof(receive_msg_args)))

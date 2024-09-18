@@ -189,26 +189,6 @@ void * initialize_agnocast(const uint64_t shm_size)
   return map_writable_area(pid, new_shm_args.ret_addr, shm_size);
 }
 
-size_t read_mq_msgmax()
-{
-  std::ifstream msgmax_file("/proc/sys/fs/mqueue/msg_max");
-  if (!msgmax_file.is_open()) {
-    perror("Opening /proc/sys/fs/mqueue/msg_max failed");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  size_t mq_msgmax;
-  if (!(msgmax_file >> mq_msgmax)) {
-    perror("Reading /proc/sys/fs/mqueue/msg_max failed");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-  msgmax_file.close();
-
-  return mq_msgmax;
-}
-
 static void shutdown_agnocast()
 {
   std::cout << "[Info]: shutdown_agnocast started" << std::endl;

@@ -30,7 +30,6 @@ extern std::vector<std::thread> threads;
 extern std::atomic<bool> is_running;
 
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
-size_t read_mq_msgmax();
 void wait_for_new_publisher(const uint32_t pid);
 
 std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
@@ -52,6 +51,7 @@ public:
                                   ? static_cast<uint32_t>(qos.depth())
                                   : 0;
     subscriber_args.subscriber_pid = subscriber_pid;
+    subscriber_args.init_timestamp = agnocast_get_timestamp();
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
@@ -99,15 +99,7 @@ public:
     attr.mq_flags = 0;                        // Blocking queue
     attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
     attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
-    /*
-     * NOTE:
-     *   Maximum number of messages in the queue.
-     *   mq_maxmsg is limited by /proc/sys/fs/mqueue/msg_max and defaults to 10.
-     *   Although this limit can be changed by editing the file, here mq_maxmsg is used without
-     * being changed. If mq_send() is called when the message queue is full, it will block until the
-     * queue is free, so this value may need to be reconsidered in the future.
-     */
-    attr.mq_maxmsg = static_cast<__syscall_slong_t>(read_mq_msgmax());
+    attr.mq_maxmsg = 1;
 
     mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
     if (mq == -1) {
@@ -137,17 +129,9 @@ public:
       MqMsgAgnocast mq_msg;
 
       while (is_running) {
-        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
-        if (ret == -1) {
-          perror("mq_receive failed");
-          return;
-        }
-
         union ioctl_receive_msg_args receive_args;
         receive_args.topic_name = topic_name.c_str();
         receive_args.subscriber_pid = subscriber_pid;
-        receive_args.publisher_pid = mq_msg.publisher_pid;
-        receive_args.msg_timestamp = mq_msg.timestamp;
         receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
         if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
           perror("AGNOCAST_RECEIVE_MSG_CMD failed");
@@ -155,15 +139,19 @@ public:
           exit(EXIT_FAILURE);
         }
 
-        if (receive_args.ret == 0) {  // Number of messages > qos_depth
-          continue;
+        for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
+          MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret_last_msg_addrs[i]);
+          agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
+            ptr, topic_name, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
+            true);
+          callback(agnocast_ptr);
         }
 
-        MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret);
-        agnocast::message_ptr<MessageT> agnocast_ptr = agnocast::message_ptr<MessageT>(
-          ptr, topic_name, mq_msg.publisher_pid, mq_msg.timestamp, true);
-
-        callback(agnocast_ptr);
+        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
+        if (ret == -1) {
+          perror("mq_receive failed");
+          return;
+        }
       }
     });
 

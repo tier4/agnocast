@@ -14,8 +14,7 @@ struct MqMsgNewPublisher
 
 struct MqMsgAgnocast
 {
-  uint32_t publisher_pid;
-  uint64_t timestamp;
+  bool dummy;
 };
 
 }  // namespace agnocast
