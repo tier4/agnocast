@@ -30,7 +30,7 @@ class MinimalPublisher : public rclcpp::Node
     const auto timestamp = agnocast_get_timestamp();
 
     {
-      agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> message =
+      agnocast::shared_ptr<sample_interfaces::msg::DynamicSizeArray> message =
         publisher_dynamic_->borrow_loaned_message();
       message->id = count_;
       message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
@@ -45,7 +45,7 @@ class MinimalPublisher : public rclcpp::Node
     }
 
     {
-      agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> message =
+      agnocast::shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
         publisher_static_->borrow_loaned_message();
       message->id = count_;
       message->timestamp = timestamp;
