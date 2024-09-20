@@ -20,7 +20,7 @@ using std::placeholders::_1;
 class MinimalPubSub : public rclcpp::Node
 {
   void topic_callback(
-    const agnocast::message_ptr<sample_interfaces::msg::StaticSizeArray> & sub_message)
+    const agnocast::shared_ptr<sample_interfaces::msg::StaticSizeArray> & sub_message)
   {
     // subscribe
     RCLCPP_INFO(
@@ -28,7 +28,7 @@ class MinimalPubSub : public rclcpp::Node
       reinterpret_cast<uint64_t>(sub_message.get()));
 
     // publish
-    agnocast::message_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message =
+    agnocast::shared_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message =
       publisher_dynamic_->borrow_loaned_message();
     pub_message->id = count_;
     pub_message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));

@@ -38,7 +38,7 @@ std::shared_ptr<Publisher<MessageT>> create_publisher(
 template <typename MessageT>
 std::shared_ptr<Subscription<MessageT>> create_subscription(
   const std::string & topic_name, const rclcpp::QoS & qos,
-  std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  std::function<void(const agnocast::shared_ptr<MessageT> &)> callback)
 {
   return std::make_shared<Subscription<MessageT>>(topic_name, qos, callback);
 }
@@ -46,7 +46,7 @@ std::shared_ptr<Subscription<MessageT>> create_subscription(
 template <typename MessageT>
 std::shared_ptr<Subscription<MessageT>> create_subscription(
   const std::string & topic_name, const size_t qos_history_depth,
-  std::function<void(const agnocast::message_ptr<MessageT> &)> callback)
+  std::function<void(const agnocast::shared_ptr<MessageT> &)> callback)
 {
   return std::make_shared<Subscription<MessageT>>(
     topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback);
