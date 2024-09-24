@@ -21,7 +21,7 @@ namespace agnocast
 extern int agnocast_fd;
 
 template <typename T>
-class shared_ptr
+class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
@@ -69,9 +69,9 @@ public:
   uint32_t get_publisher_pid() const { return publisher_pid_; }
   uint64_t get_timestamp() { return timestamp_; }
 
-  shared_ptr() {}
+  ipc_shared_ptr() {}
 
-  explicit shared_ptr(
+  explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
     bool need_rc_update)
   : ptr_(ptr),
@@ -82,9 +82,9 @@ public:
   {
   }
 
-  ~shared_ptr() { release(); }
+  ~ipc_shared_ptr() { release(); }
 
-  shared_ptr(const shared_ptr & r)
+  ipc_shared_ptr(const ipc_shared_ptr & r)
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
@@ -94,14 +94,14 @@ public:
     increment_rc();
   }
 
-  shared_ptr & operator=(const shared_ptr & r)
+  ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
   {
     std::cout << "[Error]: copy assignment operator is not supported yet" << std::endl;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  shared_ptr(shared_ptr && r)
+  ipc_shared_ptr(ipc_shared_ptr && r)
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
@@ -111,7 +111,7 @@ public:
     r.ptr_ = nullptr;
   }
 
-  shared_ptr & operator=(shared_ptr && r)
+  ipc_shared_ptr & operator=(ipc_shared_ptr && r)
   {
     std::cout << "[Error]: move assignment operator is not supported yet" << std::endl;
     close(agnocast_fd);

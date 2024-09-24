@@ -84,13 +84,13 @@ public:
     }
   }
 
-  shared_ptr<MessageT> borrow_loaned_message()
+  ipc_shared_ptr<MessageT> borrow_loaned_message()
   {
     MessageT * ptr = new MessageT();
     return borrow_loaned_message(ptr);
   }
 
-  shared_ptr<MessageT> borrow_loaned_message(MessageT * ptr)
+  ipc_shared_ptr<MessageT> borrow_loaned_message(MessageT * ptr)
   {
     uint64_t timestamp = agnocast_get_timestamp();
     union ioctl_enqueue_and_release_args ioctl_args;
@@ -110,10 +110,10 @@ public:
       delete release_ptr;
     }
 
-    return shared_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
   }
 
-  void publish(shared_ptr<MessageT> && message)
+  void publish(ipc_shared_ptr<MessageT> && message)
   {
     if (topic_name_.c_str() != message.get_topic_name()) return;  // string comparison?
     if (publisher_pid_ != message.get_publisher_pid()) return;

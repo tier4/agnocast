@@ -11,7 +11,7 @@ class BridgeNode : public rclcpp::Node
   rclcpp::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_;
 
   void agnocast_topic_callback(
-    const agnocast::shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
   {
     RCLCPP_INFO(this->get_logger(), "bridge message agnocast->ros2 address: %p", message.get());
     const sample_interfaces::msg::DynamicSizeArray * raw = message.get();
