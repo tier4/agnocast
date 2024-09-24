@@ -30,7 +30,7 @@ class MinimalPublisher : public rclcpp::Node
     const auto timestamp = agnocast_get_timestamp();
 
     {
-      agnocast::shared_ptr<sample_interfaces::msg::DynamicSizeArray> message =
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> message =
         publisher_dynamic_->borrow_loaned_message();
       message->id = count_;
       message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
@@ -45,7 +45,7 @@ class MinimalPublisher : public rclcpp::Node
     }
 
     {
-      agnocast::shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
         publisher_static_->borrow_loaned_message();
       message->id = count_;
       message->timestamp = timestamp;
@@ -61,8 +61,8 @@ class MinimalPublisher : public rclcpp::Node
   }
 
   rclcpp::TimerBase::SharedPtr timer_;
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_dynamic_;
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>> publisher_static_;
+  agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_dynamic_;
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr publisher_static_;
   int count_;
 
   std::vector<uint64_t> timestamps_;

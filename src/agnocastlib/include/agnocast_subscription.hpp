@@ -87,9 +87,11 @@ class Subscription : public SubscriptionBase
   std::pair<mqd_t, std::string> mq_subscription;
 
 public:
+  using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
+
   Subscription(
     const std::string & topic_name, const rclcpp::QoS & qos,
-    std::function<void(const agnocast::shared_ptr<MessageT> &)> callback)
+    std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
   {
     const pid_t subscriber_pid = getpid();
     union ioctl_subscriber_args subscriber_args = initialize(subscriber_pid, topic_name, qos);
@@ -119,7 +121,7 @@ public:
         // old messages first
         for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
           MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
-          agnocast::shared_ptr<MessageT> agnocast_ptr = agnocast::shared_ptr<MessageT>(
+          agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
             ptr, topic_name, subscriber_args.ret_publisher_pids[i],
             subscriber_args.ret_timestamps[i], true);
           callback(agnocast_ptr);
@@ -141,7 +143,7 @@ public:
 
         for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
           MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret_last_msg_addrs[i]);
-          agnocast::shared_ptr<MessageT> agnocast_ptr = agnocast::shared_ptr<MessageT>(
+          agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
             ptr, topic_name, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
             true);
           callback(agnocast_ptr);
@@ -177,13 +179,15 @@ class TakeSubscription : public SubscriptionBase
   uint64_t last_taken_timestamp;
 
 public:
+  using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
+
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
   : last_taken_timestamp(0)
   {
     initialize(getpid(), topic_name, qos);
   }
 
-  agnocast::shared_ptr<MessageT> take()
+  agnocast::ipc_shared_ptr<MessageT> take()
   {
     // TODO
   }

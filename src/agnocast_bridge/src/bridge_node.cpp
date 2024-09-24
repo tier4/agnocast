@@ -6,12 +6,11 @@ using std::placeholders::_1;
 
 class BridgeNode : public rclcpp::Node
 {
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>>
-    agnocast_subscriber_;
+  agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>::SharedPtr agnocast_subscriber_;
   rclcpp::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_;
 
   void agnocast_topic_callback(
-    const agnocast::shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
   {
     RCLCPP_INFO(this->get_logger(), "bridge message agnocast->ros2 address: %p", message.get());
     const sample_interfaces::msg::DynamicSizeArray * raw = message.get();
