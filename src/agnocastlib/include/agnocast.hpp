@@ -21,14 +21,14 @@ namespace agnocast
 void * initialize_agnocast(const uint64_t shm_size);
 
 template <typename MessageT>
-std::shared_ptr<Publisher<MessageT>> create_publisher(
+typename Publisher<MessageT>::SharedPtr create_publisher(
   const std::string & topic_name, const rclcpp::QoS & qos)
 {
   return std::make_shared<Publisher<MessageT>>(topic_name, qos);
 }
 
 template <typename MessageT>
-std::shared_ptr<Publisher<MessageT>> create_publisher(
+typename Publisher<MessageT>::SharedPtr create_publisher(
   const std::string & topic_name, const size_t qos_history_depth)
 {
   return std::make_shared<Publisher<MessageT>>(
@@ -36,7 +36,7 @@ std::shared_ptr<Publisher<MessageT>> create_publisher(
 }
 
 template <typename MessageT>
-std::shared_ptr<Subscription<MessageT>> create_subscription(
+typename Subscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const rclcpp::QoS & qos,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
@@ -44,7 +44,7 @@ std::shared_ptr<Subscription<MessageT>> create_subscription(
 }
 
 template <typename MessageT>
-std::shared_ptr<Subscription<MessageT>> create_subscription(
+typename Subscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const size_t qos_history_depth,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
@@ -53,7 +53,7 @@ std::shared_ptr<Subscription<MessageT>> create_subscription(
 }
 
 template <typename MessageT>
-std::shared_ptr<TakeSubscription<MessageT>> create_subscription(
+typename TakeSubscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const rclcpp::QoS & qos)
 {
   if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
@@ -65,7 +65,7 @@ std::shared_ptr<TakeSubscription<MessageT>> create_subscription(
 }
 
 template <typename MessageT>
-std::shared_ptr<TakeSubscription<MessageT>> create_subscription(
+typename TakeSubscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const size_t qos_history_depth)
 {
   return std::make_shared<TakeSubscription<MessageT>>(

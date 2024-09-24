@@ -87,6 +87,8 @@ class Subscription : public SubscriptionBase
   std::pair<mqd_t, std::string> mq_subscription;
 
 public:
+  using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
+
   Subscription(
     const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
@@ -177,6 +179,8 @@ class TakeSubscription : public SubscriptionBase
   uint64_t last_taken_timestamp;
 
 public:
+  using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
+
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
   : last_taken_timestamp(0)
   {

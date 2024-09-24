@@ -35,6 +35,8 @@ class Publisher
                  // is not currently implemented.
 
 public:
+  using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
+
   Publisher(const std::string & topic_name, const rclcpp::QoS & qos)
   : topic_name_(topic_name), qos_(qos)
   {
