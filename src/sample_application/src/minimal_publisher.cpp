@@ -61,8 +61,8 @@ class MinimalPublisher : public rclcpp::Node
   }
 
   rclcpp::TimerBase::SharedPtr timer_;
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>> publisher_dynamic_;
-  std::shared_ptr<agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>> publisher_static_;
+  agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_dynamic_;
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr publisher_static_;
   int count_;
 
   std::vector<uint64_t> timestamps_;

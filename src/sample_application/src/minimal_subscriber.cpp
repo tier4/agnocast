@@ -24,8 +24,8 @@ class MinimalSubscriber : public rclcpp::Node
   int timestamp_idx_ = 0;
   pthread_mutex_t timestamp_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>> sub_dynamic_;
-  std::shared_ptr<agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>> sub_static_;
+  agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
+  agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
 
   void callback_dynamic(
     const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
