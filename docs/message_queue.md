@@ -63,3 +63,7 @@ The restrictions of the naming are
 
 The first rule is satisfied because all topic names start with `/`.
 To satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
+
+## Known issues
+
+- According to the man page for mq_send, it should be possible to send an empty message as an mq message. However, at the current time, attempts to do so have not been successful. As a workaround, we are using a dummy message instead. It's worth noting that this approach does not cause any issues in terms of functionality or performance.
