@@ -9,7 +9,7 @@ See official man page: <https://man7.org/linux/man-pages/man7/mq_overview.7.html
 There are two different usages of message queue in Agnocast.
 
 - To notify to subscriber processes that a new publisher is created.
-- To notify to subscriber processes that a publisher has published a new topic.
+- To notify to subscriber processes that a publisher has published a new topic message.
 
 ### Detailed usage
 
@@ -38,14 +38,16 @@ The message queue is used in the following way:
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic message has been published.
 - When a subscriber process receives the notification, then it gets the topic content through `AGNOCAST_RECEIVE_MSG_CMD` ioctl and executes the corresponding callback.
 
-Thus, the definition of the message is the following.
+The definition of the message is as follows;
 
 ```c
 struct MqMsgAgnocast {
-  uint32_t publisher_pid; // The process id of the sender
-  uint64_t timestamp;     // The timestamp of the corresponding topic
+  bool dummy;
 };
 ```
+
+This message only contains a boolean value as dummy data. The publisher does not initialize this value, so it is generally set to false by default. For the subscriber, the important aspect is not the value of this boolean, but rather the fact that the message has been received.
+Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
 
 ### Naming rules and restrictions
 
@@ -61,7 +63,3 @@ The restrictions of the naming are
 
 The first rule is satisfied because all topic names start with `/`.
 To satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
-
-## Known issues
-
-- When a subscriber process dies or is too slow to execute callbacks, the corresponding publisher processes will be blocked due to the message queue.
