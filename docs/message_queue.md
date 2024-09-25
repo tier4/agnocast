@@ -46,8 +46,7 @@ struct MqMsgAgnocast {
 };
 ```
 
-This message only contains a boolean value as dummy data. It is generally set to false by default since the publisher does not initialize this value. For the subscriber, the important aspect is not the value of this boolean, but rather the fact that the message has been received.
-Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
+This message only contains a boolean value, but the value itself is not relevant to the operation. The important fact for the subscriber is that a message has been received. Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
 
 ### Naming rules and restrictions
 
