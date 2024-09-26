@@ -77,6 +77,7 @@ void * map_area(
 void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
+    perror("map_writeable_area failed");
     close(agnocast_fd);
     return NULL;
   }
