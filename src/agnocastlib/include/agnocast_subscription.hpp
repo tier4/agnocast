@@ -31,6 +31,7 @@ extern std::atomic<bool> is_running;
 
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 void wait_for_new_publisher(const uint32_t pid);
+void validate_ld_preload();
 
 std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 
@@ -40,6 +41,8 @@ public:
   union ioctl_subscriber_args initialize(
     const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
   {
+    validate_ld_preload();
+
     // Open a mq for new publisher appearences.
     wait_for_new_publisher(subscriber_pid);
 
