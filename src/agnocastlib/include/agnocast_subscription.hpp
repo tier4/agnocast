@@ -59,11 +59,11 @@ public:
     // Register topic and subscriber info with the kernel module, and receive the publisher's shared
     // memory information along with messages needed to achieve transient local, if neccessary.
     union ioctl_subscriber_args subscriber_args;
-    subscriber_args.subscriber_pid = subscriber_pid_;
     subscriber_args.topic_name = topic_name_.c_str();
     subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                   ? static_cast<uint32_t>(qos_.depth())
                                   : 0;
+    subscriber_args.subscriber_pid = subscriber_pid_;
     subscriber_args.init_timestamp = agnocast_get_timestamp();
     subscriber_args.is_take_sub = is_take_sub;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
