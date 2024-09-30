@@ -47,12 +47,11 @@ public:
     const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
   : subscriber_pid_(subscriber_pid), topic_name_(topic_name), qos_(qos)
   {
+    validate_ld_preload();
   }
 
   union ioctl_subscriber_args initialize(bool is_take_sub)
   {
-    validate_ld_preload();
-
     // Open a mq for new publisher appearences.
     wait_for_new_publisher(subscriber_pid_);
 
