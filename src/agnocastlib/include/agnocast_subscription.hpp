@@ -38,23 +38,18 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 class SubscriptionBase
 {
 public:
-  union ioctl_subscriber_args initialize(
-    const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
+  void initialize(union ioctl_subscriber_args & subscriber_args)
   {
     validate_ld_preload();
+
+    const pid_t subscriber_pid = subscriber_args.subscriber_pid;
+    const char * topic_name = subscriber_args.topic_name;
 
     // Open a mq for new publisher appearences.
     wait_for_new_publisher(subscriber_pid);
 
     // Register topic and subscriber info with the kernel module, and receive the publisher's shared
     // memory information along with messages needed to achieve transient local, if neccessary.
-    union ioctl_subscriber_args subscriber_args;
-    subscriber_args.topic_name = topic_name.c_str();
-    subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
-                                  ? static_cast<uint32_t>(qos.depth())
-                                  : 0;
-    subscriber_args.subscriber_pid = subscriber_pid;
-    subscriber_args.init_timestamp = agnocast_get_timestamp();
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
@@ -79,8 +74,6 @@ public:
       const uint64_t size = subscriber_args.ret_shm_sizes[i];
       map_read_only_area(pid, addr, size);
     }
-
-    return subscriber_args;
   }
 };
 
@@ -97,7 +90,15 @@ public:
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
   {
     const pid_t subscriber_pid = getpid();
-    union ioctl_subscriber_args subscriber_args = initialize(subscriber_pid, topic_name, qos);
+    union ioctl_subscriber_args subscriber_args;
+    subscriber_args.subscriber_pid = subscriber_pid;
+    subscriber_args.topic_name = topic_name.c_str();
+    subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
+                                  ? static_cast<uint32_t>(qos.depth())
+                                  : 0;
+    subscriber_args.init_timestamp = agnocast_get_timestamp();
+    subscriber_args.is_take_sub = false;
+    initialize(subscriber_args);
 
     std::string mq_name = create_mq_name(topic_name, subscriber_pid);
     struct mq_attr attr;
@@ -187,7 +188,15 @@ public:
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
   : last_taken_timestamp(0)
   {
-    initialize(getpid(), topic_name, qos);
+    union ioctl_subscriber_args subscriber_args;
+    subscriber_args.subscriber_pid = getpid();
+    subscriber_args.topic_name = topic_name.c_str();
+    subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
+                                  ? static_cast<uint32_t>(qos.depth())
+                                  : 0;
+    subscriber_args.init_timestamp = agnocast_get_timestamp();
+    subscriber_args.is_take_sub = true;
+    initialize(subscriber_args);
   }
 
   agnocast::ipc_shared_ptr<MessageT> take()

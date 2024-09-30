@@ -43,6 +43,7 @@ struct subscriber_info
 {
   uint32_t pid;
   uint64_t latest_received_timestamp;
+  bool is_take_sub;
   struct hlist_node node;
 };
 
@@ -151,7 +152,7 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static struct subscriber_info * insert_subscriber_info(
-  struct topic_wrapper * wrapper, uint32_t subscriber_pid)
+  struct topic_wrapper * wrapper, uint32_t subscriber_pid, bool is_take_sub)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -182,6 +183,7 @@ static struct subscriber_info * insert_subscriber_info(
 
   new_info->pid = subscriber_pid;
   new_info->latest_received_timestamp = 0;
+  new_info->is_take_sub = is_take_sub;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(subscriber_pid, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
@@ -718,7 +720,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
 
 static int subscriber_add(
   char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
-  union ioctl_subscriber_args * ioctl_ret)
+  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -735,7 +737,7 @@ static int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  struct subscriber_info * sub_info = insert_subscriber_info(wrapper, subscriber_pid);
+  struct subscriber_info * sub_info = insert_subscriber_info(wrapper, subscriber_pid, is_take_sub);
   if (!sub_info) {
     return -1;
   }
@@ -1051,6 +1053,7 @@ static int publish_msg(
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
+    if (sub_info->is_take_sub) continue;
     ioctl_ret->ret_pids[index] = sub_info->pid;
     index++;
   }
@@ -1119,7 +1122,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       ret = subscriber_add(
         topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.init_timestamp,
-        &sub_args);
+        sub_args.is_take_sub, &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
