@@ -20,6 +20,15 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 mqd_t mq_new_publisher = -1;
 
+void validate_ld_preload()
+{
+  const char * ld_preload = getenv("LD_PRELOAD");
+  if (!ld_preload || std::strcmp(ld_preload, "libpreloaded.so") != 0) {
+    fprintf(stderr, "LD_PRELOAD is not set to libpreloaded.so\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();

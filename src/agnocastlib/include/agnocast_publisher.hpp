@@ -21,6 +21,7 @@ namespace agnocast
 
 extern int agnocast_fd;
 uint64_t agnocast_get_timestamp();
+void validate_ld_preload();
 
 std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 
@@ -40,6 +41,8 @@ public:
   Publisher(const std::string & topic_name, const rclcpp::QoS & qos)
   : topic_name_(topic_name), qos_(qos)
   {
+    validate_ld_preload();
+
     publisher_pid_ = getpid();
 
     union ioctl_publisher_args pub_args;
