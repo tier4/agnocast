@@ -14,6 +14,7 @@ union ioctl_subscriber_args {
     uint32_t qos_depth;
     uint32_t subscriber_pid;
     uint64_t init_timestamp;
+    bool is_take_sub;
   };
   struct
   {

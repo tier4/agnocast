@@ -37,24 +37,34 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 
 class SubscriptionBase
 {
+protected:
+  const pid_t subscriber_pid_;
+  const std::string topic_name_;
+  const rclcpp::QoS qos_;
+
 public:
-  union ioctl_subscriber_args initialize(
+  SubscriptionBase(
     const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
+  : subscriber_pid_(subscriber_pid), topic_name_(topic_name), qos_(qos)
   {
     validate_ld_preload();
+  }
 
+  union ioctl_subscriber_args initialize(bool is_take_sub)
+  {
     // Open a mq for new publisher appearences.
-    wait_for_new_publisher(subscriber_pid);
+    wait_for_new_publisher(subscriber_pid_);
 
     // Register topic and subscriber info with the kernel module, and receive the publisher's shared
     // memory information along with messages needed to achieve transient local, if neccessary.
     union ioctl_subscriber_args subscriber_args;
-    subscriber_args.topic_name = topic_name.c_str();
-    subscriber_args.qos_depth = (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal)
-                                  ? static_cast<uint32_t>(qos.depth())
+    subscriber_args.topic_name = topic_name_.c_str();
+    subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
+                                  ? static_cast<uint32_t>(qos_.depth())
                                   : 0;
-    subscriber_args.subscriber_pid = subscriber_pid;
+    subscriber_args.subscriber_pid = subscriber_pid_;
     subscriber_args.init_timestamp = agnocast_get_timestamp();
+    subscriber_args.is_take_sub = is_take_sub;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
       perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
       close(agnocast_fd);
@@ -62,15 +72,15 @@ public:
     }
 
     for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-      if ((pid_t)subscriber_args.ret_pids[i] == subscriber_pid) {
+      if ((pid_t)subscriber_args.ret_pids[i] == subscriber_pid_) {
         /*
          * NOTE: In ROS2, communication should work fine even if the same process exists as both a
          * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
          * Agnocast to topic communication within a component container, the system will explicitly
          * fail with an error during initialization.
          */
-        std::cout << "[Error]: This process (pid=" << subscriber_pid
-                  << ") already exists in the topic (topic_name=" << topic_name
+        std::cout << "[Error]: This process (pid=" << subscriber_pid_
+                  << ") already exists in the topic (topic_name=" << topic_name_
                   << ") as a publisher." << std::endl;
         exit(EXIT_FAILURE);
       }
@@ -95,11 +105,11 @@ public:
   Subscription(
     const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
+  : SubscriptionBase(getpid(), topic_name, qos)
   {
-    const pid_t subscriber_pid = getpid();
-    union ioctl_subscriber_args subscriber_args = initialize(subscriber_pid, topic_name, qos);
+    union ioctl_subscriber_args subscriber_args = initialize(false);
 
-    std::string mq_name = create_mq_name(topic_name, subscriber_pid);
+    std::string mq_name = create_mq_name(topic_name_, subscriber_pid_);
     struct mq_attr attr;
     attr.mq_flags = 0;                        // Blocking queue
     attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
@@ -116,16 +126,17 @@ public:
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
-      std::cout << "[Info]: callback thread for " << topic_name << " has been started" << std::endl;
+      std::cout << "[Info]: callback thread for " << topic_name_ << " has been started"
+                << std::endl;
 
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
-      if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
         // old messages first
         for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
           MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
           agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-            ptr, topic_name, subscriber_args.ret_publisher_pids[i],
+            ptr, topic_name_, subscriber_args.ret_publisher_pids[i],
             subscriber_args.ret_timestamps[i], true);
           callback(agnocast_ptr);
         }
@@ -135,9 +146,9 @@ public:
 
       while (is_running) {
         union ioctl_receive_msg_args receive_args;
-        receive_args.topic_name = topic_name.c_str();
-        receive_args.subscriber_pid = subscriber_pid;
-        receive_args.qos_depth = static_cast<uint32_t>(qos.depth());
+        receive_args.topic_name = topic_name_.c_str();
+        receive_args.subscriber_pid = subscriber_pid_;
+        receive_args.qos_depth = static_cast<uint32_t>(qos_.depth());
         if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
           perror("AGNOCAST_RECEIVE_MSG_CMD failed");
           close(agnocast_fd);
@@ -147,7 +158,7 @@ public:
         for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
           MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret_last_msg_addrs[i]);
           agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-            ptr, topic_name, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
+            ptr, topic_name_, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
             true);
           callback(agnocast_ptr);
         }
@@ -185,9 +196,9 @@ public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
-  : last_taken_timestamp(0)
+  : SubscriptionBase(getpid(), topic_name, qos), last_taken_timestamp(0)
   {
-    initialize(getpid(), topic_name, qos);
+    initialize(true);
   }
 
   agnocast::ipc_shared_ptr<MessageT> take()
