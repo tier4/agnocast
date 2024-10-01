@@ -47,7 +47,7 @@ class MinimalSubscriber : public rclcpp::Node
       // In order to test copy constructor
       const auto copied_dynamic_message = dynamic_message;
       RCLCPP_INFO(
-        this->get_logger(), "I taken dynamic message: addr=%016lx",
+        this->get_logger(), "I took dynamic message: addr=%016lx",
         reinterpret_cast<uint64_t>(copied_dynamic_message.get()));
     }
 
