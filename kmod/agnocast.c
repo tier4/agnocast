@@ -1053,6 +1053,7 @@ static int publish_msg(
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
+    en->unreceived_subscriber_count++;
     if (sub_info->is_take_sub) continue;
     ioctl_ret->ret_pids[index] = sub_info->pid;
     index++;
@@ -1060,7 +1061,6 @@ static int publish_msg(
   ioctl_ret->ret_len = index;
 
   en->published = true;
-  en->unreceived_subscriber_count = index;
 
   return 0;
 }
