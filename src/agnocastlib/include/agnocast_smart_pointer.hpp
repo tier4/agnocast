@@ -122,6 +122,8 @@ public:
 
   T * operator->() const noexcept { return ptr_; }
 
+  operator bool() const noexcept { return ptr_; }
+
   T * get() const noexcept { return ptr_; }
 };
 

@@ -1045,6 +1045,56 @@ static int publish_msg(
   return 0;
 }
 
+static int take_msg(
+  char * topic_name, uint32_t subscriber_pid, uint32_t qos_depth,
+  union ioctl_take_msg_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
+    return -1;
+  }
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_pid);
+
+  // These remains 0 if no message is found to take.
+  ioctl_ret->ret_addr = 0;
+  ioctl_ret->ret_timestamp = 0;
+  ioctl_ret->ret_publisher_pid = 0;
+
+  uint32_t searched_count = 0;
+  struct entry_node * candidate_en = NULL;
+  struct rb_node * node = rb_last(&wrapper->topic.entries);
+  while (node && searched_count < qos_depth) {
+    struct entry_node * en = container_of(node, struct entry_node, node);
+    if (en->timestamp <= sub_info->latest_received_timestamp) {
+      break;  // Never take older messages than the last
+    }
+    if (en->published) candidate_en = en;
+    searched_count++;
+    node = rb_prev(node);
+  }
+
+  if (!candidate_en) return 0;
+
+  if (increment_sub_rc(candidate_en, subscriber_pid) == -1) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
+      " (take_msg)\n",
+      candidate_en->timestamp, MAX_SUBSCRIBER_NUM);
+    return -1;
+  }
+
+  ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
+  ioctl_ret->ret_timestamp = candidate_en->timestamp;
+  ioctl_ret->ret_publisher_pid = candidate_en->publisher_pid;
+
+  sub_info->latest_received_timestamp = ioctl_ret->ret_timestamp;
+
+  return 0;
+}
+
 static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
@@ -1090,6 +1140,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   union ioctl_update_entry_args entry_args;
   union ioctl_receive_msg_args receive_msg_args;
   union ioctl_publish_args publish_args;
+  union ioctl_take_msg_args take_args;
   union ioctl_new_shm_args new_shm_args;
   union ioctl_get_subscriber_num_args get_subscriber_num_args;
 
@@ -1179,6 +1230,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       ret = publish_msg(
         topic_name_buf, publish_args.publisher_pid, publish_args.msg_timestamp, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
+        goto unlock_mutex_and_return;
+      break;
+    case AGNOCAST_TAKE_MSG_CMD:
+      if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
+        goto unlock_mutex_and_return;
+      if (copy_from_user(
+            topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
+        goto unlock_mutex_and_return;
+      ret = take_msg(topic_name_buf, take_args.subscriber_pid, take_args.qos_depth, &take_args);
+      if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_NEW_SHM_CMD:
