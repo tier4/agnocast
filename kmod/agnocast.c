@@ -70,14 +70,6 @@ struct entry_node
   uint32_t referencing_subscriber_pids[MAX_SUBSCRIBER_NUM];
   uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
   bool published;
-  /*
-   * NOTE:
-   *   unreceived_subscriber_count currently has no effect on the release timing of the message.
-   *   It is retained for future use such as early release or logging. However, since the count
-   *   is not correctly decremented when a subscriber exits, the value of
-   *   unreceived_subscriber_count becomes unreliable as soon as even one subscriber exits.
-   */
-  uint32_t unreceived_subscriber_count;
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -490,7 +482,6 @@ static int insert_message_entry(
     new_node->referencing_subscriber_pids[i] = 0;
     new_node->subscriber_reference_count[i] = 0;
   }
-  new_node->unreceived_subscriber_count = 0;
   new_node->published = false;
 
   rb_link_node(&new_node->node, parent, new);
@@ -1000,16 +991,6 @@ static int receive_and_update(
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
 
-    if (en->unreceived_subscriber_count == 0) {
-      dev_warn(
-        agnocast_device,
-        "Tried to decrement unreceived_subscriber_count 0 with (topic_name=%s publisher_pid=%d "
-        "timestamp=%lld). (receive_and_update)\n",
-        topic_name, en->publisher_pid, en->timestamp);
-      return -1;
-    }
-    en->unreceived_subscriber_count--;
-
     if (!sub_info_updated) {
       sub_info->latest_received_timestamp = en->timestamp;
       sub_info_updated = true;
@@ -1053,7 +1034,6 @@ static int publish_msg(
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    en->unreceived_subscriber_count++;
     if (sub_info->is_take_sub) continue;
     ioctl_ret->ret_pids[index] = sub_info->pid;
     index++;
@@ -1303,7 +1283,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    // unreceived_subscriber_count is not checked when releasing the message.
     if (en->publisher_pid == current->pid && !is_subscriber_referencing(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
@@ -1378,7 +1357,6 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     }
     if (!publisher_exited) continue;
 
-    // unreceived_subscriber_count is not checked when releasing the message.
     pub_info->entries_num--;
     remove_entry_node(wrapper, en);
     if (pub_info->entries_num == 0) {
