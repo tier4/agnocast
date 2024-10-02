@@ -5,6 +5,9 @@ on:
     types:
       - labeled
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -60,3 +63,24 @@ jobs:
       run: |
         cd kmod
         make
+
+    - name: Setup Rust environment
+      run: |
+        rustup toolchain install nightly-2024-08-13
+        rustup default nightly-2024-08-13
+        rustup component add clippy rustfmt
+
+    - name: Run rustfmt on agnocast_heaphook_rust
+      run: |
+        cd src/agnocast_heaphook_rust
+        cargo fmt && git diff --exit-code
+
+    - name: Run clippy on agnocast_heaphook_rust
+      run: |
+        cd src/agnocast_heaphook_rust
+        cargo clippy -- --deny warnings
+
+    - name: Build agnocast_heaphook_rust
+      run: |
+        cd src/agnocast_heaphook_rust
+        cargo build
