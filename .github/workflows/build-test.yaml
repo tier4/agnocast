@@ -20,15 +20,11 @@ jobs:
       if: github.event.label.name != 'run-build-test'
       run: exit 0
 
-    # TODO: Cache apt packages
-
     - name: Setup Rust environment
       run: |
         rustup toolchain install nightly-2024-08-13
         rustup default nightly-2024-08-13
-        rustup component add rust-src llvm-tools-preview clippy rustfmt
-        rustup target add x86_64-unknown-none aarch64-unknown-none
-        cargo install cargo-binutils
+        rustup component add clippy rustfmt
 
     - name: Run fmt on agnocast_heaphook_rust
       run: |
@@ -44,6 +40,8 @@ jobs:
       run: |
         cd src/agnocast_heaphook_rust
         cargo build --release
+
+    # TODO: Cache apt packages
 
     - name: Cache ROS2 workspace
       uses: actions/cache@v2
