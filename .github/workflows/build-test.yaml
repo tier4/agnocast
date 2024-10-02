@@ -38,7 +38,7 @@ jobs:
     - name: Run clippy on agnocast_heaphook_rust
       run: |
         cd src/agnocast_heaphook_rust
-        cargo clippy
+        cargo clippy -- --deny warnings
 
     - name: Build agnocast_heaphook_rust
       run: |
