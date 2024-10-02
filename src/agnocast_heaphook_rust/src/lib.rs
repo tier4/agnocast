@@ -8,36 +8,36 @@ const ALIGNMENT: usize = 64;
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: Lazy<MallocType> = Lazy::new(|| {
-    let symbol = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
     unsafe {
-        let malloc_ptr = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        let malloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(malloc_ptr)
     }
 });
 
 type FreeType = unsafe extern "C" fn(*mut c_void) -> ();
 static ORIGINAL_FREE: Lazy<FreeType> = Lazy::new(|| {
-    let symbol = CStr::from_bytes_with_nul(b"free\0").unwrap();
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"free\0").unwrap();
     unsafe {
-        let free_ptr = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        let free_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(free_ptr)
     }
 });
 
 type CallocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_CALLOC: Lazy<CallocType> = Lazy::new(|| {
-    let symbol = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
     unsafe {
-        let calloc_ptr = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        let calloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(calloc_ptr)
     }
 });
 
 type ReallocType = unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void;
 static ORIGINAL_REALLOC: Lazy<ReallocType> = Lazy::new(|| {
-    let symbol = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
     unsafe {
-        let realloc_ptr = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(realloc_ptr)
     }
 });
@@ -56,7 +56,7 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
 
     const PAGE_SIZE: usize = 4096;
     let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap();
-    let aligned_size = (mempool_size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+    let aligned_size: usize = (mempool_size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
 
     let addr: *mut c_void = 0x40000000000 as *mut c_void;
 
@@ -86,14 +86,14 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
 });
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
-    let ptr = TLSF.lock().unwrap().allocate(layout).unwrap();
+    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
+    let ptr: std::ptr::NonNull<u8> = TLSF.lock().unwrap().allocate(layout).unwrap();
     ptr.as_ptr() as *mut c_void
 }
 
 fn tlsf_reallcate(ptr: *mut c_void, size: usize) -> *mut c_void {
-    let layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
-    let new_ptr = unsafe {
+    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
+    let new_ptr: std::ptr::NonNull<u8> = unsafe {
         let non_null_ptr: std::ptr::NonNull<u8> = std::ptr::NonNull::new_unchecked(ptr as *mut u8);
         TLSF.lock()
             .unwrap()
@@ -105,7 +105,7 @@ fn tlsf_reallcate(ptr: *mut c_void, size: usize) -> *mut c_void {
 
 fn tlsf_deallocate(ptr: *mut c_void) {
     unsafe {
-        let non_null_ptr = std::ptr::NonNull::new_unchecked(ptr as *mut u8);
+        let non_null_ptr: std::ptr::NonNull<u8> = std::ptr::NonNull::new_unchecked(ptr as *mut u8);
         TLSF.lock().unwrap().deallocate(non_null_ptr, ALIGNMENT);
     }
 }
@@ -121,7 +121,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
             unsafe { ORIGINAL_MALLOC(size) }
         } else {
             hooked.replace(true);
-            let ret = tlsf_allocate(size);
+            let ret: *mut c_void = tlsf_allocate(size);
             hooked.replace(false);
             ret
         }
@@ -134,7 +134,8 @@ pub extern "C" fn free(ptr: *mut c_void) {
         return;
     };
 
-    let ptr_addr = unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
+    let ptr_addr: usize =
+        unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
 
     HOOKED.with(|hooked: &RefCell<bool>| {
         // TODO: address range should use the one the kernel module assigns
@@ -157,7 +158,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
             unsafe { ORIGINAL_CALLOC(num, size) }
         } else {
             hooked.replace(true);
-            let ret = tlsf_allocate(num * size);
+            let ret: *mut c_void = tlsf_allocate(num * size);
             unsafe {
                 std::ptr::write_bytes(ret, 0, num * size);
             };
@@ -175,10 +176,10 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         } else {
             hooked.replace(true);
 
-            let realloc_ret = if ptr.is_null() {
+            let realloc_ret: *mut c_void = if ptr.is_null() {
                 tlsf_allocate(new_size)
             } else {
-                let ptr_addr =
+                let ptr_addr: usize =
                     unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
                 // TODO: address range should use the one the kernel module assigns
                 if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
