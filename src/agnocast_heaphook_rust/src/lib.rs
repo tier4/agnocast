@@ -46,13 +46,10 @@ type TlsfType = Tlsf<'static, u32, u32, 32, 32>;
 static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
     // TODO: These mmap related procedures will be moved to agnocast
 
-    let mempool_size_env: String = match std::env::var("MEMPOOL_SIZE") {
-        Ok(value) => value,
-        Err(error) => {
-            println!("MEMPOOL_SIZE is not set in environment variable: {}", error);
-            std::process::exit(1);
-        }
-    };
+    let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
+        eprintln!("{}: MEMPOOL_SIZE", error);
+        std::process::exit(1);
+    });
 
     const PAGE_SIZE: usize = 4096;
     let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap();
