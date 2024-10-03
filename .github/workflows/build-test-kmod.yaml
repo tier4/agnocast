@@ -7,13 +7,10 @@ on:
 
 jobs:
   build:
+    if: ${{ github.event.label.name }} == 'run-build-test-kmod'
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check for specific label
-      if: github.event.label.name != 'run-build-test-kmod'
-      run: exit 0
-      
     - name: Checkout repository
       uses: actions/checkout@v4
 

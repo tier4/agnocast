@@ -10,15 +10,12 @@ env:
 
 jobs:
   build:
+    if: ${{ github.event.label.name }} == 'run-build-test'
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
-
-    - name: Check for specific label
-      if: github.event.label.name != 'run-build-test'
-      run: exit 0
 
     # TODO: Cache apt packages
 
