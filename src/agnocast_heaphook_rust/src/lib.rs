@@ -185,7 +185,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                 if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
                     unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                 } else {
-                    tlsf_reallcate(ptr, new_size)
+                    tlsf_reallocate(ptr, new_size)
                 }
             };
 
