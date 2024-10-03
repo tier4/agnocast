@@ -11,7 +11,7 @@ static ORIGINAL_MALLOC: Lazy<MallocType> = Lazy::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
     unsafe {
         let malloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
-        std::mem::transmute(malloc_ptr)
+        std::mem::transmute::<*mut c_void, MallocType>(malloc_ptr)
     }
 });
 
@@ -20,7 +20,7 @@ static ORIGINAL_FREE: Lazy<FreeType> = Lazy::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"free\0").unwrap();
     unsafe {
         let free_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
-        std::mem::transmute(free_ptr)
+        std::mem::transmute::<*mut c_void, FreeType>(free_ptr)
     }
 });
 
@@ -29,7 +29,7 @@ static ORIGINAL_CALLOC: Lazy<CallocType> = Lazy::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
     unsafe {
         let calloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
-        std::mem::transmute(calloc_ptr)
+        std::mem::transmute::<*mut c_void, CallocType>(calloc_ptr)
     }
 });
 
@@ -38,7 +38,7 @@ static ORIGINAL_REALLOC: Lazy<ReallocType> = Lazy::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
     unsafe {
         let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
-        std::mem::transmute(realloc_ptr)
+        std::mem::transmute::<*mut c_void, ReallocType>(realloc_ptr)
     }
 });
 
