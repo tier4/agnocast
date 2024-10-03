@@ -26,6 +26,7 @@ jobs:
         else
           echo "No .c files changed"
           echo "c_changed=false" >> $GITHUB_ENV
+        fi
     
     - name: Build kmod
       run: |
