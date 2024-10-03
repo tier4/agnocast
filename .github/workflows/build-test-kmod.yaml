@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    if: ${{ github.event.label.name }} == 'run-build-test-kmod'
+    if: ${{ github.event.label.name == 'run-build-test-kmod' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -26,6 +26,7 @@ jobs:
         fi
     
     - name: Build kmod
+      if: steps.check_changes.outputs.c_changed == 'true'
       run: |
         cd kmod
         make

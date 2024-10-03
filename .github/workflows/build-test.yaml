@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    if: ${{ github.event.label.name }} == 'run-build-test'
+    if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-latest
 
     steps:
