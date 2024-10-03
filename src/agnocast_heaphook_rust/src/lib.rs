@@ -86,7 +86,11 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
 });
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
+    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+        eprintln!("{}: size={}, alignment={}", error, size, ALIGNMENT);
+        std::process::exit(1);
+    });
+
     if let Some(ptr) = TLSF.lock().unwrap().allocate(layout) {
         ptr.as_ptr() as *mut c_void
     } else {
@@ -96,7 +100,11 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 }
 
 fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
+    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+        eprintln!("{}: size={}, alignment={}", error, size, ALIGNMENT);
+        std::process::exit(1);
+    });
+
     let non_null_ptr: std::ptr::NonNull<u8> =
         unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
     if let Some(new_ptr) = unsafe { TLSF.lock().unwrap().reallocate(non_null_ptr, layout) } {
