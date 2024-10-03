@@ -24,7 +24,7 @@ jobs:
           echo ".cpp or .hpp or .rs files changed"
           echo "target_changed=true" >> $GITHUB_ENV
         else
-          echo "No .cpp or .hpp or .rs files files changed"
+          echo "No .cpp or .hpp or .rs files changed"
           echo "target_changed=false" >> $GITHUB_ENV
         fi
     
