@@ -1,8 +1,6 @@
 use once_cell::sync::Lazy;
 use rlsf::Tlsf;
-use std::{
-    alloc::Layout, cell::RefCell, ffi::CStr, mem::MaybeUninit, os::raw::c_void, sync::Mutex,
-};
+use std::{alloc::Layout, cell::Cell, ffi::CStr, mem::MaybeUninit, os::raw::c_void, sync::Mutex};
 
 const ALIGNMENT: usize = 64;
 
@@ -126,18 +124,18 @@ fn tlsf_deallocate(ptr: *mut c_void) {
 }
 
 thread_local! {
-    static HOOKED : RefCell<bool> = const { RefCell::new(false) }
+    static HOOKED : Cell<bool> = const { Cell::new(false) }
 }
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    HOOKED.with(|hooked: &RefCell<bool>| {
-        if *hooked.borrow() {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
             unsafe { ORIGINAL_MALLOC(size) }
         } else {
-            hooked.replace(true);
+            hooked.set(true);
             let ret: *mut c_void = tlsf_allocate(size);
-            hooked.replace(false);
+            hooked.set(false);
             ret
         }
     })
@@ -152,32 +150,32 @@ pub extern "C" fn free(ptr: *mut c_void) {
     let ptr_addr: usize =
         unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
 
-    HOOKED.with(|hooked: &RefCell<bool>| {
+    HOOKED.with(|hooked: &Cell<bool>| {
         // TODO: address range should use the one the kernel module assigns
-        if *hooked.borrow() || !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
+        if hooked.get() || !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
             unsafe {
                 ORIGINAL_FREE(ptr);
             }
         } else {
-            hooked.replace(true);
+            hooked.set(true);
             tlsf_deallocate(ptr);
-            hooked.replace(false);
+            hooked.set(false);
         }
     });
 }
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    HOOKED.with(|hooked: &RefCell<bool>| {
-        if *hooked.borrow() {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
             unsafe { ORIGINAL_CALLOC(num, size) }
         } else {
-            hooked.replace(true);
+            hooked.set(true);
             let ret: *mut c_void = tlsf_allocate(num * size);
             unsafe {
                 std::ptr::write_bytes(ret, 0, num * size);
             };
-            hooked.replace(false);
+            hooked.set(false);
             ret
         }
     })
@@ -185,11 +183,11 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    HOOKED.with(|hooked: &RefCell<bool>| {
-        if *hooked.borrow() {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
             unsafe { ORIGINAL_REALLOC(ptr, new_size) }
         } else {
-            hooked.replace(true);
+            hooked.set(true);
 
             let realloc_ret: *mut c_void = if ptr.is_null() {
                 tlsf_allocate(new_size)
@@ -204,7 +202,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                 }
             };
 
-            hooked.replace(false);
+            hooked.set(false);
             realloc_ret
         }
     })
