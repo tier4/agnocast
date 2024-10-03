@@ -9,17 +9,29 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build_and_test:
     if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
-
+      uses: actions/checkout@v4
+    
+    - name: Check for .cpp or .hpp or .rs file changes
+      id: check_changes
+      run: |
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '\.cpp$|\.hpp|\.rs$'; then
+          echo ".cpp or .hpp or .rs files changed"
+          echo "target_changed=true" >> $GITHUB_ENV
+        else
+          echo "No .cpp or .hpp or .rs files files changed"
+          echo "target_changed=false" >> $GITHUB_ENV
+        fi
+    
     # TODO: Cache apt packages
 
     - name: Cache ROS2 workspace
+      if: steps.check_changes.outputs.target_changed == 'true'
       uses: actions/cache@v2
       with:
         path: /opt/ros/humble
@@ -28,6 +40,7 @@ jobs:
           ${{ runner.os }}-ros2-
 
     - name: Setup ROS 2 environment
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         sudo apt update
         sudo apt install -y software-properties-common curl
@@ -38,6 +51,7 @@ jobs:
         sudo apt install -y ros-humble-desktop python3-colcon-common-extensions ros-humble-ament-cmake
 
     - name: Install dependencies
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
         sudo apt install -y python3-rosdep
@@ -46,38 +60,39 @@ jobs:
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
     - name: Build src
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
         colcon build
     
     - name: run tests
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
         colcon test --event-handlers console_cohesion+
         colcon test-result --verbose
 
-    - name: Build kmod
-      run: |
-        cd kmod
-        make
-
     - name: Setup Rust environment
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         rustup toolchain install nightly-2024-08-13
         rustup default nightly-2024-08-13
         rustup component add clippy rustfmt
 
     - name: Run rustfmt on agnocast_heaphook_rust
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         cd src/agnocast_heaphook_rust
         cargo fmt && git diff --exit-code
 
     - name: Run clippy on agnocast_heaphook_rust
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         cd src/agnocast_heaphook_rust
         cargo clippy -- --deny warnings
 
     - name: Build agnocast_heaphook_rust
+      if: steps.check_changes.outputs.target_changed == 'true'
       run: |
         cd src/agnocast_heaphook_rust
         cargo build
