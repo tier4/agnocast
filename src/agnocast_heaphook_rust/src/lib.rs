@@ -87,20 +87,24 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
-    let ptr: std::ptr::NonNull<u8> = TLSF.lock().unwrap().allocate(layout).unwrap();
-    ptr.as_ptr() as *mut c_void
+    if let Some(ptr) = TLSF.lock().unwrap().allocate(layout) {
+        ptr.as_ptr() as *mut c_void
+    } else {
+        println!("memory allocation failed: consider using larger MEMPOOL_SIZE");
+        std::process::exit(1);
+    }
 }
 
 fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
-    let new_ptr: std::ptr::NonNull<u8> = unsafe {
-        let non_null_ptr: std::ptr::NonNull<u8> = std::ptr::NonNull::new_unchecked(ptr as *mut u8);
-        TLSF.lock()
-            .unwrap()
-            .reallocate(non_null_ptr, layout)
-            .unwrap()
-    };
-    new_ptr.as_ptr() as *mut c_void
+    let non_null_ptr: std::ptr::NonNull<u8> =
+        unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
+    if let Some(new_ptr) = unsafe { TLSF.lock().unwrap().reallocate(non_null_ptr, layout) } {
+        new_ptr.as_ptr() as *mut c_void
+    } else {
+        println!("memory reallocation failed: consider using larger MEMPOOL_SIZE");
+        std::process::exit(1);
+    }
 }
 
 fn tlsf_deallocate(ptr: *mut c_void) {
