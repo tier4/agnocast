@@ -7,6 +7,6 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-libc = "0.2.159"
-rlsf = "0.2.1"
-once_cell = "1.20.1"
+libc = "0.2"
+rlsf = "0.2"
+once_cell = "1.20"

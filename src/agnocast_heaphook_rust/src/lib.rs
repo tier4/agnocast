@@ -47,13 +47,11 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
     // TODO: These mmap related procedures will be moved to agnocast
 
     let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
-        eprintln!("{}: MEMPOOL_SIZE", error);
-        std::process::exit(1);
+        panic!("{}: MEMPOOL_SIZE", error);
     });
 
     let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-        eprintln!("{}: MEMPOOL_SIZE", error);
-        std::process::exit(1);
+        panic!("{}: MEMPOOL_SIZE", error);
     });
 
     const PAGE_SIZE: usize = 4096;
@@ -73,8 +71,7 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
     };
 
     if ptr == libc::MAP_FAILED {
-        println!("mmap failed");
-        std::process::exit(1);
+        panic!("mmap failed");
     }
 
     let pool: &mut [MaybeUninit<u8>] =
@@ -88,18 +85,13 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        eprintln!("{}: size={}, alignment={}", error, size, ALIGNMENT);
-        std::process::exit(1);
+        panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
     });
 
-    let mut tlsf = TLSF.lock().unwrap_or_else(|error| {
-        eprintln!("{}: TLSF", error);
-        std::process::exit(1);
-    });
+    let mut tlsf = TLSF.lock().unwrap();
 
     let ptr: std::ptr::NonNull<u8> = tlsf.allocate(layout).unwrap_or_else(|| {
-        eprintln!("memory allocation failed: consider using larger MEMPOOL_SIZE");
-        std::process::exit(1);
+        panic!("memory allocation failed: consider using larger MEMPOOL_SIZE");
     });
 
     ptr.as_ptr() as *mut c_void
@@ -107,22 +99,17 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 
 fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        eprintln!("{}: size={}, alignment={}", error, size, ALIGNMENT);
-        std::process::exit(1);
+        panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
     });
 
     let non_null_ptr: std::ptr::NonNull<u8> =
         unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
 
-    let mut tlsf = TLSF.lock().unwrap_or_else(|error| {
-        eprintln!("{}: TLSF", error);
-        std::process::exit(1);
-    });
+    let mut tlsf = TLSF.lock().unwrap();
 
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
         tlsf.reallocate(non_null_ptr, layout).unwrap_or_else(|| {
-            eprintln!("memory allocation failed: consider using larger MEMPOOL_SIZE");
-            std::process::exit(1);
+            panic!("memory allocation failed: consider using larger MEMPOOL_SIZE");
         })
     };
 
@@ -133,10 +120,7 @@ fn tlsf_deallocate(ptr: *mut c_void) {
     let non_null_ptr: std::ptr::NonNull<u8> =
         unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
 
-    let mut tlsf = TLSF.lock().unwrap_or_else(|error| {
-        eprintln!("{}: TLSF", error);
-        std::process::exit(1);
-    });
+    let mut tlsf = TLSF.lock().unwrap();
 
     unsafe { tlsf.deallocate(non_null_ptr, ALIGNMENT) }
 }
