@@ -228,30 +228,30 @@ pub extern "C" fn posix_memalign(
     _alignment: usize,
     _size: usize,
 ) -> i32 {
-    println!("NOTE: posix_memalign is not supported");
+    eprintln!("TODO: posix_memalign is not supported");
     0
 }
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(_alignment: usize, _size: usize) -> *mut c_void {
-    println!("TODO: aligned_alloc is not supported");
+    eprintln!("TODO: aligned_alloc is not supported");
     std::ptr::null_mut()
 }
 
 #[no_mangle]
 pub extern "C" fn memalign(_alignment: usize, _size: usize) -> *mut c_void {
-    println!("TODO: memalign is not supported");
+    eprintln!("TODO: memalign is not supported");
     std::ptr::null_mut()
 }
 
 #[no_mangle]
 pub extern "C" fn valloc(_size: usize) -> *mut c_void {
-    println!("NOTE: valloc is not supported");
+    eprintln!("NOTE: valloc is not supported");
     std::ptr::null_mut()
 }
 
 #[no_mangle]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
-    println!("NOTE: pvalloc is not supported");
+    eprintln!("NOTE: pvalloc is not supported");
     std::ptr::null_mut()
 }
