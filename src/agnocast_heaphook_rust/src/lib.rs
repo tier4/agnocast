@@ -91,7 +91,7 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
     ptr.as_ptr() as *mut c_void
 }
 
-fn tlsf_reallcate(ptr: *mut c_void, size: usize) -> *mut c_void {
+fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap();
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
         let non_null_ptr: std::ptr::NonNull<u8> = std::ptr::NonNull::new_unchecked(ptr as *mut u8);
