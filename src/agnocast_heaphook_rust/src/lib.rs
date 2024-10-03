@@ -51,8 +51,12 @@ static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
         std::process::exit(1);
     });
 
+    let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
+        eprintln!("{}: MEMPOOL_SIZE", error);
+        std::process::exit(1);
+    });
+
     const PAGE_SIZE: usize = 4096;
-    let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap();
     let aligned_size: usize = (mempool_size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
 
     let addr: *mut c_void = 0x40000000000 as *mut c_void;
