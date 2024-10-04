@@ -101,18 +101,15 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
     ptr.as_ptr() as *mut c_void
 }
 
-fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
+fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
         panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
     });
 
-    let non_null_ptr: std::ptr::NonNull<u8> =
-        unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
-
     let mut tlsf = TLSF.lock().unwrap();
 
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
-        tlsf.reallocate(non_null_ptr, layout).unwrap_or_else(|| {
+        tlsf.reallocate(ptr, layout).unwrap_or_else(|| {
             panic!("memory allocation failed: consider using larger MEMPOOL_SIZE");
         })
     };
@@ -188,18 +185,18 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         } else {
             hooked.set(true);
 
-            let realloc_ret: *mut c_void = if ptr.is_null() {
-                tlsf_allocate(new_size)
-            } else {
-                let ptr_addr: usize =
-                    unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
-                // TODO: address range should use the one the kernel module assigns
-                if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
-                    unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+            let realloc_ret: *mut c_void =
+                if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
+                    // TODO: address range should use the one the kernel module assigns
+                    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
+                    if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
+                        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+                    } else {
+                        tlsf_reallocate(non_null_ptr, new_size)
+                    }
                 } else {
-                    tlsf_reallocate(ptr, new_size)
-                }
-            };
+                    tlsf_allocate(new_size)
+                };
 
             hooked.set(false);
             realloc_ret
