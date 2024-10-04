@@ -58,8 +58,8 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         panic!("{}: MEMPOOL_SIZE", error);
     });
 
-    const PAGE_SIZE: usize = 4096;
-    let aligned_size: usize = (mempool_size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+    let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+    let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
 
     let addr: *mut c_void = 0x40000000000 as *mut c_void;
 
