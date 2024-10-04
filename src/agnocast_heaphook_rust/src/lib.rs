@@ -46,7 +46,11 @@ static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
     }
 });
 
-type TlsfType = Tlsf<'static, u32, u32, 32, 32>;
+const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
+const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
+type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
+type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
+type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     // TODO: These mmap related procedures will be moved to agnocast
 
