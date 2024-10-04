@@ -1,11 +1,17 @@
-use once_cell::sync::Lazy;
 use rlsf::Tlsf;
-use std::{alloc::Layout, cell::Cell, ffi::CStr, mem::MaybeUninit, os::raw::c_void, sync::Mutex};
+use std::{
+    alloc::Layout,
+    cell::Cell,
+    ffi::CStr,
+    mem::MaybeUninit,
+    os::raw::c_void,
+    sync::{LazyLock, Mutex},
+};
 
 const ALIGNMENT: usize = 64;
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
-static ORIGINAL_MALLOC: Lazy<MallocType> = Lazy::new(|| {
+static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
     unsafe {
         let malloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
@@ -14,7 +20,7 @@ static ORIGINAL_MALLOC: Lazy<MallocType> = Lazy::new(|| {
 });
 
 type FreeType = unsafe extern "C" fn(*mut c_void) -> ();
-static ORIGINAL_FREE: Lazy<FreeType> = Lazy::new(|| {
+static ORIGINAL_FREE: LazyLock<FreeType> = LazyLock::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"free\0").unwrap();
     unsafe {
         let free_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
@@ -23,7 +29,7 @@ static ORIGINAL_FREE: Lazy<FreeType> = Lazy::new(|| {
 });
 
 type CallocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
-static ORIGINAL_CALLOC: Lazy<CallocType> = Lazy::new(|| {
+static ORIGINAL_CALLOC: LazyLock<CallocType> = LazyLock::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
     unsafe {
         let calloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
@@ -32,7 +38,7 @@ static ORIGINAL_CALLOC: Lazy<CallocType> = Lazy::new(|| {
 });
 
 type ReallocType = unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void;
-static ORIGINAL_REALLOC: Lazy<ReallocType> = Lazy::new(|| {
+static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
     unsafe {
         let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
@@ -41,7 +47,7 @@ static ORIGINAL_REALLOC: Lazy<ReallocType> = Lazy::new(|| {
 });
 
 type TlsfType = Tlsf<'static, u32, u32, 32, 32>;
-static TLSF: Lazy<Mutex<TlsfType>> = Lazy::new(|| {
+static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     // TODO: These mmap related procedures will be moved to agnocast
 
     let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
