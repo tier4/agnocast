@@ -120,13 +120,9 @@ fn tlsf_reallocate(ptr: *mut c_void, size: usize) -> *mut c_void {
     new_ptr.as_ptr() as *mut c_void
 }
 
-fn tlsf_deallocate(ptr: *mut c_void) {
-    let non_null_ptr: std::ptr::NonNull<u8> =
-        unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8) };
-
+fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     let mut tlsf = TLSF.lock().unwrap();
-
-    unsafe { tlsf.deallocate(non_null_ptr, ALIGNMENT) }
+    unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
 }
 
 thread_local! {
@@ -149,22 +145,19 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn free(ptr: *mut c_void) {
-    if ptr.is_null() {
-        return;
+    let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
+        Some(ptr) => ptr,
+        None => return,
     };
-
-    let ptr_addr: usize =
-        unsafe { std::ptr::NonNull::new_unchecked(ptr as *mut u8).as_ptr() as usize };
 
     HOOKED.with(|hooked: &Cell<bool>| {
         // TODO: address range should use the one the kernel module assigns
+        let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
         if hooked.get() || !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
-            unsafe {
-                ORIGINAL_FREE(ptr);
-            }
+            unsafe { ORIGINAL_FREE(ptr) }
         } else {
             hooked.set(true);
-            tlsf_deallocate(ptr);
+            tlsf_deallocate(non_null_ptr);
             hooked.set(false);
         }
     });
