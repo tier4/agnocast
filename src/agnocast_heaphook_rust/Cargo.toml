@@ -5,3 +5,7 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
+
+[dependencies]
+libc = "0.2"
+rlsf = "0.2"
