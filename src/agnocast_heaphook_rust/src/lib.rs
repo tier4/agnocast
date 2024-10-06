@@ -2,6 +2,7 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     cell::Cell,
+    collections::HashMap,
     ffi::CStr,
     mem::MaybeUninit,
     os::raw::c_void,
@@ -43,6 +44,33 @@ static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
     unsafe {
         let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, ReallocType>(realloc_ptr)
+    }
+});
+
+type PosixMemalignType = unsafe extern "C" fn(*mut *mut c_void, usize, usize) -> i32;
+static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"posix_memalign\0").unwrap();
+    unsafe {
+        let posix_memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        std::mem::transmute(posix_memalign_ptr)
+    }
+});
+
+type AlignedAllocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
+static ORIGINAL_ALIGNED_ALLOC: LazyLock<AlignedAllocType> = LazyLock::new(|| {
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"aligned_alloc\0").unwrap();
+    unsafe {
+        let aligned_alloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        std::mem::transmute(aligned_alloc_ptr)
+    }
+});
+
+type MemalignType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
+static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"memalign\0").unwrap();
+    unsafe {
+        let memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        std::mem::transmute(memalign_ptr)
     }
 });
 
@@ -91,6 +119,9 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     Mutex::new(tlsf)
 });
 
+static ALIGNED_TO_ORIGINAL: LazyLock<Mutex<HashMap<usize, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 fn tlsf_allocate(size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
         panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
@@ -126,6 +157,16 @@ fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
 }
 
+fn aligned_alloc_wrapped(alignment: usize, size: usize) -> *mut c_void {
+    let addr: usize = tlsf_allocate(size + alignment) as usize;
+    let aligned_addr: usize = addr + alignment - (addr % alignment);
+
+    let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
+    aligned_to_original.insert(aligned_addr, addr);
+
+    aligned_addr as *mut c_void
+}
+
 thread_local! {
     static HOOKED : Cell<bool> = const { Cell::new(false) }
 }
@@ -158,7 +199,21 @@ pub extern "C" fn free(ptr: *mut c_void) {
             unsafe { ORIGINAL_FREE(ptr) }
         } else {
             hooked.set(true);
-            tlsf_deallocate(non_null_ptr);
+
+            let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
+
+            if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
+                let original_ptr: std::ptr::NonNull<u8> =
+                    match std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8) {
+                        Some(ptr) => ptr,
+                        None => unreachable!(),
+                    };
+                tlsf_deallocate(original_ptr);
+                aligned_to_original.remove(&ptr_addr);
+            } else {
+                tlsf_deallocate(non_null_ptr);
+            }
+
             hooked.set(false);
         }
     });
@@ -196,7 +251,20 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                     if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
                         unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                     } else {
-                        tlsf_reallocate(non_null_ptr, new_size)
+                        let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
+                        if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
+                            let original_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(
+                                *original_addr as *mut c_void as *mut u8,
+                            ) {
+                                Some(ptr) => ptr,
+                                None => unreachable!(),
+                            };
+                            let ret = tlsf_reallocate(original_ptr, new_size);
+                            aligned_to_original.remove(&ptr_addr);
+                            ret
+                        } else {
+                            tlsf_reallocate(non_null_ptr, new_size)
+                        }
                     }
                 } else {
                     tlsf_allocate(new_size)
@@ -209,25 +277,46 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 }
 
 #[no_mangle]
-pub extern "C" fn posix_memalign(
-    _memptr: *mut *mut c_void,
-    _alignment: usize,
-    _size: usize,
-) -> i32 {
-    eprintln!("TODO: posix_memalign is not supported");
-    0
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, alignment: usize, size: usize) -> i32 {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
+        } else {
+            hooked.set(true);
+            unsafe { *memptr = aligned_alloc_wrapped(alignment, size) };
+            hooked.set(false);
+            0
+        }
+    })
 }
 
 #[no_mangle]
-pub extern "C" fn aligned_alloc(_alignment: usize, _size: usize) -> *mut c_void {
-    eprintln!("TODO: aligned_alloc is not supported");
-    std::ptr::null_mut()
+pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
+        } else {
+            hooked.set(true);
+            let ret = aligned_alloc_wrapped(alignment, size);
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]
-pub extern "C" fn memalign(_alignment: usize, _size: usize) -> *mut c_void {
-    eprintln!("TODO: memalign is not supported");
-    std::ptr::null_mut()
+pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_MEMALIGN(alignment, size) }
+        } else {
+            hooked.set(true);
+            let ret = aligned_alloc_wrapped(alignment, size);
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]
