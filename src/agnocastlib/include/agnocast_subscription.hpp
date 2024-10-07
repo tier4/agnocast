@@ -196,6 +196,12 @@ public:
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
   : SubscriptionBase(getpid(), topic_name, qos)
   {
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      fprintf(
+        stderr,
+        "[Warning]: The transient local is not supported by TakeSubscription, so it is ignored.\n");
+    }
+
     initialize(true);
   }
 
@@ -212,13 +218,39 @@ public:
     }
 
     if (take_args.ret_addr == 0) {
-      return std::move(agnocast::ipc_shared_ptr<MessageT>());
+      return agnocast::ipc_shared_ptr<MessageT>();
     }
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    return std::move(agnocast::ipc_shared_ptr<MessageT>(
-      ptr, topic_name_, take_args.ret_publisher_pid, take_args.ret_timestamp, true));
+    return agnocast::ipc_shared_ptr<MessageT>(
+      ptr, topic_name_, take_args.ret_publisher_pid, take_args.ret_timestamp, true);
   }
+};
+
+// Wrapper of TakeSubscription for Autoware
+template <typename MessageT>
+class PollingSubscriber
+{
+  typename TakeSubscription<MessageT>::SharedPtr subscriber_;
+  agnocast::ipc_shared_ptr<MessageT> data_;
+
+public:
+  using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
+
+  explicit PollingSubscriber(const std::string & topic_name, const rclcpp::QoS & qos)
+  : data_(agnocast::ipc_shared_ptr<MessageT>())
+  {
+    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(topic_name, qos);
+  };
+
+  const agnocast::ipc_shared_ptr<MessageT> takeData()
+  {
+    agnocast::ipc_shared_ptr<MessageT> new_data = subscriber_->take();
+    if (new_data) {
+      data_ = std::move(new_data);
+    }
+    return data_;
+  };
 };
 
 }  // namespace agnocast
