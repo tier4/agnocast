@@ -47,7 +47,7 @@ static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
     }
 });
 
-type PosixMemalignType = unsafe extern "C" fn(*mut *mut c_void, usize, usize) -> i32;
+type PosixMemalignType = unsafe extern "C" fn(&mut *mut c_void, usize, usize) -> i32;
 static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
     let symbol: &CStr = CStr::from_bytes_with_nul(b"posix_memalign\0").unwrap();
     unsafe {
@@ -270,14 +270,13 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 }
 
 #[no_mangle]
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, alignment: usize, size: usize) -> i32 {
+pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
         } else {
             hooked.set(true);
-            unsafe { *memptr = tlsf_aligned_alloc(alignment, size) };
+            *memptr = tlsf_aligned_alloc(alignment, size);
             hooked.set(false);
             0
         }
