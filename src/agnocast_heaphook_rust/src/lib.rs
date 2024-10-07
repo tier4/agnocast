@@ -1,5 +1,3 @@
-// Test
-
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
