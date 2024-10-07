@@ -237,7 +237,8 @@ class PollingSubscriber
 public:
   using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
 
-  explicit PollingSubscriber(const std::string & topic_name, const rclcpp::QoS & qos)
+  explicit PollingSubscriber(
+    const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
   : data_(agnocast::ipc_shared_ptr<MessageT>())
   {
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(topic_name, qos);
