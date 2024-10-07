@@ -26,10 +26,10 @@ jobs:
       id: check_changes_cpp
       run: |
         if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep -E '\.cpp$|\.hpp|$'; then
-          echo ".cpp or .hpp or .rs files changed"
+          echo ".cpp or .hpp files changed"
           echo "cpp_changed=true" >> $GITHUB_OUTPUT
         else
-          echo "No .cpp or .hpp or .rs files changed"
+          echo "No .cpp or .hpp files changed"
           echo "cpp_changed=false" >> $GITHUB_OUTPUT
         fi
     
