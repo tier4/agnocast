@@ -16,6 +16,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
     
     - name: Check for .cpp or .hpp file changes
       id: check_changes_cpp
