@@ -205,8 +205,8 @@ pub extern "C" fn free(ptr: *mut c_void) {
             if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
                 let original_ptr: std::ptr::NonNull<u8> =
                     std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8).unwrap();
-                tlsf_deallocate(original_ptr);
                 aligned_to_original.remove(&ptr_addr);
+                tlsf_deallocate(original_ptr);
             } else {
                 tlsf_deallocate(non_null_ptr);
             }
@@ -253,9 +253,8 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                             let original_ptr: std::ptr::NonNull<u8> =
                                 std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
                                     .unwrap();
-                            let ret = tlsf_reallocate(original_ptr, new_size);
                             aligned_to_original.remove(&ptr_addr);
-                            ret
+                            tlsf_reallocate(original_ptr, new_size)
                         } else {
                             tlsf_reallocate(non_null_ptr, new_size)
                         }
