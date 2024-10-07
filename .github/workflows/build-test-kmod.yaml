@@ -11,18 +11,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Set PR fetch depth
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
+
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
 
     - name: Check for .c file changes
       id: check_changes
       run: |
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.c$'; then
+        if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.c$'; then
           echo ".c files changed"
-          echo "c_changed=true" >> $GITHUB_ENV
+          echo "c_changed=true" >> $GITHUB_OUTPUT
         else
           echo "No .c files changed"
-          echo "c_changed=false" >> $GITHUB_ENV
+          echo "c_changed=false" >> $GITHUB_OUTPUT
         fi
     
     - name: Build kmod
