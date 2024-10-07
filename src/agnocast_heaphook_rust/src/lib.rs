@@ -313,12 +313,10 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn valloc(_size: usize) -> *mut c_void {
-    eprintln!("NOTE: valloc is not supported");
-    std::ptr::null_mut()
+    panic!("NOTE: valloc is not supported");
 }
 
 #[no_mangle]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
-    eprintln!("NOTE: pvalloc is not supported");
-    std::ptr::null_mut()
+    panic!("NOTE: pvalloc is not supported");
 }
