@@ -20,7 +20,7 @@ jobs:
     - name: Check for .cpp or .hpp file changes
       id: check_changes_cpp
       run: |
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '\.cpp$|\.hpp|$'; then
+        if git diff --name-only ${{github.event.pull_request.base.sha }} ${{ github.sha }} | grep -E '\.cpp$|\.hpp|$'; then
           echo ".cpp or .hpp or .rs files changed"
           echo "cpp_changed=true" >> $GITHUB_ENV
         else
@@ -31,7 +31,7 @@ jobs:
     - name: Check for .rs file changes
       id: check_changes_rust
       run: |
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.rs$'; then
+        if git diff --name-only ${{github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.rs$'; then
           echo ".rs files changed"
           echo "rust_changed=true" >> $GITHUB_ENV
         else
