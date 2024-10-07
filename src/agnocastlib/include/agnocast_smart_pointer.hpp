@@ -113,15 +113,18 @@ public:
 
   ipc_shared_ptr & operator=(ipc_shared_ptr && r)
   {
-    release();
+    if (this != &r) {
+      release();
 
-    ptr_ = r.ptr_;
-    topic_name_ = r.topic_name_;
-    publisher_pid_ = r.publisher_pid_;
-    timestamp_ = r.timestamp_;
-    need_rc_update_ = r.need_rc_update_;
+      ptr_ = r.ptr_;
+      topic_name_ = r.topic_name_;
+      publisher_pid_ = r.publisher_pid_;
+      timestamp_ = r.timestamp_;
+      need_rc_update_ = r.need_rc_update_;
 
-    r.ptr_ = nullptr;
+      r.ptr_ = nullptr;
+    }
+    return *this;
   }
 
   T & operator*() const noexcept { return *ptr_; }
