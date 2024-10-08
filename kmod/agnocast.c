@@ -1067,7 +1067,7 @@ static int take_msg(
   while (node && searched_count < qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     if (en->timestamp <= sub_info->latest_received_timestamp) {
-      break;  // Never take older messages than the last
+      break;  // Never take any messages that are older than the most recently received
     }
     if (en->published) candidate_en = en;
     searched_count++;
