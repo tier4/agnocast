@@ -3,11 +3,13 @@ use std::{
     alloc::Layout,
     cell::Cell,
     collections::HashMap,
-    ffi::CStr,
+    ffi::{c_char, CStr},
     mem::MaybeUninit,
     os::raw::c_void,
     sync::{LazyLock, Mutex},
 };
+
+type AgnocatType = unsafe extern "C" fn(usize) -> *mut c_void;
 
 const ALIGNMENT: usize = 64;
 
@@ -80,8 +82,6 @@ type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
 type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
-    // TODO: These mmap related procedures will be moved to agnocast
-
     let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
         panic!("{}: MEMPOOL_SIZE", error);
     });
@@ -90,25 +90,28 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         panic!("{}: MEMPOOL_SIZE", error);
     });
 
-    let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-    let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
-
-    let addr: *mut c_void = 0x40000000000 as *mut c_void;
-
     let ptr = unsafe {
-        libc::mmap(
-            addr,
-            aligned_size,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_FIXED_NOREPLACE,
-            -1,
-            0,
-        )
-    };
+        let lib = libc::dlopen(
+            b"libagnocast.so\0".as_ptr() as *const c_char,
+            libc::RTLD_LAZY,
+        );
+        if lib.is_null() {
+            panic!("Failed to load libagnocast.so");
+        }
 
-    if ptr == libc::MAP_FAILED {
-        panic!("mmap failed");
-    }
+        let symbol: &CStr = CStr::from_bytes_with_nul(b"initialize_agnocast\0").unwrap();
+        let func_ptr: *mut c_void = libc::dlsym(lib, symbol.as_ptr());
+        if func_ptr.is_null() {
+            panic!("Failed to find initialize_agnocast() function");
+        }
+
+        let initialize_agnocast: AgnocatType = std::mem::transmute(func_ptr);
+        let ptr = initialize_agnocast(mempool_size);
+
+        libc::dlclose(lib);
+
+        ptr
+    };
 
     let pool: &mut [MaybeUninit<u8>] =
         unsafe { std::slice::from_raw_parts_mut(ptr as *mut MaybeUninit<u8>, mempool_size) };

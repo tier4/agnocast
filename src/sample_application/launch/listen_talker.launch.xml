@@ -1,6 +1,6 @@
 <launch>
     <node pkg="sample_application" exec="listen_talker" name="listern_talker_node" output="screen">
-        <env name="LD_PRELOAD" value="libpreloaded.so" />
+        <env name="LD_PRELOAD" value="./src/agnocast_heaphook_rust/target/release/libpreloaded.so" />
         <env name="MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
     </node>
 </launch>

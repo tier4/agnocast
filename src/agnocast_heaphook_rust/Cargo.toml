@@ -1,5 +1,5 @@
 [package]
-name = "agnocast_heaphook_rust"
+name = "preloaded"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,6 @@ crate-type = ["cdylib"]
 [dependencies]
 libc = "0.2"
 rlsf = "0.2"
+
+[build-dependencies]
+cc = "1.0"
