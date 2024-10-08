@@ -90,6 +90,9 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         panic!("{}: MEMPOOL_SIZE", error);
     });
 
+    let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+    let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
+
     let ptr = unsafe {
         let lib = libc::dlopen(
             b"libagnocast.so\0".as_ptr() as *const c_char,
@@ -106,7 +109,7 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         }
 
         let initialize_agnocast: InitializeAgnocastType = std::mem::transmute(func_ptr);
-        let ptr = initialize_agnocast(mempool_size);
+        let ptr = initialize_agnocast(aligned_size);
 
         libc::dlclose(lib);
 
