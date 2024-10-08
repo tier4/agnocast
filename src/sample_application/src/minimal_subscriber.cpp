@@ -63,8 +63,16 @@ public:
     timestamp_ids_.resize(10000, 0);
     timestamp_idx_ = 0;
 
+    rclcpp::CallbackGroup::SharedPtr group =
+      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    agnocast::SubscriptionOptions options;
+    options.callback_group = group;
+
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/my_dynamic_topic", 10, std::bind(&MinimalSubscriber::callback_dynamic, this, _1));
+      get_node_base_interface(), "/my_dynamic_topic", 10,
+      std::bind(&MinimalSubscriber::callback_dynamic, this, _1), options);
+
+    // Trying using the deprecated interface
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       "/my_static_topic", rclcpp::QoS(10).transient_local(),
       std::bind(&MinimalSubscriber::callback_static, this, _1));

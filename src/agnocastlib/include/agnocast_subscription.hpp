@@ -35,6 +35,11 @@ void validate_ld_preload();
 
 std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
 
+struct SubscriptionOptions
+{
+  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+};
+
 class SubscriptionBase
 {
 protected:
@@ -98,15 +103,32 @@ template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr ros2_node_base_;
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
 
   Subscription(
-    const std::string & topic_name, const rclcpp::QoS & qos,
-    std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
-  : SubscriptionBase(getpid(), topic_name, qos)
+    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
+    const rclcpp::QoS & qos,
+    std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
+    agnocast::SubscriptionOptions options)
+  : SubscriptionBase(getpid(), topic_name, qos), ros2_node_base_(node)
   {
+    rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
+
+    if (node != nullptr /* for backward compatibility */) {
+      if (callback_group && !ros2_node_base_->callback_group_in_node(callback_group)) {
+        throw std::runtime_error(
+          "Cannot create agnocast subscription, callback group not in node.");
+      } else {
+        callback_group = ros2_node_base_->get_default_callback_group();
+      }
+    }
+
+    // To use callback_group for Agnocast Executors
+    (void)callback_group;
+
     union ioctl_subscriber_args subscriber_args = initialize(false);
 
     std::string mq_name = create_mq_name(topic_name_, subscriber_pid_);
