@@ -9,7 +9,7 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-type AgnocatType = unsafe extern "C" fn(usize) -> *mut c_void;
+type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
 const ALIGNMENT: usize = 64;
 
@@ -105,7 +105,7 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
             panic!("Failed to find initialize_agnocast() function");
         }
 
-        let initialize_agnocast: AgnocatType = std::mem::transmute(func_ptr);
+        let initialize_agnocast: InitializeAgnocastType = std::mem::transmute(func_ptr);
         let ptr = initialize_agnocast(mempool_size);
 
         libc::dlclose(lib);
