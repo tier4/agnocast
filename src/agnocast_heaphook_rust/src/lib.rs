@@ -93,31 +93,33 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
 
-    let ptr = unsafe {
-        let lib = libc::dlopen(
+    let agnocast_lib: *mut c_void = unsafe {
+        libc::dlopen(
             b"libagnocast.so\0".as_ptr() as *const c_char,
-            libc::RTLD_LAZY,
-        );
-        if lib.is_null() {
-            panic!("Failed to load libagnocast.so");
-        }
-
-        let symbol: &CStr = CStr::from_bytes_with_nul(b"initialize_agnocast\0").unwrap();
-        let func_ptr: *mut c_void = libc::dlsym(lib, symbol.as_ptr());
-        if func_ptr.is_null() {
-            panic!("Failed to find initialize_agnocast() function");
-        }
-
-        let initialize_agnocast: InitializeAgnocastType = std::mem::transmute(func_ptr);
-        let ptr = initialize_agnocast(aligned_size);
-
-        libc::dlclose(lib);
-
-        ptr
+            libc::RTLD_NOW,
+        )
     };
+    if agnocast_lib.is_null() {
+        panic!("Failed to load libagnocast.so");
+    }
 
-    let pool: &mut [MaybeUninit<u8>] =
-        unsafe { std::slice::from_raw_parts_mut(ptr as *mut MaybeUninit<u8>, mempool_size) };
+    let symbol: &CStr = CStr::from_bytes_with_nul(b"initialize_agnocast\0").unwrap();
+    let initialize_agnocast_ptr: *mut c_void =
+        unsafe { libc::dlsym(agnocast_lib, symbol.as_ptr()) };
+    if initialize_agnocast_ptr.is_null() {
+        panic!("Failed to find initialize_agnocast() function");
+    }
+
+    let initialize_agnocast: InitializeAgnocastType =
+        unsafe { std::mem::transmute(initialize_agnocast_ptr) };
+
+    let mempool_ptr = unsafe { initialize_agnocast(aligned_size) };
+
+    unsafe { libc::dlclose(agnocast_lib) };
+
+    let pool: &mut [MaybeUninit<u8>] = unsafe {
+        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
+    };
 
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
