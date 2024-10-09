@@ -190,21 +190,68 @@ public:
 template <typename MessageT>
 class TakeSubscription : public SubscriptionBase
 {
-  uint64_t last_taken_timestamp;
-
 public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
   TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
-  : SubscriptionBase(getpid(), topic_name, qos), last_taken_timestamp(0)
+  : SubscriptionBase(getpid(), topic_name, qos)
   {
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      fprintf(
+        stderr,
+        "[Warning]: The transient local is not supported by TakeSubscription, so it is ignored.\n");
+    }
+
     initialize(true);
   }
 
   agnocast::ipc_shared_ptr<MessageT> take()
   {
-    // TODO
+    union ioctl_take_msg_args take_args;
+    take_args.topic_name = topic_name_.c_str();
+    take_args.subscriber_pid = subscriber_pid_;
+    take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
+    if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
+      perror("AGNOCAST_TAKE_MSG_CMD failed");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (take_args.ret_addr == 0) {
+      return agnocast::ipc_shared_ptr<MessageT>();
+    }
+
+    MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
+    return agnocast::ipc_shared_ptr<MessageT>(
+      ptr, topic_name_, take_args.ret_publisher_pid, take_args.ret_timestamp, true);
   }
+};
+
+// Wrapper of TakeSubscription for Autoware
+template <typename MessageT>
+class PollingSubscriber
+{
+  typename TakeSubscription<MessageT>::SharedPtr subscriber_;
+  agnocast::ipc_shared_ptr<MessageT> data_;
+
+public:
+  using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
+
+  explicit PollingSubscriber(
+    const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
+  : data_(agnocast::ipc_shared_ptr<MessageT>())
+  {
+    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(topic_name, qos);
+  };
+
+  const agnocast::ipc_shared_ptr<MessageT> takeData()
+  {
+    agnocast::ipc_shared_ptr<MessageT> new_data = subscriber_->take();
+    if (new_data) {
+      data_ = std::move(new_data);
+    }
+    return data_;
+  };
 };
 
 }  // namespace agnocast

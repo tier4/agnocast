@@ -24,32 +24,32 @@ class MinimalSubscriber : public rclcpp::Node
   int timestamp_idx_ = 0;
   pthread_mutex_t timestamp_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-  agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
+  agnocast::PollingSubscriber<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
-
-  void callback_dynamic(
-    const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
-  {
-    pthread_mutex_lock(&timestamp_mtx);
-    timestamp_ids_[timestamp_idx_] = message->id;
-    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    pthread_mutex_unlock(&timestamp_mtx);
-
-    // In order to test copy constructor
-    const auto copied_message = message;
-
-    RCLCPP_INFO(
-      this->get_logger(), "I heard dynamic message: addr=%016lx",
-      reinterpret_cast<uint64_t>(copied_message.get()));
-  }
 
   void callback_static(
     const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
   {
+    // Take dynamic message
+    agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> dynamic_message =
+      sub_dynamic_->takeData();
+
     pthread_mutex_lock(&timestamp_mtx);
+    if (dynamic_message) {
+      timestamp_ids_[timestamp_idx_] = dynamic_message->id;
+      timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
+    }
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
     pthread_mutex_unlock(&timestamp_mtx);
+
+    if (dynamic_message) {
+      // In order to test copy constructor
+      const auto copied_dynamic_message = dynamic_message;
+      RCLCPP_INFO(
+        this->get_logger(), "I took dynamic message: addr=%016lx",
+        reinterpret_cast<uint64_t>(copied_dynamic_message.get()));
+    }
 
     RCLCPP_INFO(
       this->get_logger(), "I heard static message: addr=%016lx",
@@ -64,7 +64,7 @@ public:
     timestamp_idx_ = 0;
 
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/my_dynamic_topic", 10, std::bind(&MinimalSubscriber::callback_dynamic, this, _1));
+      "/my_dynamic_topic", 10);
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       "/my_static_topic", rclcpp::QoS(10).transient_local(),
       std::bind(&MinimalSubscriber::callback_static, this, _1));
