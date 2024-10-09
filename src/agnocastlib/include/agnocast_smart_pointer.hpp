@@ -113,14 +113,25 @@ public:
 
   ipc_shared_ptr & operator=(ipc_shared_ptr && r)
   {
-    std::cout << "[Error]: move assignment operator is not supported yet" << std::endl;
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    if (this != &r) {
+      release();
+
+      ptr_ = r.ptr_;
+      topic_name_ = r.topic_name_;
+      publisher_pid_ = r.publisher_pid_;
+      timestamp_ = r.timestamp_;
+      need_rc_update_ = r.need_rc_update_;
+
+      r.ptr_ = nullptr;
+    }
+    return *this;
   }
 
   T & operator*() const noexcept { return *ptr_; }
 
   T * operator->() const noexcept { return ptr_; }
+
+  operator bool() const noexcept { return ptr_; }
 
   T * get() const noexcept { return ptr_; }
 };

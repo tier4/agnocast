@@ -103,6 +103,21 @@ union ioctl_publish_args {
   };
 };
 
+union ioctl_take_msg_args {
+  struct
+  {
+    const char * topic_name;
+    uint32_t subscriber_pid;
+    uint32_t qos_depth;
+  };
+  struct
+  {
+    uint64_t ret_addr;
+    uint64_t ret_timestamp;
+    uint32_t ret_publisher_pid;
+  };
+};
+
 union ioctl_new_shm_args {
   struct
   {
@@ -124,5 +139,6 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
+#define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
