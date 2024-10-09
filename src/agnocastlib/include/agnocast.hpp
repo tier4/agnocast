@@ -53,23 +53,18 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 }
 
 template <typename MessageT>
-typename TakeSubscription<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const rclcpp::QoS & qos)
+typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
+  const std::string & topic_name, const size_t qos_history_depth)
 {
-  if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-    std::cerr
-      << "[Warning]: The transient local is not supported by TakeSubscription, so it is ignored."
-      << std::endl;
-  }
-  return std::make_shared<TakeSubscription<MessageT>>(topic_name, qos);
+  return std::make_shared<PollingSubscriber<MessageT>>(
+    topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
 template <typename MessageT>
-typename TakeSubscription<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const size_t qos_history_depth)
+typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
+  const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return std::make_shared<TakeSubscription<MessageT>>(
-    topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+  return std::make_shared<PollingSubscriber<MessageT>>(topic_name, qos);
 }
 
 }  // namespace agnocast
