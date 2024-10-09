@@ -119,14 +119,17 @@ public:
 
     if (node != nullptr /* for backward compatibility */) {
       if (callback_group && !ros2_node_base_->callback_group_in_node(callback_group)) {
-        throw std::runtime_error(
-          "Cannot create agnocast subscription, callback group not in node.");
+        std::cerr << "Cannot create agnocast subscription, callback group not in node."
+                  << std::endl;
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
       } else {
         callback_group = ros2_node_base_->get_default_callback_group();
       }
     }
 
     // To use callback_group for Agnocast Executors
+    // cppcheck-suppress unusedVariable
     (void)callback_group;
 
     union ioctl_subscriber_args subscriber_args = initialize(false);
