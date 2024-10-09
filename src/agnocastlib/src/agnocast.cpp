@@ -9,7 +9,6 @@
 #include <atomic>
 #include <cstdint>
 #include <fstream>
-#include <iostream>
 #include <set>
 
 namespace agnocast
