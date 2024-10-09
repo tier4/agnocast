@@ -1,6 +1,7 @@
 #include "agnocast.hpp"
 
 #include "agnocast_ioctl.hpp"
+#include "agnocast_logger.hpp"
 #include "agnocast_mq.hpp"
 
 #include <stdio.h>
@@ -8,7 +9,6 @@
 #include <atomic>
 #include <cstdint>
 #include <fstream>
-#include <iostream>
 #include <set>
 
 namespace agnocast
@@ -24,7 +24,7 @@ void validate_ld_preload()
 {
   const char * ld_preload = getenv("LD_PRELOAD");
   if (!ld_preload || std::strcmp(ld_preload, "libpreloaded.so") != 0) {
-    fprintf(stderr, "LD_PRELOAD is not set to libpreloaded.so\n");
+    RCLCPP_ERROR(logger, "LD_PRELOAD is not set to libpreloaded.so");
     exit(EXIT_FAILURE);
   }
 }
@@ -55,7 +55,7 @@ void * map_area(
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    perror("shm_open failed");
+    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
     close(agnocast_fd);
     return NULL;
   }
@@ -63,7 +63,7 @@ void * map_area(
 
   if (writable) {
     if (ftruncate(shm_fd, shm_size) == -1) {
-      perror("ftruncate failed");
+      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
       close(agnocast_fd);
       return NULL;
     }
@@ -75,7 +75,7 @@ void * map_area(
     0);
 
   if (ret == MAP_FAILED) {
-    perror("mmap failed");
+    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
     close(agnocast_fd);
     return NULL;
   }
@@ -86,7 +86,7 @@ void * map_area(
 void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
-    fprintf(stderr, "map_writeable_area failed\n");
+    RCLCPP_ERROR(logger, "map_writeable_area failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -105,7 +105,7 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid)
   std::string mq_name = topic_name + "@" + std::to_string(pid);
 
   if (mq_name[0] != '/') {
-    fprintf(stderr, "create_mq_name failed\n");
+    RCLCPP_ERROR(logger, "create_mq_name failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -145,7 +145,7 @@ void wait_for_new_publisher(const uint32_t pid)
 
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
   if (mq == -1) {
-    perror("mq_open for new publisher failed");
+    RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -157,7 +157,7 @@ void wait_for_new_publisher(const uint32_t pid)
       MqMsgNewPublisher mq_msg;
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
       if (ret == -1) {
-        perror("mq_receive for new publisher failed");
+        RCLCPP_ERROR(logger, "mq_receive for new publisher failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
@@ -176,13 +176,13 @@ void wait_for_new_publisher(const uint32_t pid)
 void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
-    perror("Agnocast is already open");
+    perror("[ERROR] [Agnocast] Agnocast is already open");
     return NULL;
   }
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    perror("Failed to open the device");
+    perror("[ERROR] [Agnocast] Failed to open the device");
     return NULL;
   }
 
@@ -192,7 +192,7 @@ void * initialize_agnocast(const uint64_t shm_size)
   new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
-    perror("AGNOCAST_GET_SHM_CMD failed");
+    perror("[ERROR] [Agnocast] AGNOCAST_NEW_SHM_CMD failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -201,7 +201,7 @@ void * initialize_agnocast(const uint64_t shm_size)
 
 static void shutdown_agnocast()
 {
-  std::cout << "[Info]: shutdown_agnocast started" << std::endl;
+  fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast started\n");
   is_running = false;
   /*
    * TODO:
@@ -215,23 +215,23 @@ static void shutdown_agnocast()
 
   for (int fd : shm_fds) {
     if (close(fd) == -1) {
-      perror("close shm_fd failed");
+      perror("[ERROR] [Agnocast] close shm_fd failed");
     }
   }
 
   const std::string shm_name = "/agnocast@" + std::to_string(pid);
   if (shm_unlink(shm_name.c_str()) == -1) {
-    perror("shm_unlink failed");
+    perror("[ERROR] [Agnocast] shm_unlink failed");
   }
 
   if (mq_new_publisher != -1) {
     if (mq_close(mq_new_publisher) == -1) {
-      perror("mq_close failed");
+      perror("[ERROR] [Agnocast] mq_close failed");
     }
 
     const std::string mq_name = "/new_publisher@" + std::to_string(pid);
     if (mq_unlink(mq_name.c_str()) == -1) {
-      perror("mq_unlink failed");
+      perror("[ERROR] [Agnocast] mq_unlink failed");
     }
   }
 
@@ -239,7 +239,7 @@ static void shutdown_agnocast()
     th.join();
   }
 
-  std::cout << "[Info]: shutdown_agnocast completed" << std::endl;
+  fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast completed\n");
 }
 
 class Cleanup

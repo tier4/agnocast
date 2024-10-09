@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
+#include "agnocast_logger.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -18,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -66,7 +66,7 @@ public:
     subscriber_args.init_timestamp = agnocast_get_timestamp();
     subscriber_args.is_take_sub = is_take_sub;
     if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
-      perror("AGNOCAST_SUBSCRIBER_ADD_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -79,9 +79,11 @@ public:
          * Agnocast to topic communication within a component container, the system will explicitly
          * fail with an error during initialization.
          */
-        std::cout << "[Error]: This process (pid=" << subscriber_pid_
-                  << ") already exists in the topic (topic_name=" << topic_name_
-                  << ") as a publisher." << std::endl;
+        RCLCPP_ERROR(
+          logger,
+          "This process (pid=%d) already exists in the topic (topic_name=%s) "
+          "as a publisher.",
+          subscriber_pid_, topic_name_.c_str());
         exit(EXIT_FAILURE);
       }
       const uint32_t pid = subscriber_args.ret_pids[i];
@@ -118,7 +120,7 @@ public:
 
     mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
     if (mq == -1) {
-      perror("mq_open failed");
+      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -126,9 +128,6 @@ public:
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
-      std::cout << "[Info]: callback thread for " << topic_name_ << " has been started"
-                << std::endl;
-
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
       if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
@@ -150,7 +149,7 @@ public:
         receive_args.subscriber_pid = subscriber_pid_;
         receive_args.qos_depth = static_cast<uint32_t>(qos_.depth());
         if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-          perror("AGNOCAST_RECEIVE_MSG_CMD failed");
+          RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
           close(agnocast_fd);
           exit(EXIT_FAILURE);
         }
@@ -165,7 +164,7 @@ public:
 
         auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
         if (ret == -1) {
-          perror("mq_receive failed");
+          RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
           return;
         }
       }
@@ -179,10 +178,10 @@ public:
     /* It's best to notify the publisher and have it call mq_close, but currently
     this is not being done. The message queue is destroyed when the publisher process exits. */
     if (mq_close(mq_subscription.first) == -1) {
-      perror("mq_close failed");
+      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
     }
     if (mq_unlink(mq_subscription.second.c_str()) == -1) {
-      perror("mq_unlink failed");
+      RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
     }
   }
 };
@@ -197,9 +196,8 @@ public:
   : SubscriptionBase(getpid(), topic_name, qos)
   {
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      fprintf(
-        stderr,
-        "[Warning]: The transient local is not supported by TakeSubscription, so it is ignored.\n");
+      RCLCPP_WARN(
+        logger, "The transient local is not supported by TakeSubscription, so it is ignored.");
     }
 
     initialize(true);
@@ -212,7 +210,7 @@ public:
     take_args.subscriber_pid = subscriber_pid_;
     take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
-      perror("AGNOCAST_TAKE_MSG_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
