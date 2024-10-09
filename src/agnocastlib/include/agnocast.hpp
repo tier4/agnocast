@@ -45,7 +45,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
             << "Deprecated: use the latest version of create_subscription"
             << "\033[0m" << std::endl;
 
-  agnocast::SubscriptionOptions options;
+  const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(nullptr, topic_name, qos, callback, options);
 }
 
@@ -59,7 +59,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
             << "Deprecated: use the latest version of create_subscription"
             << "\033[0m" << std::endl;
 
-  agnocast::SubscriptionOptions options;
+  const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(
     nullptr, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback, options);
 }
@@ -69,7 +69,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
   const rclcpp::QoS & qos, std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
-  agnocast::SubscriptionOptions options;
+  const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(node, topic_name, qos, callback, options);
 }
 
@@ -79,7 +79,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   const size_t qos_history_depth,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
-  agnocast::SubscriptionOptions options;
+  const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback, options);
 }
