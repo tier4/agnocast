@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
+#include "agnocast_logger.hpp"
 
 #include <fcntl.h>
 #include <mqueue.h>
@@ -40,7 +41,7 @@ class ipc_shared_ptr
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
     if (ioctl(agnocast_fd, AGNOCAST_DECREMENT_RC_CMD, &entry_args) < 0) {
-      perror("AGNOCAST_DECREMENT_RC_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_DECREMENT_RC_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -58,7 +59,7 @@ class ipc_shared_ptr
     entry_args.publisher_pid = publisher_pid_;
     entry_args.msg_timestamp = timestamp_;
     if (ioctl(agnocast_fd, AGNOCAST_INCREMENT_RC_CMD, &entry_args) < 0) {
-      perror("AGNOCAST_INCREMENT_RC_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_INCREMENT_RC_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -96,7 +97,7 @@ public:
 
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
   {
-    std::cout << "[Error]: copy assignment operator is not supported yet" << std::endl;
+    RCLCPP_ERROR(logger, "copy assignment operator is not supported yet");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }

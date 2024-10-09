@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
+#include "agnocast_logger.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -49,7 +50,7 @@ public:
     pub_args.publisher_pid = publisher_pid_;
     pub_args.topic_name = topic_name_.c_str();
     if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
-      perror("AGNOCAST_PUBLISHER_ADD_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_PUBLISHER_ADD_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -63,16 +64,18 @@ public:
          * Agnocast to topic communication within a component container, the system will explicitly
          * fail with an error during initialization.
          */
-        std::cout << "[Error]: This process (pid=" << publisher_pid_
-                  << ") already exists in the topic (topic_name=" << topic_name
-                  << ") as a subscriber." << std::endl;
+        RCLCPP_ERROR(
+          logger,
+          "This process (pid=%d) already exists in the topic (topic_name=%s) "
+          "as a publisher.",
+          publisher_pid_, topic_name.c_str());
         exit(EXIT_FAILURE);
       }
       const std::string mq_name =
         "/new_publisher@" + std::to_string(pub_args.ret_subscriber_pids[i]);
       mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
       if (mq == -1) {
-        perror("mq_open for new publisher failed");
+        RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
@@ -82,7 +85,7 @@ public:
       mq_msg.shm_addr = pub_args.ret_shm_addr;
       mq_msg.shm_size = pub_args.ret_shm_size;
       if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        perror("mq_send for new publisher failed");
+        RCLCPP_ERROR(logger, "mq_send for new publisher failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
@@ -105,7 +108,7 @@ public:
     ioctl_args.msg_virtual_address = reinterpret_cast<uint64_t>(ptr);
     ioctl_args.timestamp = timestamp;
     if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_AND_RELEASE_CMD, &ioctl_args) < 0) {
-      perror("AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -128,7 +131,7 @@ public:
     publish_args.publisher_pid = publisher_pid_;
     publish_args.msg_timestamp = message.get_timestamp();
     if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
-      perror("AGNOCAST_PUBLISH_MSG_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -143,7 +146,7 @@ public:
       } else {
         mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
         if (mq == -1) {
-          perror("mq_open failed");
+          RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
           continue;
         }
         opened_mqs.insert({mq_name, mq});
@@ -155,7 +158,7 @@ public:
         // hasn't received it yet. Thus, there's no need to send it again since the notification has
         // already been sent.
         if (errno != EAGAIN) {
-          perror("mq_send failed");
+          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
         }
       }
     }
@@ -166,7 +169,7 @@ public:
     union ioctl_get_subscriber_num_args get_subscriber_count_args;
     get_subscriber_count_args.topic_name = topic_name_.c_str();
     if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
-      perror("AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed");
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
