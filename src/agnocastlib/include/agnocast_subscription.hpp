@@ -129,8 +129,6 @@ public:
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
-      RCLCPP_INFO(logger, "callback thread for %s has been started", topic_name_.c_str());
-
       // If there are messages available and the transient local is enabled, immediately call the
       // callback.
       if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
