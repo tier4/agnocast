@@ -118,11 +118,13 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
 
     if (ros2_node_base_ != nullptr /* for backward compatibility */) {
-      if (callback_group && !ros2_node_base_->callback_group_in_node(callback_group)) {
-        std::cerr << "Cannot create agnocast subscription, callback group not in node."
-                  << std::endl;
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+      if (callback_group) {
+        if (!ros2_node_base_->callback_group_in_node(callback_group)) {
+          std::cerr << "Cannot create agnocast subscription, callback group not in node."
+                    << std::endl;
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
       } else {
         callback_group = ros2_node_base_->get_default_callback_group();
       }

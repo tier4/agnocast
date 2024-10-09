@@ -69,13 +69,11 @@ public:
     options.callback_group = group;
 
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      get_node_base_interface(), "/my_dynamic_topic", 10,
-      std::bind(&MinimalSubscriber::callback_dynamic, this, _1), options);
+      "/my_dynamic_topic", 10);
 
-    // Trying using the deprecated interface
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
-      "/my_static_topic", rclcpp::QoS(10).transient_local(),
-      std::bind(&MinimalSubscriber::callback_static, this, _1));
+      get_node_base_interface(), "/my_static_topic", rclcpp::QoS(10).transient_local(),
+      std::bind(&MinimalSubscriber::callback_static, this, _1), options);
   }
 
   ~MinimalSubscriber()
