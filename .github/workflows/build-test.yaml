@@ -11,7 +11,7 @@ env:
 jobs:
   build_and_test:
     if: ${{ github.event.label.name == 'run-build-test' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Set PR fetch depth
