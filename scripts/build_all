@@ -1,1 +1,7 @@
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+cd kmod
+make
+
+cd ../src/agnocast_heaphook
+cargo deb --install

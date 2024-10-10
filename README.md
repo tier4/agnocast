@@ -6,12 +6,24 @@ prototype: <https://github.com/sykwer/agnocast>
 
 ## Build
 
+Setup.
+
 ```bash
 source /opt/ros/humble/setup.bash
 rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
-colcon build
-cd kmod
-make
+```
+
+Build.
+
+```bash
+bash scripts/build_all
+```
+
+Check if there is a `libpreloaded.so` in `/usr/lib`.
+
+```bash
+$ ls /usr/lib | grep preloaded
+libpreloaded.so
 ```
 
 ## Run
@@ -43,12 +55,6 @@ Unload kmod.
 
 ```bash
 sudo rmmod agnocast
-```
-
-## Run tests
-
-```bash
-colcon test
 ```
 
 ## Debug
