@@ -217,10 +217,10 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
     HOOKED.with(|hooked: &Cell<bool>| {
         let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-        let alloced_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
+        let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
             || ptr_addr > MEMPOOL_END.load(Ordering::SeqCst);
 
-        if hooked.get() || alloced_by_original {
+        if hooked.get() || allocated_by_original {
             unsafe { ORIGINAL_FREE(ptr) }
         } else {
             hooked.set(true);
@@ -269,10 +269,10 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
             let realloc_ret: *mut c_void =
                 if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
                     let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-                    let alloced_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
+                    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
                         || ptr_addr > MEMPOOL_END.load(Ordering::SeqCst);
 
-                    if alloced_by_original {
+                    if allocated_by_original {
                         unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                     } else {
                         let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
