@@ -6,23 +6,21 @@ prototype: <https://github.com/sykwer/agnocast>
 
 ## Build
 
+Setup
+
 ```bash
-# Build ROS 2 packages
 source /opt/ros/humble/setup.bash
 rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
-
-# Build kernel module
-cd kmod
-make
-
-# Build Rust library and install it as a debian package
-cd ../src/agnocast_heaphook
-cargo deb --install
 ```
 
+Build
 ```bash
-# Check if there is a libpreloaded.so in /usr/lib
+bash scripts/build_all
+```
+
+Check if there is a libpreloaded.so in /usr/lib
+
+```bash
 $ ls /usr/lib | grep preloaded
 libpreloaded.so
 ```
