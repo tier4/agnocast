@@ -18,7 +18,7 @@
 namespace agnocast
 {
 
-void * initialize_agnocast(const uint64_t shm_size);
+extern "C" void * initialize_agnocast(const uint64_t shm_size);
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
