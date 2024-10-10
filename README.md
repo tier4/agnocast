@@ -6,7 +6,7 @@ prototype: <https://github.com/sykwer/agnocast>
 
 ## Build
 
-Setup
+Setup.
 
 ```bash
 source /opt/ros/humble/setup.bash
