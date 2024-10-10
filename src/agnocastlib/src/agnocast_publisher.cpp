@@ -70,7 +70,7 @@ void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64
   for (uint32_t i = 0; i < publish_args.ret_len; i++) {
     uint32_t pid = publish_args.ret_pids[i];
 
-    const std::string mq_name = create_mq_name(topic_name.c_str(), pid);
+    const std::string mq_name = create_mq_name(topic_name, pid);
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
     if (mq == -1) {
       RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
