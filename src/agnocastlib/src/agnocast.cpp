@@ -55,7 +55,7 @@ void * map_area(
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
+    perror("[ERROR] [Agnocast] shm_open failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -63,7 +63,7 @@ void * map_area(
 
   if (writable) {
     if (ftruncate(shm_fd, shm_size) == -1) {
-      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
+      perror("[ERROR] [Agnocast] ftruncate failed");
       close(agnocast_fd);
       return NULL;
     }
@@ -75,7 +75,7 @@ void * map_area(
     0);
 
   if (ret == MAP_FAILED) {
-    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
+    perror("[ERROR] [Agnocast] mmap failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -86,7 +86,7 @@ void * map_area(
 void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
-    RCLCPP_ERROR(logger, "map_writeable_area failed");
+    fprintf(stderr, "[ERROR] [Agnocast] map_writeable_area failed");
     close(agnocast_fd);
     return NULL;
   }
