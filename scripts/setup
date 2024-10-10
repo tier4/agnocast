@@ -1,0 +1,14 @@
+# pre-commit
+python3 -m pip install pre-commit
+python3 -m pip install --upgrade pre-commit identify
+pre-commit install
+
+# ROS 2
+source /opt/ros/humble/setup.bash
+rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+
+# Rust
+rustup toolchain install nightly-2024-08-13
+rustup default nightly-2024-08-13
+rustup component add clippy rustfmt
+cargo install cargo-deb

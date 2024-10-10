@@ -9,8 +9,7 @@ prototype: <https://github.com/sykwer/agnocast>
 Setup.
 
 ```bash
-source /opt/ros/humble/setup.bash
-rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+bash scripts/setup
 ```
 
 Build.
