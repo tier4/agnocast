@@ -83,11 +83,11 @@ type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
-        panic!("{}: MEMPOOL_SIZE", error);
+        panic!("[ERROR] [Agnocast] {}: MEMPOOL_SIZE", error);
     });
 
     let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-        panic!("{}: MEMPOOL_SIZE", error);
+        panic!("[ERROR] [Agnocast] {}: MEMPOOL_SIZE", error);
     });
 
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
@@ -100,14 +100,14 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         )
     };
     if agnocast_lib.is_null() {
-        panic!("Failed to load libagnocast.so");
+        panic!("[ERROR] [Agnocast] Failed to load libagnocast.so");
     }
 
     let symbol: &CStr = CStr::from_bytes_with_nul(b"initialize_agnocast\0").unwrap();
     let initialize_agnocast_ptr: *mut c_void =
         unsafe { libc::dlsym(agnocast_lib, symbol.as_ptr()) };
     if initialize_agnocast_ptr.is_null() {
-        panic!("Failed to find initialize_agnocast() function");
+        panic!("[ERROR] [Agnocast] Failed to find initialize_agnocast() function");
     }
 
     let initialize_agnocast: InitializeAgnocastType =
@@ -132,13 +132,16 @@ static ALIGNED_TO_ORIGINAL: LazyLock<Mutex<HashMap<usize, usize>>> =
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
+        panic!(
+            "[ERROR] [Agnocast] {}: size={}, alignment={}",
+            error, size, ALIGNMENT
+        );
     });
 
     let mut tlsf = TLSF.lock().unwrap();
 
     let ptr: std::ptr::NonNull<u8> = tlsf.allocate(layout).unwrap_or_else(|| {
-        panic!("memory allocation failed: consider using larger MEMPOOL_SIZE");
+        panic!("[ERROR] [Agnocast] memory allocation failed: use larger MEMPOOL_SIZE");
     });
 
     ptr.as_ptr() as *mut c_void
@@ -146,14 +149,17 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 
 fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        panic!("{}: size={}, alignment={}", error, size, ALIGNMENT);
+        panic!(
+            "[ERROR] [Agnocast] {}: size={}, alignment={}",
+            error, size, ALIGNMENT
+        );
     });
 
     let mut tlsf = TLSF.lock().unwrap();
 
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
         tlsf.reallocate(ptr, layout).unwrap_or_else(|| {
-            panic!("memory allocation failed: consider using larger MEMPOOL_SIZE");
+            panic!("[ERROR] [Agnocast] memory allocation failed: use larger MEMPOOL_SIZE");
         })
     };
 
@@ -321,10 +327,10 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn valloc(_size: usize) -> *mut c_void {
-    panic!("NOTE: valloc is not supported");
+    panic!("[ERROR] [Agnocast] valloc is not supported");
 }
 
 #[no_mangle]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
-    panic!("NOTE: pvalloc is not supported");
+    panic!("[ERROR] [Agnocast] pvalloc is not supported");
 }
