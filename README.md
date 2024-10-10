@@ -13,7 +13,7 @@ source /opt/ros/humble/setup.bash
 rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 ```
 
-Build
+Build.
 
 ```bash
 bash scripts/build_all
