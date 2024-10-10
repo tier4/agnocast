@@ -19,7 +19,7 @@ Build
 bash scripts/build_all
 ```
 
-Check if there is a libpreloaded.so in /usr/lib
+Check if there is a `libpreloaded.so` in `/usr/lib`.
 
 ```bash
 $ ls /usr/lib | grep preloaded
