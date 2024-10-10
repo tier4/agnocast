@@ -95,20 +95,20 @@ jobs:
         rustup default nightly-2024-08-13
         rustup component add clippy rustfmt
 
-    - name: Run rustfmt on agnocast_heaphook_rust
+    - name: Run rustfmt on agnocast_heaphook
       if: steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
-        cd src/agnocast_heaphook_rust
+        cd src/agnocast_heaphook
         cargo fmt && git diff --exit-code
 
-    - name: Run clippy on agnocast_heaphook_rust
+    - name: Run clippy on agnocast_heaphook
       if: steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
-        cd src/agnocast_heaphook_rust
+        cd src/agnocast_heaphook
         cargo clippy -- --deny warnings
 
-    - name: Build agnocast_heaphook_rust
+    - name: Build agnocast_heaphook
       if: steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
-        cd src/agnocast_heaphook_rust
+        cd src/agnocast_heaphook
         cargo build
