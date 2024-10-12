@@ -35,6 +35,7 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
 void open_mq_for_subscription(
   const std::string & topic_name, pid_t subscriber_pid,
   std::pair<mqd_t, std::string> & mq_subscription);
+void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
 
 class SubscriptionBase
 {
@@ -113,17 +114,7 @@ public:
     threads.push_back(std::move(th));
   }
 
-  ~Subscription()
-  {
-    /* It's best to notify the publisher and have it call mq_close, but currently
-    this is not being done. The message queue is destroyed when the publisher process exits. */
-    if (mq_close(mq_subscription.first) == -1) {
-      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
-    }
-    if (mq_unlink(mq_subscription.second.c_str()) == -1) {
-      RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
-    }
-  }
+  ~Subscription() { remove_mq(mq_subscription); }
 };
 
 template <typename MessageT>

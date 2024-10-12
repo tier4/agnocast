@@ -80,4 +80,16 @@ void open_mq_for_subscription(
   mq_subscription = std::make_pair(mq, mq_name);
 }
 
+void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
+{
+  /* It's best to notify the publisher and have it call mq_close, but currently
+    this is not being done. The message queue is destroyed when the publisher process exits. */
+  if (mq_close(mq_subscription.first) == -1) {
+    RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+  }
+  if (mq_unlink(mq_subscription.second.c_str()) == -1) {
+    RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+  }
+}
+
 }  // namespace agnocast
