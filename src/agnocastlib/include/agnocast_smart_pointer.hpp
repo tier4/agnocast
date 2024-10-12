@@ -20,6 +20,10 @@ namespace agnocast
 
 extern int agnocast_fd;
 
+// These are cut out of the class for information hiding.
+void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+
 template <typename T>
 class ipc_shared_ptr
 {
@@ -34,17 +38,7 @@ class ipc_shared_ptr
     if (ptr_ == nullptr) return;
     if (!need_rc_update_) return;
 
-    union ioctl_update_entry_args entry_args;
-    entry_args.topic_name = topic_name_.c_str();
-    entry_args.subscriber_pid = getpid();
-    entry_args.publisher_pid = publisher_pid_;
-    entry_args.msg_timestamp = timestamp_;
-    if (ioctl(agnocast_fd, AGNOCAST_DECREMENT_RC_CMD, &entry_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_DECREMENT_RC_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
+    decrement_rc(topic_name_, publisher_pid_, timestamp_);
     ptr_ = nullptr;
   }
 
@@ -52,16 +46,7 @@ class ipc_shared_ptr
   {
     if (!need_rc_update_) return;
 
-    union ioctl_update_entry_args entry_args;
-    entry_args.topic_name = topic_name_.c_str();
-    entry_args.subscriber_pid = getpid();
-    entry_args.publisher_pid = publisher_pid_;
-    entry_args.msg_timestamp = timestamp_;
-    if (ioctl(agnocast_fd, AGNOCAST_INCREMENT_RC_CMD, &entry_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_INCREMENT_RC_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
+    increment_rc_core(topic_name_, publisher_pid_, timestamp_);
   }
 
 public:
