@@ -9,7 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 
-add_library(agnocast SHARED src/agnocast.cpp)
+add_library(agnocast SHARED src/agnocast.cpp src/agnocast_subscription.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast
