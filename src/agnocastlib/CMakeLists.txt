@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -33,6 +34,12 @@ target_include_directories(agnocast PUBLIC
   ${rclcpp_INCLUDE_DIRS}
 )
 
+add_executable(agnocast_component_container src/agnocast_component_container.cpp)
+
+target_link_libraries(agnocast_component_container agnocast)
+
+ament_target_dependencies(agnocast_component_container rclcpp rclcpp_components)
+
 install(TARGETS agnocast
   EXPORT export_${PROJECT_NAME}
   LIBRARY DESTINATION lib
@@ -41,13 +48,14 @@ install(TARGETS agnocast
   INCLUDES DESTINATION include
 )
 
+install(TARGETS agnocast_component_container DESTINATION lib/${PROJECT_NAME})
+
 install(
   DIRECTORY include/
   DESTINATION include
 )
 
-install(TARGETS agnocast DESTINATION lib/${PROJECT_NAME})
-
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(rclcpp rclcpp_components)
 ament_export_include_directories(include)
 ament_package()

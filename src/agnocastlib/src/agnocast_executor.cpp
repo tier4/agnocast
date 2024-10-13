@@ -23,24 +23,20 @@ SingleThreadedAgnocastExecutor::~SingleThreadedAgnocastExecutor()
   close(epoll_fd_);
 }
 
-void SingleThreadedAgnocastExecutor::spin()
+void SingleThreadedAgnocastExecutor::prepare_epoll()
 {
-  if (spinning.exchange(true)) {
-    throw std::runtime_error("spin() called while already spinning");
-  }
-
-  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
-
-  // TODO: Transient local
-
-  // prepare epoll
   for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
     AgnocastTopicInfo & topic_info = it->second;
 
     for (auto pair : weak_groups_to_nodes_) {
       auto group = pair.first.lock();
+
       if (!group) continue;
+
       if (group != topic_info.callback_group) continue;
+
+      if (!topic_info.need_epoll_update) continue;
+      topic_info.need_epoll_update = false;
 
       struct epoll_event ev;
       ev.events = EPOLLIN;
@@ -52,8 +48,23 @@ void SingleThreadedAgnocastExecutor::spin()
       }
     }
   }
+}
+
+void SingleThreadedAgnocastExecutor::spin()
+{
+  if (spinning.exchange(true)) {
+    throw std::runtime_error("spin() called while already spinning");
+  }
+
+  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
+
+  // TODO: Transient local
 
   while (rclcpp::ok(this->context_) && agnocast::ok() && spinning.load()) {
+    if (need_epoll_updates.exchange(false)) {
+      prepare_epoll();
+    }
+
     agnocast::AgnocastExecutable agnocast_executable;
     if (get_next_agnocast_executable(agnocast_executable, 50 /*ms timed-blocking*/)) {
       execute_agnocast_executable(agnocast_executable);
@@ -87,7 +98,7 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executable(
     throw std::runtime_error("cannot be reached: agnocast topic info cannot be found");
   }
 
-  AgnocastTopicInfo topic_info = it->second;
+  const AgnocastTopicInfo & topic_info = it->second;
   MqMsgAgnocast mq_msg;
 
   // non-blocking
@@ -128,7 +139,7 @@ void SingleThreadedAgnocastExecutor::execute_agnocast_executable(
 
 void SingleThreadedAgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
 {
-  node_ = node;
+  nodes_.push_back(node);
   Executor::add_node(node, notify);
 }
 

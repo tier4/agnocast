@@ -1,6 +1,10 @@
 #pragma once
 
 #include "agnocast_smart_pointer.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+#include <functional>
+#include <memory>
 
 namespace agnocast
 {
@@ -92,10 +96,12 @@ struct AgnocastTopicInfo
   TypeErasedCallback callback;
   std::function<std::unique_ptr<AnyObject>(void *, const char *, uint32_t, uint64_t, bool)>
     message_creator;
+  bool need_epoll_update;
 };
 
 extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<int> agnocast_topic_next_id;
+extern std::atomic<bool> need_epoll_updates;
 
 template <typename Func>
 static void register_callback(
@@ -123,7 +129,8 @@ static void register_callback(
 
   int id = agnocast_topic_next_id.fetch_add(1);
   id2_topic_mq_info[id] = AgnocastTopicInfo{
-    id, topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
+    id, topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator, true};
+  need_epoll_updates.store(true);
 }
 
 static std::function<void()> create_callable(

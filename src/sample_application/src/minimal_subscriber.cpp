@@ -59,7 +59,7 @@ class MinimalSubscriber : public rclcpp::Node
   }
 
 public:
-  MinimalSubscriber() : Node("minimal_subscriber")
+  MinimalSubscriber(const rclcpp::NodeOptions & options) : Node("minimal_subscriber", options)
   {
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
@@ -96,14 +96,5 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  agnocast::SingleThreadedAgnocastExecutor executor;
-  executor.add_node(std::make_shared<MinimalSubscriber>());
-  executor.spin();
-
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(MinimalSubscriber)

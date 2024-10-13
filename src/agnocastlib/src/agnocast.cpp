@@ -20,8 +20,10 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 mqd_t mq_new_publisher = -1;
 
+// we need reader-writer lock in multi-threaded
 std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 std::atomic<int> agnocast_topic_next_id;
+std::atomic<bool> need_epoll_updates{false};
 
 bool ok()
 {

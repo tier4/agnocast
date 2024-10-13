@@ -15,9 +15,11 @@ class SingleThreadedAgnocastExecutor : public rclcpp::Executor
 {
   int epoll_fd_;
   pid_t my_pid_;
-  rclcpp::Node::SharedPtr node_;
+  std::vector<rclcpp::Node::SharedPtr> nodes_;  // needed?
 
   RCLCPP_DISABLE_COPY(SingleThreadedAgnocastExecutor)
+
+  void prepare_epoll();
 
   bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, int timeout_ms);
   void execute_agnocast_executable(const AgnocastExecutable & agnocast_executable);

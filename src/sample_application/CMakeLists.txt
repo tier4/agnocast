@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(std_msgs REQUIRED)
 
 find_package(agnocastlib REQUIRED)
@@ -36,13 +37,27 @@ target_include_directories(listen_talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-add_executable(listener src/minimal_subscriber.cpp)
-ament_target_dependencies(listener rclcpp agnocastlib sample_interfaces)
-target_include_directories(listener PRIVATE
+add_library(listener_component SHARED src/minimal_subscriber.cpp)
+ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib sample_interfaces)
+target_include_directories(listener_component PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-install(TARGETS talker listen_talker listener
+rclcpp_components_register_node(
+  listener_component
+  PLUGIN "MinimalSubscriber"
+  EXECUTABLE listener
+)
+
+ament_export_targets(export_listener_component)
+install(TARGETS listener_component
+        EXPORT export_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+install(TARGETS talker listen_talker
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
