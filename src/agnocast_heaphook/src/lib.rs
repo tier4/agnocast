@@ -127,8 +127,8 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
 
-    MEMPOOL_START.store(mempool_ptr as usize, Ordering::SeqCst);
-    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::SeqCst);
+    MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
+    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
 
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
@@ -217,8 +217,8 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
     HOOKED.with(|hooked: &Cell<bool>| {
         let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-        let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
-            || ptr_addr > MEMPOOL_END.load(Ordering::SeqCst);
+        let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+            || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
 
         if hooked.get() || allocated_by_original {
             unsafe { ORIGINAL_FREE(ptr) }
@@ -269,8 +269,8 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
             let realloc_ret: *mut c_void =
                 if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
                     let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-                    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::SeqCst)
-                        || ptr_addr > MEMPOOL_END.load(Ordering::SeqCst);
+                    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+                        || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
 
                     if allocated_by_original {
                         unsafe { ORIGINAL_REALLOC(ptr, new_size) }
