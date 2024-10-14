@@ -14,3 +14,5 @@ Additionally, the address value `start` is stored at the location indicated by `
 
 When the user program calls `free()`, `ret` is passed as the argument.
 At this point, the address value to be passed to the internal allocator's `free()` function can be calculated as `*(ret - sizeof(*void))`.
+
+When a regular `malloc` or similar function is called without specifying alignment, the same procedure can be followed by setting the `alignment` value to zero.
