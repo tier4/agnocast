@@ -87,7 +87,7 @@ Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentati
 The following command allows `clang-format` and `markdownlint` to be run before each commit.
 
 ```bash
-bash scripts/setup_pre_commit
+bash scripts/setup
 ```
 
 If you want to disable pre-commit, please execute `pre-commit uninstall`.
