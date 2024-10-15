@@ -6,7 +6,10 @@ use std::{
     ffi::{c_char, CStr},
     mem::MaybeUninit,
     os::raw::c_void,
-    sync::{LazyLock, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        LazyLock, Mutex,
+    },
 };
 
 type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
@@ -76,6 +79,9 @@ static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
     }
 });
 
+static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
+static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
+
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
 type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
@@ -113,13 +119,16 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     let initialize_agnocast: InitializeAgnocastType =
         unsafe { std::mem::transmute(initialize_agnocast_ptr) };
 
-    let mempool_ptr = unsafe { initialize_agnocast(aligned_size) };
+    let mempool_ptr: *mut c_void = unsafe { initialize_agnocast(aligned_size) };
 
     unsafe { libc::dlclose(agnocast_lib) };
 
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
+
+    MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
+    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
 
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
@@ -207,9 +216,11 @@ pub extern "C" fn free(ptr: *mut c_void) {
     };
 
     HOOKED.with(|hooked: &Cell<bool>| {
-        // TODO: address range should use the one the kernel module assigns
         let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-        if hooked.get() || !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
+        let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+            || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
+
+        if hooked.get() || allocated_by_original {
             unsafe { ORIGINAL_FREE(ptr) }
         } else {
             hooked.set(true);
@@ -255,27 +266,30 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         } else {
             hooked.set(true);
 
-            let realloc_ret: *mut c_void =
-                if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
-                    // TODO: address range should use the one the kernel module assigns
-                    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-                    if !(0x40000000000..=0x50000000000).contains(&ptr_addr) {
-                        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-                    } else {
-                        let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
-                        if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
-                            let original_ptr: std::ptr::NonNull<u8> =
-                                std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
-                                    .unwrap();
-                            aligned_to_original.remove(&ptr_addr);
-                            tlsf_reallocate(original_ptr, new_size)
-                        } else {
-                            tlsf_reallocate(non_null_ptr, new_size)
-                        }
-                    }
+            let realloc_ret: *mut c_void = if let Some(non_null_ptr) =
+                std::ptr::NonNull::new(ptr as *mut u8)
+            {
+                let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
+                let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+                    || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
+
+                if allocated_by_original {
+                    unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                 } else {
-                    tlsf_allocate(new_size)
-                };
+                    let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
+                    if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
+                        let original_ptr: std::ptr::NonNull<u8> =
+                            std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
+                                .unwrap();
+                        aligned_to_original.remove(&ptr_addr);
+                        tlsf_reallocate(original_ptr, new_size)
+                    } else {
+                        tlsf_reallocate(non_null_ptr, new_size)
+                    }
+                }
+            } else {
+                tlsf_allocate(new_size)
+            };
 
             hooked.set(false);
             realloc_ret
