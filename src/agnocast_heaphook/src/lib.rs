@@ -266,29 +266,30 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         } else {
             hooked.set(true);
 
-            let realloc_ret: *mut c_void =
-                if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
-                    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-                    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
-                        || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
+            let realloc_ret: *mut c_void = if let Some(non_null_ptr) =
+                std::ptr::NonNull::new(ptr as *mut u8)
+            {
+                let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
+                let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+                    || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
 
-                    if allocated_by_original {
-                        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-                    } else {
-                        let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
-                        if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
-                            let original_ptr: std::ptr::NonNull<u8> =
-                                std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
-                                    .unwrap();
-                            aligned_to_original.remove(&ptr_addr);
-                            tlsf_reallocate(original_ptr, new_size)
-                        } else {
-                            tlsf_reallocate(non_null_ptr, new_size)
-                        }
-                    }
+                if allocated_by_original {
+                    unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                 } else {
-                    tlsf_allocate(new_size)
-                };
+                    let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
+                    if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
+                        let original_ptr: std::ptr::NonNull<u8> =
+                            std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
+                                .unwrap();
+                        aligned_to_original.remove(&ptr_addr);
+                        tlsf_reallocate(original_ptr, new_size)
+                    } else {
+                        tlsf_reallocate(non_null_ptr, new_size)
+                    }
+                }
+            } else {
+                tlsf_allocate(new_size)
+            };
 
             hooked.set(false);
             realloc_ret
