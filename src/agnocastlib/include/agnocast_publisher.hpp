@@ -27,6 +27,9 @@ uint64_t agnocast_get_timestamp();
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name);
 void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
 uint32_t get_subscription_count_core(const std::string & topic_name);
+std::vector<uint64_t> borrow_loaned_message_core(
+  const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
+  uint64_t msg_virtual_address, uint64_t timestamp);
 
 template <typename MessageT>
 class Publisher
@@ -56,20 +59,12 @@ public:
   ipc_shared_ptr<MessageT> borrow_loaned_message(MessageT * ptr)
   {
     uint64_t timestamp = agnocast_get_timestamp();
-    union ioctl_enqueue_and_release_args ioctl_args;
-    ioctl_args.topic_name = topic_name_.c_str();
-    ioctl_args.publisher_pid = publisher_pid_;
-    ioctl_args.qos_depth = static_cast<uint32_t>(qos_.depth());
-    ioctl_args.msg_virtual_address = reinterpret_cast<uint64_t>(ptr);
-    ioctl_args.timestamp = timestamp;
-    if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_AND_RELEASE_CMD, &ioctl_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
+    std::vector<uint64_t> released_addrs = borrow_loaned_message_core(
+      topic_name_, publisher_pid_, static_cast<uint32_t>(qos_.depth()),
+      reinterpret_cast<uint64_t>(ptr), timestamp);
 
-    for (size_t i = 0; i < ioctl_args.ret_len; i++) {
-      MessageT * release_ptr = reinterpret_cast<MessageT *>(ioctl_args.ret_released_addrs[i]);
+    for (uint64_t addr : released_addrs) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(addr);
       delete release_ptr;
     }
 

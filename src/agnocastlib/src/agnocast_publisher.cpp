@@ -89,6 +89,26 @@ void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64
   }
 }
 
+std::vector<uint64_t> borrow_loaned_message_core(
+  const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
+  uint64_t msg_virtual_address, uint64_t timestamp)
+{
+  union ioctl_enqueue_and_release_args ioctl_args;
+  ioctl_args.topic_name = topic_name.c_str();
+  ioctl_args.publisher_pid = publisher_pid;
+  ioctl_args.qos_depth = qos_depth;
+  ioctl_args.msg_virtual_address = msg_virtual_address;
+  ioctl_args.timestamp = timestamp;
+  if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_AND_RELEASE_CMD, &ioctl_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  return std::move(std::vector<uint64_t>(
+    ioctl_args.ret_released_addrs, ioctl_args.ret_released_addrs + ioctl_args.ret_len));
+}
+
 uint32_t get_subscription_count_core(const std::string & topic_name)
 {
   union ioctl_get_subscriber_num_args get_subscriber_count_args;
