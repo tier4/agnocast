@@ -18,7 +18,7 @@ int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
 std::vector<int> shm_fds;
-mqd_t mq_new_publisher = -1;
+extern mqd_t mq_new_publisher;
 
 void validate_ld_preload()
 {
@@ -118,58 +118,6 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid)
   }
 
   return mq_name;
-}
-
-void wait_for_new_publisher(const uint32_t pid)
-{
-  static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
-
-  pthread_mutex_lock(&wait_newpub_mtx);
-
-  static bool is_initialized = false;
-  if (is_initialized) {
-    pthread_mutex_unlock(&wait_newpub_mtx);
-    return;
-  }
-  is_initialized = true;
-
-  pthread_mutex_unlock(&wait_newpub_mtx);
-
-  const std::string mq_name = "/new_publisher@" + std::to_string(pid);
-
-  struct mq_attr attr;
-  attr.mq_flags = 0;                            // Blocking queue
-  attr.mq_maxmsg = 10;                          // Maximum number of messages in the queue
-  attr.mq_msgsize = sizeof(MqMsgNewPublisher);  // Maximum message size
-  attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
-
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
-  if (mq == -1) {
-    RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-  mq_new_publisher = mq;
-
-  // Create a thread that maps the areas for publishers afterwards
-  auto th = std::thread([=]() {
-    while (is_running) {
-      MqMsgNewPublisher mq_msg;
-      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
-      if (ret == -1) {
-        RCLCPP_ERROR(logger, "mq_receive for new publisher failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      const uint32_t publisher_pid = mq_msg.publisher_pid;
-      const uint64_t publisher_shm_addr = mq_msg.shm_addr;
-      const uint64_t publisher_shm_size = mq_msg.shm_size;
-      map_read_only_area(publisher_pid, publisher_shm_addr, publisher_shm_size);
-    }
-  });
-
-  threads.push_back(std::move(th));
 }
 
 // NOTE: Do not use std::cout inside initialize_agnocast thread

@@ -44,6 +44,9 @@ struct SubscriptionOptions
 
 class SubscriptionBase
 {
+private:
+  void wait_for_new_publisher(const pid_t subscriber_pid);
+
 protected:
   const pid_t subscriber_pid_;
   const std::string topic_name_;
