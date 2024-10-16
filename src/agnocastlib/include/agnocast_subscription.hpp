@@ -1,9 +1,9 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
-#include "agnocast_logger.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
+#include "agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>

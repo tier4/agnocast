@@ -1,7 +1,7 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
-#include "agnocast_logger.hpp"
+#include "agnocast_utils.hpp"
 
 #include <fcntl.h>
 #include <mqueue.h>

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "agnocast_ioctl.hpp"
-#include "agnocast_logger.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
+#include "agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -21,7 +21,6 @@ namespace agnocast
 {
 
 extern int agnocast_fd;
-uint64_t agnocast_get_timestamp();
 
 // These are cut out of the class for information hiding.
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name);
