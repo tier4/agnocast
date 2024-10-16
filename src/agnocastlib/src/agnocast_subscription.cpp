@@ -5,10 +5,6 @@ namespace agnocast
 
 mqd_t mq_new_publisher = -1;
 
-uint64_t agnocast_get_timestamp();
-void validate_ld_preload();
-std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
-
 SubscriptionBase::SubscriptionBase(
   const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
 : subscriber_pid_(subscriber_pid), topic_name_(topic_name), qos_(qos)

@@ -3,9 +3,6 @@
 namespace agnocast
 {
 
-void validate_ld_preload();
-std::string create_mq_name(const std::string & topic_name, const uint32_t pid);
-
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name)
 {
   validate_ld_preload();
