@@ -29,9 +29,9 @@ class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
-  uint32_t publisher_pid_;
-  uint64_t timestamp_;
-  bool need_rc_update_;
+  uint32_t publisher_pid_ = 0;
+  uint64_t timestamp_ = 0;
+  bool need_rc_update_ = false;
 
   void release()
   {
@@ -42,19 +42,21 @@ class ipc_shared_ptr
     ptr_ = nullptr;
   }
 
-  void increment_rc()
+  void increment_rc() const
   {
     if (!need_rc_update_) return;
 
     increment_rc_core(topic_name_, publisher_pid_, timestamp_);
   }
 
-public:
-  const std::string get_topic_name() { return topic_name_; }
-  uint32_t get_publisher_pid() const { return publisher_pid_; }
-  uint64_t get_timestamp() { return timestamp_; }
+  ipc_shared_ptr & operator=(const ipc_shared_ptr & r) = delete;
 
-  ipc_shared_ptr() {}
+public:
+  const std::string get_topic_name() const { return topic_name_; }
+  uint32_t get_publisher_pid() const { return publisher_pid_; }
+  uint64_t get_timestamp() const { return timestamp_; }
+
+  ipc_shared_ptr() = default;
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
@@ -77,13 +79,6 @@ public:
     need_rc_update_(r.need_rc_update_)
   {
     increment_rc();
-  }
-
-  ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
-  {
-    RCLCPP_ERROR(logger, "copy assignment operator is not supported yet");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
   }
 
   ipc_shared_ptr(ipc_shared_ptr && r)
