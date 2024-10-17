@@ -79,6 +79,7 @@ public:
     increment_rc();
   }
 
+  // cppcheck-suppress operatorEqVarError
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
   {
     RCLCPP_ERROR(logger, "copy assignment operator is not supported yet");
