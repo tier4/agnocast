@@ -54,7 +54,7 @@ public:
   uint32_t get_publisher_pid() const { return publisher_pid_; }
   uint64_t get_timestamp() { return timestamp_; }
 
-  ipc_shared_ptr() {}
+  ipc_shared_ptr() = default;
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
