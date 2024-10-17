@@ -36,9 +36,9 @@ class Publisher
   std::string topic_name_;
   uint32_t publisher_pid_;
   rclcpp::QoS qos_;
-  [[maybe_unused]] std::unordered_map<std::string, mqd_t>
-    opened_mqs;  // TODO: The mq should be closed when a subscriber unsubscribes the topic, but this
-                 // is not currently implemented.
+  // TODO: The mq should be closed when a subscriber unsubscribes the topic, but this is not
+  // currently implemented.
+  // std::unordered_map<std::string, mqd_t> opened_mqs;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
