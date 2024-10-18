@@ -38,26 +38,6 @@ using TypeErasedCallback = std::function<void(const AnyObject &)>;
 template <typename T>
 struct function_traits;
 
-// Extract the args type of a not-const method
-template <typename ClassType, typename ReturnType, typename... Args>
-struct function_traits<ReturnType (ClassType::*)(Args...)>
-{
-  static constexpr std::size_t arity = sizeof...(Args);
-
-  template <std::size_t Index>
-  using arg = typename std::tuple_element<Index, std::tuple<Args...>>::type;
-};
-
-// Extract the args type of a const method
-template <typename ClassType, typename ReturnType, typename... Args>
-struct function_traits<ReturnType (ClassType::*)(Args...) const>
-{
-  static constexpr std::size_t arity = sizeof...(Args);
-
-  template <std::size_t Index>
-  using arg = typename std::tuple_element<Index, std::tuple<Args...>>::type;
-};
-
 // Specialization for std::function
 template <typename ReturnType, typename... Args>
 struct function_traits<std::function<ReturnType(Args...)>>
