@@ -64,11 +64,10 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
 
 struct AgnocastTopicInfo
 {
-  uint32_t topic_local_id;
   std::string topic_name;
-  uint32_t qos_depth;
-  mqd_t mqdes;
-  rclcpp::CallbackGroup::SharedPtr callback_group;
+  uint32_t qos_depth;                               // used later to implement executors
+  mqd_t mqdes;                                      // used later to implement executors
+  rclcpp::CallbackGroup::SharedPtr callback_group;  // used later to implement executors
   TypeErasedCallback callback;
   std::function<std::unique_ptr<AnyObject>(void *, const std::string &, uint32_t, uint64_t, bool)>
     message_creator;
@@ -104,8 +103,8 @@ uint32_t register_callback(
   };
 
   uint32_t id = agnocast_topic_next_id.fetch_add(1);
-  id2_topic_mq_info[id] = AgnocastTopicInfo{
-    id, topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
+  id2_topic_mq_info[id] =
+    AgnocastTopicInfo{topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
   return id;
 }
 
@@ -115,7 +114,6 @@ static std::function<void()> create_callable(
   auto it = id2_topic_mq_info.find(topic_local_id);
   if (it == id2_topic_mq_info.end()) {
     RCLCPP_ERROR(logger, "callback is not registered with topic_local_id=%d", topic_local_id);
-    ;
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
