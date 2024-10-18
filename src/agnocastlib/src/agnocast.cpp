@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstdint>
 #include <fstream>
+#include <mutex>
 #include <set>
 
 namespace agnocast
@@ -19,6 +20,7 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 extern mqd_t mq_new_publisher;
 
+std::mutex id2_topic_mq_info_mtx;
 std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 std::atomic<uint32_t> agnocast_topic_next_id;
 

@@ -73,6 +73,7 @@ struct AgnocastTopicInfo
     message_creator;
 };
 
+extern std::mutex id2_topic_mq_info_mtx;
 extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<uint32_t> agnocast_topic_next_id;
 
@@ -103,25 +104,38 @@ uint32_t register_callback(
   };
 
   uint32_t id = agnocast_topic_next_id.fetch_add(1);
-  id2_topic_mq_info[id] =
-    AgnocastTopicInfo{topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
+
+  {
+    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+    id2_topic_mq_info[id] =
+      AgnocastTopicInfo{topic_name, qos_depth, mqdes, callback_group, erased_func, message_creator};
+  }
+
   return id;
 }
 
 static std::function<void()> create_callable(
   void * ptr, uint32_t publisher_pid, uint64_t timestamp, uint32_t topic_local_id)
 {
-  auto it = id2_topic_mq_info.find(topic_local_id);
-  if (it == id2_topic_mq_info.end()) {
+  bool found;
+  AgnocastTopicInfo * info;
+
+  {
+    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+    auto it = id2_topic_mq_info.find(topic_local_id);
+    found = it != id2_topic_mq_info.end();
+    if (found) info = &it->second;
+  }
+
+  if (!found) {
     RCLCPP_ERROR(logger, "callback is not registered with topic_local_id=%d", topic_local_id);
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  const auto & info = it->second;
-  return [ptr, publisher_pid, timestamp, &info]() {
-    auto typed_msg = info.message_creator(ptr, info.topic_name, publisher_pid, timestamp, true);
-    info.callback(*typed_msg);
+  return [ptr, publisher_pid, timestamp, info]() {
+    auto typed_msg = info->message_creator(ptr, info->topic_name, publisher_pid, timestamp, true);
+    info->callback(*typed_msg);
   };
 }
 
