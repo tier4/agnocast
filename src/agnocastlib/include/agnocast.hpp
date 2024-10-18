@@ -42,9 +42,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const rclcpp::QoS & qos,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
-  std::cerr << "\033[0;33m"
-            << "Deprecated: use the latest version of create_subscription"
-            << "\033[0m" << std::endl;
+  RCLCPP_WARN(logger, "Deprecated: use the latest version of create_subscription");
 
   const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(nullptr, topic_name, qos, callback, options);
@@ -56,9 +54,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   const std::string & topic_name, const size_t qos_history_depth,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
-  std::cerr << "\033[0;33m"
-            << "Deprecated: use the latest version of create_subscription"
-            << "\033[0m" << std::endl;
+  RCLCPP_WARN(logger, "Deprecated: use the latest version of create_subscription");
 
   const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(
