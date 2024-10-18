@@ -79,8 +79,7 @@ public:
     if (ros2_node_base_ != nullptr /* for backward compatibility */) {
       if (callback_group) {
         if (!ros2_node_base_->callback_group_in_node(callback_group)) {
-          std::cerr << "Cannot create agnocast subscription, callback group not in node."
-                    << std::endl;
+          RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
           close(agnocast_fd);
           exit(EXIT_FAILURE);
         }
