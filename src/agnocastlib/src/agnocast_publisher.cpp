@@ -52,7 +52,9 @@ void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name
   }
 }
 
-void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp)
+void publish_core(
+  const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
+  std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args;
   publish_args.topic_name = topic_name.c_str();
@@ -68,10 +70,16 @@ void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64
     uint32_t pid = publish_args.ret_pids[i];
 
     const std::string mq_name = create_mq_name(topic_name, pid);
-    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
-    if (mq == -1) {
-      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
-      continue;
+    mqd_t mq;
+    if (opened_mqs.find(mq_name) != opened_mqs.end()) {
+      mq = opened_mqs[mq_name];
+    } else {
+      mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
+      if (mq == -1) {
+        RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+        continue;
+      }
+      opened_mqs.insert({mq_name, mq});
     }
 
     struct MqMsgAgnocast mq_msg;
