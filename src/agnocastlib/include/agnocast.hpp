@@ -2,6 +2,7 @@
 
 #include "agnocast_publisher.hpp"
 #include "agnocast_subscription.hpp"
+#include "agnocast_topic_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>

@@ -19,6 +19,9 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 extern mqd_t mq_new_publisher;
 
+std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
+std::atomic<uint32_t> agnocast_topic_next_id;
+
 bool already_mapped(const uint32_t pid)
 {
   static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
