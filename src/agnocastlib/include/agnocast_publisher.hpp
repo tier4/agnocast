@@ -24,7 +24,9 @@ extern int agnocast_fd;
 
 // These are cut out of the class for information hiding.
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name);
-void publish_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+void publish_core(
+  const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
+  std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 std::vector<uint64_t> borrow_loaned_message_core(
   const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
@@ -38,7 +40,7 @@ class Publisher
   rclcpp::QoS qos_;
   // TODO: The mq should be closed when a subscriber unsubscribes the topic, but this is not
   // currently implemented.
-  // std::unordered_map<std::string, mqd_t> opened_mqs;
+  std::unordered_map<std::string, mqd_t> opened_mqs_;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -70,12 +72,12 @@ public:
     return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
   }
 
-  void publish(ipc_shared_ptr<MessageT> && message) const
+  void publish(ipc_shared_ptr<MessageT> && message)
   {
     if (topic_name_.c_str() != message.get_topic_name()) return;  // string comparison?
     if (publisher_pid_ != message.get_publisher_pid()) return;
 
-    publish_core(topic_name_, publisher_pid_, message.get_timestamp());
+    publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
   }
 
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
