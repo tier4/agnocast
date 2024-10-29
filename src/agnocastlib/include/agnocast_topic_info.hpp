@@ -2,6 +2,8 @@
 
 #include "agnocast_smart_pointer.hpp"
 
+#include <mutex>
+
 namespace agnocast
 {
 
@@ -114,29 +116,7 @@ uint32_t register_callback(
   return id;
 }
 
-static std::function<void()> create_callable(
-  void * ptr, uint32_t publisher_pid, uint64_t timestamp, uint32_t topic_local_id)
-{
-  bool found;
-  AgnocastTopicInfo * info;
-
-  {
-    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
-    auto it = id2_topic_mq_info.find(topic_local_id);
-    found = it != id2_topic_mq_info.end();
-    if (found) info = &it->second;
-  }
-
-  if (!found) {
-    RCLCPP_ERROR(logger, "callback is not registered with topic_local_id=%d", topic_local_id);
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  return [ptr, publisher_pid, timestamp, info]() {
-    auto typed_msg = info->message_creator(ptr, info->topic_name, publisher_pid, timestamp, true);
-    info->callback(*typed_msg);
-  };
-}
+std::function<void()> create_callable(
+  void * ptr, uint32_t publisher_pid, uint64_t timestamp, uint32_t topic_local_id);
 
 }  // namespace agnocast
