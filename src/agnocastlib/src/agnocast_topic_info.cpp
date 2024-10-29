@@ -9,7 +9,8 @@ std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info(
 std::atomic<uint32_t> agnocast_topic_next_id;
 
 std::function<void()> create_callable(
-  void * ptr, uint32_t publisher_pid, uint64_t timestamp, uint32_t topic_local_id)
+  const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
+  const uint32_t topic_local_id)
 {
   bool found;
   AgnocastTopicInfo * info;
