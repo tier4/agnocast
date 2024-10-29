@@ -109,7 +109,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   return subscriber_args;
 }
 
-void open_mq_for_subscription(
+mqd_t open_mq_for_subscription(
   const std::string & topic_name, pid_t subscriber_pid,
   std::pair<mqd_t, std::string> & mq_subscription)
 {
@@ -127,6 +127,8 @@ void open_mq_for_subscription(
     exit(EXIT_FAILURE);
   }
   mq_subscription = std::make_pair(mq, mq_name);
+
+  return mq;
 }
 
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)

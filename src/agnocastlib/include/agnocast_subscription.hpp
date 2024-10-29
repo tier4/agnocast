@@ -3,6 +3,7 @@
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
+#include "agnocast_topic_info.hpp"
 #include "agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -32,7 +33,7 @@ extern std::atomic<bool> is_running;
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
 // These are cut out of the class for information hiding.
-void open_mq_for_subscription(
+mqd_t open_mq_for_subscription(
   const std::string & topic_name, pid_t subscriber_pid,
   std::pair<mqd_t, std::string> & mq_subscription);
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
@@ -88,12 +89,11 @@ public:
       }
     }
 
-    // To use callback_group for Agnocast Executors
-    // cppcheck-suppress unusedVariable
-    (void)callback_group;
-
     union ioctl_subscriber_args subscriber_args = initialize(false);
-    open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
+    mqd_t mq = open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
+
+    uint32_t local_topic_id = agnocast::register_callback(
+      callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
     // Create a thread that handles the messages to execute the callback
     auto th = std::thread([=]() {
@@ -124,11 +124,11 @@ public:
         }
 
         for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
-          MessageT * ptr = reinterpret_cast<MessageT *>(receive_args.ret_last_msg_addrs[i]);
-          agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-            ptr, topic_name_, receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i],
-            true);
-          callback(agnocast_ptr);
+          // Here, we do not need type information about callback function
+          auto callable = agnocast::create_callable(
+            reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
+            receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], local_topic_id);
+          callable();
         }
 
         auto ret = mq_receive(
