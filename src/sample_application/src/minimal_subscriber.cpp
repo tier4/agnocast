@@ -57,7 +57,8 @@ class MinimalSubscriber : public rclcpp::Node
   }
 
 public:
-  MinimalSubscriber(const rclcpp::NodeOptions & options) : Node("minimal_subscriber", options)
+  explicit MinimalSubscriber(const rclcpp::NodeOptions & options)
+  : Node("minimal_subscriber", options)
   {
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);

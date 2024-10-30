@@ -31,11 +31,11 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
 
   // Check if each callback's callback_group is included in this executor
   for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
-    uint32_t topic_local_id = it->first;
+    const uint32_t topic_local_id = it->first;
     AgnocastTopicInfo & topic_info = it->second;
 
-    for (auto pair : weak_groups_to_nodes_) {
-      auto group = pair.first.lock();
+    for (const auto & pair : weak_groups_to_nodes_) {
+      const auto group = pair.first.lock();
       if (!group) continue;
       if (group != topic_info.callback_group) continue;
 
@@ -86,12 +86,12 @@ void SingleThreadedAgnocastExecutor::spin()
 }
 
 bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
-  AgnocastExecutables & agnocast_executables, int timeout_ms)
+  AgnocastExecutables & agnocast_executables, const int timeout_ms)
 {
   struct epoll_event event;
 
   // blocking with timeout
-  int nfds = epoll_wait(epoll_fd_, &event, 1 /*maxevents*/, timeout_ms);
+  const int nfds = epoll_wait(epoll_fd_, &event, 1 /*maxevents*/, timeout_ms);
 
   if (nfds == -1) {
     if (errno != EINTR) {  // signal handler interruption is not error
@@ -106,13 +106,13 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
   // timeout
   if (nfds == 0) return false;
 
-  uint32_t topic_local_id = event.data.u32;
+  const uint32_t topic_local_id = event.data.u32;
   AgnocastTopicInfo topic_info;
 
   {
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
 
-    auto it = id2_topic_mq_info.find(topic_local_id);
+    const auto it = id2_topic_mq_info.find(topic_local_id);
     if (it == id2_topic_mq_info.end()) {
       RCLCPP_ERROR(logger, "Agnocast internal implementation error: topic info cannot be found");
       close(agnocast_fd);
@@ -148,7 +148,7 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
   }
 
   for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
-    auto callable = agnocast::create_callable(
+    const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
       receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
     agnocast_executables.callable_queue.push(callable);
@@ -161,7 +161,7 @@ void SingleThreadedAgnocastExecutor::execute_agnocast_executables(
   AgnocastExecutables & agnocast_executables)
 {
   while (!agnocast_executables.callable_queue.empty()) {
-    auto callable = agnocast_executables.callable_queue.front();
+    const auto callable = agnocast_executables.callable_queue.front();
     agnocast_executables.callable_queue.pop();
     (*callable)();
   }

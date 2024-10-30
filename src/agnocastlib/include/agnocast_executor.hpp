@@ -23,7 +23,8 @@ class SingleThreadedAgnocastExecutor : public rclcpp::Executor
 
   void prepare_epoll();
 
-  bool get_next_agnocast_executables(AgnocastExecutables & agnocast_executables, int timeout_ms);
+  bool get_next_agnocast_executables(
+    AgnocastExecutables & agnocast_executables, const int timeout_ms);
   void execute_agnocast_executables(AgnocastExecutables & agnocast_executables);
 
 public:
