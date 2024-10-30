@@ -1,6 +1,9 @@
 <launch>
-    <node pkg="sample_application" exec="listener" name="listener_node" output="screen">
-        <env name="LD_PRELOAD" value="libpreloaded.so" />
-        <env name="MEMPOOL_SIZE" value="33554432" /> <!-- 32MB-->
-    </node>
+    <node_container pkg="agnocastlib" exec="agnocast_component_container" name="listener_container" namespace="">
+      <env name="LD_PRELOAD" value="libpreloaded.so" />
+      <env name="MEMPOOL_SIZE" value="16777216" /> <!-- 16MB-->
+
+      <composable_node pkg="sample_application" plugin="MinimalSubscriber" name="listener_node" namespace="">
+      </composable_node>
+    </node_container>
 </launch>

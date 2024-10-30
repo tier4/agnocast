@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -24,16 +25,15 @@ target_include_directories(agnocast PUBLIC
   ${rclcpp_INCLUDE_DIRS}
 )
 
-#[[
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
 
 target_link_libraries(agnocast_component_container
   agnocast
-  ${rclcpp_LIBRARIES}
 )
 
+ament_target_dependencies(agnocast_component_container rclcpp rclcpp_components)
+
 install(TARGETS agnocast_component_container DESTINATION lib/${PROJECT_NAME})
-]]
 
 install(TARGETS agnocast
   EXPORT export_${PROJECT_NAME}

@@ -72,11 +72,13 @@ struct AgnocastTopicInfo
   std::function<std::unique_ptr<AnyObject>(
     const void *, const std::string &, const uint32_t, const uint64_t, const bool)>
     message_creator;
+  bool need_epoll_update;
 };
 
 extern std::mutex id2_topic_mq_info_mtx;
 extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<uint32_t> agnocast_topic_next_id;
+extern std::atomic<bool> need_epoll_updates;
 
 template <typename Func>
 void register_callback(
@@ -111,9 +113,11 @@ void register_callback(
 
   {
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
-    id2_topic_mq_info[id] = AgnocastTopicInfo{topic_name,     qos_depth,       mqdes,
-                                              callback_group, erased_callback, message_creator};
+    id2_topic_mq_info[id] = AgnocastTopicInfo{
+      topic_name, qos_depth, mqdes, callback_group, erased_callback, message_creator, true};
   }
+
+  need_epoll_updates.store(true);
 }
 
 std::shared_ptr<std::function<void()>> create_callable(

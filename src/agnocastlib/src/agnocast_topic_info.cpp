@@ -7,6 +7,7 @@ std::mutex id2_topic_mq_info_mtx;
 std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info(
   100 /* arbitrary size to prevent rehash */);
 std::atomic<uint32_t> agnocast_topic_next_id;
+std::atomic<bool> need_epoll_updates{false};
 
 std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,

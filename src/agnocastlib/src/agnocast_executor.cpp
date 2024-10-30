@@ -25,6 +25,36 @@ SingleThreadedAgnocastExecutor::~SingleThreadedAgnocastExecutor()
   close(epoll_fd_);
 }
 
+void SingleThreadedAgnocastExecutor::prepare_epoll()
+{
+  std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+
+  // Check if each callback's callback_group is included in this executor
+  for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
+    uint32_t topic_local_id = it->first;
+    AgnocastTopicInfo & topic_info = it->second;
+
+    for (auto pair : weak_groups_to_nodes_) {
+      auto group = pair.first.lock();
+      if (!group) continue;
+      if (group != topic_info.callback_group) continue;
+
+      if (!topic_info.need_epoll_update) continue;
+      topic_info.need_epoll_update = false;
+
+      struct epoll_event ev;
+      ev.events = EPOLLIN;
+      ev.data.u32 = topic_local_id;
+
+      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, topic_info.mqdes, &ev) == -1) {
+        perror("[ERROR] [Agnocast] epoll_ctl failed");
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+}
+
 void SingleThreadedAgnocastExecutor::spin()
 {
   if (spinning.exchange(true)) {
@@ -37,34 +67,11 @@ void SingleThreadedAgnocastExecutor::spin()
 
   // TODO: Transient local
 
-  // prepare epoll
-  {
-    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
-
-    // Check if each callback's callback_group is included in this executor
-    for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
-      uint32_t topic_local_id = it->first;
-      AgnocastTopicInfo & topic_info = it->second;
-
-      for (auto pair : weak_groups_to_nodes_) {
-        auto group = pair.first.lock();
-        if (!group) continue;
-        if (group != topic_info.callback_group) continue;
-
-        struct epoll_event ev;
-        ev.events = EPOLLIN;
-        ev.data.u32 = topic_local_id;
-
-        if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, topic_info.mqdes, &ev) == -1) {
-          perror("[ERROR] [Agnocast] epoll_ctl failed");
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
-        }
-      }
-    }
-  }
-
   while (rclcpp::ok(this->context_) && agnocast::ok() && spinning.load()) {
+    if (need_epoll_updates.exchange(false)) {
+      prepare_epoll();
+    }
+
     agnocast::AgnocastExecutables agnocast_executables;
 
     if (get_next_agnocast_executables(agnocast_executables, 50 /*ms timed-blocking*/)) {
@@ -162,7 +169,7 @@ void SingleThreadedAgnocastExecutor::execute_agnocast_executables(
 
 void SingleThreadedAgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
 {
-  node_ = node;
+  nodes_.push_back(node);
   Executor::add_node(node, notify);
 }
 
