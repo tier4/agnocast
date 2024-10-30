@@ -79,7 +79,7 @@ extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<uint32_t> agnocast_topic_next_id;
 
 template <typename Func>
-uint32_t register_callback(
+void register_callback(
   const Func callback, const std::string & topic_name, const uint32_t qos_depth, const mqd_t mqdes,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
@@ -114,11 +114,9 @@ uint32_t register_callback(
     id2_topic_mq_info[id] = AgnocastTopicInfo{topic_name,     qos_depth,       mqdes,
                                               callback_group, erased_callback, message_creator};
   }
-
-  return id;
 }
 
-std::function<void()> create_callable(
+std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
   const uint32_t topic_local_id);
 

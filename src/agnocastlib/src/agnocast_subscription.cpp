@@ -120,7 +120,7 @@ mqd_t open_mq_for_subscription(
   attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
   attr.mq_maxmsg = 1;
 
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0666, &attr);
   if (mq == -1) {
     RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
     close(agnocast_fd);

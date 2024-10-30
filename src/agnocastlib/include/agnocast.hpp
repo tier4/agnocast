@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast_executor.hpp"
 #include "agnocast_publisher.hpp"
 #include "agnocast_subscription.hpp"
 #include "agnocast_topic_info.hpp"
@@ -20,6 +21,8 @@ namespace agnocast
 {
 
 extern "C" void * initialize_agnocast(const uint64_t shm_size);
+
+bool ok();
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(

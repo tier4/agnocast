@@ -10,7 +10,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 
 add_library(agnocast SHARED
-  src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp src/agnocast_smart_pointer.cpp src/agnocast_topic_info.cpp)
+  src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
+  src/agnocast_smart_pointer.cpp src/agnocast_topic_info.cpp src/agnocast_executor.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast
@@ -22,6 +23,17 @@ target_include_directories(agnocast PUBLIC
   $<INSTALL_INTERFACE:include>
   ${rclcpp_INCLUDE_DIRS}
 )
+
+#[[
+add_executable(agnocast_component_container src/agnocast_component_container.cpp)
+
+target_link_libraries(agnocast_component_container
+  agnocast
+  ${rclcpp_LIBRARIES}
+)
+
+install(TARGETS agnocast_component_container DESTINATION lib/${PROJECT_NAME})
+]]
 
 install(TARGETS agnocast
   EXPORT export_${PROJECT_NAME}

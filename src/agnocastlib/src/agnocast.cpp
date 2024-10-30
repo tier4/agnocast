@@ -19,6 +19,11 @@ std::vector<std::thread> threads;
 std::vector<int> shm_fds;
 extern mqd_t mq_new_publisher;
 
+bool ok()
+{
+  return is_running.load();
+}
+
 bool already_mapped(const uint32_t pid)
 {
   static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;

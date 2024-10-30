@@ -92,55 +92,21 @@ public:
     union ioctl_subscriber_args subscriber_args = initialize(false);
     mqd_t mq = open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
 
-    uint32_t local_topic_id = agnocast::register_callback(
+    agnocast::register_callback(
       callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
-    // Create a thread that handles the messages to execute the callback
-    auto th = std::thread([=]() {
-      // If there are messages available and the transient local is enabled, immediately call the
-      // callback.
-      if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        // old messages first
-        for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
-          MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
-          agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-            ptr, topic_name_, subscriber_args.ret_publisher_pids[i],
-            subscriber_args.ret_timestamps[i], true);
-          callback(agnocast_ptr);
-        }
+    // If there are messages available and the transient local is enabled, immediately call the
+    // callback.
+    if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      // old messages first
+      for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
+        MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
+        agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
+          ptr, topic_name_, subscriber_args.ret_publisher_pids[i],
+          subscriber_args.ret_timestamps[i], true);
+        callback(agnocast_ptr);
       }
-
-      MqMsgAgnocast mq_msg;
-
-      while (is_running) {
-        union ioctl_receive_msg_args receive_args;
-        receive_args.topic_name = topic_name_.c_str();
-        receive_args.subscriber_pid = subscriber_pid_;
-        receive_args.qos_depth = static_cast<uint32_t>(qos_.depth());
-        if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-          RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
-        }
-
-        for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
-          // Here, we do not need type information about callback function
-          auto callable = agnocast::create_callable(
-            reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
-            receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], local_topic_id);
-          callable();
-        }
-
-        auto ret = mq_receive(
-          mq_subscription.first, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
-        if (ret == -1) {
-          RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
-          return;
-        }
-      }
-    });
-
-    threads.push_back(std::move(th));
+    }
   }
 
   ~Subscription() { remove_mq(mq_subscription); }
