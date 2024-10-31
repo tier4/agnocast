@@ -112,7 +112,7 @@ public:
 
       MqMsgAgnocast mq_msg;
 
-      while (is_running) {
+      while (is_running.load()) {
         union ioctl_receive_msg_args receive_args;
         receive_args.topic_name = topic_name_.c_str();
         receive_args.subscriber_pid = subscriber_pid_;

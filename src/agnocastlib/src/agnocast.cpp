@@ -114,7 +114,7 @@ void * initialize_agnocast(const uint64_t shm_size)
 static void shutdown_agnocast()
 {
   fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast started\n");
-  is_running = false;
+  is_running.store(false);
   /*
    * TODO:
    *   It might seem odd to re-acquire the PID and regenerate mq_name and shm_name.
