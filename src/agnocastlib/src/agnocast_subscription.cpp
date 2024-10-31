@@ -45,7 +45,7 @@ void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
-    while (is_running) {
+    while (is_running.load()) {
       MqMsgNewPublisher mq_msg;
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
       if (ret == -1) {
