@@ -177,7 +177,7 @@ fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
-    // size of void pointer
+    // size of usize pointer
     static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 
     // return value from internal alloc
@@ -198,7 +198,7 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
 }
 
 fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
-    // size of void pointer
+    // size of usize pointer
     static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 
     // get the original start address from internal allocator
@@ -208,16 +208,16 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
 
     // return value from internal alloc
     let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
-    let start_addr_ptr: *mut usize = (start_addr + ALIGNMENT - POINTER_SIZE) as *mut usize;
 
     // store `start_addr`
+    let start_addr_ptr: *mut usize = (start_addr + ALIGNMENT - POINTER_SIZE) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
     (start_addr + ALIGNMENT) as *mut c_void
 }
 
 fn tlsf_deallocate_wrapped(ptr: usize) {
-    // size of void pointer
+    // size of usize pointer
     static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 
     // get the original start address from internal allocator
