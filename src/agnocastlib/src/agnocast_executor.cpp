@@ -40,8 +40,6 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
       if (!group) continue;
       if (group != topic_info.callback_group) continue;
 
-      topic_info.need_epoll_update = false;
-
       struct epoll_event ev;
       ev.events = EPOLLIN;
       ev.data.u32 = topic_local_id;
@@ -51,6 +49,9 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
+
+      topic_info.need_epoll_update = false;
+      break;
     }
   }
 }
