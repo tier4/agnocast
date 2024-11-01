@@ -13,7 +13,7 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
 {
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ == -1) {
-    perror("[ERROR] [Agnocast] epoll_create1 failed");
+    RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
@@ -35,8 +35,8 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
     AgnocastTopicInfo & topic_info = it->second;
     if (!topic_info.need_epoll_update) continue;
 
-    for (const auto & pair : rclcpp::Executor::weak_groups_to_nodes_) {
-      const auto group = pair.first.lock();
+    for (const auto & [weak_group, _] : rclcpp::Executor::weak_groups_to_nodes_) {
+      const auto group = weak_group.lock();
       if (!group) continue;
       if (group != topic_info.callback_group) continue;
 
@@ -95,7 +95,6 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
 
   if (nfds == -1) {
     if (errno != EINTR) {  // signal handler interruption is not error
-      perror("[ERROR] [Agnocast] epoll_wait failed");
       RCLCPP_ERROR(logger, "epoll_wait failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
