@@ -65,21 +65,23 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
 struct AgnocastTopicInfo
 {
   std::string topic_name;
-  uint32_t qos_depth;                               // used later to implement executors
-  mqd_t mqdes;                                      // used later to implement executors
-  rclcpp::CallbackGroup::SharedPtr callback_group;  // used later to implement executors
+  uint32_t qos_depth;
+  mqd_t mqdes;
+  rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
   std::function<std::unique_ptr<AnyObject>(
     const void *, const std::string &, const uint32_t, const uint64_t, const bool)>
     message_creator;
+  bool need_epoll_update = true;
 };
 
 extern std::mutex id2_topic_mq_info_mtx;
 extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<uint32_t> agnocast_topic_next_id;
+extern std::atomic<bool> need_epoll_updates;
 
 template <typename Func>
-uint32_t register_callback(
+void register_callback(
   const Func callback, const std::string & topic_name, const uint32_t qos_depth, const mqd_t mqdes,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
@@ -115,10 +117,10 @@ uint32_t register_callback(
                                               callback_group, erased_callback, message_creator};
   }
 
-  return id;
+  need_epoll_updates.store(true);
 }
 
-std::function<void()> create_callable(
+std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
   const uint32_t topic_local_id);
 
