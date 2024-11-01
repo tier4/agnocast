@@ -22,7 +22,6 @@ class MinimalSubscriber : public rclcpp::Node
   std::vector<uint64_t> timestamps_;
   std::vector<uint64_t> timestamp_ids_;
   int timestamp_idx_ = 0;
-  pthread_mutex_t timestamp_mtx = PTHREAD_MUTEX_INITIALIZER;
 
   agnocast::PollingSubscriber<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
@@ -34,14 +33,12 @@ class MinimalSubscriber : public rclcpp::Node
     agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> dynamic_message =
       sub_dynamic_->takeData();
 
-    pthread_mutex_lock(&timestamp_mtx);
     if (dynamic_message) {
       timestamp_ids_[timestamp_idx_] = dynamic_message->id;
       timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
     }
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    pthread_mutex_unlock(&timestamp_mtx);
 
     if (dynamic_message) {
       // In order to test copy constructor

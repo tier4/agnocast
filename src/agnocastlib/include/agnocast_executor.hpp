@@ -17,6 +17,8 @@ class SingleThreadedAgnocastExecutor : public rclcpp::Executor
 {
   int epoll_fd_;
   pid_t my_pid_;
+
+  // prevent objects from being destructed by keeping reference count
   std::vector<rclcpp::Node::SharedPtr> nodes_;
 
   RCLCPP_DISABLE_COPY(SingleThreadedAgnocastExecutor)

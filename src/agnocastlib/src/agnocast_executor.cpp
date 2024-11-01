@@ -13,7 +13,7 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
 {
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ == -1) {
-    perror("epoll_create1");
+    perror("[ERROR] [Agnocast] epoll_create1 failed");
     exit(EXIT_FAILURE);
   }
 
@@ -33,13 +33,13 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
   for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
     const uint32_t topic_local_id = it->first;
     AgnocastTopicInfo & topic_info = it->second;
+    if (!topic_info.need_epoll_update) continue;
 
-    for (const auto & pair : weak_groups_to_nodes_) {
+    for (const auto & pair : rclcpp::Executor::weak_groups_to_nodes_) {
       const auto group = pair.first.lock();
       if (!group) continue;
       if (group != topic_info.callback_group) continue;
 
-      if (!topic_info.need_epoll_update) continue;
       topic_info.need_epoll_update = false;
 
       struct epoll_event ev;
@@ -47,7 +47,7 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
       ev.data.u32 = topic_local_id;
 
       if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, topic_info.mqdes, &ev) == -1) {
-        perror("[ERROR] [Agnocast] epoll_ctl failed");
+        RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
@@ -96,6 +96,7 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
   if (nfds == -1) {
     if (errno != EINTR) {  // signal handler interruption is not error
       perror("[ERROR] [Agnocast] epoll_wait failed");
+      RCLCPP_ERROR(logger, "epoll_wait failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -127,13 +128,19 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
   // non-blocking
   auto ret = mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
   if (ret < 0) {
+    /* we need this for multi-thread
     if (errno != EAGAIN) {
-      perror("[ERROR] [Agnocast] mq_receive error");
+      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
 
     return false;
+    */
+
+    RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
   union ioctl_receive_msg_args receive_args;

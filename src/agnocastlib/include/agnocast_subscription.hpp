@@ -27,9 +27,6 @@
 namespace agnocast
 {
 
-extern std::vector<std::thread> threads;
-extern std::atomic<bool> is_running;
-
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
 // These are cut out of the class for information hiding.

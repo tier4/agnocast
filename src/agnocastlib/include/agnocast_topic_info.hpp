@@ -65,14 +65,14 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
 struct AgnocastTopicInfo
 {
   std::string topic_name;
-  uint32_t qos_depth;                               // used later to implement executors
-  mqd_t mqdes;                                      // used later to implement executors
-  rclcpp::CallbackGroup::SharedPtr callback_group;  // used later to implement executors
+  uint32_t qos_depth;
+  mqd_t mqdes;
+  rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
   std::function<std::unique_ptr<AnyObject>(
     const void *, const std::string &, const uint32_t, const uint64_t, const bool)>
     message_creator;
-  bool need_epoll_update;
+  bool need_epoll_update = true;
 };
 
 extern std::mutex id2_topic_mq_info_mtx;
@@ -113,8 +113,8 @@ void register_callback(
 
   {
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
-    id2_topic_mq_info[id] = AgnocastTopicInfo{
-      topic_name, qos_depth, mqdes, callback_group, erased_callback, message_creator, true};
+    id2_topic_mq_info[id] = AgnocastTopicInfo{topic_name,     qos_depth,       mqdes,
+                                              callback_group, erased_callback, message_creator};
   }
 
   need_epoll_updates.store(true);
