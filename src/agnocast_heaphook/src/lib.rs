@@ -181,13 +181,13 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
     static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 
     // return value from internal alloc
-    let start_addr: usize = tlsf_allocate(POINTER_SIZE + size + alignment) as usize;
+    let start_addr: usize = tlsf_allocate(ALIGNMENT + size + alignment) as usize;
 
     // aligned address returned to user
     let aligned_addr: usize = if alignment == 0 {
-        start_addr + POINTER_SIZE
+        start_addr + ALIGNMENT
     } else {
-        start_addr + POINTER_SIZE + alignment - ((start_addr + POINTER_SIZE) % alignment)
+        start_addr + ALIGNMENT + alignment - ((start_addr + ALIGNMENT) % alignment)
     };
 
     // store `start_addr`
@@ -207,13 +207,13 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
     // return value from internal alloc
-    let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size) as usize;
-    let start_addr_ptr: *mut usize = start_addr as *mut usize;
+    let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
+    let start_addr_ptr: *mut usize = (start_addr + ALIGNMENT - POINTER_SIZE) as *mut usize;
 
     // store `start_addr`
     unsafe { *start_addr_ptr = start_addr };
 
-    (start_addr + POINTER_SIZE) as *mut c_void
+    (start_addr + ALIGNMENT) as *mut c_void
 }
 
 fn tlsf_deallocate_wrapped(ptr: usize) {
