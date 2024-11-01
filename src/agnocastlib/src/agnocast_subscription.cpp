@@ -1,9 +1,11 @@
-#include "agnocast_subscription.hpp"
+#include "agnocast.hpp"
 
 namespace agnocast
 {
 
 mqd_t mq_new_publisher = -1;
+
+extern std::vector<std::thread> threads;
 
 SubscriptionBase::SubscriptionBase(
   const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos)
@@ -45,7 +47,7 @@ void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
-    while (is_running.load()) {
+    while (agnocast::ok()) {
       MqMsgNewPublisher mq_msg;
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
       if (ret == -1) {
@@ -120,7 +122,7 @@ mqd_t open_mq_for_subscription(
   attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
   attr.mq_maxmsg = 1;
 
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0666, &attr);
   if (mq == -1) {
     RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
     close(agnocast_fd);

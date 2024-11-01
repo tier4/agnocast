@@ -7,8 +7,9 @@ std::mutex id2_topic_mq_info_mtx;
 std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info(
   100 /* arbitrary size to prevent rehash */);
 std::atomic<uint32_t> agnocast_topic_next_id;
+std::atomic<bool> need_epoll_updates{false};
 
-std::function<void()> create_callable(
+std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
   const uint32_t topic_local_id)
 {
@@ -28,10 +29,10 @@ std::function<void()> create_callable(
     exit(EXIT_FAILURE);
   }
 
-  return [ptr, publisher_pid, timestamp, info]() {
+  return std::make_shared<std::function<void()>>([ptr, publisher_pid, timestamp, info]() {
     auto typed_msg = info->message_creator(ptr, info->topic_name, publisher_pid, timestamp, true);
     info->callback(*typed_msg);
-  };
+  });
 }
 
 }  // namespace agnocast

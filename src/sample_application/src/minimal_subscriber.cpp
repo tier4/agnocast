@@ -22,7 +22,6 @@ class MinimalSubscriber : public rclcpp::Node
   std::vector<uint64_t> timestamps_;
   std::vector<uint64_t> timestamp_ids_;
   int timestamp_idx_ = 0;
-  pthread_mutex_t timestamp_mtx = PTHREAD_MUTEX_INITIALIZER;
 
   agnocast::PollingSubscriber<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
@@ -34,14 +33,12 @@ class MinimalSubscriber : public rclcpp::Node
     agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> dynamic_message =
       sub_dynamic_->takeData();
 
-    pthread_mutex_lock(&timestamp_mtx);
     if (dynamic_message) {
       timestamp_ids_[timestamp_idx_] = dynamic_message->id;
       timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
     }
     timestamp_ids_[timestamp_idx_] = message->id;
     timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    pthread_mutex_unlock(&timestamp_mtx);
 
     if (dynamic_message) {
       // In order to test copy constructor
@@ -57,7 +54,8 @@ class MinimalSubscriber : public rclcpp::Node
   }
 
 public:
-  MinimalSubscriber() : Node("minimal_subscriber")
+  explicit MinimalSubscriber(const rclcpp::NodeOptions & options)
+  : Node("minimal_subscriber", options)
   {
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
@@ -65,15 +63,15 @@ public:
 
     rclcpp::CallbackGroup::SharedPtr group =
       create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    agnocast::SubscriptionOptions options;
-    options.callback_group = group;
+    agnocast::SubscriptionOptions agnocast_options;
+    agnocast_options.callback_group = group;
 
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
       "/my_dynamic_topic", 10);
 
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       get_node_base_interface(), "/my_static_topic", rclcpp::QoS(10).transient_local(),
-      std::bind(&MinimalSubscriber::callback_static, this, _1), options);
+      std::bind(&MinimalSubscriber::callback_static, this, _1), agnocast_options);
   }
 
   ~MinimalSubscriber()
@@ -93,10 +91,5 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalSubscriber>());
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(MinimalSubscriber)
