@@ -13,10 +13,6 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
 {
 }
 
-SingleThreadedAgnocastExecutor::~SingleThreadedAgnocastExecutor()
-{
-}
-
 void SingleThreadedAgnocastExecutor::spin()
 {
   if (spinning.exchange(true)) {

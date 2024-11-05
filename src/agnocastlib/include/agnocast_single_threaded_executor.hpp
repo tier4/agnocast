@@ -17,9 +17,6 @@ public:
     const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions());
 
   RCLCPP_PUBLIC
-  virtual ~SingleThreadedAgnocastExecutor();
-
-  RCLCPP_PUBLIC
   void spin() override;
 };
 
