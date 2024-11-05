@@ -2,7 +2,6 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     cell::Cell,
-    collections::HashMap,
     ffi::{c_char, CStr},
     mem::MaybeUninit,
     os::raw::c_void,
@@ -14,7 +13,8 @@ use std::{
 
 type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
-const ALIGNMENT: usize = 64;
+static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
+const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
@@ -136,9 +136,6 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
     Mutex::new(tlsf)
 });
 
-static ALIGNED_TO_ORIGINAL: LazyLock<Mutex<HashMap<usize, usize>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-
 fn tlsf_allocate(size: usize) -> *mut c_void {
     let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
         panic!(
@@ -180,14 +177,48 @@ fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
 }
 
-fn tlsf_aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    let addr: usize = tlsf_allocate(size + alignment) as usize;
-    let aligned_addr: usize = addr + alignment - (addr % alignment);
+fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
+    // return value from internal alloc
+    let start_addr: usize = tlsf_allocate(ALIGNMENT + size + alignment) as usize;
 
-    let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
-    aligned_to_original.insert(aligned_addr, addr);
+    // aligned address returned to user
+    let aligned_addr: usize = if alignment == 0 {
+        start_addr + ALIGNMENT
+    } else {
+        start_addr + ALIGNMENT + alignment - ((start_addr + ALIGNMENT) % alignment)
+    };
+
+    // store `start_addr`
+    let start_addr_ptr: *mut usize = (aligned_addr - *POINTER_SIZE) as *mut usize;
+    unsafe { *start_addr_ptr = start_addr };
 
     aligned_addr as *mut c_void
+}
+
+fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
+    // get the original start address from internal allocator
+    let original_start_addr: usize = unsafe { *((ptr - *POINTER_SIZE) as *mut usize) };
+    let original_start_addr_ptr: std::ptr::NonNull<u8> =
+        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+
+    // return value from internal alloc
+    let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
+    let aligned_addr: usize = start_addr + ALIGNMENT;
+
+    // store `start_addr`
+    let start_addr_ptr: *mut usize = (aligned_addr - *POINTER_SIZE) as *mut usize;
+    unsafe { *start_addr_ptr = start_addr };
+
+    aligned_addr as *mut c_void
+}
+
+fn tlsf_deallocate_wrapped(ptr: usize) {
+    // get the original start address from internal allocator
+    let original_start_addr: usize = unsafe { *((ptr - *POINTER_SIZE) as *mut usize) };
+    let original_start_addr_ptr: std::ptr::NonNull<u8> =
+        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+
+    tlsf_deallocate(original_start_addr_ptr);
 }
 
 thread_local! {
@@ -201,7 +232,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
             unsafe { ORIGINAL_MALLOC(size) }
         } else {
             hooked.set(true);
-            let ret: *mut c_void = tlsf_allocate(size);
+            let ret: *mut c_void = tlsf_allocate_wrapped(0, size);
             hooked.set(false);
             ret
         }
@@ -224,18 +255,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
             unsafe { ORIGINAL_FREE(ptr) }
         } else {
             hooked.set(true);
-
-            let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
-
-            if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
-                let original_ptr: std::ptr::NonNull<u8> =
-                    std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8).unwrap();
-                aligned_to_original.remove(&ptr_addr);
-                tlsf_deallocate(original_ptr);
-            } else {
-                tlsf_deallocate(non_null_ptr);
-            }
-
+            tlsf_deallocate_wrapped(ptr_addr);
             hooked.set(false);
         }
     });
@@ -248,7 +268,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
             unsafe { ORIGINAL_CALLOC(num, size) }
         } else {
             hooked.set(true);
-            let ret: *mut c_void = tlsf_allocate(num * size);
+            let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
             unsafe {
                 std::ptr::write_bytes(ret, 0, num * size);
             };
@@ -276,19 +296,10 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                 if allocated_by_original {
                     unsafe { ORIGINAL_REALLOC(ptr, new_size) }
                 } else {
-                    let mut aligned_to_original = ALIGNED_TO_ORIGINAL.lock().unwrap();
-                    if let Some(original_addr) = aligned_to_original.get(&ptr_addr) {
-                        let original_ptr: std::ptr::NonNull<u8> =
-                            std::ptr::NonNull::new(*original_addr as *mut c_void as *mut u8)
-                                .unwrap();
-                        aligned_to_original.remove(&ptr_addr);
-                        tlsf_reallocate(original_ptr, new_size)
-                    } else {
-                        tlsf_reallocate(non_null_ptr, new_size)
-                    }
+                    tlsf_reallocate_wrapped(ptr_addr, new_size)
                 }
             } else {
-                tlsf_allocate(new_size)
+                tlsf_allocate_wrapped(0, new_size)
             };
 
             hooked.set(false);
@@ -304,7 +315,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
             unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
         } else {
             hooked.set(true);
-            *memptr = tlsf_aligned_alloc(alignment, size);
+            *memptr = tlsf_allocate_wrapped(alignment, size);
             hooked.set(false);
             0
         }
@@ -318,7 +329,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
             unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
         } else {
             hooked.set(true);
-            let ret = tlsf_aligned_alloc(alignment, size);
+            let ret = tlsf_allocate_wrapped(alignment, size);
             hooked.set(false);
             ret
         }
@@ -332,7 +343,7 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
             unsafe { ORIGINAL_MEMALIGN(alignment, size) }
         } else {
             hooked.set(true);
-            let ret = tlsf_aligned_alloc(alignment, size);
+            let ret = tlsf_allocate_wrapped(alignment, size);
             hooked.set(false);
             ret
         }
