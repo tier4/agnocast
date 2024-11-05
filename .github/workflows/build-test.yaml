@@ -44,16 +44,7 @@ jobs:
           echo "rust_changed=false" >> $GITHUB_OUTPUT
         fi
     
-    # TODO: Cache apt packages
-
-    - name: Cache ROS2 workspace
-      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
-      uses: actions/cache@v2
-      with:
-        path: /opt/ros/humble
-        key: ${{ runner.os }}-ros2-${{ hashFiles('**/package.xml') }}-${{ hashFiles('**/CMakeLists.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-ros2-
+    # TODO: Cache
 
     - name: Setup ROS 2 environment
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
