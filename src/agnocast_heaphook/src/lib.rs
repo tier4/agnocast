@@ -14,6 +14,7 @@ use std::{
 type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
 const ALIGNMENT: usize = 64;
+static POINTER_SIZE: LazyLock<usize> = LazyLock::new(|| std::mem::size_of::<&usize>());
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
@@ -177,9 +178,6 @@ fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
-    // size of usize pointer
-    static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-
     // return value from internal alloc
     let start_addr: usize = tlsf_allocate(ALIGNMENT + size + alignment) as usize;
 
@@ -191,18 +189,15 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
     };
 
     // store `start_addr`
-    let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
+    let start_addr_ptr: *mut usize = (aligned_addr - *POINTER_SIZE) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
     aligned_addr as *mut c_void
 }
 
 fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
-    // size of usize pointer
-    static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-
     // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
+    let original_start_addr: usize = unsafe { *((ptr - *POINTER_SIZE) as *mut usize) };
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
@@ -211,18 +206,15 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     let aligned_addr: usize = start_addr + ALIGNMENT;
 
     // store `start_addr`
-    let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
+    let start_addr_ptr: *mut usize = (aligned_addr - *POINTER_SIZE) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
     aligned_addr as *mut c_void
 }
 
 fn tlsf_deallocate_wrapped(ptr: usize) {
-    // size of usize pointer
-    static POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-
     // get the original start address from internal allocator
-    let start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
+    let start_addr: usize = unsafe { *((ptr - *POINTER_SIZE) as *mut usize) };
     let start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(start_addr as *mut c_void as *mut u8).unwrap();
 
