@@ -208,12 +208,13 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
 
     // return value from internal alloc
     let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
+    let aligned_addr: usize = start_addr + ALIGNMENT;
 
     // store `start_addr`
-    let start_addr_ptr: *mut usize = (start_addr + ALIGNMENT - POINTER_SIZE) as *mut usize;
+    let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
-    (start_addr + ALIGNMENT) as *mut c_void
+    aligned_addr as *mut c_void
 }
 
 fn tlsf_deallocate_wrapped(ptr: usize) {
