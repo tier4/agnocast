@@ -48,7 +48,7 @@ jobs:
 
     - name: Cache ROS2 workspace
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: /opt/ros/humble
         key: ${{ runner.os }}-ros2-${{ hashFiles('**/package.xml') }}-${{ hashFiles('**/CMakeLists.txt') }}
