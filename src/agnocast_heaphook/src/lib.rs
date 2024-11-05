@@ -13,7 +13,7 @@ use std::{
 
 type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
-static POINTER_SIZE: LazyLock<usize> = LazyLock::new(|| std::mem::size_of::<&usize>());
+static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
 const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
