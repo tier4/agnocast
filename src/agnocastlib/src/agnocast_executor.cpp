@@ -7,11 +7,11 @@
 namespace agnocast
 {
 
-SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
-  const rclcpp::ExecutorOptions & options)
+AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
 : rclcpp::Executor(options)
 {
   epoll_fd_ = epoll_create1(0);
+
   if (epoll_fd_ == -1) {
     RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
     exit(EXIT_FAILURE);
@@ -20,12 +20,12 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
   my_pid_ = getpid();
 }
 
-SingleThreadedAgnocastExecutor::~SingleThreadedAgnocastExecutor()
+AgnocastExecutor::~AgnocastExecutor()
 {
   close(epoll_fd_);
 }
 
-void SingleThreadedAgnocastExecutor::prepare_epoll()
+void AgnocastExecutor::prepare_epoll()
 {
   std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
 
@@ -56,37 +56,7 @@ void SingleThreadedAgnocastExecutor::prepare_epoll()
   }
 }
 
-void SingleThreadedAgnocastExecutor::spin()
-{
-  if (spinning.exchange(true)) {
-    RCLCPP_ERROR(logger, "spin() called while already spinning");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
-
-  // TODO: Transient local
-
-  while (rclcpp::ok(this->context_) && agnocast::ok() && spinning.load()) {
-    if (need_epoll_updates.exchange(false)) {
-      prepare_epoll();
-    }
-
-    agnocast::AgnocastExecutables agnocast_executables;
-
-    if (get_next_agnocast_executables(agnocast_executables, 50 /*ms timed-blocking*/)) {
-      execute_agnocast_executables(agnocast_executables);
-    }
-
-    rclcpp::AnyExecutable any_executable;
-    if (get_next_executable(any_executable, std::chrono::nanoseconds(0) /*non-blocking*/)) {
-      execute_any_executable(any_executable);
-    }
-  }
-}
-
-bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
+bool AgnocastExecutor::get_next_agnocast_executables(
   AgnocastExecutables & agnocast_executables, const int timeout_ms)
 {
   struct epoll_event event;
@@ -164,8 +134,7 @@ bool SingleThreadedAgnocastExecutor::get_next_agnocast_executables(
   return true;
 }
 
-void SingleThreadedAgnocastExecutor::execute_agnocast_executables(
-  AgnocastExecutables & agnocast_executables)
+void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnocast_executables)
 {
   while (!agnocast_executables.callable_queue.empty()) {
     const auto callable = agnocast_executables.callable_queue.front();
@@ -174,7 +143,7 @@ void SingleThreadedAgnocastExecutor::execute_agnocast_executables(
   }
 }
 
-void SingleThreadedAgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
+void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
 {
   nodes_.push_back(node);
   Executor::add_node(node, notify);
