@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast_multi_threaded_executor.hpp"
 #include "agnocast_publisher.hpp"
 #include "agnocast_single_threaded_executor.hpp"
 #include "agnocast_subscription.hpp"
@@ -11,6 +12,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include <cstring>

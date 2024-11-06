@@ -36,6 +36,18 @@ rclcpp_components_register_node(
   EXECUTABLE listener
 )
 
+add_executable(callback_group_test_talker src/callback_group_test_talker.cpp)
+ament_target_dependencies(callback_group_test_talker rclcpp agnocastlib)
+target_include_directories(callback_group_test_talker PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(callback_group_test_listener src/callback_group_test_listener.cpp)
+ament_target_dependencies(callback_group_test_listener rclcpp agnocastlib)
+target_include_directories(callback_group_test_listener PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
 ament_export_targets(export_listener_component)
 install(TARGETS listener_component
         EXPORT export_listener_component
@@ -44,7 +56,7 @@ install(TARGETS listener_component
         RUNTIME DESTINATION bin
 )
 
-install(TARGETS talker listen_talker
+install(TARGETS talker listen_talker callback_group_test_talker callback_group_test_listener
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

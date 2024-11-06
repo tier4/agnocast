@@ -11,6 +11,7 @@ namespace agnocast
 struct AgnocastExecutables
 {
   std::queue<std::shared_ptr<std::function<void()>>> callable_queue;
+  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
 class AgnocastExecutor : public rclcpp::Executor
