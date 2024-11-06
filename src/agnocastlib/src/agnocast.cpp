@@ -89,7 +89,7 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
   if (map_area(pid, shm_addr, shm_size, false) == NULL) exit(EXIT_FAILURE);
 }
 
-// NOTE: Do not use std::cout inside initialize_agnocast thread
+// NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
@@ -120,14 +120,7 @@ static void shutdown_agnocast()
 {
   fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast started\n");
   is_running.store(false);
-  /*
-   * TODO:
-   *   It might seem odd to re-acquire the PID and regenerate mq_name and shm_name.
-   *   However, this approach was taken because the code that stored the `mq_name`
-   *   and `shm_name` strings as global variables didn't work. The reason it didn't
-   *   work is likely related to the fact that initialize_agnocast() cannot use heap
-   *   memory. Once this issue is resolved, this implementation will be revised.
-   */
+
   const uint32_t pid = getpid();
 
   for (int fd : shm_fds) {
