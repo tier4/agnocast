@@ -41,17 +41,9 @@ public:
   }
 
 private:
-  std::string get_thread_id()
-  {
-    std::stringstream ss;
-    ss << std::this_thread::get_id();
-    return ss.str();
-  }
-
   void timer_callback()
   {
     auto start_time = std::chrono::steady_clock::now();
-    auto thread_id = get_thread_id();
     RCLCPP_INFO(
       this->get_logger(), "Starting timer callback - Thread ID: %ld, Time: %ld",
       syscall(SYS_gettid), std::chrono::system_clock::now().time_since_epoch().count());
@@ -70,7 +62,6 @@ private:
   void sub_callback1(const agnocast::ipc_shared_ptr<std_msgs::msg::String> & msg)
   {
     auto start_time = std::chrono::steady_clock::now();
-    auto thread_id = get_thread_id();
     RCLCPP_INFO(
       this->get_logger(),
       "Starting subscription callback1 - Thread ID: %ld, Time: %ld, Message: %s",
@@ -91,7 +82,6 @@ private:
   void sub_callback2(const agnocast::ipc_shared_ptr<std_msgs::msg::String> & msg)
   {
     auto start_time = std::chrono::steady_clock::now();
-    auto thread_id = get_thread_id();
     RCLCPP_INFO(
       this->get_logger(),
       "Starting subscription callback2 - Thread ID: %ld, Time: %ld, Message: %s",
