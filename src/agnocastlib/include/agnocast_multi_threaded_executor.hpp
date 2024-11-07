@@ -16,14 +16,14 @@ class MultiThreadedAgnocastExecutor : public agnocast::AgnocastExecutor
 
   /*
   For performance, it is recommented to divide ROS 2's callbacks and Agnocast's callbacks into
-  different callback groups. If divided, you can set `next_exec_timeout` to be long enough because
-  we do not have to assume `can_be_taken_from` is changed outside of rclcpp.
+  different callback groups. If divided, you can set `ros2_next_exec_timeout` to be long enough
+  because we do not have to assume `can_be_taken_from` is changed outside of rclcpp.
   */
   size_t number_of_ros2_threads_;
   size_t number_of_agnocast_threads_;
 
   bool ros2_yield_before_execute_;
-  std::chrono::nanoseconds next_exec_timeout_;
+  std::chrono::nanoseconds ros2_next_exec_timeout_;
 
   void ros2_spin();
   void agnocast_spin();
@@ -34,7 +34,7 @@ public:
     const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions(),
     size_t number_of_ros2_threads = 0, size_t number_of_agnocast_threads = 0,
     bool ros2_yield_before_execute = false,
-    std::chrono::nanoseconds next_exec_timeout = std::chrono::nanoseconds(10 * 1000 * 1000),
+    std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(10 * 1000 * 1000),
     std::chrono::nanoseconds agnocast_callback_group_wait_time =
       std::chrono::nanoseconds(10 * 1000 * 1000));
 

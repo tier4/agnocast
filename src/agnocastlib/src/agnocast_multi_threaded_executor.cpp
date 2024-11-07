@@ -9,16 +9,17 @@ namespace agnocast
 MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
   size_t number_of_agnocast_threads, bool ros2_yield_before_execute,
-  std::chrono::nanoseconds next_exec_timeout,
+  std::chrono::nanoseconds ros2_next_exec_timeout,
   std::chrono::nanoseconds agnocast_callback_group_wait_time)
 : agnocast::AgnocastExecutor(options, agnocast_callback_group_wait_time),
   ros2_yield_before_execute_(ros2_yield_before_execute),
-  next_exec_timeout_(next_exec_timeout)
+  ros2_next_exec_timeout_(ros2_next_exec_timeout)
 {
-  if (next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
+  if (ros2_next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
     RCLCPP_ERROR(
       logger,
-      "If `next_exec_timeout` is set to infinite, ros2 callbacks which share the callback group "
+      "If `ros2_next_exec_timeout` is set to infinite, ros2 callbacks which share the callback "
+      "group "
       "with agnocast callbacks may not be executed. Set this parameter to be short enough");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -73,7 +74,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
       std::lock_guard wait_lock{wait_mutex_};
 
       if (!rclcpp::ok(this->context_) || !agnocast::ok()) return;
-      if (!get_next_executable(any_executable, next_exec_timeout_)) continue;
+      if (!get_next_executable(any_executable, ros2_next_exec_timeout_)) continue;
     }
 
     if (ros2_yield_before_execute_) std::this_thread::yield();
