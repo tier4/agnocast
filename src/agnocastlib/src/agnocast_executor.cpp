@@ -30,6 +30,7 @@ AgnocastExecutor::~AgnocastExecutor()
 void AgnocastExecutor::prepare_epoll()
 {
   std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+  std::lock_guard<std::mutex> lock2(rclcpp::Executor::mutex_);  // weak_groups_to_nodes_
 
   // Check if each callback's callback_group is included in this executor
   for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
