@@ -7,8 +7,10 @@
 namespace agnocast
 {
 
-AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
-: rclcpp::Executor(options)
+AgnocastExecutor::AgnocastExecutor(
+  const rclcpp::ExecutorOptions & options,
+  std::chrono::nanoseconds agnocast_callback_group_wait_time)
+: rclcpp::Executor(options), agnocast_callback_group_wait_time_(agnocast_callback_group_wait_time)
 {
   epoll_fd_ = epoll_create1(0);
 
@@ -98,7 +100,6 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   // non-blocking
   auto ret = mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
   if (ret < 0) {
-    /* we need this for multi-thread
     if (errno != EAGAIN) {
       RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
       close(agnocast_fd);
@@ -106,11 +107,6 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     }
 
     return false;
-    */
-
-    RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
   }
 
   union ioctl_receive_msg_args receive_args;
@@ -131,16 +127,26 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     agnocast_executables.callable_queue.push(callable);
   }
 
+  agnocast_executables.callback_group = topic_info.callback_group;
+
   return true;
 }
 
 void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnocast_executables)
 {
+  // In a single-threaded executor, it never sleeps here.
+  // For multi-threaded executor, it's workaround to preserve the callback group rule.
+  while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
+    std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+  }
+
   while (!agnocast_executables.callable_queue.empty()) {
     const auto callable = agnocast_executables.callable_queue.front();
     agnocast_executables.callable_queue.pop();
     (*callable)();
   }
+
+  agnocast_executables.callback_group->can_be_taken_from().store(true);
 }
 
 void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)

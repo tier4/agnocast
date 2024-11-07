@@ -1,0 +1,2 @@
+source install/setup.bash
+ros2 launch sample_application callback_group_test.launch.xml
