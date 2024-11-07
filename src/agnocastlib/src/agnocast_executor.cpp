@@ -7,8 +7,10 @@
 namespace agnocast
 {
 
-AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
-: rclcpp::Executor(options)
+AgnocastExecutor::AgnocastExecutor(
+  const rclcpp::ExecutorOptions & options,
+  std::chrono::nanoseconds agnocast_callback_group_wait_time)
+: rclcpp::Executor(options), agnocast_callback_group_wait_time_(agnocast_callback_group_wait_time)
 {
   epoll_fd_ = epoll_create1(0);
 
@@ -132,10 +134,10 @@ bool AgnocastExecutor::get_next_agnocast_executables(
 
 void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnocast_executables)
 {
-  // In a singhe-threaded executor, it never sleeps here.
+  // In a single-threaded executor, it never sleeps here.
   // For multi-threaded executor, it's workaround to preserve the callback group rule.
   while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
   }
 
   while (!agnocast_executables.callable_queue.empty()) {

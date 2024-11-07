@@ -7,24 +7,27 @@ namespace agnocast
 {
 
 MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
-  const rclcpp::ExecutorOptions & options, size_t ros2_number_of_threads,
-  size_t agnocast_number_of_threads, bool yield_before_execute,
-  std::chrono::nanoseconds next_exec_timeout)
-: agnocast::AgnocastExecutor(options),
-  yield_before_execute_(yield_before_execute),
+  const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
+  size_t number_of_agnocast_threads, bool ros2_yield_before_execute,
+  std::chrono::nanoseconds next_exec_timeout,
+  std::chrono::nanoseconds agnocast_callback_group_wait_time)
+: agnocast::AgnocastExecutor(options, agnocast_callback_group_wait_time),
+  ros2_yield_before_execute_(ros2_yield_before_execute),
   next_exec_timeout_(next_exec_timeout)
 {
   if (next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
-    RCLCPP_WARN(
+    RCLCPP_ERROR(
       logger,
       "If `next_exec_timeout` is set to infinite, ros2 callbacks which share the callback group "
       "with agnocast callbacks may not be executed. Set this parameter to be short enough");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
-  ros2_number_of_threads_ =
-    ros2_number_of_threads > 0 ? ros2_number_of_threads : std::thread::hardware_concurrency() / 2;
-  agnocast_number_of_threads_ = agnocast_number_of_threads > 0
-                                  ? agnocast_number_of_threads
+  number_of_ros2_threads_ =
+    number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2;
+  number_of_agnocast_threads_ = number_of_agnocast_threads != 0
+                                  ? number_of_agnocast_threads
                                   : std::thread::hardware_concurrency() / 2;
 }
 
@@ -45,12 +48,12 @@ void MultiThreadedAgnocastExecutor::spin()
   {
     std::lock_guard wait_lock{wait_mutex_};
 
-    for (size_t i = 0; i < ros2_number_of_threads_ - 1; i++) {
+    for (size_t i = 0; i < number_of_ros2_threads_ - 1; i++) {
       auto func = std::bind(&MultiThreadedAgnocastExecutor::ros2_spin, this);
       threads.emplace_back(func);
     }
 
-    for (size_t i = 0; i < agnocast_number_of_threads_; i++) {
+    for (size_t i = 0; i < number_of_agnocast_threads_; i++) {
       auto func = std::bind(&MultiThreadedAgnocastExecutor::agnocast_spin, this);
       threads.emplace_back(func);
     }
@@ -73,7 +76,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
       if (!get_next_executable(any_executable, next_exec_timeout_)) continue;
     }
 
-    if (yield_before_execute_) std::this_thread::yield();
+    if (ros2_yield_before_execute_) std::this_thread::yield();
 
     execute_any_executable(any_executable);
 
@@ -93,8 +96,13 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
 
     agnocast::AgnocastExecutables agnocast_executables;
 
+    // Unlike a single-threaded executor, in a multi-threaded executor, each thread is dedicated to
+    // handling either ROS 2 callbacks or Agnocast callbacks exclusively.
+    // Given this separation, get_next_agnocast_executables() can block indefinitely without a
+    // timeout. However, since we need to periodically check for epoll updates, we should implement
+    // a long timeout period instead of an infinite block.
     if (get_next_agnocast_executables(agnocast_executables, 1000 /*ms timed-blocking*/)) {
-      if (yield_before_execute_) std::this_thread::yield();
+      if (ros2_yield_before_execute_) std::this_thread::yield();
 
       execute_agnocast_executables(agnocast_executables);
     }
