@@ -1,6 +1,0 @@
-<launch>
-    <node pkg="sample_application" exec="callback_group_test_talker" name="callback_group_test_talker" output="screen">
-        <env name="LD_PRELOAD" value="libpreloaded.so" />
-        <env name="MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
-    </node>
-</launch>
