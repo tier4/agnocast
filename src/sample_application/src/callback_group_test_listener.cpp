@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 class CallbackGroupTestListener : public rclcpp::Node
 {
 public:
-  CallbackGroupTestListener(const rclcpp::NodeOptions & options)
+  explicit CallbackGroupTestListener(const rclcpp::NodeOptions & options)
   : Node("callback_group_test_listener", options)
   {
     mutex_callback_group_ =
