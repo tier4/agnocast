@@ -34,7 +34,18 @@ target_link_libraries(agnocast_component_container
 
 ament_target_dependencies(agnocast_component_container rclcpp rclcpp_components)
 
-install(TARGETS agnocast_component_container DESTINATION lib/${PROJECT_NAME})
+add_executable(agnocast_component_container_mt src/agnocast_component_container_mt.cpp)
+
+target_link_libraries(agnocast_component_container_mt
+  agnocast
+)
+
+ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
+
+install(
+  TARGETS agnocast_component_container agnocast_component_container_mt
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(TARGETS agnocast
   EXPORT export_${PROJECT_NAME}
