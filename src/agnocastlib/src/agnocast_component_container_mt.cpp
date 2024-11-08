@@ -36,7 +36,7 @@ int main(int argc, char * argv[])
 
   if (node->has_parameter("agnocast_callback_group_wait_time_ms")) {
     auto ms = node->get_parameter("agnocast_callback_group_wait_time_ms").as_int();
-    ros2_next_exec_timeout = std::chrono::nanoseconds(ms * 1000 * 1000);
+    agnocast_callback_group_wait_time = std::chrono::nanoseconds(ms * 1000 * 1000);
   }
 
   auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
