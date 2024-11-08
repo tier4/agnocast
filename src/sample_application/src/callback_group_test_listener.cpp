@@ -13,7 +13,8 @@ using namespace std::chrono_literals;
 class CallbackGroupTestListener : public rclcpp::Node
 {
 public:
-  CallbackGroupTestListener() : Node("callback_group_test_listener")
+  explicit CallbackGroupTestListener(const rclcpp::NodeOptions & options)
+  : Node("callback_group_test_listener", options)
   {
     mutex_callback_group_ =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -105,15 +106,5 @@ private:
   agnocast::Subscription<std_msgs::msg::String>::SharedPtr sub2_;
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  auto node = std::make_shared<CallbackGroupTestListener>();
-  agnocast::MultiThreadedAgnocastExecutor executor;
-  executor.add_node(node);
-  executor.spin();
-
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(CallbackGroupTestListener)
