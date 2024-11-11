@@ -41,31 +41,6 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
     topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
-// Backward compatibility: deprecated interface. Delete it later.
-template <typename MessageT>
-typename Subscription<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const rclcpp::QoS & qos,
-  std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
-{
-  RCLCPP_WARN(logger, "Deprecated: use the latest version of create_subscription");
-
-  const agnocast::SubscriptionOptions options;
-  return std::make_shared<Subscription<MessageT>>(nullptr, topic_name, qos, callback, options);
-}
-
-// Backward compatibility: deprecated interface. Delete it later.
-template <typename MessageT>
-typename Subscription<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const size_t qos_history_depth,
-  std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
-{
-  RCLCPP_WARN(logger, "Deprecated: use the latest version of create_subscription");
-
-  const agnocast::SubscriptionOptions options;
-  return std::make_shared<Subscription<MessageT>>(
-    nullptr, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), callback, options);
-}
-
 template <typename MessageT>
 typename Subscription<MessageT>::SharedPtr create_subscription(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
