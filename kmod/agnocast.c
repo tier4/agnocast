@@ -501,6 +501,10 @@ static int insert_message_entry(
 // =========================================
 // "/sys/module/agnocast/status/*"
 
+// NOTE:
+//  show_xx may overflow when used more than PAGE_SIZE.
+//  The implementations have few error-handling.
+
 // Example
 //
 // $ sudo cat /sys/module/agnocast/status/process
