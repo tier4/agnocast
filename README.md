@@ -44,19 +44,38 @@ bash scripts/run_listen_talker
 bash scripts/run_talker
 ```
 
-Check kmod state.
-
-```bash
-cat /sys/module/agnocast/status/all
-```
-
-Unload kmod.
+Stop applications and unload kernel module.
 
 ```bash
 sudo rmmod agnocast
 ```
 
 ## Debug
+
+Check the kernel log.
+
+```bash
+sudo dmesg -w
+```
+
+Check which process uses Agnocast and what kind of publishers/subscriptions it has.
+
+```bash
+sudo cat /sys/module/agnocast/status/process_list
+```
+
+Check which topic is passed through Agnocast and its publisher/subscription processes.
+
+```bash
+sudo cat /sys/module/agnocast/status/topic_list
+```
+
+Check the detail of a specific topic `/my_topic`.
+
+```bash
+echo "/my_topic" | sudo tee /sys/module/agnocast/status/topic_info
+sudo cat /sys/module/agnocast/status/topic_info
+```
 
 To use dynamic_debug for dynamically outputting debug logs, please run the following command as super user:
 
