@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <fstream>
 #include <set>
+#include <mutex>
 
 namespace agnocast
 {
@@ -16,8 +17,10 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
-std::vector<int> shm_fds;
 extern mqd_t mq_new_publisher;
+
+std::vector<int> shm_fds;
+std::mutex shm_fds_mtx;
 
 bool ok()
 {
@@ -48,7 +51,11 @@ void * map_area(
     close(agnocast_fd);
     return NULL;
   }
-  shm_fds.push_back(shm_fd);
+
+  {
+    std::lock_guard<std::mutex> lock(shm_fds_mtx);
+    shm_fds.push_back(shm_fd);
+  }
 
   if (writable) {
     if (ftruncate(shm_fd, shm_size) == -1) {
@@ -123,9 +130,12 @@ static void shutdown_agnocast()
 
   const uint32_t pid = getpid();
 
-  for (int fd : shm_fds) {
-    if (close(fd) == -1) {
-      perror("[ERROR] [Agnocast] close shm_fd failed");
+  {
+    std::lock_guard<std::mutex> lock(shm_fds_mtx);
+    for (int fd : shm_fds) {
+      if (close(fd) == -1) {
+        perror("[ERROR] [Agnocast] close shm_fd failed");
+      }
     }
   }
 
