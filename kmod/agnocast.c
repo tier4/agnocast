@@ -1256,18 +1256,11 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   char topic_name_buf[256];
-  union ioctl_subscriber_args sub_args;
-  union ioctl_publisher_args pub_args;
-  union ioctl_enqueue_and_release_args enqueue_release_args;
   union ioctl_update_entry_args entry_args;
-  union ioctl_receive_msg_args receive_msg_args;
-  union ioctl_publish_args publish_args;
-  union ioctl_take_msg_args take_args;
-  union ioctl_new_shm_args new_shm_args;
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
 
   switch (cmd) {
     case AGNOCAST_SUBSCRIBER_ADD_CMD:
+      union ioctl_subscriber_args sub_args;
       if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
@@ -1280,6 +1273,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_PUBLISHER_ADD_CMD:
+      union ioctl_publisher_args pub_args;
       if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
@@ -1290,6 +1284,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_ENQUEUE_AND_RELEASE_CMD:
+      union ioctl_enqueue_and_release_args enqueue_release_args;
       if (copy_from_user(
             &enqueue_release_args, (union ioctl_enqueue_and_release_args __user *)arg,
             sizeof(enqueue_release_args)))
@@ -1327,6 +1322,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         entry_args.msg_timestamp);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
+      union ioctl_receive_msg_args receive_msg_args;
       if (copy_from_user(
             &receive_msg_args, (union ioctl_receive_msg_args __user *)arg,
             sizeof(receive_msg_args)))
@@ -1343,6 +1339,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_PUBLISH_MSG_CMD:
+      union ioctl_publish_args publish_args;
       if (copy_from_user(
             &publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args)))
         goto unlock_mutex_and_return;
@@ -1355,6 +1352,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_TAKE_MSG_CMD:
+      union ioctl_take_msg_args take_args;
       if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
@@ -1365,6 +1363,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_NEW_SHM_CMD:
+      union ioctl_new_shm_args new_shm_args;
       if (copy_from_user(
             &new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
         goto unlock_mutex_and_return;
@@ -1373,6 +1372,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_GET_SUBSCRIBER_NUM_CMD:
+      union ioctl_get_subscriber_num_args get_subscriber_num_args;
       if (copy_from_user(
             &get_subscriber_num_args, (union ioctl_get_subscriber_num_args __user *)arg,
             sizeof(get_subscriber_num_args)))
