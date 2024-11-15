@@ -1,5 +1,7 @@
 #include "agnocast_utils.hpp"
 
+#include <cstring>
+
 namespace agnocast
 {
 
