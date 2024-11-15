@@ -50,12 +50,12 @@ jobs:
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
         sudo apt update
-        sudo apt install -y software-properties-common curl
+        sudo apt install -y software-properties-common curl gcovr
         sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
         sudo apt update
         sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y
-        sudo apt install -y ros-humble-desktop python3-colcon-common-extensions ros-humble-ament-cmake
+        sudo apt install -y ros-humble-desktop python3-colcon-common-extensions ros-humble-ament-cmake python3-colcon-mixin
 
     - name: Install dependencies
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
@@ -70,14 +70,24 @@ jobs:
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
-        colcon build
+        colcon build --cmake-args -DCOVERAGE=ON
     
-    - name: run tests
+    - name: Test for agnocastlib
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      id: test
+      uses: autowarefoundation/autoware-github-actions/colcon-test@v1
+      with:
+        rosdistro: humble
+        target-packages: agnocastlib
+
+    - name: Display coverage report in PR comment
+      if: ${{ steps.test.outputs.coverage-report-files != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        source /opt/ros/humble/setup.bash
-        colcon test --event-handlers console_cohesion+
-        colcon test-result --verbose
+        gcovr -r . --txt > coverage.txt
+        coverage_text=$(<coverage.txt)
+        gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '```\n'"$coverage_text"'\n```')"
 
     - name: Setup Rust environment
       if: steps.check_changes_rust.outputs.rust_changed == 'true'
