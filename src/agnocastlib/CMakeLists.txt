@@ -1,8 +1,14 @@
 cmake_minimum_required(VERSION 3.8)
 project(agnocastlib)
 
+option(COVERAGE "Enable coverage reporting for gcov" OFF)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
+  if(COVERAGE)
+    add_compile_options(--coverage -g)
+    add_link_options(--coverage)
+  endif()
 endif()
 
 # find dependencies
@@ -61,6 +67,13 @@ install(
 )
 
 install(TARGETS agnocast DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_${PROJECT_NAME} test/test_agnocast_utils.cpp)
+  target_include_directories(test_${PROJECT_NAME} PRIVATE include)
+  target_link_libraries(test_${PROJECT_NAME} agnocast)
+endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)

@@ -2,3 +2,5 @@ build
 install
 log
 *.log
+coverage_report_agnocastlib
+.vscode

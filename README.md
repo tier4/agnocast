@@ -101,6 +101,14 @@ make CFLAGS_agnocast.o="-DDEBUG"
 
 Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentation/kbuild/makefiles.txt) on kbuild for more information about compilation flags.
 
+## (For developer) Test
+
+You can build, test and generate the coverage report by following:
+
+```bash
+bash scripts/test_and_create_report
+```
+
 ## (For developer) Setup pre-commit
 
 The following command allows `clang-format` and `markdownlint` to be run before each commit.
