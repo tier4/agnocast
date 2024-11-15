@@ -1,3 +1,4 @@
+rm -rf build install log
 colcon build --cmake-args -DCOVERAGE=ON
 colcon test
 lcov --capture --directory . --output-file coverage.info
