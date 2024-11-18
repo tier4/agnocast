@@ -58,7 +58,7 @@ void * map_area(
   }
 
   if (writable) {
-    if (ftruncate(shm_fd, shm_size) == -1) {
+    if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
       perror("[ERROR] [Agnocast] ftruncate failed");
       close(agnocast_fd);
       return NULL;

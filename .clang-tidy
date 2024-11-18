@@ -3,7 +3,6 @@ Checks: "
 
   bugprone-*,
   -bugprone-easily-swappable-parameters,
-  -bugprone-narrowing-conversions,
 
   cert-*,
   -cert-err33-c,
