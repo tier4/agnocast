@@ -80,17 +80,12 @@ extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
 extern std::atomic<uint32_t> agnocast_topic_next_id;
 extern std::atomic<bool> need_epoll_updates;
 
-template <typename Func>
-void register_callback(
-  const Func callback, const std::string & topic_name, const uint32_t qos_depth, const mqd_t mqdes,
-  const rclcpp::CallbackGroup::SharedPtr callback_group)
+template <typename T, typename Func>
+TypeErasedCallback get_erased_callback(const Func callback)
 {
-  using MessagePtrType = typename callback_first_arg<Func>::type;
-  using MessageType = typename MessagePtrType::element_type;
-
-  auto erased_callback = [callback](const AnyObject & arg) {
-    if (typeid(MessageType) == arg.type()) {
-      const auto & typed_arg = static_cast<const TypedMessagePtr<MessageType> &>(arg);
+  return [callback](const AnyObject & arg) {
+    if (typeid(T) == arg.type()) {
+      const auto & typed_arg = static_cast<const TypedMessagePtr<T> &>(arg);
       callback(typed_arg.get());
     } else {
       RCLCPP_ERROR(
@@ -99,6 +94,17 @@ void register_callback(
       exit(EXIT_FAILURE);
     }
   };
+}
+
+template <typename Func>
+void register_callback(
+  const Func callback, const std::string & topic_name, const uint32_t qos_depth, const mqd_t mqdes,
+  const rclcpp::CallbackGroup::SharedPtr callback_group)
+{
+  using MessagePtrType = typename callback_first_arg<Func>::type;
+  using MessageType = typename MessagePtrType::element_type;
+
+  TypeErasedCallback erased_callback = get_erased_callback<MessageType>(callback);
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
