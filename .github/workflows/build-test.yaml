@@ -70,7 +70,13 @@ jobs:
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
-        colcon build --cmake-args -DCOVERAGE=ON
+        colcon build --cmake-args -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+
+    - name: Run clang-tidy for agnocastlib
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
+      run: |
+        export FILES=($(find src/agnocastlib/ -name "*.cpp" -or -name "*.hpp"))
+        run-clang-tidy -j 16 -p build/ "${FILES[@]}"
     
     - name: Test for agnocastlib
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
