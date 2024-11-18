@@ -8,7 +8,7 @@ int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
 
-  size_t number_of_ros2_threads = 0;
+  size_t number_of_ros2_threads = 1;
   size_t number_of_agnocast_threads = 0;
   bool ros2_yield_before_execute = false;
   std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(10 * 1000 * 1000);
