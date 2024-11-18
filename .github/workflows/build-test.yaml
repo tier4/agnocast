@@ -88,10 +88,7 @@ jobs:
     - name: Mark the workflow as failed if clang-tidy find errors/warnings
       if: ${{ steps.check-report-txt-existence.outputs.exists == 'true' }}
       run: |
-        if [ -n "$(grep ": error:" /tmp/clang-tidy-result/report.txt)" ]; then
-          exit 1
-        fi
-        if [ -n "$(grep ": warning:" /tmp/clang-tidy-result/report.txt)" ]; then
+        if [ -n "$(grep -E "error:|warning:" /tmp/clang-tidy-result/report.txt)" ]; then
           exit 1
         fi
     
