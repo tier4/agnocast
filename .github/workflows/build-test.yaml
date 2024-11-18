@@ -70,7 +70,30 @@ jobs:
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
-        colcon build --cmake-args -DCOVERAGE=ON
+        colcon build --cmake-args -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+
+    - name: Run clang-tidy for agnocastlib
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        mkdir /tmp/clang-tidy-result
+        export FILES=($(find src/agnocastlib/ -name "*.cpp" -or -name "*.hpp"))
+        run-clang-tidy -j 16 -p build/ "${FILES[@]}"  > /tmp/clang-tidy-result/report.txt || true
+
+      - name: Check if the report.txt file exists
+        id: check-report-txt-existence
+        uses: autowarefoundation/autoware-github-actions/check-file-existence@v1
+        with:
+          files: /tmp/clang-tidy-result/report.txt
+
+      - name: Mark the workflow as failed if clang-tidy find errors/warnings
+        if: ${{ steps.check-report-txt-existence.outputs.exists == 'true' }}
+        run: |
+          if [ -n "$(grep ": error:" /tmp/clang-tidy-result/report.txt)" ]; then
+            exit 1
+          fi
+          if [ -n "$(grep ": warning:" /tmp/clang-tidy-result/report.txt)" ]; then
+            exit 1
+          fi
     
     - name: Test for agnocastlib
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
