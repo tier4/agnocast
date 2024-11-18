@@ -77,7 +77,7 @@ jobs:
       run: |
         mkdir /tmp/clang-tidy-result
         export FILES=($(find src/agnocastlib/ -name "*.cpp" -or -name "*.hpp"))
-        run-clang-tidy -j 16 -p build/ "${FILES[@]}"  > /tmp/clang-tidy-result/report.txt || true
+        run-clang-tidy -j 16 -p build/ "${FILES[@]}" | tee /tmp/clang-tidy-result/report.txt || true
 
     - name: Check if the report.txt file exists
       id: check-report-txt-existence
