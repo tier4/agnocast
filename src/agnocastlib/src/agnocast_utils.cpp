@@ -37,6 +37,16 @@ std::string create_mq_name(const std::string & topic_name, const uint32_t pid)
   return mq_name;
 }
 
+std::string create_shm_name(const uint32_t pid)
+{
+  return "/agnocast@" + std::to_string(pid);
+}
+
+std::string create_mq_name_new_publisher(const uint32_t pid)
+{
+  return "/new_publisher@" + std::to_string(pid);
+}
+
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();

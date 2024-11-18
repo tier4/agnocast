@@ -42,7 +42,7 @@ bool already_mapped(const uint32_t pid)
 void * map_area(
   const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
-  const std::string shm_name = "/agnocast@" + std::to_string(pid);
+  const std::string shm_name = create_shm_name(pid);
 
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
@@ -139,7 +139,7 @@ static void shutdown_agnocast()
     }
   }
 
-  const std::string shm_name = "/agnocast@" + std::to_string(pid);
+  const std::string shm_name = create_shm_name(pid);
   if (shm_unlink(shm_name.c_str()) == -1) {
     perror("[ERROR] [Agnocast] shm_unlink failed");
   }
@@ -149,7 +149,7 @@ static void shutdown_agnocast()
       perror("[ERROR] [Agnocast] mq_close failed");
     }
 
-    const std::string mq_name = "/new_publisher@" + std::to_string(pid);
+    const std::string mq_name = create_mq_name_new_publisher(pid);
     if (mq_unlink(mq_name.c_str()) == -1) {
       perror("[ERROR] [Agnocast] mq_unlink failed");
     }
