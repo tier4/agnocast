@@ -3,7 +3,7 @@ Checks: "
 
   bugprone-*,
   -bugprone-easily-swappable-parameters,
-  // -bugprone-narrowing-conversions, // test for CI
+  // -bugprone-narrowing-conversions,
 
   cert-*,
   -cert-err33-c,
@@ -60,6 +60,21 @@ Checks: "
   -readability-convert-member-functions-to-static,
   -readability-make-member-function-const,
   -readability-braces-around-statements"
+
+
+WarningsAsErrors: "
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  google-*,
+  hicpp-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*"
+
 
 ExtraArgs:
   - -std=c++17
