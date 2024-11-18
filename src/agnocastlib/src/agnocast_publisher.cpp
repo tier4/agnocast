@@ -32,7 +32,7 @@ void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name
         publisher_pid, topic_name.c_str());
       exit(EXIT_FAILURE);
     }
-    const std::string mq_name = "/new_publisher@" + std::to_string(pub_args.ret_subscriber_pids[i]);
+    const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
     if (mq == -1) {
       RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));

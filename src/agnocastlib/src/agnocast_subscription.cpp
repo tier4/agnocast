@@ -29,7 +29,7 @@ void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
 
   pthread_mutex_unlock(&wait_newpub_mtx);
 
-  const std::string mq_name = "/new_publisher@" + std::to_string(subscriber_pid);
+  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid);
 
   struct mq_attr attr;
   attr.mq_flags = 0;                            // Blocking queue
