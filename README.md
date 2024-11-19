@@ -1,3 +1,9 @@
+![gtest](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg)
+![clang-tidy](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg)
+![cppcheck](https://github.com/tier4/agnocast/actions/workflows/cppcheck-differential.yaml/badge.svg)
+![clang-format](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg)
+![markdownlint](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg)
+
 # ROS 2 Agnocast
 
 True Zero Copy Communication Middleware for Undefined ROS 2 Message Types.
