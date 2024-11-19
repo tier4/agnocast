@@ -18,11 +18,11 @@ Build.
 bash scripts/build_all
 ```
 
-Check if there is a `libpreloaded.so` in `/usr/lib`.
+Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
 
 ```bash
-$ ls /usr/lib | grep preloaded
-libpreloaded.so
+$ ls /usr/lib | grep libagnocast_heaphook
+libagnocast_heaphook.so
 ```
 
 ## Run
