@@ -11,7 +11,7 @@ rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 void validate_ld_preload()
 {
   const char * ld_preload = getenv("LD_PRELOAD");
-  if (!ld_preload || std::strcmp(ld_preload, "libpreloaded.so") != 0) {
+  if (ld_preload == nullptr || std::strcmp(ld_preload, "libpreloaded.so") != 0) {
     RCLCPP_ERROR(logger, "LD_PRELOAD is not set to libpreloaded.so");
     exit(EXIT_FAILURE);
   }
