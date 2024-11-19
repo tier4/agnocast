@@ -17,7 +17,6 @@ Checks: "
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-init-variables,
-  -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-prefer-member-initializer,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-constant-array-index,
@@ -53,9 +52,7 @@ Checks: "
   readability-*,
   -readability-magic-numbers,
   -readability-function-cognitive-complexity,
-  -readability-implicit-bool-conversion,
   -readability-identifier-length,
-  -readability-braces-around-statements,
   -readability-convert-member-functions-to-static,
   -readability-make-member-function-const,
   -readability-braces-around-statements"
