@@ -1,8 +1,8 @@
-![gtest](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg)
-![clang-tidy](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg)
-![cppcheck](https://github.com/tier4/agnocast/actions/workflows/cppcheck-differential.yaml/badge.svg)
-![clang-format](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg)
-![markdownlint](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg)
+![gtest](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg?label=gtest)
+![clang-tidy](https://github.com/tier4/agnocast/actions/workflows/build-test.yaml/badge.svg?label=clang-tidy)
+![cppcheck](https://github.com/tier4/agnocast/actions/workflows/cppcheck-differential.yaml/badge.svg?label=cppcheck)
+![clang-format](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg?label=clang-format)
+![markdownlint](https://github.com/tier4/agnocast/actions/workflows/run-pre-commit.yaml/badge.svg?label=markdownlint)
 
 # ROS 2 Agnocast
 
