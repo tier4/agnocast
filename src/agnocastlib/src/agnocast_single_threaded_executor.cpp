@@ -23,7 +23,7 @@ void SingleThreadedAgnocastExecutor::spin()
 
   RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
 
-  // TODO: Transient local
+  // TODO(sykwer): Transient local
 
   while (rclcpp::ok(this->context_) && agnocast::ok() && spinning.load()) {
     if (need_epoll_updates.exchange(false)) {

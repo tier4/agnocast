@@ -30,7 +30,6 @@ Checks: "
   google-*,
   -google-readability-casting,
   -google-default-arguments,
-  -google-readability-todo,
   -google-readability-avoid-underscore-in-googletest-name,
 
   hicpp-*,

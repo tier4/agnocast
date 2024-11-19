@@ -38,8 +38,8 @@ class Publisher
   std::string topic_name_;
   uint32_t publisher_pid_;
   rclcpp::QoS qos_;
-  // TODO: The mq should be closed when a subscriber unsubscribes the topic, but this is not
-  // currently implemented.
+  // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
+  // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
 
 public:
