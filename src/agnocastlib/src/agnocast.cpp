@@ -3,8 +3,6 @@
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
 
-#include <stdio.h>
-
 #include <atomic>
 #include <cstdint>
 #include <fstream>
