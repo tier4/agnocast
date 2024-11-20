@@ -10,16 +10,15 @@ namespace agnocast
 AgnocastExecutor::AgnocastExecutor(
   const rclcpp::ExecutorOptions & options,
   std::chrono::nanoseconds agnocast_callback_group_wait_time)
-: rclcpp::Executor(options), agnocast_callback_group_wait_time_(agnocast_callback_group_wait_time)
+: rclcpp::Executor(options),
+  agnocast_callback_group_wait_time_(agnocast_callback_group_wait_time),
+  my_pid_(getpid()),
+  epoll_fd_(epoll_create1(0))
 {
-  epoll_fd_ = epoll_create1(0);
-
   if (epoll_fd_ == -1) {
     RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
-
-  my_pid_ = getpid();
 }
 
 AgnocastExecutor::~AgnocastExecutor()
