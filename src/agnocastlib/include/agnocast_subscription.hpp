@@ -28,16 +28,19 @@ namespace agnocast
 
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
+struct SubscriptionOptions
+{
+  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+};
+
 // These are cut out of the class for information hiding.
 mqd_t open_mq_for_subscription(
   const std::string & topic_name, pid_t subscriber_pid,
   std::pair<mqd_t, std::string> & mq_subscription);
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
-
-struct SubscriptionOptions
-{
-  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
-};
+rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
+  const SubscriptionOptions & options);
 
 class SubscriptionBase
 {
@@ -59,7 +62,6 @@ template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription;
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr ros2_node_base_;
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -69,23 +71,11 @@ public:
     const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(getpid(), topic_name, qos), ros2_node_base_(node)
+  : SubscriptionBase(getpid(), topic_name, qos)
   {
-    rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
-
-    if (callback_group) {
-      if (!ros2_node_base_->callback_group_in_node(callback_group)) {
-        RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-    } else {
-      callback_group = ros2_node_base_->get_default_callback_group();
-    }
-
     union ioctl_subscriber_args subscriber_args = initialize(false);
     mqd_t mq = open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
-
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
     agnocast::register_callback(
       callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
