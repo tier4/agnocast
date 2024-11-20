@@ -74,6 +74,9 @@ if(BUILD_TESTING)
     test/test_agnocast_topic_info.cpp test/test_agnocast_subscription.cpp)
   target_include_directories(test_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_${PROJECT_NAME} agnocast)
+  set_tests_properties(test_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+  )
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
