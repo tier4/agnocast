@@ -146,7 +146,8 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 }
 
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, SubscriptionOptions options)
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
+  const SubscriptionOptions & options)
 {
   rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
 

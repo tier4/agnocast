@@ -39,7 +39,8 @@ mqd_t open_mq_for_subscription(
   std::pair<mqd_t, std::string> & mq_subscription);
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, SubscriptionOptions options);
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
+  const SubscriptionOptions & options);
 
 class SubscriptionBase
 {
