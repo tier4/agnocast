@@ -145,4 +145,22 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
   }
 }
 
+rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, SubscriptionOptions options)
+{
+  rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
+
+  if (callback_group) {
+    if (!node->callback_group_in_node(callback_group)) {
+      RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    callback_group = node->get_default_callback_group();
+  }
+
+  return callback_group;
+}
+
 }  // namespace agnocast
