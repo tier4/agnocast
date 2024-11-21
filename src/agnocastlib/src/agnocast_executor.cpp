@@ -35,12 +35,18 @@ void AgnocastExecutor::prepare_epoll()
   for (auto it = id2_topic_mq_info.begin(); it != id2_topic_mq_info.end(); it++) {
     const uint32_t topic_local_id = it->first;
     AgnocastTopicInfo & topic_info = it->second;
-    if (!topic_info.need_epoll_update) continue;
+    if (!topic_info.need_epoll_update) {
+      continue;
+    }
 
     for (const auto & [weak_group, _] : rclcpp::Executor::weak_groups_to_nodes_) {
       const auto group = weak_group.lock();
-      if (!group) continue;
-      if (group != topic_info.callback_group) continue;
+      if (!group) {
+        continue;
+      }
+      if (group != topic_info.callback_group) {
+        continue;
+      }
 
       struct epoll_event ev;
       ev.events = EPOLLIN;
@@ -77,7 +83,9 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   }
 
   // timeout
-  if (nfds == 0) return false;
+  if (nfds == 0) {
+    return false;
+  }
 
   const uint32_t topic_local_id = event.data.u32;
   AgnocastTopicInfo topic_info;

@@ -90,8 +90,12 @@ void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint
 
 void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
-  if (already_mapped(pid)) return;
-  if (map_area(pid, shm_addr, shm_size, false) == NULL) exit(EXIT_FAILURE);
+  if (already_mapped(pid)) {
+    return;
+  }
+  if (map_area(pid, shm_addr, shm_size, false) == NULL) {
+    exit(EXIT_FAILURE);
+  }
 }
 
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.

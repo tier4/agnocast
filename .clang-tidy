@@ -48,8 +48,7 @@ Checks: "
   -readability-magic-numbers,
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
-  -readability-convert-member-functions-to-static,
-  -readability-braces-around-statements"
+  -readability-convert-member-functions-to-static"
 
 WarningsAsErrors: "
   bugprone-*,
