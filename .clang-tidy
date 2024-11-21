@@ -47,8 +47,7 @@ Checks: "
   readability-*,
   -readability-magic-numbers,
   -readability-function-cognitive-complexity,
-  -readability-identifier-length,
-  -readability-convert-member-functions-to-static"
+  -readability-identifier-length"
 
 WarningsAsErrors: "
   bugprone-*,
