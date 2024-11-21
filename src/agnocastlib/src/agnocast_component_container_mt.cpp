@@ -17,7 +17,7 @@ int main(int argc, char * argv[])
 
   auto node = std::make_shared<rclcpp_components::ComponentManager>();
 
-  if (node->has_parameter("number_of_ros2_threadsa")) {
+  if (node->has_parameter("number_of_ros2_threads")) {
     number_of_ros2_threads = node->get_parameter("number_of_ros2_threads").as_int();
   }
 
