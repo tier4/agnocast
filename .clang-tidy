@@ -49,8 +49,7 @@ Checks: "
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-convert-member-functions-to-static,
-  -readability-make-member-function-const,
-  -readability-braces-around-statements"
+  -readability-make-member-function-const"
 
 
 WarningsAsErrors: "

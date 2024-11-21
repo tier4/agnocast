@@ -20,7 +20,9 @@ std::shared_ptr<std::function<void()>> create_callable(
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
     auto it = id2_topic_mq_info.find(topic_local_id);
     found = it != id2_topic_mq_info.end();
-    if (found) info = &it->second;
+    if (found) {
+      info = &it->second;
+    }
   }
 
   if (!found) {
