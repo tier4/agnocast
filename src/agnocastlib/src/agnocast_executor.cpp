@@ -65,7 +65,7 @@ void AgnocastExecutor::prepare_epoll()
 }
 
 bool AgnocastExecutor::get_next_agnocast_executables(
-  AgnocastExecutables & agnocast_executables, const int timeout_ms)
+  AgnocastExecutables & agnocast_executables, const int timeout_ms) const
 {
   struct epoll_event event;
 

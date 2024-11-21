@@ -27,7 +27,7 @@ protected:
 
   void prepare_epoll();
   bool get_next_agnocast_executables(
-    AgnocastExecutables & agnocast_executables, const int timeout_ms);
+    AgnocastExecutables & agnocast_executables, const int timeout_ms) const;
   void execute_agnocast_executables(AgnocastExecutables & agnocast_executables);
 
 public:
