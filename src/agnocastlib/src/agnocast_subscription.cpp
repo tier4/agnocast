@@ -14,7 +14,7 @@ SubscriptionBase::SubscriptionBase(
   validate_ld_preload();
 }
 
-void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
+void SubscriptionBase::wait_for_new_publisher() const
 {
   static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -29,7 +29,7 @@ void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
 
   pthread_mutex_unlock(&wait_newpub_mtx);
 
-  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid);
+  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid_);
 
   struct mq_attr attr;
   attr.mq_flags = 0;                            // Blocking queue
@@ -69,7 +69,7 @@ void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid)
 union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 {
   // Open a mq for new publisher appearences.
-  wait_for_new_publisher(subscriber_pid_);
+  wait_for_new_publisher();
 
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.
