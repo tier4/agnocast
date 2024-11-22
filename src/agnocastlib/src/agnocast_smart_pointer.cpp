@@ -1,7 +1,6 @@
 #include "agnocast_smart_pointer.hpp"
 
-namespace agnocast
-{
+using namespace agnocast;
 
 void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp)
 {
@@ -30,5 +29,3 @@ void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, u
     exit(EXIT_FAILURE);
   }
 }
-
-}  // namespace agnocast

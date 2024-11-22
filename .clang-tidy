@@ -27,6 +27,7 @@ Checks: "
   google-*,
   -google-readability-casting,
   -google-default-arguments,
+  -google-build-using-namespace,
 
   hicpp-*,
   -hicpp-member-init,
