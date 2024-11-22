@@ -110,8 +110,11 @@ std::vector<uint64_t> borrow_loaned_message_core(
     exit(EXIT_FAILURE);
   }
 
-  return std::vector<uint64_t>(
-    ioctl_args.ret_released_addrs, ioctl_args.ret_released_addrs + ioctl_args.ret_len);
+  std::vector<uint64_t> addresses(ioctl_args.ret_len);
+  std::copy_n(
+    static_cast<const uint64_t *>(ioctl_args.ret_released_addrs), ioctl_args.ret_len,
+    addresses.begin());
+  return addresses;
 }
 
 uint32_t get_subscription_count_core(const std::string & topic_name)
