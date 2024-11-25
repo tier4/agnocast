@@ -49,7 +49,6 @@ public:
   using element_type = T;
 
   const std::string get_topic_name() const { return topic_name_; }
-  uint32_t get_publisher_pid() const { return publisher_pid_; }
   uint64_t get_timestamp() const { return timestamp_; }
 
   ipc_shared_ptr() = default;

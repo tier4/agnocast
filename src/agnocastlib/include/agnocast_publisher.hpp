@@ -74,9 +74,7 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
-    if (
-      !message || topic_name_ != message.get_topic_name() ||
-      publisher_pid_ != message.get_publisher_pid()) {
+    if (!message || topic_name_ != message.get_topic_name()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
