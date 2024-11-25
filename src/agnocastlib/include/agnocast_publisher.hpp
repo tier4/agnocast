@@ -75,7 +75,7 @@ public:
   void publish(ipc_shared_ptr<MessageT> && message)
   {
     if (
-      !message || topic_name_.c_str() != message.get_topic_name() ||
+      !message || std::strcmp(topic_name_.c_str(), message.get_topic_name()) != 0 ||
       publisher_pid_ != message.get_publisher_pid()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
       close(agnocast_fd);
