@@ -15,14 +15,14 @@
 #include <cstdlib>
 #include <cstring>
 
+// These are cut out of the class for information hiding.
+void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+
 namespace agnocast
 {
 
 extern int agnocast_fd;
-
-// These are cut out of the class for information hiding.
-void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
-void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
 
 template <typename T>
 class ipc_shared_ptr
@@ -49,7 +49,10 @@ class ipc_shared_ptr
     increment_rc_core(topic_name_, publisher_pid_, timestamp_);
   }
 
+  // Unimplemented operators. If these are called, a compile error is raised.
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r) = delete;
+  bool operator==(const ipc_shared_ptr & r) const = delete;
+  bool operator!=(const ipc_shared_ptr & r) const = delete;
 
 public:
   using element_type = T;
