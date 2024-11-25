@@ -3,7 +3,9 @@
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kprobes.h>
+#include <linux/kthread.h>
 #include <linux/slab.h>  // kmalloc, kfree
+#include <linux/spinlock.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -1554,6 +1556,22 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     current->pid, wrapper->key);
 }
 
+// =========================================
+// Cleanup resources related to exited processes
+
+// Ring buffer to hold exited pids
+#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
+static DEFINE_SPINLOCK(pid_queue_lock);
+static uint32_t exit_pid_queue[EXIT_QUEUE_SIZE];
+static uint32_t queue_head;
+static uint32_t queue_tail;
+
+// For controling the kernel thread
+static struct task_struct * worker_task;
+static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
+static atomic_t has_new_pid = ATOMIC_INIT(0);
+
 static void process_exit_cleanup(uint32_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
@@ -1596,13 +1614,60 @@ static void process_exit_cleanup(uint32_t pid)
   }
 }
 
+static int exit_worker_thread(void * data)
+{
+  while (!kthread_should_stop()) {
+    uint32_t pid;
+    unsigned long flags;
+    bool got_pid = false;
+
+    wait_event_interruptible(worker_wait, atomic_read(&has_new_pid) || kthread_should_stop());
+    if (kthread_should_stop()) break;
+
+    spin_lock_irqsave(&pid_queue_lock, flags);
+
+    if (queue_head != queue_tail) {
+      pid = exit_pid_queue[queue_head];
+      queue_head = (queue_head + 1) & (EXIT_QUEUE_SIZE - 1);
+      got_pid = true;
+    }
+
+    // queue is empty
+    if (queue_head == queue_tail) atomic_set(&has_new_pid, 0);
+
+    spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+    if (got_pid) {
+      mutex_lock(&global_mutex);
+      process_exit_cleanup(pid);
+      mutex_unlock(&global_mutex);
+    }
+  }
+
+  return 0;
+}
+
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
-  mutex_lock(&global_mutex);
+  unsigned long flags;
+  uint32_t next;
 
-  process_exit_cleanup(current->pid);
+  spin_lock_irqsave(&pid_queue_lock, flags);
 
-  mutex_unlock(&global_mutex);
+  // Assumes EXIT_QUEUE_SIZE is 2^N
+  next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
+
+  if (next != queue_head) {  // queue is not full
+    exit_pid_queue[queue_tail] = current->pid;
+    queue_tail = next;
+    atomic_set(&has_new_pid, 1);
+    wake_up_interruptible(&worker_wait);
+  } else {
+    // do nothing and put error message
+  }
+
+  spin_unlock_irqrestore(&pid_queue_lock, flags);
+
   return 0;
 }
 
@@ -1639,6 +1704,13 @@ static int agnocast_init(void)
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+
+  queue_head = queue_tail = 0;
+  worker_task = kthread_run(exit_worker_thread, NULL, "agnocast_exit_worker");
+  if (IS_ERR(worker_task)) {
+    dev_warn(agnocast_device, "failed to create kernel thread\n");
+    return PTR_ERR(worker_task);
+  }
 
   ret = register_kprobe(&kp);
   if (ret < 0) {
@@ -1709,6 +1781,9 @@ static void agnocast_exit(void)
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
+
+  wake_up_interruptible(&worker_wait);
+  kthread_stop(worker_task);
 
   unregister_kprobe(&kp);
 }
