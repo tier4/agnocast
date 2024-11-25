@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <cstdint>
-#include <fstream>
 #include <mutex>
 #include <set>
 
@@ -45,7 +44,7 @@ void * map_area(
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    perror("[ERROR] [Agnocast] shm_open failed");
+    RCLCPP_ERROR(logger, "shm_open failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -57,7 +56,7 @@ void * map_area(
 
   if (writable) {
     if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
-      perror("[ERROR] [Agnocast] ftruncate failed");
+      RCLCPP_ERROR(logger, "ftruncate failed");
       close(agnocast_fd);
       return NULL;
     }
@@ -69,7 +68,7 @@ void * map_area(
     0);
 
   if (ret == MAP_FAILED) {
-    perror("[ERROR] [Agnocast] mmap failed");
+    RCLCPP_ERROR(logger, "mmap failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -80,7 +79,7 @@ void * map_area(
 void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
-    fprintf(stderr, "[ERROR] [Agnocast] map_writeable_area failed");
+    RCLCPP_ERROR(logger, "map_writeable_area failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -102,13 +101,13 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
 void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
-    perror("[ERROR] [Agnocast] Agnocast is already open");
+    RCLCPP_ERROR(logger, "Agnocast is already open");
     return NULL;
   }
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    perror("[ERROR] [Agnocast] Failed to open the device");
+    RCLCPP_ERROR(logger, "Failed to open the device");
     return NULL;
   }
 
@@ -118,7 +117,7 @@ void * initialize_agnocast(const uint64_t shm_size)
   new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
-    perror("[ERROR] [Agnocast] AGNOCAST_NEW_SHM_CMD failed");
+    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed");
     close(agnocast_fd);
     return NULL;
   }
@@ -127,7 +126,7 @@ void * initialize_agnocast(const uint64_t shm_size)
 
 static void shutdown_agnocast()
 {
-  fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast started\n");
+  printf("[INFO] [Agnocast]: shutdown_agnocast started\n");
   is_running.store(false);
 
   const uint32_t pid = getpid();
@@ -161,7 +160,7 @@ static void shutdown_agnocast()
     th.join();
   }
 
-  fprintf(stdout, "[INFO] [Agnocast]: shutdown_agnocast completed\n");
+  printf("[INFO] [Agnocast]: shutdown_agnocast completed\n");
 }
 
 class Cleanup
