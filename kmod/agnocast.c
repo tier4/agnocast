@@ -1554,18 +1554,16 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     current->pid, wrapper->key);
 }
 
-static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+static void process_exit_cleanup(uint32_t pid)
 {
-  mutex_lock(&global_mutex);
-
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, PROC_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
   bool agnocast_related = false;
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
-    if (proc_info->pid == current->pid) {
+    if (proc_info->pid == pid) {
       hash_del(&proc_info->node);
       kfree(proc_info);
       agnocast_related = true;
@@ -1575,7 +1573,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 
   if (!agnocast_related) {
     mutex_unlock(&global_mutex);
-    return 0;
+    return;
   }
 
   struct topic_wrapper * wrapper;
@@ -1596,6 +1594,13 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
       kfree(wrapper);
     }
   }
+}
+
+static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+{
+  mutex_lock(&global_mutex);
+
+  process_exit_cleanup(current->pid);
 
   mutex_unlock(&global_mutex);
   return 0;
