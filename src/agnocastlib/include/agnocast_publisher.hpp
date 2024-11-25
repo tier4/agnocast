@@ -17,11 +17,6 @@
 #include <cstdint>
 #include <cstring>
 
-namespace agnocast
-{
-
-extern int agnocast_fd;
-
 // These are cut out of the class for information hiding.
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name);
 void publish_core(
@@ -31,6 +26,11 @@ uint32_t get_subscription_count_core(const std::string & topic_name);
 std::vector<uint64_t> borrow_loaned_message_core(
   const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
   uint64_t msg_virtual_address, uint64_t timestamp);
+
+namespace agnocast
+{
+
+extern int agnocast_fd;
 
 template <typename MessageT>
 class Publisher
@@ -74,10 +74,16 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
-    if (topic_name_.c_str() != message.get_topic_name()) return;  // string comparison?
-    if (publisher_pid_ != message.get_publisher_pid()) return;
+    if (
+      !message || topic_name_.c_str() != message.get_topic_name() ||
+      publisher_pid_ != message.get_publisher_pid()) {
+      RCLCPP_ERROR(logger, "Invalid message to publish.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
 
     publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
+    message.reset();
   }
 
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
