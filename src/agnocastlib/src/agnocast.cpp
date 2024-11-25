@@ -44,7 +44,7 @@ void * map_area(
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
   int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
   if (shm_fd == -1) {
-    RCLCPP_ERROR(logger, "shm_open failed");
+    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
     close(agnocast_fd);
     return NULL;
   }
@@ -56,7 +56,7 @@ void * map_area(
 
   if (writable) {
     if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
-      RCLCPP_ERROR(logger, "ftruncate failed");
+      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
       close(agnocast_fd);
       return NULL;
     }
@@ -68,7 +68,7 @@ void * map_area(
     0);
 
   if (ret == MAP_FAILED) {
-    RCLCPP_ERROR(logger, "mmap failed");
+    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
     close(agnocast_fd);
     return NULL;
   }
@@ -107,7 +107,7 @@ void * initialize_agnocast(const uint64_t shm_size)
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    RCLCPP_ERROR(logger, "Failed to open the device");
+    RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
     return NULL;
   }
 
