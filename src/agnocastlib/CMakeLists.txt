@@ -80,7 +80,7 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gmock REQUIRED)
   ament_add_gmock(test_${PROJECT_NAME} test/test_agnocast_utils.cpp 
     test/test_agnocast_topic_info.cpp test/test_agnocast_subscription.cpp
-    test/test_agnocast_smart_pointer.cpp)
+    test/test_agnocast_smart_pointer.cpp test/test_agnocast_publisher.cpp)
   target_include_directories(test_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_${PROJECT_NAME} gmock-global agnocast)
   set_tests_properties(test_${PROJECT_NAME} PROPERTIES

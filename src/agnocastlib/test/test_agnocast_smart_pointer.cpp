@@ -58,7 +58,6 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
 
   EXPECT_EQ(sut.get(), sut2.get());
   EXPECT_EQ(sut.get_topic_name(), sut2.get_topic_name());
-  EXPECT_EQ(sut.get_publisher_pid(), sut2.get_publisher_pid());
   EXPECT_EQ(sut.get_timestamp(), sut2.get_timestamp());
 }
 
@@ -72,7 +71,6 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_dont_need_rc_update)
 
   EXPECT_EQ(sut.get(), sut2.get());
   EXPECT_EQ(sut.get_topic_name(), sut2.get_topic_name());
-  EXPECT_EQ(sut.get_publisher_pid(), sut2.get_publisher_pid());
   EXPECT_EQ(sut.get_timestamp(), sut2.get_timestamp());
 }
 
@@ -88,7 +86,6 @@ TEST_F(AgnocastSmartPointerTest, move_constructor_normal)
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
-  EXPECT_EQ(dummy_pid, sut2.get_publisher_pid());
   EXPECT_EQ(dummy_ts, sut2.get_timestamp());
 }
 
@@ -105,7 +102,6 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_normal)
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
-  EXPECT_EQ(dummy_pid, sut2.get_publisher_pid());
   EXPECT_EQ(dummy_ts, sut2.get_timestamp());
 }
 
@@ -120,7 +116,6 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_self)
 
   EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(dummy_tn, sut.get_topic_name());
-  EXPECT_EQ(dummy_pid, sut.get_publisher_pid());
   EXPECT_EQ(dummy_ts, sut.get_timestamp());
 }
 

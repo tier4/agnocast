@@ -1,7 +1,6 @@
 #include "agnocast_publisher.hpp"
 
-namespace agnocast
-{
+using namespace agnocast;
 
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name)
 {
@@ -129,5 +128,3 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
 
   return get_subscriber_count_args.ret_subscriber_num;
 }
-
-}  // namespace agnocast
