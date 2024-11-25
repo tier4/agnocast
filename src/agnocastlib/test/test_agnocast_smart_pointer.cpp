@@ -21,22 +21,31 @@ protected:
   uint64_t dummy_ts;
 };
 
-TEST_F(AgnocastSmartPointerTest, deconstructor_normal)
+TEST_F(AgnocastSmartPointerTest, reset_normal)
 {
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(dummy_tn, dummy_pid, dummy_ts)).Times(1);
   agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_pid, dummy_ts, true};
+
+  sut.reset();
+
+  EXPECT_EQ(nullptr, sut.get());
 }
 
-TEST_F(AgnocastSmartPointerTest, deconstructor_dont_need_rc_update)
+TEST_F(AgnocastSmartPointerTest, reset_dont_need_rc_update)
 {
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(dummy_tn, dummy_pid, dummy_ts)).Times(0);
   agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_pid, dummy_ts, false};
+
+  sut.reset();
+
+  EXPECT_EQ(nullptr, sut.get());
 }
 
-TEST_F(AgnocastSmartPointerTest, deconstructor_nullptr)
+TEST_F(AgnocastSmartPointerTest, reset_nullptr)
 {
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc("", 0, 0)).Times(0);
   std::shared_ptr<agnocast::ipc_shared_ptr<int>> sut;
+  sut.reset();
 }
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)

@@ -33,15 +33,6 @@ class ipc_shared_ptr
   uint64_t timestamp_ = 0;
   bool need_rc_update_ = false;
 
-  void release()
-  {
-    if (ptr_ == nullptr) return;
-    if (!need_rc_update_) return;
-
-    decrement_rc(topic_name_, publisher_pid_, timestamp_);
-    ptr_ = nullptr;
-  }
-
   void increment_rc() const
   {
     if (!need_rc_update_) return;
@@ -74,7 +65,7 @@ public:
   {
   }
 
-  ~ipc_shared_ptr() { release(); }
+  ~ipc_shared_ptr() { reset(); }
 
   ipc_shared_ptr(const ipc_shared_ptr & r)
   : ptr_(r.ptr_),
@@ -99,8 +90,7 @@ public:
   ipc_shared_ptr & operator=(ipc_shared_ptr && r)
   {
     if (this != &r) {
-      release();
-
+      reset();
       ptr_ = r.ptr_;
       topic_name_ = r.topic_name_;
       publisher_pid_ = r.publisher_pid_;
@@ -119,6 +109,16 @@ public:
   operator bool() const noexcept { return ptr_; }
 
   T * get() const noexcept { return ptr_; }
+
+  void reset()
+  {
+    if (ptr_ == nullptr) return;
+
+    if (need_rc_update_) {
+      decrement_rc(topic_name_, publisher_pid_, timestamp_);
+    }
+    ptr_ = nullptr;
+  }
 };
 
 }  // namespace agnocast
