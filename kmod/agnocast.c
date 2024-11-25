@@ -1589,10 +1589,7 @@ static void process_exit_cleanup(uint32_t pid)
     }
   }
 
-  if (!agnocast_related) {
-    mutex_unlock(&global_mutex);
-    return;
-  }
+  if (!agnocast_related) return;
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
