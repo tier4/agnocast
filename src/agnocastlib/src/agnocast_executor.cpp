@@ -128,7 +128,8 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     exit(EXIT_FAILURE);
   }
 
-  for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
+  for (int32_t i = static_cast<int32_t>(receive_args.ret_len) - 1; i >= 0;
+       i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
       receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);

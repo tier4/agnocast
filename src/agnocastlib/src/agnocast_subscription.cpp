@@ -88,7 +88,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if ((pid_t)subscriber_args.ret_pids[i] == subscriber_pid_) {
+    if (static_cast<pid_t>(subscriber_args.ret_pids[i]) == subscriber_pid_) {
       /*
        * NOTE: In ROS2, communication should work fine even if the same process exists as both a
        * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
