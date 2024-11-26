@@ -47,13 +47,27 @@ TEST_F(AgnocastPublisherTest, test_publish_normal)
   dummy_publisher->publish(std::move(message));
 }
 
-TEST_F(AgnocastPublisherTest, test_publish_no_borrowed_message)
+TEST_F(AgnocastPublisherTest, test_publish_null_message)
 {
   EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, pid, _, _)).Times(0);
   agnocast::ipc_shared_ptr<int> message;
 
   EXPECT_EXIT(
     dummy_publisher->publish(std::move(message)), ::testing::ExitedWithCode(EXIT_FAILURE),
+    "Invalid message to publish.");
+}
+
+TEST_F(AgnocastPublisherTest, test_publish_copied_message)
+{
+  EXPECT_GLOBAL_CALL(
+    borrow_loaned_message_core, borrow_loaned_message_core(dummy_tn, pid, dummy_qd, _, _))
+    .WillOnce(testing::Return(std::vector<uint64_t>()));
+  EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, pid, _, _)).Times(0);
+  agnocast::ipc_shared_ptr<int> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<int> copied_message = message;
+
+  EXPECT_EXIT(
+    dummy_publisher->publish(std::move(copied_message)), ::testing::ExitedWithCode(EXIT_FAILURE),
     "Invalid message to publish.");
 }
 

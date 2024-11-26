@@ -69,12 +69,13 @@ public:
       delete release_ptr;
     }
 
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
+    return ipc_shared_ptr<MessageT>(
+      ptr, topic_name_.c_str(), publisher_pid_, timestamp, false, true);
   }
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
-    if (!message || topic_name_ != message.get_topic_name()) {
+    if (!message || topic_name_ != message.get_topic_name() || !message.is_created_by_borrow()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
