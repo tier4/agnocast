@@ -1426,13 +1426,13 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
   kfree(en);
 }
 
-static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
+static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper, uint32_t pid)
 {
   struct publisher_info * pub_info;
-  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, PUB_INFO_HASH_BITS);
   hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
   {
-    if (pub_info->pid != current->pid) {
+    if (pub_info->pid != pid) {
       continue;
     }
     pub_info->exited = true;
@@ -1458,9 +1458,9 @@ static void remove_publisher_info(struct topic_wrapper * wrapper, uint32_t publi
   }
 }
 
-static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
+static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t pid)
 {
-  struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
+  struct publisher_info * pub_info = set_exited_if_publisher(wrapper, pid);
   if (!pub_info) return;
 
   struct rb_root * root = &wrapper->topic.entries;
@@ -1468,32 +1468,32 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    if (en->publisher_pid == current->pid && !is_subscriber_referencing(en)) {
+    if (en->publisher_pid == pid && !is_subscriber_referencing(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
     }
   }
 
   if (pub_info->entries_num == 0) {
-    remove_publisher_info(wrapper, current->pid);
+    remove_publisher_info(wrapper, pid);
   }
 
   dev_info(
     agnocast_device,
     "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
     "(pre_handler_publisher)\n",
-    current->pid, wrapper->key);
+    pid, wrapper->key);
 }
 
-static bool remove_if_subscriber(struct topic_wrapper * wrapper)
+static bool remove_if_subscriber(struct topic_wrapper * wrapper, uint32_t pid)
 {
   struct subscriber_info * sub_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, SUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, SUB_INFO_HASH_BITS);
   bool is_subscriber = false;
   hash_for_each_possible_safe(wrapper->topic.sub_info_htable, sub_info, tmp, node, hash_val)
   {
-    if (sub_info->pid != current->pid) {
+    if (sub_info->pid != pid) {
       continue;
     }
 
@@ -1506,18 +1506,18 @@ static bool remove_if_subscriber(struct topic_wrapper * wrapper)
   return is_subscriber;
 }
 
-static bool remove_if_referencing_subscriber(struct entry_node * en)
+static bool remove_if_referencing_subscriber(struct entry_node * en, uint32_t pid)
 {
-  int index = get_referencing_subscriber_index(en, current->pid);
+  int index = get_referencing_subscriber_index(en, pid);
   if (index == -1) return false;
 
   remove_referencing_subscriber_by_index(en, index);
   return true;
 }
 
-static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
+static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t pid)
 {
-  if (!remove_if_subscriber(wrapper)) return;
+  if (!remove_if_subscriber(wrapper, pid)) return;
 
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
@@ -1526,7 +1526,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    if (!remove_if_referencing_subscriber(en)) continue;
+    if (!remove_if_referencing_subscriber(en, pid)) continue;
 
     if (is_subscriber_referencing(en)) continue;
 
@@ -1553,7 +1553,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     agnocast_device,
     "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
     "(pre_handler_subscriber)\n",
-    current->pid, wrapper->key);
+    pid, wrapper->key);
 }
 
 // =========================================
@@ -1596,9 +1596,9 @@ static void process_exit_cleanup(uint32_t pid)
   int bkt;
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
-    pre_handler_publisher_exit(wrapper);
+    pre_handler_publisher_exit(wrapper, pid);
 
-    pre_handler_subscriber_exit(wrapper);
+    pre_handler_subscriber_exit(wrapper, pid);
 
     // Check if we can release the topic_wrapper
     if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
