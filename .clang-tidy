@@ -23,7 +23,7 @@ Checks: "
 
   google-*,
   -google-default-arguments,
-  -google-build-using-namespace, /* This is unavoidable to use gmock-global */
+  -google-build-using-namespace, /* This cannot be resolved while using gmock-global. */
 
   hicpp-*,
   -hicpp-member-init,
