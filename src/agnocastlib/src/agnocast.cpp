@@ -113,7 +113,7 @@ void * initialize_agnocast(const uint64_t shm_size)
 
   const uint32_t pid = getpid();
 
-  union ioctl_new_shm_args new_shm_args;
+  union ioctl_new_shm_args new_shm_args = {};
   new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
