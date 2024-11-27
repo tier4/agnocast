@@ -2,10 +2,9 @@ Checks: "
   -*,
 
   bugprone-*,
-  -bugprone-easily-swappable-parameters,
+  -bugprone-easily-swappable-parameters, /* This is a bit excessive. */
 
   cert-*,
-  -cert-err58-cpp,
 
   clang-analyzer-*,
 
@@ -14,8 +13,7 @@ Checks: "
 
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-avoid-non-const-global-variables,
-  -cppcoreguidelines-init-variables,
+  -cppcoreguidelines-avoid-non-const-global-variables, /* This is hard to avoid. */
   -cppcoreguidelines-pro-bounds-constant-array-index,
   -cppcoreguidelines-pro-type-member-init,
   -cppcoreguidelines-pro-type-reinterpret-cast,
@@ -25,7 +23,7 @@ Checks: "
 
   google-*,
   -google-default-arguments,
-  -google-build-using-namespace,
+  -google-build-using-namespace, /* This is unavoidable to use gmock-global */
 
   hicpp-*,
   -hicpp-member-init,

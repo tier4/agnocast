@@ -69,7 +69,7 @@ void publish_core(
     uint32_t pid = publish_args.ret_pids[i];
 
     const std::string mq_name = create_mq_name(topic_name, pid);
-    mqd_t mq;
+    mqd_t mq = 0;
     if (opened_mqs.find(mq_name) != opened_mqs.end()) {
       mq = opened_mqs[mq_name];
     } else {
