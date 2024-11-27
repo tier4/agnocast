@@ -1696,6 +1696,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     AGN_DEBUG("after wake_up_interruptible() called: current->pid=%d", current->pid);
   } else {
     // do nothing and put error message
+    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
   }
 
   AGN_DEBUG("before spin_unlock_irqrestore() called: current->pid=%d", current->pid);
