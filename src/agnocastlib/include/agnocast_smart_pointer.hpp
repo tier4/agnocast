@@ -32,9 +32,6 @@ class ipc_shared_ptr
   uint32_t publisher_pid_ = 0;
   uint64_t timestamp_ = 0;
   bool need_rc_update_ = false;
-  // To satisfy the principle that the number of publish() should be equal to the number of
-  // borrow().
-  bool created_by_borrow_ = false;
 
   void increment_rc() const
   {
@@ -44,6 +41,7 @@ class ipc_shared_ptr
   }
 
   // Unimplemented operators. If these are called, a compile error is raised.
+  ipc_shared_ptr & operator=(const ipc_shared_ptr & r) = delete;
   bool operator==(const ipc_shared_ptr & r) const = delete;
   bool operator!=(const ipc_shared_ptr & r) const = delete;
 
@@ -52,19 +50,17 @@ public:
 
   const std::string get_topic_name() const { return topic_name_; }
   uint64_t get_timestamp() const { return timestamp_; }
-  bool is_created_by_borrow() const { return created_by_borrow_; }
 
   ipc_shared_ptr() = default;
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
-    bool need_rc_update, bool created_by_borrow = false)
+    bool need_rc_update)
   : ptr_(ptr),
     topic_name_(topic_name),
     publisher_pid_(publisher_pid),
     timestamp_(timestamp),
-    need_rc_update_(need_rc_update),
-    created_by_borrow_(created_by_borrow)
+    need_rc_update_(need_rc_update)
   {
   }
 
@@ -75,9 +71,14 @@ public:
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_),
-    need_rc_update_(r.need_rc_update_),
-    created_by_borrow_(false)
+    need_rc_update_(r.need_rc_update_)
   {
+    if (!need_rc_update_) {
+      RCLCPP_ERROR(logger, "Copying a ipc_shared_ptr without need_rc_update is not allowed.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
     increment_rc();
   }
 
@@ -86,8 +87,7 @@ public:
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_),
-    need_rc_update_(r.need_rc_update_),
-    created_by_borrow_(r.created_by_borrow_)
+    need_rc_update_(r.need_rc_update_)
   {
     r.ptr_ = nullptr;
   }
@@ -101,25 +101,8 @@ public:
       publisher_pid_ = r.publisher_pid_;
       timestamp_ = r.timestamp_;
       need_rc_update_ = r.need_rc_update_;
-      created_by_borrow_ = r.created_by_borrow_;
 
       r.ptr_ = nullptr;
-    }
-    return *this;
-  }
-
-  ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
-  {
-    if (this != &r) {
-      reset();
-      ptr_ = r.ptr_;
-      topic_name_ = r.topic_name_;
-      publisher_pid_ = r.publisher_pid_;
-      timestamp_ = r.timestamp_;
-      need_rc_update_ = r.need_rc_update_;
-      created_by_borrow_ = false;
-
-      increment_rc();
     }
     return *this;
   }
