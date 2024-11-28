@@ -47,9 +47,8 @@ container = ComposableNodeContainer(
 If you want to run the other application using `LD_PRELOAD` with Agnocast, you have to leave the contents of it when setting the environment variables.
 
 ```xml
-<arg name="CURR_LD_PRELOAD" default="$(env LD_PRELOAD)" />
 <node_container pkg="agnocastlib" exec="agnocast_component_container" name="...">
-  <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(var CURR_LD_PRELOAD)" />
+  <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD)" />
   <env name="MEMPOOL_SIZE" value="..." />
 </node_container>
 ```
