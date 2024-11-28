@@ -3,10 +3,16 @@
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kprobes.h>
+#include <linux/kthread.h>
 #include <linux/slab.h>  // kmalloc, kfree
+#include <linux/spinlock.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
+
+// Temporary debug messages to solve a specific problem
+#define AGN_DEBUG(fmt, ...) \
+  printk(KERN_DEBUG "agnocast_debug[%s:%d]: " fmt, __func__, __LINE__, ##__VA_ARGS__)
 
 static int major;
 static struct class * agnocast_class;
@@ -1424,13 +1430,13 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
   kfree(en);
 }
 
-static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper)
+static struct publisher_info * set_exited_if_publisher(struct topic_wrapper * wrapper, uint32_t pid)
 {
   struct publisher_info * pub_info;
-  uint32_t hash_val = hash_min(current->pid, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, PUB_INFO_HASH_BITS);
   hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
   {
-    if (pub_info->pid != current->pid) {
+    if (pub_info->pid != pid) {
       continue;
     }
     pub_info->exited = true;
@@ -1456,9 +1462,9 @@ static void remove_publisher_info(struct topic_wrapper * wrapper, uint32_t publi
   }
 }
 
-static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
+static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t pid)
 {
-  struct publisher_info * pub_info = set_exited_if_publisher(wrapper);
+  struct publisher_info * pub_info = set_exited_if_publisher(wrapper, pid);
   if (!pub_info) return;
 
   struct rb_root * root = &wrapper->topic.entries;
@@ -1466,32 +1472,32 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    if (en->publisher_pid == current->pid && !is_subscriber_referencing(en)) {
+    if (en->publisher_pid == pid && !is_subscriber_referencing(en)) {
       pub_info->entries_num--;
       remove_entry_node(wrapper, en);
     }
   }
 
   if (pub_info->entries_num == 0) {
-    remove_publisher_info(wrapper, current->pid);
+    remove_publisher_info(wrapper, pid);
   }
 
   dev_info(
     agnocast_device,
     "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
     "(pre_handler_publisher)\n",
-    current->pid, wrapper->key);
+    pid, wrapper->key);
 }
 
-static bool remove_if_subscriber(struct topic_wrapper * wrapper)
+static bool remove_if_subscriber(struct topic_wrapper * wrapper, uint32_t pid)
 {
   struct subscriber_info * sub_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, SUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, SUB_INFO_HASH_BITS);
   bool is_subscriber = false;
   hash_for_each_possible_safe(wrapper->topic.sub_info_htable, sub_info, tmp, node, hash_val)
   {
-    if (sub_info->pid != current->pid) {
+    if (sub_info->pid != pid) {
       continue;
     }
 
@@ -1504,18 +1510,18 @@ static bool remove_if_subscriber(struct topic_wrapper * wrapper)
   return is_subscriber;
 }
 
-static bool remove_if_referencing_subscriber(struct entry_node * en)
+static bool remove_if_referencing_subscriber(struct entry_node * en, uint32_t pid)
 {
-  int index = get_referencing_subscriber_index(en, current->pid);
+  int index = get_referencing_subscriber_index(en, pid);
   if (index == -1) return false;
 
   remove_referencing_subscriber_by_index(en, index);
   return true;
 }
 
-static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
+static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t pid)
 {
-  if (!remove_if_subscriber(wrapper)) return;
+  if (!remove_if_subscriber(wrapper, pid)) return;
 
   // Decrement the reference count, then free the entry node if it reaches zero and publisher has
   // already exited.
@@ -1524,7 +1530,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
   while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
-    if (!remove_if_referencing_subscriber(en)) continue;
+    if (!remove_if_referencing_subscriber(en, pid)) continue;
 
     if (is_subscriber_referencing(en)) continue;
 
@@ -1551,21 +1557,35 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper)
     agnocast_device,
     "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
     "(pre_handler_subscriber)\n",
-    current->pid, wrapper->key);
+    pid, wrapper->key);
 }
 
-static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
-{
-  mutex_lock(&global_mutex);
+// =========================================
+// Cleanup resources related to exited processes
 
+// Ring buffer to hold exited pids
+#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
+static DEFINE_SPINLOCK(pid_queue_lock);
+static uint32_t exit_pid_queue[EXIT_QUEUE_SIZE];
+static uint32_t queue_head;
+static uint32_t queue_tail;
+
+// For controling the kernel thread
+static struct task_struct * worker_task;
+static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
+static atomic_t has_new_pid = ATOMIC_INIT(0);
+
+static void process_exit_cleanup(uint32_t pid)
+{
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min(current->pid, PROC_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
   bool agnocast_related = false;
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
-    if (proc_info->pid == current->pid) {
+    if (proc_info->pid == pid) {
       hash_del(&proc_info->node);
       kfree(proc_info);
       agnocast_related = true;
@@ -1573,19 +1593,16 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     }
   }
 
-  if (!agnocast_related) {
-    mutex_unlock(&global_mutex);
-    return 0;
-  }
+  if (!agnocast_related) return;
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
   int bkt;
   hash_for_each_safe(topic_hashtable, bkt, node, wrapper, node)
   {
-    pre_handler_publisher_exit(wrapper);
+    pre_handler_publisher_exit(wrapper, pid);
 
-    pre_handler_subscriber_exit(wrapper);
+    pre_handler_subscriber_exit(wrapper, pid);
 
     // Check if we can release the topic_wrapper
     if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
@@ -1596,8 +1613,98 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
       kfree(wrapper);
     }
   }
+}
 
-  mutex_unlock(&global_mutex);
+static int exit_worker_thread(void * data)
+{
+  AGN_DEBUG("exit_worker_thread() start: current->pid=%d", current->pid);
+
+  while (!kthread_should_stop()) {
+    uint32_t pid;
+    unsigned long flags;
+    bool got_pid = false;
+
+    AGN_DEBUG("before wait_event_interruptible() called: current->pid=%d", current->pid);
+
+    wait_event_interruptible(worker_wait, atomic_read(&has_new_pid) || kthread_should_stop());
+
+    AGN_DEBUG("after wait_event_interruptible() called: current->pid=%d", current->pid);
+
+    if (kthread_should_stop()) break;
+
+    AGN_DEBUG("before spin_lock_irqsave() called: current->pid=%d", current->pid);
+
+    spin_lock_irqsave(&pid_queue_lock, flags);
+
+    AGN_DEBUG("after spin_lock_irqsave() called: current->pid=%d", current->pid);
+
+    if (queue_head != queue_tail) {
+      pid = exit_pid_queue[queue_head];
+      queue_head = (queue_head + 1) & (EXIT_QUEUE_SIZE - 1);
+      got_pid = true;
+    }
+
+    // queue is empty
+    if (queue_head == queue_tail) atomic_set(&has_new_pid, 0);
+
+    AGN_DEBUG("before spin_unlock_irqrestore() called: current->pid=%d", current->pid);
+
+    spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+    AGN_DEBUG("after spin_unlock_irqrestore() called: current->pid=%d", current->pid);
+
+    if (got_pid) {
+      AGN_DEBUG(
+        "before mutex_lock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
+      mutex_lock(&global_mutex);
+      AGN_DEBUG("after mutex_lock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
+      process_exit_cleanup(pid);
+      AGN_DEBUG(
+        "before mutex_unlock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
+      mutex_unlock(&global_mutex);
+      AGN_DEBUG(
+        "after mutex_unlock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
+    }
+  }
+
+  return 0;
+}
+
+static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+{
+  unsigned long flags;
+  uint32_t next;
+
+  AGN_DEBUG("before spin_lock_irqsave() called: current->pid=%d", current->pid);
+
+  spin_lock_irqsave(&pid_queue_lock, flags);
+
+  AGN_DEBUG("after spin_lock_irqsave() called: current->pid=%d", current->pid);
+
+  // Assumes EXIT_QUEUE_SIZE is 2^N
+  next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
+
+  if (next != queue_head) {  // queue is not full
+    exit_pid_queue[queue_tail] = current->pid;
+    queue_tail = next;
+    atomic_set(&has_new_pid, 1);
+
+    AGN_DEBUG("before wake_up_interruptible() called: current->pid=%d", current->pid);
+
+    wake_up_interruptible(&worker_wait);
+
+    AGN_DEBUG("after wake_up_interruptible() called: current->pid=%d", current->pid);
+  } else {
+    // do nothing and put error message
+    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+  }
+
+  AGN_DEBUG("before spin_unlock_irqrestore() called: current->pid=%d", current->pid);
+
+  spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+  AGN_DEBUG("after spin_unlock_irqrestore() called: current->pid=%d", current->pid);
+
   return 0;
 }
 
@@ -1635,6 +1742,13 @@ static int agnocast_init(void)
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 
+  queue_head = queue_tail = 0;
+  worker_task = kthread_run(exit_worker_thread, NULL, "agnocast_exit_worker");
+  if (IS_ERR(worker_task)) {
+    dev_warn(agnocast_device, "failed to create kernel thread\n");
+    return PTR_ERR(worker_task);
+  }
+
   ret = register_kprobe(&kp);
   if (ret < 0) {
     dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
@@ -1642,7 +1756,6 @@ static int agnocast_init(void)
   }
 
   dev_info(agnocast_device, "Agnocast installed!\n");
-
   return 0;
 }
 
@@ -1704,6 +1817,9 @@ static void agnocast_exit(void)
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
+
+  wake_up_interruptible(&worker_wait);
+  kthread_stop(worker_task);
 
   unregister_kprobe(&kp);
 }
