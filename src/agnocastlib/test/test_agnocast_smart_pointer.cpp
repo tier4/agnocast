@@ -31,7 +31,7 @@ TEST_F(AgnocastSmartPointerTest, reset_normal)
   EXPECT_EQ(nullptr, sut.get());
 }
 
-TEST_F(AgnocastSmartPointerTest, reset_dont_need_rc_update)
+TEST_F(AgnocastSmartPointerTest, reset_isnt_created_by_borrow)
 {
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(dummy_tn, dummy_pid, dummy_ts)).Times(0);
   agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_pid, dummy_ts, false};
@@ -61,7 +61,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
   EXPECT_EQ(sut.get_timestamp(), sut2.get_timestamp());
 }
 
-TEST_F(AgnocastSmartPointerTest, copy_constructor_dont_need_rc_update)
+TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_borrow)
 {
   EXPECT_GLOBAL_CALL(increment_rc_core, increment_rc_core(dummy_tn, dummy_pid, dummy_ts)).Times(0);
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(dummy_tn, dummy_pid, dummy_ts)).Times(0);

@@ -55,12 +55,12 @@ public:
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
-    bool need_rc_update)
+    bool is_created_by_borrow)
   : ptr_(ptr),
     topic_name_(topic_name),
     publisher_pid_(publisher_pid),
     timestamp_(timestamp),
-    is_created_by_borrow_(need_rc_update)
+    is_created_by_borrow_(is_created_by_borrow)
   {
   }
 
