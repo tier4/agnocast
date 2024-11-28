@@ -42,18 +42,14 @@ TEST(AgnocastUtilsTest, validate_ld_preload_different)
 
 TEST(AgnocastUtilsTest, validate_ld_preload_suffix)
 {
-  setenv("LD_PRELOAD", "libagnocast_heaphook.so_dummy", 1);
-  EXPECT_EXIT(
-    agnocast::validate_ld_preload(), ::testing::ExitedWithCode(EXIT_FAILURE),
-    "LD_PRELOAD is not set to libagnocast_heaphook.so");
+  setenv("LD_PRELOAD", "libagnocast_heaphook.so:dummy", 1);
+  EXPECT_NO_THROW(agnocast::validate_ld_preload());
   unsetenv("LD_PRELOAD");
 }
 
 TEST(AgnocastUtilsTest, validate_ld_preload_prefix)
 {
-  setenv("LD_PRELOAD", "dummy_libagnocast_heaphook.so", 1);
-  EXPECT_EXIT(
-    agnocast::validate_ld_preload(), ::testing::ExitedWithCode(EXIT_FAILURE),
-    "LD_PRELOAD is not set to libagnocast_heaphook.so");
+  setenv("LD_PRELOAD", "dummy:libagnocast_heaphook.so", 1);
+  EXPECT_NO_THROW(agnocast::validate_ld_preload());
   unsetenv("LD_PRELOAD");
 }

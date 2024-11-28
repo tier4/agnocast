@@ -12,7 +12,7 @@ rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 void validate_ld_preload()
 {
   const char * ld_preload = getenv("LD_PRELOAD");
-  if (ld_preload == nullptr || std::strcmp(ld_preload, "libagnocast_heaphook.so") != 0) {
+  if (ld_preload == nullptr || std::strstr(ld_preload, "libagnocast_heaphook.so") == nullptr) {
     RCLCPP_ERROR(logger, "LD_PRELOAD is not set to libagnocast_heaphook.so");
     exit(EXIT_FAILURE);
   }

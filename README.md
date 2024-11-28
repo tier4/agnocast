@@ -126,3 +126,4 @@ If you want to disable pre-commit, please execute `pre-commit uninstall`.
 - [Autoware integration](./docs/autoware_integration.md)
 - [Memory format in heaphook](./docs/heaphook_alignment.md)
 - [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
+- [How to set environment variables](./docs/how_to_set_environment_variables.md)
