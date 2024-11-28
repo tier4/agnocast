@@ -4,7 +4,7 @@ using namespace agnocast;
 
 void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp)
 {
-  union ioctl_update_entry_args entry_args;
+  union ioctl_update_entry_args entry_args = {};
   entry_args.topic_name = topic_name.c_str();
   entry_args.subscriber_pid = getpid();
   entry_args.publisher_pid = publisher_pid;
@@ -18,7 +18,7 @@ void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64
 
 void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp)
 {
-  union ioctl_update_entry_args entry_args;
+  union ioctl_update_entry_args entry_args = {};
   entry_args.topic_name = topic_name.c_str();
   entry_args.subscriber_pid = getpid();
   entry_args.publisher_pid = publisher_pid;
