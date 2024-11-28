@@ -15,7 +15,9 @@ TEST(AgnocastTopicInfoTest, get_erased_callback_normal)
   int data = 0;
   agnocast::TypedMessagePtr<int> int_arg{
     agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0, false)};
-  auto int_callback = [&](agnocast::ipc_shared_ptr<int> /*unused_arg*/) { callback_called = true; };
+  auto int_callback = [&](const agnocast::ipc_shared_ptr<int> & /*unused_arg*/) {
+    callback_called = true;
+  };
 
   agnocast::TypeErasedCallback erased_callback = agnocast::get_erased_callback<int>(int_callback);
   erased_callback(int_arg);

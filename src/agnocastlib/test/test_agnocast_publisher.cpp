@@ -47,7 +47,7 @@ TEST_F(AgnocastPublisherTest, test_publish_normal)
   dummy_publisher->publish(std::move(message));
 }
 
-TEST_F(AgnocastPublisherTest, test_publish_no_borrowed_message)
+TEST_F(AgnocastPublisherTest, test_publish_null_message)
 {
   EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, pid, _, _)).Times(0);
   agnocast::ipc_shared_ptr<int> message;
