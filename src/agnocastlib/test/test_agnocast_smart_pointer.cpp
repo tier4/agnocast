@@ -69,7 +69,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_dont_need_rc_update)
 
   EXPECT_EXIT(
     agnocast::ipc_shared_ptr<int> sut2{sut}, ::testing::ExitedWithCode(EXIT_FAILURE),
-    "Copying a ipc_shared_ptr without need_rc_update is not allowed.");
+    "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
 }
 
 TEST_F(AgnocastSmartPointerTest, move_constructor_normal)

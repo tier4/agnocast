@@ -74,7 +74,9 @@ public:
     need_rc_update_(r.need_rc_update_)
   {
     if (!need_rc_update_) {
-      RCLCPP_ERROR(logger, "Copying a ipc_shared_ptr without need_rc_update is not allowed.");
+      RCLCPP_ERROR(
+        logger,
+        "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
