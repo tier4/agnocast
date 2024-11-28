@@ -13,8 +13,8 @@ std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
   const uint32_t topic_local_id)
 {
-  bool found;
-  AgnocastTopicInfo * info;
+  bool found = false;
+  AgnocastTopicInfo * info = nullptr;
 
   {
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);

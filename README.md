@@ -125,3 +125,4 @@ If you want to disable pre-commit, please execute `pre-commit uninstall`.
 - [message queue](./docs/message_queue.md)
 - [Autoware integration](./docs/autoware_integration.md)
 - [Memory format in heaphook](./docs/heaphook_alignment.md)
+- [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)

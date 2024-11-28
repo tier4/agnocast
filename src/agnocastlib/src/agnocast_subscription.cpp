@@ -31,7 +31,7 @@ void SubscriptionBase::wait_for_new_publisher() const
 
   const std::string mq_name = create_mq_name_new_publisher(subscriber_pid_);
 
-  struct mq_attr attr;
+  struct mq_attr attr = {};
   attr.mq_flags = 0;                            // Blocking queue
   attr.mq_maxmsg = 10;                          // Maximum number of messages in the queue
   attr.mq_msgsize = sizeof(MqMsgNewPublisher);  // Maximum message size
@@ -48,7 +48,7 @@ void SubscriptionBase::wait_for_new_publisher() const
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
     while (agnocast::ok()) {
-      MqMsgNewPublisher mq_msg;
+      MqMsgNewPublisher mq_msg = {};
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
       if (ret == -1) {
         RCLCPP_ERROR(logger, "mq_receive for new publisher failed: %s", strerror(errno));
@@ -73,7 +73,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.
-  union ioctl_subscriber_args subscriber_args;
+  union ioctl_subscriber_args subscriber_args = {};
   subscriber_args.topic_name = topic_name_.c_str();
   subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                 ? static_cast<uint32_t>(qos_.depth())
@@ -88,7 +88,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if ((pid_t)subscriber_args.ret_pids[i] == subscriber_pid_) {
+    if (static_cast<pid_t>(subscriber_args.ret_pids[i]) == subscriber_pid_) {
       /*
        * NOTE: In ROS2, communication should work fine even if the same process exists as both a
        * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
@@ -116,7 +116,7 @@ mqd_t open_mq_for_subscription(
   std::pair<mqd_t, std::string> & mq_subscription)
 {
   std::string mq_name = create_mq_name(topic_name, subscriber_pid);
-  struct mq_attr attr;
+  struct mq_attr attr = {};
   attr.mq_flags = 0;                        // Blocking queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
   attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)

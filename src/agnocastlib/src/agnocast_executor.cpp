@@ -48,7 +48,7 @@ void AgnocastExecutor::prepare_epoll()
         continue;
       }
 
-      struct epoll_event ev;
+      struct epoll_event ev = {};
       ev.events = EPOLLIN;
       ev.data.u32 = topic_local_id;
 
@@ -67,7 +67,7 @@ void AgnocastExecutor::prepare_epoll()
 bool AgnocastExecutor::get_next_agnocast_executables(
   AgnocastExecutables & agnocast_executables, const int timeout_ms) const
 {
-  struct epoll_event event;
+  struct epoll_event event = {};
 
   // blocking with timeout
   const int nfds = epoll_wait(epoll_fd_, &event, 1 /*maxevents*/, timeout_ms);
@@ -103,7 +103,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     topic_info = it->second;
   }
 
-  MqMsgAgnocast mq_msg;
+  MqMsgAgnocast mq_msg = {};
 
   // non-blocking
   auto ret = mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
@@ -117,7 +117,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     return false;
   }
 
-  union ioctl_receive_msg_args receive_args;
+  union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = topic_info.topic_name.c_str();
   receive_args.subscriber_pid = my_pid_;
   receive_args.qos_depth = topic_info.qos_depth;
@@ -128,7 +128,8 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     exit(EXIT_FAILURE);
   }
 
-  for (int32_t i = (int32_t)receive_args.ret_len - 1; i >= 0; i--) {  // older messages first
+  for (int32_t i = static_cast<int32_t>(receive_args.ret_len) - 1; i >= 0;
+       i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
       receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
