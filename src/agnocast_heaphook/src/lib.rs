@@ -121,8 +121,6 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
 
     let mempool_ptr: *mut c_void = unsafe { initialize_agnocast(aligned_size) };
 
-    unsafe { libc::dlclose(agnocast_lib) };
-
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
