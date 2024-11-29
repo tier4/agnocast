@@ -38,7 +38,7 @@ import os
 container = ComposableNodeContainer(
     ...,
     additional_env={
-        'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD')}",
+        'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
         "MEMPOOL_SIZE": "...",
     },
 )
