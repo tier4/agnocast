@@ -66,4 +66,4 @@ container = ComposableNodeContainer(
 ```
 
 > [!WARNING]
-> If the other application hooks [memory allocation/deallocation functions that are hooked by Agnocast](#introduction), it is impossible to cooperate with it.
+> If the other applications hooks [memory allocation/deallocation functions that are hooked by Agnocast](#introduction), it cannot be used together with Agnocast.
