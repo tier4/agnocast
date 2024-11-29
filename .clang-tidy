@@ -26,9 +26,7 @@ Checks: "
   -google-build-using-namespace,
 
   hicpp-*,
-  -hicpp-member-init,
   -hicpp-vararg,
-  -hicpp-special-member-functions,
 
   misc-*,
 
