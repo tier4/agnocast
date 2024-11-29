@@ -166,6 +166,12 @@ static void shutdown_agnocast()
 class Cleanup
 {
 public:
+  Cleanup(const Cleanup &) = delete;
+  Cleanup & operator=(const Cleanup &) = delete;
+  Cleanup(Cleanup &&) = delete;
+  Cleanup & operator=(Cleanup &&) = delete;
+
+  Cleanup() = default;
   ~Cleanup() { shutdown_agnocast(); }
 };
 
