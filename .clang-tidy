@@ -32,6 +32,12 @@ Checks: "
 
   misc-*,
 
+  modernize-*,
+  -modernize-avoid-bind,
+  -modernize-pass-by-value,
+  -modernize-use-nullptr,
+  -modernize-use-trailing-return-type,
+
   performance-*,
   -performance-no-int-to-ptr,
 
@@ -51,6 +57,7 @@ WarningsAsErrors: "
   google-*,
   hicpp-*,
   misc-*,
+  modernize-*,
   performance-*,
   portability-*,
   readability-*"
