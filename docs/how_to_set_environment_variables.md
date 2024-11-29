@@ -16,39 +16,18 @@ The hook library is generated as `libagnocast_heaphook.so`, so Agnocast requires
 
 ## Integrate with ROS 2 launch
 
-You can set environment variables through ROS 2 launch file systems as follows.
+You can set environment variables through ROS 2 launch file systems as follows. To run the other application using `LD_PRELOAD` with Agnocast, you must add "libagnocast_heaphook.so" to the existing 'LD_PRELOAD' contents without modifying the libraries already specified there.
 
 ```xml
 <node pkg="..." exec="..." name="...">
-  <env name="LD_PRELOAD" value="libagnocast_heaphook.so" />
+  <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
   <env name="MEMPOOL_SIZE" value="..." />
 </node>
 ```
 
 ```xml
 <node_container pkg="agnocastlib" exec="agnocast_component_container" name="...">
-  <env name="LD_PRELOAD" value="libagnocast_heaphook.so"/>
-  <env name="MEMPOOL_SIZE" value="..." />
-</node_container>
-```
-
-```python
-container = ComposableNodeContainer(
-    ...,
-    additional_env={
-        "LD_PRELOAD": "libagnocast_heaphook.so",
-        "MEMPOOL_SIZE": "...",
-    },
-)
-```
-
-## Co-operation with application using LD_PRELOAD
-
-If you want to run the other application using `LD_PRELOAD` with Agnocast, you must add "libagnocast_heaphook.so" to the existing 'LD_PRELOAD' contents without modifying the libraries already specified there.
-
-```xml
-<node_container pkg="agnocastlib" exec="agnocast_component_container" name="...">
-  <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD)" />
+  <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
   <env name="MEMPOOL_SIZE" value="..." />
 </node_container>
 ```
