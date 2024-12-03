@@ -106,7 +106,8 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   MqMsgAgnocast mq_msg = {};
 
   // non-blocking
-  auto ret = mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
+  auto ret =
+    mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
   if (ret < 0) {
     if (errno != EAGAIN) {
       RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));

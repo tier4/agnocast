@@ -49,7 +49,7 @@ void SubscriptionBase::wait_for_new_publisher() const
   auto th = std::thread([=]() {
     while (agnocast::ok()) {
       MqMsgNewPublisher mq_msg = {};
-      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), NULL);
+      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
       if (ret == -1) {
         RCLCPP_ERROR(logger, "mq_receive for new publisher failed: %s", strerror(errno));
         close(agnocast_fd);
