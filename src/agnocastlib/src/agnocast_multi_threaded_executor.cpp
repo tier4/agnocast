@@ -50,12 +50,12 @@ void MultiThreadedAgnocastExecutor::spin()
     std::lock_guard wait_lock{wait_mutex_};
 
     for (size_t i = 0; i < number_of_ros2_threads_ - 1; i++) {
-      auto func = std::bind(&MultiThreadedAgnocastExecutor::ros2_spin, this);
+      auto func = [this] { ros2_spin(); };
       threads.emplace_back(func);
     }
 
     for (size_t i = 0; i < number_of_agnocast_threads_; i++) {
-      auto func = std::bind(&MultiThreadedAgnocastExecutor::agnocast_spin, this);
+      auto func = [this] { agnocast_spin(); };
       threads.emplace_back(func);
     }
   }

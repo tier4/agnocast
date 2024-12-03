@@ -31,7 +31,6 @@ Checks: "
   misc-*,
 
   modernize-*,
-  -modernize-avoid-bind,
   -modernize-pass-by-value,
   -modernize-use-nullptr,
   -modernize-use-trailing-return-type,
