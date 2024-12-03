@@ -1,11 +1,11 @@
 <launch>
     <node pkg="sample_application" exec="callback_group_test_talker" name="callback_group_test_talker" output="screen">
-        <env name="LD_PRELOAD" value="libagnocast_heaphook.so" />
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
         <env name="MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
     </node>
 
     <node_container pkg="agnocastlib" exec="agnocast_component_container_mt" name="callback_group_test_listener_container" namespace="" output="screen">
-      <env name="LD_PRELOAD" value="libagnocast_heaphook.so" />
+      <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
       <env name="MEMPOOL_SIZE" value="67108864" /> <!-- 64MB -->
 
       <composable_node pkg="sample_application" plugin="CallbackGroupTestListener" name="callback_group_test_listener" namespace="">
