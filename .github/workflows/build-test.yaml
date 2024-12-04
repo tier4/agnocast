@@ -91,7 +91,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gcovr -r . --txt > coverage.txt
+        gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" --txt > coverage.txt
         coverage_text=$(<coverage.txt)
         gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '```\n'"$coverage_text"'\n```')"
 
