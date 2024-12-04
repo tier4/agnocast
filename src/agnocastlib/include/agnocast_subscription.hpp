@@ -55,7 +55,7 @@ protected:
 
 public:
   SubscriptionBase(
-    const pid_t subscriber_pid, const std::string & topic_name, const rclcpp::QoS & qos);
+    const pid_t subscriber_pid, const std::string topic_name, const rclcpp::QoS & qos);
 };
 
 template <typename MessageT>

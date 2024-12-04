@@ -30,7 +30,6 @@ Checks: "
   misc-*,
 
   modernize-*,
-  -modernize-pass-by-value,
   -modernize-use-trailing-return-type,
 
   performance-*,
