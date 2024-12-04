@@ -8,8 +8,6 @@
 #include <mutex>
 #include <set>
 
-// Test
-
 namespace agnocast
 {
 
