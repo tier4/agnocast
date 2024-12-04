@@ -54,8 +54,7 @@ protected:
   union ioctl_subscriber_args initialize(bool is_take_sub);
 
 public:
-  SubscriptionBase(
-    const pid_t subscriber_pid, const std::string topic_name, const rclcpp::QoS & qos);
+  SubscriptionBase(const pid_t subscriber_pid, std::string topic_name, const rclcpp::QoS & qos);
 };
 
 template <typename MessageT>
