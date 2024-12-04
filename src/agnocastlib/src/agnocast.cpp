@@ -46,7 +46,7 @@ void * map_area(
   if (shm_fd == -1) {
     RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
     close(agnocast_fd);
-    return NULL;
+    return nullptr;
   }
 
   {
@@ -58,7 +58,7 @@ void * map_area(
     if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
       RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
       close(agnocast_fd);
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -70,7 +70,7 @@ void * map_area(
   if (ret == MAP_FAILED) {
     RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
     close(agnocast_fd);
-    return NULL;
+    return nullptr;
   }
 
   return ret;
@@ -81,7 +81,7 @@ void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint
   if (already_mapped(pid)) {
     RCLCPP_ERROR(logger, "map_writeable_area failed");
     close(agnocast_fd);
-    return NULL;
+    return nullptr;
   }
 
   return map_area(pid, shm_addr, shm_size, true);
@@ -92,7 +92,7 @@ void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint6
   if (already_mapped(pid)) {
     return;
   }
-  if (map_area(pid, shm_addr, shm_size, false) == NULL) {
+  if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
     exit(EXIT_FAILURE);
   }
 }
@@ -102,13 +102,13 @@ void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
-    return NULL;
+    return nullptr;
   }
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
-    return NULL;
+    return nullptr;
   }
 
   const uint32_t pid = getpid();
@@ -119,7 +119,7 @@ void * initialize_agnocast(const uint64_t shm_size)
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed");
     close(agnocast_fd);
-    return NULL;
+    return nullptr;
   }
   return map_writable_area(pid, new_shm_args.ret_addr, shm_size);
 }

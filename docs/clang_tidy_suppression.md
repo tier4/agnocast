@@ -14,6 +14,14 @@ This is difficult to avoid, as it requires a major change to the implementation.
 
 In the current logic, `reinterpret-cast` is essential.
 
+## cppcoreguidelines-pro-type-vararg, hicpp-vararg
+
+These cannot be resolved while using `ioctl`.
+
+## cppcoreguidelines-pro-type-union-access
+
+This is difficult to avoid, as it prohibits the use of `union`.
+
 ## google-build-using-namespace
 
 This cannot be resolved while using gmock-global. This is due to [this issue](https://github.com/apriorit/gmock-global/issues/5).
