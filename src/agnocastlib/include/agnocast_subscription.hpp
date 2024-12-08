@@ -158,11 +158,7 @@ public:
       data_ = std::move(new_data);
     }
 
-    if (data_) {
-      return data_;
-    } else {
-      return agnocast::ipc_shared_ptr<MessageT>();
-    }
+    return data_;
   };
 };
 

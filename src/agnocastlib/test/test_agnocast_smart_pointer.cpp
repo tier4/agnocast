@@ -72,6 +72,14 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_borrow)
     "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
 }
 
+TEST_F(AgnocastSmartPointerTest, copy_constructor_empty)
+{
+  EXPECT_GLOBAL_CALL(increment_rc_core, increment_rc_core(dummy_tn, dummy_pid, dummy_ts)).Times(0);
+  EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(dummy_tn, dummy_pid, dummy_ts)).Times(0);
+  agnocast::ipc_shared_ptr<int> sut;
+  EXPECT_NO_THROW(agnocast::ipc_shared_ptr<int> sut2{sut});
+}
+
 TEST_F(AgnocastSmartPointerTest, move_constructor_normal)
 {
   int * ptr = new int(0);
