@@ -157,7 +157,6 @@ public:
     if (new_data) {
       data_ = std::move(new_data);
     }
-
     return data_;
   };
 };
