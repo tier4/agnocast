@@ -73,7 +73,7 @@ public:
     timestamp_(r.timestamp_),
     is_created_by_sub_(r.is_created_by_sub_)
   {
-    if (!is_created_by_sub_) {
+    if (ptr_ != nullptr && !is_created_by_sub_) {
       RCLCPP_ERROR(
         logger,
         "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
