@@ -31,11 +31,11 @@ class ipc_shared_ptr
   std::string topic_name_;
   uint32_t publisher_pid_ = 0;
   uint64_t timestamp_ = 0;
-  bool is_created_by_borrow_ = false;
+  bool is_created_by_sub_ = false;
 
   void increment_rc() const
   {
-    if (!is_created_by_borrow_) return;
+    if (!is_created_by_sub_) return;
 
     increment_rc_core(topic_name_, publisher_pid_, timestamp_);
   }
@@ -55,12 +55,12 @@ public:
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
-    bool is_created_by_borrow)
+    bool is_created_by_sub)
   : ptr_(ptr),
     topic_name_(topic_name),
     publisher_pid_(publisher_pid),
     timestamp_(timestamp),
-    is_created_by_borrow_(is_created_by_borrow)
+    is_created_by_sub_(is_created_by_sub)
   {
   }
 
@@ -71,9 +71,9 @@ public:
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_),
-    is_created_by_borrow_(r.is_created_by_borrow_)
+    is_created_by_sub_(r.is_created_by_sub_)
   {
-    if (!is_created_by_borrow_) {
+    if (!is_created_by_sub_) {
       RCLCPP_ERROR(
         logger,
         "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
@@ -89,7 +89,7 @@ public:
     topic_name_(r.topic_name_),
     publisher_pid_(r.publisher_pid_),
     timestamp_(r.timestamp_),
-    is_created_by_borrow_(r.is_created_by_borrow_)
+    is_created_by_sub_(r.is_created_by_sub_)
   {
     r.ptr_ = nullptr;
   }
@@ -102,7 +102,7 @@ public:
       topic_name_ = r.topic_name_;
       publisher_pid_ = r.publisher_pid_;
       timestamp_ = r.timestamp_;
-      is_created_by_borrow_ = r.is_created_by_borrow_;
+      is_created_by_sub_ = r.is_created_by_sub_;
 
       r.ptr_ = nullptr;
     }
@@ -121,7 +121,7 @@ public:
   {
     if (ptr_ == nullptr) return;
 
-    if (is_created_by_borrow_) {
+    if (is_created_by_sub_) {
       decrement_rc(topic_name_, publisher_pid_, timestamp_);
     }
     ptr_ = nullptr;
