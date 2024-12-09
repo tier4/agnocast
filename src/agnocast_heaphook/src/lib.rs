@@ -2,7 +2,7 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     cell::Cell,
-    ffi::{c_char, CStr},
+    ffi::CStr,
     mem::MaybeUninit,
     os::raw::c_void,
     sync::{
@@ -10,8 +10,6 @@ use std::{
         LazyLock, Mutex,
     },
 };
-
-type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
 const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
@@ -82,6 +80,10 @@ static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
 static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 
+extern "C" {
+    fn initialize_agnocast(size: usize) -> *mut c_void;
+}
+
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
 type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
@@ -98,26 +100,6 @@ static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
 
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
-
-    let agnocast_lib: *mut c_void = unsafe {
-        libc::dlopen(
-            b"libagnocast.so\0".as_ptr() as *const c_char,
-            libc::RTLD_NOW,
-        )
-    };
-    if agnocast_lib.is_null() {
-        panic!("[ERROR] [Agnocast] Failed to load libagnocast.so");
-    }
-
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"initialize_agnocast\0").unwrap();
-    let initialize_agnocast_ptr: *mut c_void =
-        unsafe { libc::dlsym(agnocast_lib, symbol.as_ptr()) };
-    if initialize_agnocast_ptr.is_null() {
-        panic!("[ERROR] [Agnocast] Failed to find initialize_agnocast() function");
-    }
-
-    let initialize_agnocast: InitializeAgnocastType =
-        unsafe { std::mem::transmute(initialize_agnocast_ptr) };
 
     let mempool_ptr: *mut c_void = unsafe { initialize_agnocast(aligned_size) };
 
