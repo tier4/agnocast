@@ -25,3 +25,37 @@ This is difficult to avoid, as it prohibits the use of `union`.
 ## google-build-using-namespace
 
 This cannot be resolved while using gmock-global. This is due to [this issue](https://github.com/apriorit/gmock-global/issues/5).
+
+## modernize-use-trailing-return-type
+
+As this doesn't have any effect on performance, and to keep the coding style in line with Autoware, this is suppressed.
+
+## performance-no-int-to-ptr
+
+In current logic, this cannot be resolved.
+
+```bash
+: error: integer to pointer cast pessimizes optimization opportunities [performance-no-int-to-ptr,-warnings-as-errors]
+    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
+    ^
+```
+
+## readability-identifier-length
+
+This is a bit excessive, such as
+
+```bash
+: error: variable name 'mq' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+        ^
+```
+
+## TODO
+
+- [ ] cert-err58-cpp
+- [ ] concurrency-mt-unsafe
+- [ ] cppcoreguidelines-avoid-magic-numbers
+- [ ] cppcoreguidelines-pro-bounds-constant-array-index
+- [ ] google-default-arguments
+- [ ] readability-magic-numbers
+- [ ] readability-function-cognitive-complexity

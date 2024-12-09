@@ -109,10 +109,10 @@ void register_callback(
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
                            const uint32_t publisher_pid, const uint64_t timestamp,
-                           const bool is_created_by_borrow) {
+                           const bool is_created_by_sub) {
     return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::ipc_shared_ptr<MessageType>(
       const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, publisher_pid,
-      timestamp, is_created_by_borrow));
+      timestamp, is_created_by_sub));
   };
 
   uint32_t id = agnocast_topic_next_id.fetch_add(1);
