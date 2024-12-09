@@ -2,7 +2,7 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     cell::Cell,
-    ffi::{c_char, CStr},
+    ffi::CStr,
     mem::MaybeUninit,
     os::raw::c_void,
     sync::{
@@ -10,8 +10,6 @@ use std::{
         LazyLock, Mutex,
     },
 };
-
-type InitializeAgnocastType = unsafe extern "C" fn(usize) -> *mut c_void;
 
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
 const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
