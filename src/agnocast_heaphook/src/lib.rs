@@ -16,7 +16,7 @@ const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
+    let symbol: &CStr = c"malloc";
     unsafe {
         let malloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, MallocType>(malloc_ptr)
@@ -25,7 +25,7 @@ static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
 
 type FreeType = unsafe extern "C" fn(*mut c_void) -> ();
 static ORIGINAL_FREE: LazyLock<FreeType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"free\0").unwrap();
+    let symbol: &CStr = c"free";
     unsafe {
         let free_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, FreeType>(free_ptr)
@@ -34,7 +34,7 @@ static ORIGINAL_FREE: LazyLock<FreeType> = LazyLock::new(|| {
 
 type CallocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_CALLOC: LazyLock<CallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
+    let symbol: &CStr = c"calloc";
     unsafe {
         let calloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, CallocType>(calloc_ptr)
@@ -43,7 +43,7 @@ static ORIGINAL_CALLOC: LazyLock<CallocType> = LazyLock::new(|| {
 
 type ReallocType = unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void;
 static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
+    let symbol: &CStr = c"realloc";
     unsafe {
         let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, ReallocType>(realloc_ptr)
@@ -52,7 +52,7 @@ static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
 
 type PosixMemalignType = unsafe extern "C" fn(&mut *mut c_void, usize, usize) -> i32;
 static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"posix_memalign\0").unwrap();
+    let symbol: &CStr = c"posix_memalign";
     unsafe {
         let posix_memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(posix_memalign_ptr)
@@ -61,7 +61,7 @@ static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
 
 type AlignedAllocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_ALIGNED_ALLOC: LazyLock<AlignedAllocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"aligned_alloc\0").unwrap();
+    let symbol: &CStr = c"aligned_alloc";
     unsafe {
         let aligned_alloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(aligned_alloc_ptr)
@@ -70,7 +70,7 @@ static ORIGINAL_ALIGNED_ALLOC: LazyLock<AlignedAllocType> = LazyLock::new(|| {
 
 type MemalignType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"memalign\0").unwrap();
+    let symbol: &CStr = c"memalign";
     unsafe {
         let memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(memalign_ptr)
