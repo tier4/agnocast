@@ -32,12 +32,14 @@ void SubscriptionBase::wait_for_new_publisher() const
   const std::string mq_name = create_mq_name_new_publisher(subscriber_pid_);
 
   struct mq_attr attr = {};
-  attr.mq_flags = 0;                            // Blocking queue
-  attr.mq_maxmsg = 10;                          // Maximum number of messages in the queue
+  attr.mq_flags = 0;         // Blocking queue
+  const int mq_maxmsg = 10;  // Maximum number of messages in the queue
+  attr.mq_maxmsg = mq_maxmsg;
   attr.mq_msgsize = sizeof(MqMsgNewPublisher);  // Maximum message size
   attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
 
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+  const int mq_mode = 0666;
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, mq_mode, &attr);
   if (mq == -1) {
     RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -122,7 +124,8 @@ mqd_t open_mq_for_subscription(
   attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
   attr.mq_maxmsg = 1;
 
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0666, &attr);
+  const int mq_mode = 0666;
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, mq_mode, &attr);
   if (mq == -1) {
     RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
     close(agnocast_fd);

@@ -4,8 +4,8 @@ namespace agnocast
 {
 
 std::mutex id2_topic_mq_info_mtx;
-std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info(
-  100 /* arbitrary size to prevent rehash */);
+const int topic_map_bkt_cnt = 100;  // arbitrary size to prevent rehash
+std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info(topic_map_bkt_cnt);
 std::atomic<uint32_t> agnocast_topic_next_id;
 std::atomic<bool> need_epoll_updates{false};
 
