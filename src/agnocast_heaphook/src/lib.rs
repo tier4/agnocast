@@ -86,7 +86,7 @@ extern "C" {
 }
 
 extern "C" fn post_fork_handler_in_child() {
-    IS_FORKED_CHILD.store(true, Ordering::SeqCst);
+    IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
@@ -223,7 +223,7 @@ thread_local! {
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { ORIGINAL_MALLOC(size) };
     }
 
@@ -250,7 +250,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
     let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
         || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
 
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         // In the child processes, ignore the free operation to the shared memory
         if !allocated_by_original {
             return;
@@ -272,7 +272,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { ORIGINAL_CALLOC(num, size) };
     }
 
@@ -301,7 +301,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         (None, false)
     };
 
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
             tlsf_allocate_wrapped(0, new_size)
@@ -337,7 +337,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
     }
 
@@ -355,7 +355,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
     }
 
@@ -373,7 +373,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::SeqCst) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
     }
 
