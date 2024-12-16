@@ -304,7 +304,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
-            tlsf_allocate_wrapped(0, new_size)
+            unsafe { ORIGINAL_MALLOC(new_size) }
         } else {
             unsafe { ORIGINAL_REALLOC(ptr, new_size) }
         };
