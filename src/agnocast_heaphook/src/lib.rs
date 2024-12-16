@@ -6,7 +6,7 @@ use std::{
     mem::MaybeUninit,
     os::raw::c_void,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         LazyLock, Mutex,
     },
 };
@@ -16,7 +16,7 @@ const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"malloc\0").unwrap();
+    let symbol: &CStr = c"malloc";
     unsafe {
         let malloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, MallocType>(malloc_ptr)
@@ -25,7 +25,7 @@ static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
 
 type FreeType = unsafe extern "C" fn(*mut c_void) -> ();
 static ORIGINAL_FREE: LazyLock<FreeType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"free\0").unwrap();
+    let symbol: &CStr = c"free";
     unsafe {
         let free_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, FreeType>(free_ptr)
@@ -34,7 +34,7 @@ static ORIGINAL_FREE: LazyLock<FreeType> = LazyLock::new(|| {
 
 type CallocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_CALLOC: LazyLock<CallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"calloc\0").unwrap();
+    let symbol: &CStr = c"calloc";
     unsafe {
         let calloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, CallocType>(calloc_ptr)
@@ -43,7 +43,7 @@ static ORIGINAL_CALLOC: LazyLock<CallocType> = LazyLock::new(|| {
 
 type ReallocType = unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void;
 static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"realloc\0").unwrap();
+    let symbol: &CStr = c"realloc";
     unsafe {
         let realloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute::<*mut c_void, ReallocType>(realloc_ptr)
@@ -52,7 +52,7 @@ static ORIGINAL_REALLOC: LazyLock<ReallocType> = LazyLock::new(|| {
 
 type PosixMemalignType = unsafe extern "C" fn(&mut *mut c_void, usize, usize) -> i32;
 static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"posix_memalign\0").unwrap();
+    let symbol: &CStr = c"posix_memalign";
     unsafe {
         let posix_memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(posix_memalign_ptr)
@@ -61,7 +61,7 @@ static ORIGINAL_POSIX_MEMALIGN: LazyLock<PosixMemalignType> = LazyLock::new(|| {
 
 type AlignedAllocType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_ALIGNED_ALLOC: LazyLock<AlignedAllocType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"aligned_alloc\0").unwrap();
+    let symbol: &CStr = c"aligned_alloc";
     unsafe {
         let aligned_alloc_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(aligned_alloc_ptr)
@@ -70,7 +70,7 @@ static ORIGINAL_ALIGNED_ALLOC: LazyLock<AlignedAllocType> = LazyLock::new(|| {
 
 type MemalignType = unsafe extern "C" fn(usize, usize) -> *mut c_void;
 static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
-    let symbol: &CStr = CStr::from_bytes_with_nul(b"memalign\0").unwrap();
+    let symbol: &CStr = c"memalign";
     unsafe {
         let memalign_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
         std::mem::transmute(memalign_ptr)
@@ -79,9 +79,14 @@ static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
 
 static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
+static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
 
 extern "C" {
     fn initialize_agnocast(size: usize) -> *mut c_void;
+}
+
+extern "C" fn post_fork_handler_in_child() {
+    IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
@@ -90,6 +95,15 @@ type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
 type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
+    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
+
+    if result != 0 {
+        panic!(
+            "[ERROR] [Agnocast] agnocast_heaphook internal error: pthread_atfork failed: {}",
+            std::io::Error::from_raw_os_error(result)
+        )
+    }
+
     let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
         panic!("[ERROR] [Agnocast] {}: MEMPOOL_SIZE", error);
     });
@@ -207,6 +221,10 @@ thread_local! {
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return unsafe { ORIGINAL_MALLOC(size) };
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_MALLOC(size) }
@@ -226,11 +244,20 @@ pub extern "C" fn free(ptr: *mut c_void) {
         None => return,
     };
 
-    HOOKED.with(|hooked: &Cell<bool>| {
-        let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-        let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
-            || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
+    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
+    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
+        || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
 
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        // In the child processes, ignore the free operation to the shared memory
+        if !allocated_by_original {
+            return;
+        }
+
+        return unsafe { ORIGINAL_FREE(ptr) };
+    }
+
+    HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() || allocated_by_original {
             unsafe { ORIGINAL_FREE(ptr) }
         } else {
@@ -243,6 +270,10 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return unsafe { ORIGINAL_CALLOC(num, size) };
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_CALLOC(num, size) }
@@ -260,26 +291,42 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
+    let (ptr_addr, allocated_by_original) =
+        if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
+            let addr = non_null_ptr.as_ptr() as usize;
+            let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed)
+                || addr > MEMPOOL_END.load(Ordering::Relaxed);
+            (Some(addr), is_original)
+        } else {
+            (None, false)
+        };
+
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        // In the child processes, ignore the free operation to the shared memory
+        let realloc_ret: *mut c_void = if !allocated_by_original {
+            unsafe { ORIGINAL_MALLOC(new_size) }
+        } else {
+            unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+        };
+
+        return realloc_ret;
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_REALLOC(ptr, new_size) }
         } else {
             hooked.set(true);
 
-            let realloc_ret: *mut c_void = if let Some(non_null_ptr) =
-                std::ptr::NonNull::new(ptr as *mut u8)
-            {
-                let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-                let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
-                    || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
-
-                if allocated_by_original {
-                    unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-                } else {
-                    tlsf_reallocate_wrapped(ptr_addr, new_size)
+            let realloc_ret = match ptr_addr {
+                Some(addr) => {
+                    if allocated_by_original {
+                        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+                    } else {
+                        tlsf_reallocate_wrapped(addr, new_size)
+                    }
                 }
-            } else {
-                tlsf_allocate_wrapped(0, new_size)
+                None => tlsf_allocate_wrapped(0, new_size),
             };
 
             hooked.set(false);
@@ -290,6 +337,10 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
@@ -304,6 +355,10 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
@@ -318,6 +373,10 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
+    }
+
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe { ORIGINAL_MEMALIGN(alignment, size) }
