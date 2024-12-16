@@ -8,8 +8,8 @@ namespace agnocast
 {
 
 SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
-  const rclcpp::ExecutorOptions & options)
-: agnocast::AgnocastExecutor(options)
+  const rclcpp::ExecutorOptions & options, int next_exec_timeout_ms)
+: agnocast::AgnocastExecutor(options), next_exec_timeout_ms_(next_exec_timeout_ms)
 {
 }
 
@@ -32,7 +32,8 @@ void SingleThreadedAgnocastExecutor::spin()
 
     agnocast::AgnocastExecutables agnocast_executables;
 
-    if (get_next_agnocast_executables(agnocast_executables, 50 /*ms timed-blocking*/)) {
+    if (get_next_agnocast_executables(
+          agnocast_executables, next_exec_timeout_ms_ /*timed-blocking*/)) {
       execute_agnocast_executables(agnocast_executables);
     }
 

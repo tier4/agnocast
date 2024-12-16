@@ -13,7 +13,6 @@ Checks: "
   -concurrency-mt-unsafe,
 
   cppcoreguidelines-*,
-  -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-constant-array-index,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-type-union-access,
@@ -38,7 +37,6 @@ Checks: "
   portability-*,
 
   readability-*,
-  -readability-magic-numbers,
   -readability-function-cognitive-complexity,
   -readability-identifier-length"
 

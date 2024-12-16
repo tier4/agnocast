@@ -10,10 +10,11 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
   size_t number_of_agnocast_threads, bool ros2_yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout,
-  std::chrono::nanoseconds agnocast_callback_group_wait_time)
+  std::chrono::nanoseconds agnocast_callback_group_wait_time, int agnocast_next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options, agnocast_callback_group_wait_time),
   ros2_yield_before_execute_(ros2_yield_before_execute),
-  ros2_next_exec_timeout_(ros2_next_exec_timeout)
+  ros2_next_exec_timeout_(ros2_next_exec_timeout),
+  agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
   if (ros2_next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
     RCLCPP_ERROR(
@@ -110,7 +111,8 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
     // Given this separation, get_next_agnocast_executables() can block indefinitely without a
     // timeout. However, since we need to periodically check for epoll updates, we should implement
     // a long timeout period instead of an infinite block.
-    if (get_next_agnocast_executables(agnocast_executables, 1000 /*ms timed-blocking*/)) {
+    if (get_next_agnocast_executables(
+          agnocast_executables, agnocast_next_exec_timeout_ms_ /* timed-blocking*/)) {
       if (ros2_yield_before_execute_) {
         std::this_thread::yield();
       }

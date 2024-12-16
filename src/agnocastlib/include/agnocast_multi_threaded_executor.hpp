@@ -24,6 +24,7 @@ class MultiThreadedAgnocastExecutor : public agnocast::AgnocastExecutor
 
   bool ros2_yield_before_execute_;
   std::chrono::nanoseconds ros2_next_exec_timeout_;
+  const int agnocast_next_exec_timeout_ms_;
 
   void ros2_spin();
   void agnocast_spin();
@@ -36,7 +37,8 @@ public:
     bool ros2_yield_before_execute = false,
     std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(10 * 1000 * 1000),
     std::chrono::nanoseconds agnocast_callback_group_wait_time =
-      std::chrono::nanoseconds(10 * 1000 * 1000));
+      std::chrono::nanoseconds(10 * 1000 * 1000),
+    int agnocast_next_exec_timeout_ms = 1000);
 
   RCLCPP_PUBLIC
   void spin() override;

@@ -42,7 +42,8 @@ void * map_area(
   const std::string shm_name = create_shm_name(pid);
 
   int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
-  int shm_fd = shm_open(shm_name.c_str(), oflag, 0666);
+  const int shm_mode = 0666;
+  int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
   if (shm_fd == -1) {
     RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
     close(agnocast_fd);

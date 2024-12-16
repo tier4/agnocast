@@ -6,42 +6,40 @@
 
 int main(int argc, char * argv[])
 {
+  using namespace std::chrono;
+
   rclcpp::init(argc, argv);
-
-  size_t number_of_ros2_threads = 0;
-  size_t number_of_agnocast_threads = 0;
-  bool ros2_yield_before_execute = false;
-  std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(10 * 1000 * 1000);
-  std::chrono::nanoseconds agnocast_callback_group_wait_time =
-    std::chrono::nanoseconds(10 * 1000 * 1000);
-
   auto node = std::make_shared<rclcpp_components::ComponentManager>();
 
-  if (node->has_parameter("number_of_ros2_threads")) {
-    number_of_ros2_threads = node->get_parameter("number_of_ros2_threads").as_int();
-  }
-
-  if (node->has_parameter("number_of_agnocast_threads")) {
-    number_of_agnocast_threads = node->get_parameter("number_of_agnocast_threads").as_int();
-  }
-
-  if (node->has_parameter("ros2_yield_before_execute")) {
-    ros2_yield_before_execute = node->get_parameter("ros2_yield_before_execute").as_bool();
-  }
-
-  if (node->has_parameter("ros2_next_exec_timeout_ms")) {
-    auto ms = node->get_parameter("ros2_next_exec_timeout_ms").as_int();
-    ros2_next_exec_timeout = std::chrono::nanoseconds(ms * 1000 * 1000);
-  }
-
-  if (node->has_parameter("agnocast_callback_group_wait_time_ms")) {
-    auto ms = node->get_parameter("agnocast_callback_group_wait_time_ms").as_int();
-    agnocast_callback_group_wait_time = std::chrono::nanoseconds(ms * 1000 * 1000);
-  }
+  const size_t number_of_ros2_threads = (node->has_parameter("number_of_ros2_threads"))
+                                          ? node->get_parameter("number_of_ros2_threads").as_int()
+                                          : 0;
+  const size_t number_of_agnocast_threads =
+    (node->has_parameter("number_of_agnocast_threads"))
+      ? node->get_parameter("number_of_agnocast_threads").as_int()
+      : 0;
+  const bool ros2_yield_before_execute =
+    (node->has_parameter("ros2_yield_before_execute"))
+      ? node->get_parameter("ros2_yield_before_execute").as_bool()
+      : false;
+  const nanoseconds ros2_next_exec_timeout =
+    (node->has_parameter("ros2_next_exec_timeout_ms"))
+      ? nanoseconds(node->get_parameter("ros2_next_exec_timeout_ms").as_int() * 1000 * 1000)
+      : nanoseconds(10 * 1000 * 1000);
+  const nanoseconds agnocast_callback_group_wait_time =
+    (node->has_parameter("agnocast_callback_group_wait_time_ms"))
+      ? nanoseconds(
+          node->get_parameter("agnocast_callback_group_wait_time_ms").as_int() * 1000 * 1000)
+      : nanoseconds(10 * 1000 * 1000);
+  const int agnocast_next_exec_timeout_ms =
+    (node->has_parameter("agnocast_next_exec_timeout_ms"))
+      ? static_cast<int>(node->get_parameter("agnocast_next_exec_timeout_ms").as_int())
+      : 1000;
 
   auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
     rclcpp::ExecutorOptions{}, number_of_ros2_threads, number_of_agnocast_threads,
-    ros2_yield_before_execute, ros2_next_exec_timeout, agnocast_callback_group_wait_time);
+    ros2_yield_before_execute, ros2_next_exec_timeout, agnocast_callback_group_wait_time,
+    agnocast_next_exec_timeout_ms);
 
   node->set_executor(executor);
   executor->add_node(node);
