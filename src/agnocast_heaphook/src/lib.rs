@@ -6,7 +6,7 @@ use std::{
     mem::MaybeUninit,
     os::raw::c_void,
     sync::{
-        atomic::{AtomicUsize, AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         LazyLock, Mutex,
     },
 };
@@ -95,9 +95,7 @@ type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
 type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: LazyLock<Mutex<TlsfType>> = LazyLock::new(|| {
-    let result = unsafe {
-        libc::pthread_atfork(None, None, Some(post_fork_handler_in_child))
-    };
+    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
 
     if result != 0 {
         panic!(
@@ -293,13 +291,15 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let (ptr_addr, allocated_by_original) = if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
-        let addr = non_null_ptr.as_ptr() as usize;
-        let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed) || addr > MEMPOOL_END.load(Ordering::Relaxed);
-        (Some(addr), is_original)
-    } else {
-        (None, false)
-    };
+    let (ptr_addr, allocated_by_original) =
+        if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
+            let addr = non_null_ptr.as_ptr() as usize;
+            let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed)
+                || addr > MEMPOOL_END.load(Ordering::Relaxed);
+            (Some(addr), is_original)
+        } else {
+            (None, false)
+        };
 
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         // In the child processes, ignore the free operation to the shared memory
@@ -326,7 +326,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                         tlsf_reallocate_wrapped(addr, new_size)
                     }
                 }
-                None => tlsf_allocate_wrapped(0, new_size)
+                None => tlsf_allocate_wrapped(0, new_size),
             };
 
             hooked.set(false);
@@ -338,7 +338,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
-        return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
+        return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
