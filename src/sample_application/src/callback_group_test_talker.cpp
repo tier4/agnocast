@@ -14,8 +14,10 @@ class CallbackGroupTestTalker : public rclcpp::Node
 public:
   CallbackGroupTestTalker() : Node("callback_group_test_talker")
   {
-    pub1_ = agnocast::create_publisher<std_msgs::msg::String>("/topic1", 10);
-    pub2_ = agnocast::create_publisher<std_msgs::msg::String>("/topic2", 10);
+    pub1_ =
+      agnocast::create_publisher<std_msgs::msg::String>(get_node_base_interface(), "/topic1", 10);
+    pub2_ =
+      agnocast::create_publisher<std_msgs::msg::String>(get_node_base_interface(), "/topic2", 10);
 
     timer_ = this->create_wall_timer(
       5000ms, std::bind(&CallbackGroupTestTalker::publish_test_messages, this));
