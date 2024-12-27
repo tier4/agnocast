@@ -45,7 +45,9 @@ class Publisher
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
 
-  Publisher(const std::string & topic_name, const rclcpp::QoS & qos)
+  Publisher(
+    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
+    const rclcpp::QoS & qos)
   : topic_name_(topic_name), publisher_pid_(getpid()), qos_(qos)
   {
     initialize_publisher(publisher_pid_, topic_name_);

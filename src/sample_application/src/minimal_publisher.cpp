@@ -73,10 +73,10 @@ public:
   MinimalPublisher() : Node("minimal_publisher")
   {
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
-    publisher_dynamic_ =
-      agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>("/my_dynamic_topic", 10);
-    publisher_static_ =
-      agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>("/my_static_topic", 10);
+    publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
+      get_node_base_interface(), "/my_dynamic_topic", 10);
+    publisher_static_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
+      get_node_base_interface(), "/my_static_topic", 10);
     count_ = 0;
 
     timestamps_.resize(10000, 0);

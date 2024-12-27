@@ -28,17 +28,19 @@ bool ok();
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
-  const std::string & topic_name, const rclcpp::QoS & qos)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
+  const rclcpp::QoS & qos)
 {
-  return std::make_shared<Publisher<MessageT>>(topic_name, qos);
+  return std::make_shared<Publisher<MessageT>>(node, topic_name, qos);
 }
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
-  const std::string & topic_name, const size_t qos_history_depth)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
+  const size_t qos_history_depth)
 {
   return std::make_shared<Publisher<MessageT>>(
-    topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
 template <typename MessageT>

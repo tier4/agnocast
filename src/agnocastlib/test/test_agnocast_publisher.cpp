@@ -23,13 +23,19 @@ class AgnocastPublisherTest : public ::testing::Test
 protected:
   void SetUp() override
   {
+    rclcpp::init(0, nullptr);
     pid = getpid();
     dummy_tn = "dummy";
+    node = std::make_shared<rclcpp::Node>(dummy_tn);
     dummy_qd = 10;
     EXPECT_GLOBAL_CALL(initialize_publisher, initialize_publisher(pid, dummy_tn)).Times(1);
-    dummy_publisher = agnocast::create_publisher<int>(dummy_tn, dummy_qd);
+    dummy_publisher =
+      agnocast::create_publisher<int>(node->get_node_base_interface(), dummy_tn, dummy_qd);
   }
 
+  void TearDown() override { rclcpp::shutdown(); }
+
+  std::shared_ptr<rclcpp::Node> node;
   agnocast::Publisher<int>::SharedPtr dummy_publisher;
   uint32_t pid;
   std::string dummy_tn;
@@ -80,7 +86,7 @@ TEST_F(AgnocastPublisherTest, test_publish_different_message)
     .WillRepeatedly(testing::Return(std::vector<uint64_t>()));
   EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, pid, _, _)).Times(0);
   agnocast::Publisher<int>::SharedPtr diff_publisher =
-    agnocast::create_publisher<int>(diff_dummy_tn, 10);
+    agnocast::create_publisher<int>(node->get_node_base_interface(), diff_dummy_tn, 10);
   agnocast::ipc_shared_ptr<int> diff_message = diff_publisher->borrow_loaned_message();
   agnocast::ipc_shared_ptr<int> message = dummy_publisher->borrow_loaned_message();
 
