@@ -8,6 +8,14 @@ extern "C" uint32_t get_publisher_num_borrowed_fromC(){
   return publisher_num_borrowed;
 }
 
+void increment_publisher_num_borrowed(){
+  publisher_num_borrowed++;
+}
+
+void decrement_publisher_num_borrowed(){
+  publisher_num_borrowed--;
+}
+
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name)
 {
   validate_ld_preload();
@@ -97,11 +105,6 @@ void publish_core(
       }
     }
   }
-
-  if (!publisher_num_borrowed) {
-    RCLCPP_ERROR(logger, "The number of publish() called exceeds the number of borrow_loaned_message() called.");
-  }
-  publisher_num_borrowed--;
 }
 
 std::vector<uint64_t> borrow_loaned_message_core(
@@ -124,8 +127,6 @@ std::vector<uint64_t> borrow_loaned_message_core(
   std::copy_n(
     static_cast<const uint64_t *>(ioctl_args.ret_released_addrs), ioctl_args.ret_len,
     addresses.begin());
-
-  publisher_num_borrowed++;
 
   return addresses;
 }
