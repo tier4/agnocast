@@ -27,10 +27,13 @@ std::vector<uint64_t> borrow_loaned_message_core(
   const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
   uint64_t msg_virtual_address, uint64_t timestamp);
 
+
 namespace agnocast
 {
 
 extern int agnocast_fd;
+
+extern "C" uint32_t get_publisher_num_borrowed_fromC();
 
 template <typename MessageT>
 class Publisher
