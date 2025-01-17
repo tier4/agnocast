@@ -1,4 +1,5 @@
 #include "agnocast_publisher.hpp"
+#include <complex.h>
 
 using namespace agnocast;
 
@@ -13,6 +14,10 @@ void increment_publisher_num_borrowed(){
 }
 
 void decrement_publisher_num_borrowed(){
+  if (!publisher_num_borrowed) {
+    RCLCPP_ERROR(logger, "The number of publish() called exceeds the number of borrow_loaned_message() called.");
+    exit(EXIT_FAILURE);
+  }
   publisher_num_borrowed--;
 }
 
