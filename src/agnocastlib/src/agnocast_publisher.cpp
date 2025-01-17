@@ -4,7 +4,7 @@ using namespace agnocast;
 
 thread_local uint32_t publisher_num_borrowed = 0;
 
-extern "C" uint32_t get_publisher_num_borrowed_fromC(){
+extern "C" uint32_t agnocast::get_publisher_num_borrowed_from_agnocastlib(){
   return publisher_num_borrowed;
 }
 

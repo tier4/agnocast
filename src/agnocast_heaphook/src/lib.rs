@@ -13,7 +13,7 @@ use std::{
 use libc;
 
 extern "C" {
-    fn get_publisher_num_borrowed_fromC() -> u32;
+    fn get_publisher_num_borrowed_from_agnocastlib() -> u32;
 }
 
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
@@ -243,7 +243,7 @@ thread_local! {
 
 fn get_publisher_num_borrowed() -> u32 {
     let ret;
-    unsafe {ret = get_publisher_num_borrowed_fromC()}
+    unsafe {ret = get_publisher_num_borrowed_from_agnocastlib()}
     ret
 }
 
@@ -266,24 +266,20 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         return unsafe { ORIGINAL_MALLOC(size) };
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_MALLOC(size) }
-            } else {
-                hooked.set(true);
-                let ret: *mut c_void = tlsf_allocate_wrapped(0, size);
-                hooked.set(false);
-                ret
-            }
-        })
-    } else {
-        unsafe { ORIGINAL_MALLOC(size) }
-    }
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_MALLOC(size) }
+        } else {
+            hooked.set(true);
+            let ret: *mut c_void = tlsf_allocate_wrapped(0, size);
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]
@@ -319,27 +315,23 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         return unsafe { ORIGINAL_CALLOC(num, size) };
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_CALLOC(num, size) }
-            } else {
-                hooked.set(true);
-                let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
-                unsafe {
-                    std::ptr::write_bytes(ret, 0, num * size);
-                };
-                hooked.set(false);
-                ret
-            }
-        })
-    } else {
-        unsafe { ORIGINAL_CALLOC(num, size) }
-    }
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_CALLOC(num, size) }
+        } else {
+            hooked.set(true);
+            let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
+            unsafe {
+                std::ptr::write_bytes(ret, 0, num * size);
+            };
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]
@@ -354,7 +346,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
             (None, false)
         };
 
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
             unsafe { ORIGINAL_MALLOC(new_size) }
@@ -365,97 +357,81 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
         return realloc_ret;
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-            } else {
-                hooked.set(true);
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+        } else {
+            hooked.set(true);
 
-                let realloc_ret = match ptr_addr {
-                    Some(addr) => {
-                        if allocated_by_original {
-                            unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-                        } else {
-                            tlsf_reallocate_wrapped(addr, new_size)
-                        }
+            let realloc_ret = match ptr_addr {
+                Some(addr) => {
+                    if allocated_by_original {
+                        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
+                    } else {
+                        tlsf_reallocate_wrapped(addr, new_size)
                     }
-                    None => tlsf_allocate_wrapped(0, new_size),
-                };
+                }
+                None => tlsf_allocate_wrapped(0, new_size),
+            };
 
-                hooked.set(false);
-                realloc_ret
-            }
-        })
-    } else {
-        unsafe { ORIGINAL_REALLOC(ptr, new_size) }
-    }
+            hooked.set(false);
+            realloc_ret
+        }
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
-            } else {
-                hooked.set(true);
-                *memptr = tlsf_allocate_wrapped(alignment, size);
-                hooked.set(false);
-                0
-            }
-        })
-    } else {
-      unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
-    }
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) }
+        } else {
+            hooked.set(true);
+            *memptr = tlsf_allocate_wrapped(alignment, size);
+            hooked.set(false);
+            0
+        }
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
-            } else {
-                hooked.set(true);
-                let ret = tlsf_allocate_wrapped(alignment, size);
-                hooked.set(false);
-                ret
-            }
-        })
-    } else {
-        unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
-    }
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) }
+        } else {
+            hooked.set(true);
+            let ret = tlsf_allocate_wrapped(alignment, size);
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed() == 0 {
         return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
     }
 
-    if get_publisher_num_borrowed() != 0 {
-        HOOKED.with(|hooked: &Cell<bool>| {
-            if hooked.get() {
-                unsafe { ORIGINAL_MEMALIGN(alignment, size) }
-            } else {
-                hooked.set(true);
-                let ret = tlsf_allocate_wrapped(alignment, size);
-                hooked.set(false);
-                ret
-            }
-        })
-    } else {
-       unsafe { ORIGINAL_MEMALIGN(alignment, size) }
-    }
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { ORIGINAL_MEMALIGN(alignment, size) }
+        } else {
+            hooked.set(true);
+            let ret = tlsf_allocate_wrapped(alignment, size);
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 #[no_mangle]

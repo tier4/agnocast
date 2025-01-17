@@ -33,7 +33,7 @@ namespace agnocast
 {
 
 extern int agnocast_fd;
-extern "C" uint32_t get_publisher_num_borrowed_fromC();
+extern "C" uint32_t get_publisher_num_borrowed_from_agnocastlib();
 
 template <typename MessageT>
 class Publisher
