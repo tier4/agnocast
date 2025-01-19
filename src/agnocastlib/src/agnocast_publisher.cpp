@@ -1,11 +1,10 @@
 #include "agnocast_publisher.hpp"
-#include <complex.h>
 
 using namespace agnocast;
 
 thread_local uint32_t publisher_num_borrowed = 0;
 
-extern "C" uint32_t agnocast::get_publisher_num_borrowed_from_agnocastlib(){
+extern "C" uint32_t agnocast::get_publisher_num_borrowed(){
   return publisher_num_borrowed;
 }
 
@@ -132,7 +131,6 @@ std::vector<uint64_t> borrow_loaned_message_core(
   std::copy_n(
     static_cast<const uint64_t *>(ioctl_args.ret_released_addrs), ioctl_args.ret_len,
     addresses.begin());
-
   return addresses;
 }
 
