@@ -27,8 +27,8 @@ protected:
   {
     rclcpp::init(0, nullptr);
     pid = getpid();
-    dummy_tn = "dummy";
-    node = std::make_shared<rclcpp::Node>(dummy_tn);
+    dummy_tn = "/dummy";
+    node = std::make_shared<rclcpp::Node>("dummy_node");
     dummy_qd = 10;
     EXPECT_GLOBAL_CALL(initialize_publisher, initialize_publisher(pid, dummy_tn)).Times(1);
     dummy_publisher =
@@ -82,7 +82,7 @@ TEST_F(AgnocastPublisherTest, test_publish_already_published_message)
 
 TEST_F(AgnocastPublisherTest, test_publish_different_message)
 {
-  std::string diff_dummy_tn = "dummy2";
+  std::string diff_dummy_tn = "/dummy2";
   EXPECT_GLOBAL_CALL(initialize_publisher, initialize_publisher(pid, diff_dummy_tn)).Times(1);
   EXPECT_GLOBAL_CALL(borrow_loaned_message_core, borrow_loaned_message_core(_, pid, _, _, _))
     .WillRepeatedly(testing::Return(std::vector<uint64_t>()));
