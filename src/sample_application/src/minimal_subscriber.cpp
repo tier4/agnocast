@@ -26,8 +26,10 @@ class MinimalSubscriber : public rclcpp::Node
   agnocast::PollingSubscriber<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_transient_local_;
+  rclcpp::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_transient_local_ros2_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr
     sub_transient_local_with_flag_;
+  rclcpp::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_transient_local_with_flag_ros2_;
 
   void callback_static(
     const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
@@ -57,19 +59,31 @@ class MinimalSubscriber : public rclcpp::Node
   }
 
   void callback_transient_local(
-    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
+    [[maybe_unused]] const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
   {
     RCLCPP_INFO(
-      this->get_logger(), "I heard transient_local message: addr=%016lx",
-      reinterpret_cast<uint64_t>(message.get()));
+      this->get_logger(), "I heard transient_local message through Agnocast");
+  }
+
+  void callback_transient_local_ros2(
+    [[maybe_unused]] const sample_interfaces::msg::StaticSizeArray & message)
+  {
+    RCLCPP_INFO(
+      this->get_logger(), "I heard transient_local message through ROS");
   }
 
   void callback_transient_local_with_flag(
-    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
+    [[maybe_unused]] const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
   {
     RCLCPP_INFO(
-      this->get_logger(), "I heard transient_local_with_flag message: addr=%016lx",
-      reinterpret_cast<uint64_t>(message.get()));
+      this->get_logger(), "I heard transient_local_with_flag message through Agnocast");
+  }
+
+  void callback_transient_local_with_flag_ros2(
+    [[maybe_unused]] const sample_interfaces::msg::StaticSizeArray & message)
+  {
+    RCLCPP_INFO(
+      this->get_logger(), "I heard transient_local_with_flag message through ROS");
   }
 
 public:
@@ -96,11 +110,21 @@ public:
       get_node_base_interface(), "/my_transient_local_topic", rclcpp::QoS(1).transient_local(),
       std::bind(&MinimalSubscriber::callback_transient_local, this, _1));
 
+    sub_transient_local_ros2_ = create_subscription<sample_interfaces::msg::StaticSizeArray>(
+      "/my_transient_local_topic", rclcpp::QoS(1).transient_local(),
+      std::bind(&MinimalSubscriber::callback_transient_local_ros2, this, _1));
+
     sub_transient_local_with_flag_ =
       agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
         get_node_base_interface(), "/my_transient_local_topic_with_flag",
         rclcpp::QoS(1).transient_local(),
         std::bind(&MinimalSubscriber::callback_transient_local_with_flag, this, _1));
+
+    sub_transient_local_with_flag_ros2_ =
+      create_subscription<sample_interfaces::msg::StaticSizeArray>(
+        "/my_transient_local_topic_with_flag",
+        rclcpp::QoS(1).transient_local(),
+        std::bind(&MinimalSubscriber::callback_transient_local_with_flag_ros2, this, _1));
   }
 
   ~MinimalSubscriber()
