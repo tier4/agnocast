@@ -98,17 +98,17 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 
 template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const size_t qos_history_depth)
+  rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
 {
   return std::make_shared<PollingSubscriber<MessageT>>(
-    topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
 template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
-  const std::string & topic_name, const rclcpp::QoS & qos)
+  rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return std::make_shared<PollingSubscriber<MessageT>>(topic_name, qos);
+  return std::make_shared<PollingSubscriber<MessageT>>(node, topic_name, qos);
 }
 
 }  // namespace agnocast

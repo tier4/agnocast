@@ -50,10 +50,10 @@ public:
   Publisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const bool do_always_ros2_publish)
-  : topic_name_(topic_name),
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     publisher_pid_(getpid()),
     qos_(qos),
-    ros2_publisher_(node->create_publisher<MessageT>(topic_name, qos))
+    ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
   {
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       do_always_ros2_publish_ = do_always_ros2_publish;

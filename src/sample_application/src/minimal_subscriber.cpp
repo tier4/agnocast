@@ -100,7 +100,7 @@ public:
     agnocast_options.callback_group = group;
 
     sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
-      "/my_dynamic_topic", 10);
+      this, "/my_dynamic_topic", 10);
 
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       this, "/my_static_topic", rclcpp::QoS(10).transient_local(),

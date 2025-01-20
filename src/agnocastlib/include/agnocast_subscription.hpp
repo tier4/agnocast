@@ -54,7 +54,9 @@ protected:
   union ioctl_subscriber_args initialize(bool is_take_sub);
 
 public:
-  SubscriptionBase(const pid_t subscriber_pid, std::string topic_name, const rclcpp::QoS & qos);
+  SubscriptionBase(
+    rclcpp::Node * node, const pid_t subscriber_pid, std::string topic_name,
+    const rclcpp::QoS & qos);
 };
 
 template <typename MessageT>
@@ -69,14 +71,14 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(getpid(), topic_name, qos)
+  : SubscriptionBase(node, getpid(), topic_name, qos)
   {
     union ioctl_subscriber_args subscriber_args = initialize(false);
-    mqd_t mq = open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
+    mqd_t mq = open_mq_for_subscription(topic_name_, subscriber_pid_, mq_subscription);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
     agnocast::register_callback(
-      callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
+      callback, topic_name_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
     // If there are messages available and the transient local is enabled, immediately call the
     // callback.
@@ -101,8 +103,8 @@ class TakeSubscription : public SubscriptionBase
 public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
-  TakeSubscription(const std::string & topic_name, const rclcpp::QoS & qos)
-  : SubscriptionBase(getpid(), topic_name, qos)
+  TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  : SubscriptionBase(node, getpid(), topic_name, qos)
   {
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       RCLCPP_WARN(
@@ -145,10 +147,10 @@ public:
   using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
 
   explicit PollingSubscriber(
-    const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
   : data_(agnocast::ipc_shared_ptr<MessageT>())
   {
-    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(topic_name, qos);
+    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
   const agnocast::ipc_shared_ptr<MessageT> takeData()
