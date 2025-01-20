@@ -41,15 +41,26 @@ class Publisher
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
+  bool do_always_ros2_publish_;  // For transient local.
+  typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
 
   Publisher(
-    [[maybe_unused]] rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, /* for CARET */
-    const std::string & topic_name, const rclcpp::QoS & qos)
-  : topic_name_(topic_name), publisher_pid_(getpid()), qos_(qos)
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    const bool do_always_ros2_publish)
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
+    publisher_pid_(getpid()),
+    qos_(qos),
+    ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
   {
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      do_always_ros2_publish_ = do_always_ros2_publish;
+    } else {
+      do_always_ros2_publish_ = false;
+    }
+
     initialize_publisher(publisher_pid_, topic_name_);
   }
 
@@ -82,11 +93,19 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
+      const MessageT * raw = message.get();
+      ros2_publisher_->publish(*raw);
+    }
+
     publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
     message.reset();
   }
 
-  uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
+  uint32_t get_subscription_count() const
+  {
+    return ros2_publisher_->get_subscription_count() + get_subscription_count_core(topic_name_);
+  }
 };
 
 }  // namespace agnocast

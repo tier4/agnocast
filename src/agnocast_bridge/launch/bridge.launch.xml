@@ -1,5 +1,0 @@
-<launch>
-    <node pkg="agnocast_bridge" exec="bridge_node" name="bridge_node" output="screen">
-        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')"
-    </node>
-</launch>

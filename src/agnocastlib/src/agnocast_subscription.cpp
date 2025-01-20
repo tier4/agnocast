@@ -8,8 +8,11 @@ mqd_t mq_new_publisher = -1;
 extern std::vector<std::thread> threads;
 
 SubscriptionBase::SubscriptionBase(
-  const pid_t subscriber_pid, std::string topic_name, const rclcpp::QoS & qos)
-: subscriber_pid_(subscriber_pid), topic_name_(std::move(topic_name)), qos_(qos)
+  rclcpp::Node * node, const pid_t subscriber_pid, const std::string & topic_name,
+  const rclcpp::QoS & qos)
+: subscriber_pid_(subscriber_pid),
+  topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
+  qos_(qos)
 {
   validate_ld_preload();
 }
