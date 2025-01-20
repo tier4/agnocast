@@ -55,7 +55,7 @@ public:
     qos_(qos),
     ros2_publisher_(node->create_publisher<MessageT>(topic_name, qos))
   {
-    if (qos.get_rmw_qos_profile().durability == RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL) {
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       do_always_ros2_publish_ = do_always_ros2_publish;
     } else {
       do_always_ros2_publish_ = false;
