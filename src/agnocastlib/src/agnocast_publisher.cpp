@@ -2,27 +2,27 @@
 
 using namespace agnocast;
 
-thread_local uint32_t publisher_num_borrowed = 0;
+thread_local uint32_t borrowed_publisher_num = 0;
 
-extern "C" uint32_t agnocast::get_publisher_num_borrowed()
+extern "C" uint32_t agnocast::get_borrowed_publisher_num()
 {
-  return publisher_num_borrowed;
+  return borrowed_publisher_num;
 }
 
-void increment_publisher_num_borrowed()
+void increment_borrowed_publisher_num()
 {
-  publisher_num_borrowed++;
+  borrowed_publisher_num++;
 }
 
-void decrement_publisher_num_borrowed()
+void decrement_borrowed_publisher_num()
 {
-  if (!publisher_num_borrowed) {
+  if (!borrowed_publisher_num) {
     RCLCPP_ERROR(
       logger,
       "The number of publish() called exceeds the number of borrow_loaned_message() called.");
     exit(EXIT_FAILURE);
   }
-  publisher_num_borrowed--;
+  borrowed_publisher_num--;
 }
 
 void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name)

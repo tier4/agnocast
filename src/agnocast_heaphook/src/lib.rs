@@ -13,7 +13,7 @@ use std::{
 use libc;
 
 extern "C" {
-    fn get_publisher_num_borrowed() -> u32;
+    fn get_borrowed_publisher_num() -> u32;
 }
 
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
@@ -241,10 +241,18 @@ thread_local! {
     static HOOKED : Cell<bool> = const { Cell::new(false) }
 }
 
-fn get_publisher_num_borrowed_wrapper() -> u32 {
-    let ret;
-    unsafe {ret = get_publisher_num_borrowed()}
-    ret
+fn should_use_original_func() -> bool {
+  if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    return true;
+  }
+
+  unsafe {
+    if get_borrowed_publisher_num() == 0 {
+      return true;
+    }
+  }
+
+  false
 }
 
 #[no_mangle]
@@ -267,7 +275,7 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func(){
         return unsafe { ORIGINAL_MALLOC(size) };
     }
 
@@ -316,7 +324,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_CALLOC(num, size) };
     }
 
@@ -347,7 +355,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
             (None, false)
         };
 
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func() {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
             unsafe { ORIGINAL_MALLOC(new_size) }
@@ -383,7 +391,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
     }
 
@@ -401,7 +409,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
     }
 
@@ -419,7 +427,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) || get_publisher_num_borrowed_wrapper() == 0 {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
     }
 
