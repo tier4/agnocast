@@ -63,6 +63,10 @@ class MinimalPublisher : public rclcpp::Node
   rclcpp::TimerBase::SharedPtr timer_;
   agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_dynamic_;
   agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr publisher_static_;
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr
+    publisher_transient_local_;
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr
+    publisher_transient_local_with_flag_;
   int count_;
 
   std::vector<uint64_t> timestamps_;
@@ -74,14 +78,38 @@ public:
   {
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
     publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
-      get_node_base_interface(), "/my_dynamic_topic", 10);
+      this, "/my_dynamic_topic", 10);
     publisher_static_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
-      get_node_base_interface(), "/my_static_topic", 10);
+      this, "/my_static_topic", 10);
+    publisher_transient_local_ =
+      agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
+        this, "/my_transient_local_topic", rclcpp::QoS(1).transient_local());
+    publisher_transient_local_with_flag_ =
+      agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
+        this, "/my_transient_local_topic_with_flag", rclcpp::QoS(1).transient_local(), false);
     count_ = 0;
 
     timestamps_.resize(10000, 0);
     timestamp_ids_.resize(10000, 0);
     timestamp_idx_ = 0;
+
+    {
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
+        publisher_transient_local_->borrow_loaned_message();
+      message->id = count_;
+      message->timestamp = agnocast_get_timestamp();
+      assign_data(*message);
+      publisher_transient_local_->publish(std::move(message));
+    }
+
+    {
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
+        publisher_transient_local_with_flag_->borrow_loaned_message();
+      message->id = count_;
+      message->timestamp = agnocast_get_timestamp();
+      assign_data(*message);
+      publisher_transient_local_with_flag_->publish(std::move(message));
+    }
   }
 
   ~MinimalPublisher()

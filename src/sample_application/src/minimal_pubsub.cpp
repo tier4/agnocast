@@ -55,7 +55,7 @@ public:
   MinimalPubSub() : Node("minimal_pubsub")
   {
     publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
-      get_node_base_interface(), "/my_dynamic_topic", 10);
+      this, "/my_dynamic_topic", 10);
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       get_node_base_interface(), "/my_static_topic", 10,
       std::bind(&MinimalPubSub::topic_callback, this, _1));

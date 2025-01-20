@@ -25,6 +25,9 @@ class MinimalSubscriber : public rclcpp::Node
 
   agnocast::PollingSubscriber<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
+  agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_transient_local_;
+  agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr
+    sub_transient_local_with_flag_;
 
   void callback_static(
     const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
@@ -53,6 +56,22 @@ class MinimalSubscriber : public rclcpp::Node
       reinterpret_cast<uint64_t>(message.get()));
   }
 
+  void callback_transient_local(
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
+  {
+    RCLCPP_INFO(
+      this->get_logger(), "I heard transient_local message: addr=%016lx",
+      reinterpret_cast<uint64_t>(message.get()));
+  }
+
+  void callback_transient_local_with_flag(
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
+  {
+    RCLCPP_INFO(
+      this->get_logger(), "I heard transient_local_with_flag message: addr=%016lx",
+      reinterpret_cast<uint64_t>(message.get()));
+  }
+
 public:
   explicit MinimalSubscriber(const rclcpp::NodeOptions & options)
   : Node("minimal_subscriber", options)
@@ -72,6 +91,16 @@ public:
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       get_node_base_interface(), "/my_static_topic", rclcpp::QoS(10).transient_local(),
       std::bind(&MinimalSubscriber::callback_static, this, _1), agnocast_options);
+
+    sub_transient_local_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
+      get_node_base_interface(), "/my_transient_local_topic", rclcpp::QoS(1).transient_local(),
+      std::bind(&MinimalSubscriber::callback_transient_local, this, _1));
+
+    sub_transient_local_with_flag_ =
+      agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
+        get_node_base_interface(), "/my_transient_local_topic_with_flag",
+        rclcpp::QoS(1).transient_local(),
+        std::bind(&MinimalSubscriber::callback_transient_local_with_flag, this, _1));
   }
 
   ~MinimalSubscriber()
