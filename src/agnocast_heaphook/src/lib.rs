@@ -257,6 +257,7 @@ pub unsafe extern "C" fn __libc_start_main(
     rtld_fini: unsafe extern "C" fn(),
     stack_end: *const c_void,
 ) -> c_int {
+    // Acquire the lock to initialize TLSF.
     {
         let _tlsf = TLSF.lock().unwrap();
     }
