@@ -4,17 +4,22 @@ using namespace agnocast;
 
 thread_local uint32_t publisher_num_borrowed = 0;
 
-extern "C" uint32_t agnocast::get_publisher_num_borrowed(){
+extern "C" uint32_t agnocast::get_publisher_num_borrowed()
+{
   return publisher_num_borrowed;
 }
 
-void increment_publisher_num_borrowed(){
+void increment_publisher_num_borrowed()
+{
   publisher_num_borrowed++;
 }
 
-void decrement_publisher_num_borrowed(){
+void decrement_publisher_num_borrowed()
+{
   if (!publisher_num_borrowed) {
-    RCLCPP_ERROR(logger, "The number of publish() called exceeds the number of borrow_loaned_message() called.");
+    RCLCPP_ERROR(
+      logger,
+      "The number of publish() called exceeds the number of borrow_loaned_message() called.");
     exit(EXIT_FAILURE);
   }
   publisher_num_borrowed--;
