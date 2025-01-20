@@ -55,7 +55,7 @@ protected:
 
 public:
   SubscriptionBase(
-    rclcpp::Node * node, const pid_t subscriber_pid, std::string topic_name,
+    rclcpp::Node * node, const pid_t subscriber_pid, const std::string & topic_name,
     const rclcpp::QoS & qos);
 };
 
