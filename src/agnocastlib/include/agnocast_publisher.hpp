@@ -41,7 +41,7 @@ class Publisher
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
-  bool do_always_ros2_publish_;
+  bool do_always_ros2_publish_;  // For transient local.
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
 
 public:
