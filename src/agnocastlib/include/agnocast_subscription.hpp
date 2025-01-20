@@ -66,15 +66,15 @@ public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
 
   Subscription(
-    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
-    const rclcpp::QoS & qos,
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(getpid(), topic_name, qos)
   {
     union ioctl_subscriber_args subscriber_args = initialize(false);
     mqd_t mq = open_mq_for_subscription(topic_name, subscriber_pid_, mq_subscription);
-    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
+    auto node_base = node->get_node_base_interface();
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
     agnocast::register_callback(
       callback, topic_name, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 

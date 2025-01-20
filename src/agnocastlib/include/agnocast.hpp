@@ -60,8 +60,8 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
 
 template <typename MessageT>
 typename Subscription<MessageT>::SharedPtr create_subscription(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
-  const rclcpp::QoS & qos, std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
+  rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+  std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
   const agnocast::SubscriptionOptions options;
   return std::make_shared<Subscription<MessageT>>(node, topic_name, qos, callback, options);
@@ -69,8 +69,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 
 template <typename MessageT>
 typename Subscription<MessageT>::SharedPtr create_subscription(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
-  const size_t qos_history_depth,
+  rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback)
 {
   const agnocast::SubscriptionOptions options;
@@ -80,8 +79,8 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 
 template <typename MessageT>
 typename Subscription<MessageT>::SharedPtr create_subscription(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
-  const rclcpp::QoS & qos, std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
+  rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+  std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
   agnocast::SubscriptionOptions options)
 {
   return std::make_shared<Subscription<MessageT>>(node, topic_name, qos, callback, options);
@@ -89,8 +88,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 
 template <typename MessageT>
 typename Subscription<MessageT>::SharedPtr create_subscription(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node, const std::string & topic_name,
-  const size_t qos_history_depth,
+  rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth,
   std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
   agnocast::SubscriptionOptions options)
 {

@@ -23,12 +23,12 @@ public:
     sub_options.callback_group = mutex_callback_group_;
 
     sub1_ = agnocast::create_subscription<std_msgs::msg::String>(
-      get_node_base_interface(), "/topic1", rclcpp::QoS(10),
+      this, "/topic1", rclcpp::QoS(10),
       std::bind(&CallbackGroupTestListener::sub_callback1, this, std::placeholders::_1),
       sub_options);
 
     sub2_ = agnocast::create_subscription<std_msgs::msg::String>(
-      get_node_base_interface(), "/topic2", 10,
+      this, "/topic2", 10,
       std::bind(&CallbackGroupTestListener::sub_callback2, this, std::placeholders::_1),
       sub_options);
 
