@@ -43,8 +43,34 @@ class MinimalPubSub : public rclcpp::Node
     publisher_dynamic_->publish(std::move(pub_message));
   }
 
+  void internal_topic_callback(
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & sub_message)
+  {
+    RCLCPP_INFO(
+      this->get_logger(), "I heard internal message: addr=%016lx",
+      reinterpret_cast<uint64_t>(sub_message.get()));
+  }
+
+  void timer_callback()
+  {
+    agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
+      publisher_internal_->borrow_loaned_message();
+    message->timestamp = agnocast_get_timestamp();
+    for (int i = 0; i < 1000; i++) {
+      message->data[i] = (i + count_) % 256;
+    }
+    publisher_internal_->publish(std::move(message));
+    RCLCPP_INFO(this->get_logger(), "publish internal message");
+  }
+
   agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
+
+  // These publisher/subscription are used to test process-internal communication
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr publisher_internal_;
+  agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_internal_;
+  rclcpp::TimerBase::SharedPtr timer_;
+
   int count_;
 
   std::vector<uint64_t> timestamps_;
@@ -58,6 +84,12 @@ public:
       this, "/my_dynamic_topic", 10);
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
       this, "/my_static_topic", 10, std::bind(&MinimalPubSub::topic_callback, this, _1));
+
+    publisher_internal_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
+      this, "/my_internal_topic", 1);
+    sub_internal_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
+      this, "/my_internal_topic", 1, std::bind(&MinimalPubSub::internal_topic_callback, this, _1));
+    timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPubSub::timer_callback, this));
 
     count_ = 0;
 
