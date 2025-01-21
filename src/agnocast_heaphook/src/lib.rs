@@ -4,15 +4,36 @@ use std::{
     cell::Cell,
     ffi::CStr,
     mem::MaybeUninit,
-    os::raw::c_void,
+    os::raw::{c_int, c_void},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         LazyLock, Mutex,
     },
 };
 
+extern "C" {
+    fn get_borrowed_publisher_num() -> u32;
+}
+
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
 const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
+
+type LibcStartMainType = unsafe extern "C" fn(
+    main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
+    argc: c_int,
+    argv: *const *const u8,
+    init: unsafe extern "C" fn(),
+    fini: unsafe extern "C" fn(),
+    rtld_fini: unsafe extern "C" fn(),
+    stack_end: *const c_void,
+) -> c_int;
+static ORIGINAL_LIBC_START_MAIN: LazyLock<LibcStartMainType> = LazyLock::new(|| {
+    let symbol: &CStr = c"__libc_start_main";
+    unsafe {
+        let start_main_ptr: *mut c_void = libc::dlsym(libc::RTLD_NEXT, symbol.as_ptr());
+        std::mem::transmute::<*mut c_void, LibcStartMainType>(start_main_ptr)
+    }
+});
 
 type MallocType = unsafe extern "C" fn(usize) -> *mut c_void;
 static ORIGINAL_MALLOC: LazyLock<MallocType> = LazyLock::new(|| {
@@ -219,9 +240,41 @@ thread_local! {
     static HOOKED : Cell<bool> = const { Cell::new(false) }
 }
 
+fn should_use_original_func() -> bool {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return true;
+    }
+
+    unsafe {
+        if get_borrowed_publisher_num() == 0 {
+            return true;
+        }
+    }
+
+    false
+}
+
+#[no_mangle]
+pub extern "C" fn __libc_start_main(
+    main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
+    argc: c_int,
+    argv: *const *const u8,
+    init: unsafe extern "C" fn(),
+    fini: unsafe extern "C" fn(),
+    rtld_fini: unsafe extern "C" fn(),
+    stack_end: *const c_void,
+) -> c_int {
+    // Acquire the lock to initialize TLSF.
+    {
+        let _tlsf = TLSF.lock().unwrap();
+    }
+
+    unsafe { ORIGINAL_LIBC_START_MAIN(main, argc, argv, init, fini, rtld_fini, stack_end) }
+}
+
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_MALLOC(size) };
     }
 
@@ -270,7 +323,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_CALLOC(num, size) };
     }
 
@@ -301,7 +354,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
             (None, false)
         };
 
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
             unsafe { ORIGINAL_MALLOC(new_size) }
@@ -337,7 +390,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
     }
 
@@ -355,7 +408,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
     }
 
@@ -373,7 +426,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+    if should_use_original_func() {
         return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
     }
 

@@ -26,11 +26,14 @@ uint32_t get_subscription_count_core(const std::string & topic_name);
 std::vector<uint64_t> borrow_loaned_message_core(
   const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
   uint64_t msg_virtual_address, uint64_t timestamp);
+void increment_borrowed_publisher_num();
+void decrement_borrowed_publisher_num();
 
 namespace agnocast
 {
 
 extern int agnocast_fd;
+extern "C" uint32_t get_borrowed_publisher_num();
 
 template <typename MessageT>
 class Publisher
@@ -66,6 +69,7 @@ public:
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
   {
+    increment_borrowed_publisher_num();
     MessageT * ptr = new MessageT();
     return borrow_loaned_message(ptr);
   }
@@ -100,6 +104,7 @@ public:
 
     publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
     message.reset();
+    decrement_borrowed_publisher_num();
   }
 
   uint32_t get_subscription_count() const
