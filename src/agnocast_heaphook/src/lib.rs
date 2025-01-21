@@ -1,4 +1,3 @@
-use libc;
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
@@ -256,7 +255,7 @@ fn should_use_original_func() -> bool {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn __libc_start_main(
+pub extern "C" fn __libc_start_main(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
     argc: c_int,
     argv: *const *const u8,
@@ -270,7 +269,7 @@ pub unsafe extern "C" fn __libc_start_main(
         let _tlsf = TLSF.lock().unwrap();
     }
 
-    ORIGINAL_LIBC_START_MAIN(main, argc, argv, init, fini, rtld_fini, stack_end)
+    unsafe { ORIGINAL_LIBC_START_MAIN(main, argc, argv, init, fini, rtld_fini, stack_end) }
 }
 
 #[no_mangle]
