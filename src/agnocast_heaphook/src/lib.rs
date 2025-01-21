@@ -1,3 +1,4 @@
+use libc;
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
@@ -10,7 +11,6 @@ use std::{
         LazyLock, Mutex,
     },
 };
-use libc;
 
 extern "C" {
     fn get_borrowed_publisher_num() -> u32;
@@ -242,17 +242,17 @@ thread_local! {
 }
 
 fn should_use_original_func() -> bool {
-  if IS_FORKED_CHILD.load(Ordering::Relaxed) {
-    return true;
-  }
-
-  unsafe {
-    if get_borrowed_publisher_num() == 0 {
-      return true;
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        return true;
     }
-  }
 
-  false
+    unsafe {
+        if get_borrowed_publisher_num() == 0 {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[no_mangle]
@@ -275,7 +275,7 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if should_use_original_func(){
+    if should_use_original_func() {
         return unsafe { ORIGINAL_MALLOC(size) };
     }
 
