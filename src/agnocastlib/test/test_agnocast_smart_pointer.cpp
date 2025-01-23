@@ -8,6 +8,8 @@ MOCK_GLOBAL_FUNC4(
 MOCK_GLOBAL_FUNC4(
   increment_rc_core, void(const std::string &, const uint32_t, const uint32_t, const uint64_t));
 
+using testing::_;
+
 class AgnocastSmartPointerTest : public ::testing::Test
 {
 protected:
@@ -82,6 +84,15 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_sub)
   EXPECT_EXIT(
     agnocast::ipc_shared_ptr<int> sut2{sut}, ::testing::ExitedWithCode(EXIT_FAILURE),
     "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
+}
+
+TEST_F(AgnocastSmartPointerTest, copy_constructor_empty)
+{
+  EXPECT_GLOBAL_CALL(increment_rc_core, increment_rc_core(_, _, _, _)).Times(1);
+  EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(_, _, _, _)).Times(0);
+
+  agnocast::ipc_shared_ptr<int> sut;
+  EXPECT_NO_THROW(agnocast::ipc_shared_ptr<int> sut2{sut});
 }
 
 TEST_F(AgnocastSmartPointerTest, move_constructor_normal)

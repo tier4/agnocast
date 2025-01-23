@@ -18,6 +18,7 @@
 #include <cstring>
 
 // These are cut out of the class for information hiding.
+uint32_t initialize_publisher(const uint32_t publisher_pid, const std::string & topic_name);
 void publish_core(
   const std::string & topic_name, const uint32_t publisher_index, const uint64_t timestamp,
   std::unordered_map<std::string, mqd_t> & opened_mqs);
@@ -64,41 +65,7 @@ public:
       do_always_ros2_publish_ = false;
     }
 
-    validate_ld_preload();
-
-    union ioctl_publisher_args pub_args = {};
-    pub_args.publisher_pid = publisher_pid_;
-    pub_args.topic_name = topic_name.c_str();
-    if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_PUBLISHER_ADD_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    index_ = pub_args.ret_index;
-
-    // Send messages to subscribers to notify that a new publisher appears
-    for (uint32_t i = 0; i < pub_args.ret_subscriber_num; i++) {
-      if (pub_args.ret_subscriber_pids[i] == publisher_pid_) continue;
-
-      const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
-      mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
-      if (mq == -1) {
-        RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      MqMsgNewPublisher mq_msg = {};
-      mq_msg.publisher_pid = publisher_pid_;
-      mq_msg.shm_addr = pub_args.ret_shm_addr;
-      mq_msg.shm_size = pub_args.ret_shm_size;
-      if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        RCLCPP_ERROR(logger, "mq_send for new publisher failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-    }
+    index_ = initialize_publisher(publisher_pid_, topic_name);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
