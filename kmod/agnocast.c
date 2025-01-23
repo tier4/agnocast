@@ -873,7 +873,7 @@ static int publish_msg(
 
 static int take_msg(
   const char * topic_name, const uint32_t subscriber_index, const uint32_t qos_depth,
-  union ioctl_take_msg_args * ioctl_ret)
+  bool allow_same_message, union ioctl_take_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -896,12 +896,17 @@ static int take_msg(
   ioctl_ret->ret_timestamp = 0;
   ioctl_ret->ret_publisher_index = 0;
 
+  // TODO: There is a slight possibility that there are messages with same timestamps,
+  // but this has not been taken into account.
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
   struct rb_node * node = rb_last(&wrapper->topic.entries);
   while (node && searched_count < qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if (en->timestamp <= sub_info->latest_received_timestamp) {
+    if (!allow_same_message && en->timestamp == sub_info->latest_received_timestamp) {
+      break;  // Don't take the same message if it's not allowed
+    }
+    if (en->timestamp < sub_info->latest_received_timestamp) {
       break;  // Never take any messages that are older than the most recently received
     }
     if (en->published) candidate_en = en;
@@ -1065,7 +1070,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = take_msg(topic_name_buf, take_args.subscriber_index, take_args.qos_depth, &take_args);
+      ret = take_msg(
+        topic_name_buf, take_args.subscriber_index, take_args.qos_depth, take_args.allow_same_message,
+        &take_args);
       if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
         goto unlock_mutex_and_return;
       break;

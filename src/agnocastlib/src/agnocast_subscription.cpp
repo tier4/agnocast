@@ -95,20 +95,8 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid_) {
-      /*
-       * NOTE: In ROS2, communication should work fine even if the same process exists as both a
-       * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
-       * Agnocast to topic communication within a component container, the system will explicitly
-       * fail with an error during initialization.
-       */
-      RCLCPP_ERROR(
-        logger,
-        "This process (pid=%d) already exists in the topic (topic_name=%s) "
-        "as a publisher.",
-        subscriber_pid_, topic_name_.c_str());
-      exit(EXIT_FAILURE);
-    }
+    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid_) continue;
+
     const uint32_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];
     const uint64_t size = subscriber_args.ret_shm_sizes[i];
