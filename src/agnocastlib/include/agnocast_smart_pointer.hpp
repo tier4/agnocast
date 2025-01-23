@@ -33,10 +33,10 @@ class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
-  uint32_t publisher_index_;
-  uint32_t subscriber_index_;
-  uint64_t timestamp_;
-  bool is_created_by_sub_;
+  uint32_t publisher_index_ = -1;
+  uint32_t subscriber_index_ = -1;
+  uint64_t timestamp_ = 0;
+  bool is_created_by_sub_ = false;
 
   void increment_rc() const
   {
@@ -61,12 +61,7 @@ public:
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const uint32_t publisher_index,
     const uint64_t timestamp)
-  : ptr_(ptr),
-    topic_name_(topic_name),
-    publisher_index_(publisher_index),
-    subscriber_index_(-1),
-    timestamp_(timestamp),
-    is_created_by_sub_(false)
+  : ptr_(ptr), topic_name_(topic_name), publisher_index_(publisher_index), timestamp_(timestamp)
   {
   }
 
