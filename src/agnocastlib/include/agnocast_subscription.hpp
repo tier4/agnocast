@@ -114,12 +114,13 @@ public:
     initialize(true);
   }
 
-  agnocast::ipc_shared_ptr<MessageT> take()
+  agnocast::ipc_shared_ptr<MessageT> take(bool allow_same_message = false)
   {
     union ioctl_take_msg_args take_args;
     take_args.topic_name = topic_name_.c_str();
     take_args.subscriber_pid = subscriber_pid_;
     take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
+    take_args.allow_same_message = allow_same_message;
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
       RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
@@ -141,26 +142,17 @@ template <typename MessageT>
 class PollingSubscriber
 {
   typename TakeSubscription<MessageT>::SharedPtr subscriber_;
-  agnocast::ipc_shared_ptr<MessageT> data_;
 
 public:
   using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
 
   explicit PollingSubscriber(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
-  : data_(agnocast::ipc_shared_ptr<MessageT>())
   {
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
-  const agnocast::ipc_shared_ptr<MessageT> takeData()
-  {
-    agnocast::ipc_shared_ptr<MessageT> new_data = subscriber_->take();
-    if (new_data) {
-      data_ = std::move(new_data);
-    }
-    return data_;
-  };
+  const agnocast::ipc_shared_ptr<MessageT> takeData() { return subscriber_->take(true); };
 };
 
 }  // namespace agnocast
