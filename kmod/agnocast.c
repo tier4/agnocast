@@ -1189,6 +1189,8 @@ static int take_msg(
   ioctl_ret->ret_timestamp = 0;
   ioctl_ret->ret_publisher_pid = 0;
 
+  // TODO: There is a slight possibility that there are messages with same timestamps,
+  // but this has not been taken into account.
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
   struct rb_node * node = rb_last(&wrapper->topic.entries);
