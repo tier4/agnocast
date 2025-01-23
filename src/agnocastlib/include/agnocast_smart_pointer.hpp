@@ -16,8 +16,12 @@
 #include <cstring>
 
 // These are cut out of the class for information hiding.
-void decrement_rc(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
-void increment_rc_core(const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp);
+void decrement_rc(
+  const std::string & topic_name, const uint32_t publisher_index, const uint32_t subscriber_index,
+  const uint64_t timestamp);
+void increment_rc_core(
+  const std::string & topic_name, const uint32_t publisher_index, const uint32_t subscriber_index,
+  const uint64_t timestamp);
 
 namespace agnocast
 {
@@ -29,15 +33,16 @@ class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
-  uint32_t publisher_pid_ = 0;
-  uint64_t timestamp_ = 0;
-  bool is_created_by_sub_ = false;
+  uint32_t publisher_index_;
+  uint32_t subscriber_index_;
+  uint64_t timestamp_;
+  bool is_created_by_sub_;
 
   void increment_rc() const
   {
     if (!is_created_by_sub_) return;
 
-    increment_rc_core(topic_name_, publisher_pid_, timestamp_);
+    increment_rc_core(topic_name_, publisher_index_, subscriber_index_, timestamp_);
   }
 
   // Unimplemented operators. If these are called, a compile error is raised.
@@ -54,13 +59,26 @@ public:
   ipc_shared_ptr() = default;
 
   explicit ipc_shared_ptr(
-    T * ptr, const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
-    bool is_created_by_sub)
+    T * ptr, const std::string & topic_name, const uint32_t publisher_index,
+    const uint64_t timestamp)
   : ptr_(ptr),
     topic_name_(topic_name),
-    publisher_pid_(publisher_pid),
+    publisher_index_(publisher_index),
+    subscriber_index_(-1),
     timestamp_(timestamp),
-    is_created_by_sub_(is_created_by_sub)
+    is_created_by_sub_(false)
+  {
+  }
+
+  explicit ipc_shared_ptr(
+    T * ptr, const std::string & topic_name, const uint32_t publisher_index,
+    const uint32_t subscriber_index, const uint64_t timestamp)
+  : ptr_(ptr),
+    topic_name_(topic_name),
+    publisher_index_(publisher_index),
+    subscriber_index_(subscriber_index),
+    timestamp_(timestamp),
+    is_created_by_sub_(true)
   {
   }
 
@@ -69,7 +87,8 @@ public:
   ipc_shared_ptr(const ipc_shared_ptr & r)
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
-    publisher_pid_(r.publisher_pid_),
+    publisher_index_(r.publisher_index_),
+    subscriber_index_(r.subscriber_index_),
     timestamp_(r.timestamp_),
     is_created_by_sub_(r.is_created_by_sub_)
   {
@@ -87,7 +106,8 @@ public:
   ipc_shared_ptr(ipc_shared_ptr && r)
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
-    publisher_pid_(r.publisher_pid_),
+    publisher_index_(r.publisher_index_),
+    subscriber_index_(r.subscriber_index_),
     timestamp_(r.timestamp_),
     is_created_by_sub_(r.is_created_by_sub_)
   {
@@ -100,7 +120,8 @@ public:
       reset();
       ptr_ = r.ptr_;
       topic_name_ = r.topic_name_;
-      publisher_pid_ = r.publisher_pid_;
+      publisher_index_ = r.publisher_index_;
+      subscriber_index_ = r.subscriber_index_;
       timestamp_ = r.timestamp_;
       is_created_by_sub_ = r.is_created_by_sub_;
 
@@ -122,7 +143,7 @@ public:
     if (ptr_ == nullptr) return;
 
     if (is_created_by_sub_) {
-      decrement_rc(topic_name_, publisher_pid_, timestamp_);
+      decrement_rc(topic_name_, publisher_index_, subscriber_index_, timestamp_);
     }
     ptr_ = nullptr;
   }

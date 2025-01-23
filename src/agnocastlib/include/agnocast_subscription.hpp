@@ -35,7 +35,7 @@ struct SubscriptionOptions
 
 // These are cut out of the class for information hiding.
 mqd_t open_mq_for_subscription(
-  const std::string & topic_name, pid_t subscriber_pid,
+  const std::string & topic_name, const uint32_t subscriber_index,
   std::pair<mqd_t, std::string> & mq_subscription);
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
@@ -48,6 +48,7 @@ private:
   void wait_for_new_publisher() const;
 
 protected:
+  uint32_t index_;
   const pid_t subscriber_pid_;
   const std::string topic_name_;
   const rclcpp::QoS qos_;
@@ -74,11 +75,14 @@ public:
   : SubscriptionBase(node, getpid(), topic_name, qos)
   {
     union ioctl_subscriber_args subscriber_args = initialize(false);
-    mqd_t mq = open_mq_for_subscription(topic_name_, subscriber_pid_, mq_subscription);
+
+    index_ = subscriber_args.ret_index;
+
+    mqd_t mq = open_mq_for_subscription(topic_name_, index_, mq_subscription);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
     agnocast::register_callback(
-      callback, topic_name_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
+      callback, topic_name_, index_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
     // If there are messages available and the transient local is enabled, immediately call the
     // callback.
@@ -87,8 +91,8 @@ public:
       for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
         MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
         agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-          ptr, topic_name_, subscriber_args.ret_publisher_pids[i],
-          subscriber_args.ret_timestamps[i], true);
+          ptr, topic_name_, subscriber_args.ret_publisher_indexes[i], index_,
+          subscriber_args.ret_timestamps[i]);
         callback(agnocast_ptr);
       }
     }
@@ -111,14 +115,16 @@ public:
         logger, "The transient local is not supported by TakeSubscription, so it is ignored.");
     }
 
-    initialize(true);
+    union ioctl_subscriber_args subscriber_args = initialize(true);
+
+    index_ = subscriber_args.ret_index;
   }
 
   agnocast::ipc_shared_ptr<MessageT> take()
   {
     union ioctl_take_msg_args take_args;
     take_args.topic_name = topic_name_.c_str();
-    take_args.subscriber_pid = subscriber_pid_;
+    take_args.subscriber_index = index_;
     take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
       RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
@@ -132,7 +138,7 @@ public:
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
     return agnocast::ipc_shared_ptr<MessageT>(
-      ptr, topic_name_, take_args.ret_publisher_pid, take_args.ret_timestamp, true);
+      ptr, topic_name_, take_args.ret_publisher_index, index_, take_args.ret_timestamp);
   }
 };
 

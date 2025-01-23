@@ -18,12 +18,13 @@ union ioctl_subscriber_args {
   };
   struct
   {
+    uint32_t ret_index;
     uint32_t ret_transient_local_num;
-    uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+    uint32_t ret_publisher_indexes[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
     uint32_t ret_publisher_num;
-    uint32_t ret_pids[MAX_PUBLISHER_NUM];
+    uint32_t ret_publisher_pids[MAX_PUBLISHER_NUM];
     uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
     uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
@@ -37,9 +38,10 @@ union ioctl_publisher_args {
   };
   struct
   {
+    uint32_t ret_index;
     uint64_t ret_shm_addr;
     uint64_t ret_shm_size;
-    uint32_t ret_subscriber_len;
+    uint32_t ret_subscriber_num;
     uint32_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
   };
 };
@@ -50,7 +52,7 @@ union ioctl_enqueue_and_release_args {
   struct
   {
     const char * topic_name;
-    uint32_t publisher_pid;
+    uint32_t publisher_index;
     uint32_t qos_depth;
     uint64_t msg_virtual_address;
     uint64_t timestamp;
@@ -66,8 +68,8 @@ union ioctl_update_entry_args {
   struct
   {
     const char * topic_name;
-    uint32_t subscriber_pid;
-    uint32_t publisher_pid;
+    uint32_t subscriber_index;
+    uint32_t publisher_index;
     uint64_t msg_timestamp;
   };
   uint64_t ret;
@@ -77,13 +79,13 @@ union ioctl_receive_msg_args {
   struct
   {
     const char * topic_name;
-    uint32_t subscriber_pid;
+    uint32_t subscriber_index;
     uint32_t qos_depth;
   };
   struct
   {
     uint16_t ret_len;
-    uint32_t ret_publisher_pids[MAX_QOS_DEPTH];
+    uint32_t ret_publisher_indexes[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
   };
@@ -93,13 +95,13 @@ union ioctl_publish_args {
   struct
   {
     const char * topic_name;
-    uint32_t publisher_pid;
+    uint32_t publisher_index;
     uint64_t msg_timestamp;
   };
   struct
   {
-    uint32_t ret_pids[MAX_SUBSCRIBER_NUM];
-    uint32_t ret_len;
+    uint32_t ret_subscriber_num;
+    uint32_t ret_subscriber_indexes[MAX_SUBSCRIBER_NUM];
   };
 };
 
@@ -107,14 +109,14 @@ union ioctl_take_msg_args {
   struct
   {
     const char * topic_name;
-    uint32_t subscriber_pid;
+    uint32_t subscriber_index;
     uint32_t qos_depth;
   };
   struct
   {
     uint64_t ret_addr;
     uint64_t ret_timestamp;
-    uint32_t ret_publisher_pid;
+    uint32_t ret_publisher_index;
   };
 };
 

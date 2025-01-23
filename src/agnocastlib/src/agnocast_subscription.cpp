@@ -1,5 +1,7 @@
 #include "agnocast.hpp"
 
+#include <cstdint>
+
 namespace agnocast
 {
 
@@ -93,7 +95,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (static_cast<pid_t>(subscriber_args.ret_pids[i]) == subscriber_pid_) {
+    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid_) {
       /*
        * NOTE: In ROS2, communication should work fine even if the same process exists as both a
        * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
@@ -107,7 +109,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
         subscriber_pid_, topic_name_.c_str());
       exit(EXIT_FAILURE);
     }
-    const uint32_t pid = subscriber_args.ret_pids[i];
+    const uint32_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];
     const uint64_t size = subscriber_args.ret_shm_sizes[i];
     map_read_only_area(pid, addr, size);
@@ -117,10 +119,10 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 }
 
 mqd_t open_mq_for_subscription(
-  const std::string & topic_name, pid_t subscriber_pid,
+  const std::string & topic_name, const uint32_t subscriber_index,
   std::pair<mqd_t, std::string> & mq_subscription)
 {
-  std::string mq_name = create_mq_name(topic_name, subscriber_pid);
+  std::string mq_name = create_mq_name(topic_name, subscriber_index);
   struct mq_attr attr = {};
   attr.mq_flags = 0;                        // Blocking queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size

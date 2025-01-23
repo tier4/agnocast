@@ -10,8 +10,8 @@ std::atomic<uint32_t> agnocast_topic_next_id;
 std::atomic<bool> need_epoll_updates{false};
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const uint32_t publisher_pid, const uint64_t timestamp,
-  const uint32_t topic_local_id)
+  const void * ptr, const uint32_t publisher_index, const uint32_t subscriber_index,
+  const uint64_t timestamp, const uint32_t topic_local_id)
 {
   bool found = false;
   AgnocastTopicInfo * info = nullptr;
@@ -31,10 +31,12 @@ std::shared_ptr<std::function<void()>> create_callable(
     exit(EXIT_FAILURE);
   }
 
-  return std::make_shared<std::function<void()>>([ptr, publisher_pid, timestamp, info]() {
-    auto typed_msg = info->message_creator(ptr, info->topic_name, publisher_pid, timestamp, true);
-    info->callback(*typed_msg);
-  });
+  return std::make_shared<std::function<void()>>(
+    [ptr, publisher_index, subscriber_index, timestamp, info]() {
+      auto typed_msg =
+        info->message_creator(ptr, info->topic_name, publisher_index, subscriber_index, timestamp);
+      info->callback(*typed_msg);
+    });
 }
 
 }  // namespace agnocast

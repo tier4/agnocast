@@ -120,7 +120,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
 
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = topic_info.topic_name.c_str();
-  receive_args.subscriber_pid = my_pid_;
+  receive_args.subscriber_index = topic_info.subscriber_index;
   receive_args.qos_depth = topic_info.qos_depth;
 
   if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
@@ -133,7 +133,8 @@ bool AgnocastExecutor::get_next_agnocast_executables(
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
-      receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
+      receive_args.ret_publisher_indexes[i], topic_info.subscriber_index,
+      receive_args.ret_timestamps[i], topic_local_id);
     agnocast_executables.callable_queue.push(callable);
   }
 
