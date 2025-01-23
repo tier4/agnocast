@@ -15,6 +15,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(tracetools REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -24,12 +25,14 @@ add_library(agnocast SHARED
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
+  ${tracetools_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${rclcpp_INCLUDE_DIRS}
+  ${tracetools_INCLUDE_DIRS}
 )
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
