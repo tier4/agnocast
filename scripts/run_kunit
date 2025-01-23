@@ -1,0 +1,39 @@
+#!/bin/bash
+
+### Validation
+if [ -f "/boot/config-$(uname -r)" ]; then
+    CONFIG_FILE="/boot/config-$(uname -r)"
+elif [ -f "/proc/config.gz" ]; then
+    zcat /proc/config.gz >/tmp/config-$(uname -r)
+    CONFIG_FILE="/tmp/config-$(uname -r)"
+else
+    echo "Kernel config file not found!"
+    exit 1
+fi
+
+if ! grep -q "CONFIG_KUNIT=y" $CONFIG_FILE; then
+    echo "Skipping KUnit tests as CONFIG_KUNIT is not enabled."
+    exit 1
+fi
+
+### Run KUnit tests
+AGNOCAST_DIR=$(realpath "$(dirname $(readlink -f $0))/..")
+
+AGNOCAST_KMOD_PATH=$AGNOCAST_DIR/kmod
+
+if [ -z "$AGNOCAST_KMOD_PATH" ]; then
+    echo "Usage: create_coverage_report <agnocast_kmod_path>"
+    exit 1
+fi
+
+cd $AGNOCAST_KMOD_PATH
+make clean
+make
+sudo insmod $AGNOCAST_KMOD_PATH/agnocast_kunit.ko
+sudo rmmod agnocast_kunit
+
+sudo lcov --capture --directory /sys/kernel/debug/gcov/$AGNOCAST_KMOD_PATH --output-file $AGNOCAST_DIR/coverage.info
+sudo lcov --remove $AGNOCAST_DIR/coverage.info "*linux*" "*kunit*" --output-file $AGNOCAST_DIR/coverage_filtered.info
+genhtml $AGNOCAST_DIR/coverage_filtered.info --output-directory $AGNOCAST_DIR/agnocast_kmod_coverage_report
+rm -f $AGNOCAST_DIR/coverage.info $AGNOCAST_DIR/coverage_filtered.info $AGNOCAST_KMOD_PATH/*.gcno
+echo "Please open agnocast_kmod_coverage_report/index.html in your web browser."

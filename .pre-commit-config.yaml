@@ -10,3 +10,11 @@ repos:
     hooks:
       - id: markdownlint
         args: [-c, .markdownlint.yaml, --fix]
+  
+  - repo: local
+    hooks:
+      - id: kunit
+        name: Run KUnit tests
+        entry: scripts/run_kunit
+        language: system
+        types: [c]
