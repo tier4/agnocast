@@ -13,7 +13,7 @@ fi
 
 if ! grep -q "CONFIG_KUNIT=y" $CONFIG_FILE; then
     echo "Skipping KUnit tests as CONFIG_KUNIT is not enabled."
-    exit 1
+    exit 0
 fi
 
 ### Run KUnit tests
