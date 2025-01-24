@@ -98,14 +98,19 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
+    // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
+    // for ROS2 serialization will also use shared memory. Since we don't need to store any
+    // additional data in shared memory after the agnocast publish operation, here is the ideal
+    // point to decrement.
+    decrement_borrowed_publisher_num();
+
     if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
       const MessageT * raw = message.get();
       ros2_publisher_->publish(*raw);
     }
 
-    publish_core(topic_name_, index_, message.get_timestamp(), opened_mqs_);
     message.reset();
-    decrement_borrowed_publisher_num();
   }
 
   uint32_t get_subscription_count() const
