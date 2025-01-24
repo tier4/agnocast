@@ -109,6 +109,7 @@ union ioctl_take_msg_args {
     const char * topic_name;
     uint32_t subscriber_pid;
     uint32_t qos_depth;
+    bool allow_same_message;
   };
   struct
   {

@@ -27,6 +27,14 @@ ifeq ($(shell expr $(KERNEL_MAJOR) \< 6 \| $(KERNEL_MAJOR) = 6 \& $(KERNEL_MINOR
   CFLAGS_agnocast.o += -Wno-declaration-after-statement
 endif
 
+# For KUnit
+ifeq ($(CONFIG_KUNIT),y)
+  obj-m += agnocast_kunit.o
+endif
+ifeq ($(CONFIG_GCOV_KERNEL),y)
+  CFLAGS_agnocast.o += -fprofile-arcs -ftest-coverage
+  CFLAGS_agnocast_kunit.o += -fprofile-arcs -ftest-coverage
+endif
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
