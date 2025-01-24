@@ -109,9 +109,24 @@ You can build, test and generate the coverage report by following:
 bash scripts/test_and_create_report
 ```
 
+## (For developer) Kernel Module Test
+
+A custom kernel with the following CONFIG enabled is required to run KUnit Test and obtain the coverage report (sample custom kernel is placed [here](https://drive.google.com/drive/folders/1sd8ROusgxhnEDOO0hbze3F5y47qtIdcM?usp=drive_link)).
+
+- `CONFIG_KUNIT=y`
+- `CONFIG_GCOV_KERNEL=y`
+
+If booting with the custom kernel, the following script can be used to run unit tests on kernel modules and generate coverage reports.
+
+```bash
+bash script/run_kunit
+```
+
+You can also use [pre-commit](#for-developer-setup-pre-commit).
+
 ## (For developer) Setup pre-commit
 
-The following command allows `clang-format` and `markdownlint` to be run before each commit.
+The following command allows `clang-format`, `markdownlint`, and [KUNIT Test](./kmod/agnocast_kunit.c) to be run before each commit.
 
 ```bash
 bash scripts/setup
