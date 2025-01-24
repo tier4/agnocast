@@ -81,21 +81,24 @@ TEST_F(AgnocastPublisherTest, test_publish_already_published_message)
     "Invalid message to publish.");
 }
 
-// TEST_F(AgnocastPublisherTest, test_publish_different_message)
-// {
-//   std::string diff_dummy_tn = "/dummy2";
-//   EXPECT_GLOBAL_CALL(initialize_publisher, initialize_publisher(pid, diff_dummy_tn)).Times(1);
-//   EXPECT_GLOBAL_CALL(borrow_loaned_message_core, borrow_loaned_message_core(_, pid, _, _, _))
-//     .WillRepeatedly(testing::Return(std::vector<uint64_t>()));
-//   EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, pid, _, _)).Times(0);
-//   agnocast::Publisher<std_msgs::msg::Int32>::SharedPtr diff_publisher =
-//     agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), diff_dummy_tn, 10);
-//   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> diff_message =
-//     diff_publisher->borrow_loaned_message();
-//   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message =
-//   dummy_publisher->borrow_loaned_message();
+TEST_F(AgnocastPublisherTest, test_publish_different_message)
+{
+  std::string diff_dummy_tn = "/dummy2";
+  EXPECT_GLOBAL_CALL(initialize_publisher, initialize_publisher(pid, diff_dummy_tn)).Times(1);
+  EXPECT_GLOBAL_CALL(
+    borrow_loaned_message_core, borrow_loaned_message_core(diff_dummy_tn, index, 10, _, _))
+    .WillOnce(testing::Return(std::vector<uint64_t>()));
+  EXPECT_GLOBAL_CALL(borrow_loaned_message_core, borrow_loaned_message_core(dummy_tn, _, 10, _, _))
+    .WillOnce(testing::Return(std::vector<uint64_t>()));
+  EXPECT_GLOBAL_CALL(publish_core, publish_core(dummy_tn, _, _, _)).Times(0);
 
-//   EXPECT_EXIT(
-//     dummy_publisher->publish(std::move(diff_message)), ::testing::ExitedWithCode(EXIT_FAILURE),
-//     "Invalid message to publish.");
-// }
+  agnocast::Publisher<std_msgs::msg::Int32>::SharedPtr diff_publisher =
+    agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), diff_dummy_tn, 10);
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> diff_message =
+    diff_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+
+  EXPECT_EXIT(
+    dummy_publisher->publish(std::move(diff_message)), ::testing::ExitedWithCode(EXIT_FAILURE),
+    "Invalid message to publish.");
+}
