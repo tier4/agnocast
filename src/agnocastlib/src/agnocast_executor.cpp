@@ -130,7 +130,6 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     exit(EXIT_FAILURE);
   }
 
-  uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;
   for (int32_t i = static_cast<int32_t>(receive_args.ret_len) - 1; i >= 0;
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
@@ -138,6 +137,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
       receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
+    uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;
     TRACEPOINT(
       agnocast_create_callable, static_cast<const void *>(callable.get()),
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), receive_args.ret_timestamps[i],
