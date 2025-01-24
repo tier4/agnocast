@@ -8,7 +8,7 @@ namespace agnocast
 {
 
 // TODO: should be made larger when applied for Autoware
-#define MAX_PUBLISHER_NUM 2   // At least 2 is required for sample application
+#define MAX_PUBLISHER_NUM 4   // At least 4 is required for sample application
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 
 #define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
