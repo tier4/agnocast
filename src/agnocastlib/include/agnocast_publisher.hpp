@@ -59,11 +59,13 @@ public:
     qos_(qos),
     ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
   {
+#ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       topic_name.c_str(), qos.depth());
+#endif
 
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       do_always_ros2_publish_ = do_always_ros2_publish;
@@ -98,9 +100,12 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
+#ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()),
       message.get_timestamp());
+#endif
+
     if (!message || topic_name_ != message.get_topic_name()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
       close(agnocast_fd);
