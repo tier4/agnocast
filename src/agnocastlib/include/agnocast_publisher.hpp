@@ -65,7 +65,7 @@ public:
       do_always_ros2_publish_ = false;
     }
 
-    index_ = initialize_publisher(publisher_pid_, topic_name);
+    index_ = initialize_publisher(publisher_pid_, topic_name_);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
