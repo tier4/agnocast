@@ -78,9 +78,9 @@ public:
     mqd_t mq = open_mq_for_subscription(topic_name_, subscriber_pid_, mq_subscription);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
+    // cppcheck-suppress unreadVariable
     uint32_t local_topic_id = agnocast::register_callback(
-      callback, topic_name_, static_cast<uint32_t>(qos.depth()), mq,
-      callback_group);  // cppcheck-suppress unreadVariable
+      callback, topic_name_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ltid = (static_cast<uint64_t>(subscriber_pid_) << 32) | local_topic_id;
