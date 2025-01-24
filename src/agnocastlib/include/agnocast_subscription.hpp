@@ -45,19 +45,16 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
 class SubscriptionBase
 {
 private:
-  void wait_for_new_publisher() const;
+  void wait_for_new_publisher(const pid_t subscriber_pid) const;
 
 protected:
   uint32_t index_;
-  const pid_t subscriber_pid_;
   const std::string topic_name_;
   const rclcpp::QoS qos_;
   union ioctl_subscriber_args initialize(bool is_take_sub);
 
 public:
-  SubscriptionBase(
-    rclcpp::Node * node, const pid_t subscriber_pid, const std::string & topic_name,
-    const rclcpp::QoS & qos);
+  SubscriptionBase(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos);
 };
 
 template <typename MessageT>
@@ -72,7 +69,7 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(node, getpid(), topic_name, qos)
+  : SubscriptionBase(node, topic_name, qos)
   {
     union ioctl_subscriber_args subscriber_args = initialize(false);
 
@@ -108,7 +105,7 @@ public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
   TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-  : SubscriptionBase(node, getpid(), topic_name, qos)
+  : SubscriptionBase(node, topic_name, qos)
   {
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       RCLCPP_WARN(

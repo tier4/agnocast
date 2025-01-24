@@ -1,5 +1,7 @@
 #include "agnocast.hpp"
 
+#include <sched.h>
+
 #include <cstdint>
 
 namespace agnocast
@@ -10,16 +12,13 @@ mqd_t mq_new_publisher = -1;
 extern std::vector<std::thread> threads;
 
 SubscriptionBase::SubscriptionBase(
-  rclcpp::Node * node, const pid_t subscriber_pid, const std::string & topic_name,
-  const rclcpp::QoS & qos)
-: subscriber_pid_(subscriber_pid),
-  topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-  qos_(qos)
+  rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+: topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)), qos_(qos)
 {
   validate_ld_preload();
 }
 
-void SubscriptionBase::wait_for_new_publisher() const
+void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid) const
 {
   static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -34,7 +33,7 @@ void SubscriptionBase::wait_for_new_publisher() const
 
   pthread_mutex_unlock(&wait_newpub_mtx);
 
-  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid_);
+  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid);
 
   struct mq_attr attr = {};
   attr.mq_flags = 0;         // Blocking queue
@@ -75,8 +74,10 @@ void SubscriptionBase::wait_for_new_publisher() const
 
 union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 {
+  const pid_t subscriber_pid = getpid();
+
   // Open a mq for new publisher appearences.
-  wait_for_new_publisher();
+  wait_for_new_publisher(subscriber_pid);
 
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.
@@ -85,7 +86,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                 ? static_cast<uint32_t>(qos_.depth())
                                 : 0;
-  subscriber_args.subscriber_pid = subscriber_pid_;
+  subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.init_timestamp = agnocast_get_timestamp();
   subscriber_args.is_take_sub = is_take_sub;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
@@ -95,7 +96,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid_) continue;
+    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid) continue;
 
     const uint32_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];
