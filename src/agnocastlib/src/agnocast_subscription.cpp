@@ -13,12 +13,14 @@ extern std::vector<std::thread> threads;
 
 SubscriptionBase::SubscriptionBase(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-: topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)), qos_(qos)
+: index_(0),
+  topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
+  qos_(qos)
 {
   validate_ld_preload();
 }
 
-void SubscriptionBase::wait_for_new_publisher(const pid_t subscriber_pid) const
+static void wait_for_new_publisher(const pid_t subscriber_pid)
 {
   static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -96,7 +98,9 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid) continue;
+    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid) {
+      continue;
+    }
 
     const uint32_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];

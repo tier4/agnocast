@@ -40,7 +40,9 @@ uint32_t initialize_publisher(const uint32_t publisher_pid, const std::string & 
 
   // Send messages to subscribers to notify that a new publisher appears
   for (uint32_t i = 0; i < pub_args.ret_subscriber_num; i++) {
-    if (pub_args.ret_subscriber_pids[i] == publisher_pid) continue;
+    if (pub_args.ret_subscriber_pids[i] == publisher_pid) {
+      continue;
+    }
 
     const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);

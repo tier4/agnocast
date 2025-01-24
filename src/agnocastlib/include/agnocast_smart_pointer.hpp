@@ -33,8 +33,8 @@ class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
-  uint32_t publisher_index_ = -1;
-  uint32_t subscriber_index_ = -1;
+  uint32_t publisher_index_ = 0;
+  uint32_t subscriber_index_ = 0;
   uint64_t timestamp_ = 0;
   bool is_created_by_sub_ = false;
 

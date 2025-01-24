@@ -104,7 +104,7 @@ static struct topic_wrapper * insert_topic(const char * topic_name)
     return NULL;
   }
 
-  wrapper->current_index = 0;
+  wrapper->current_index = 1;
   wrapper->topic.entries = RB_ROOT;
   hash_init(wrapper->topic.pub_info_htable);
   hash_init(wrapper->topic.sub_info_htable);
@@ -286,7 +286,7 @@ static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_index)
       return 0;
     }
 
-    if (en->referencing_subscriber_indexes[i] == 0) {
+    if (en->subscriber_reference_count[i] == 0) {
       en->referencing_subscriber_indexes[i] = subscriber_index;
       en->subscriber_reference_count[i] = 1;
       return 0;
@@ -1071,8 +1071,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = take_msg(
-        topic_name_buf, take_args.subscriber_index, take_args.qos_depth, take_args.allow_same_message,
-        &take_args);
+        topic_name_buf, take_args.subscriber_index, take_args.qos_depth,
+        take_args.allow_same_message, &take_args);
       if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
         goto unlock_mutex_and_return;
       break;

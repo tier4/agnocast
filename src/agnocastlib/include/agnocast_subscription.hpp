@@ -44,9 +44,6 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
 
 class SubscriptionBase
 {
-private:
-  void wait_for_new_publisher(const pid_t subscriber_pid) const;
-
 protected:
   uint32_t index_;
   const std::string topic_name_;
