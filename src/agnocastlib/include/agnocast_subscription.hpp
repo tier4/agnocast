@@ -6,6 +6,7 @@
 #include "agnocast_topic_info.hpp"
 #include "agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "tracetools/tracetools.h"
 
 #include <fcntl.h>
 #include <mqueue.h>
@@ -77,8 +78,18 @@ public:
     mqd_t mq = open_mq_for_subscription(topic_name_, subscriber_pid_, mq_subscription);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
-    agnocast::register_callback(
+    // cppcheck-suppress unreadVariable
+    uint32_t local_topic_id = agnocast::register_callback(
       callback, topic_name_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    uint64_t pid_ltid = (static_cast<uint64_t>(subscriber_pid_) << 32) | local_topic_id;
+    TRACEPOINT(
+      agnocast_subscription_init, static_cast<const void *>(this),
+      static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
+      static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
+      tracetools::get_symbol(callback), topic_name.c_str(), qos.depth(), pid_ltid);
+#endif
 
     // If there are messages available and the transient local is enabled, immediately call the
     // callback.
@@ -106,6 +117,19 @@ public:
   TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
   : SubscriptionBase(node, getpid(), topic_name, qos)
   {
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
+      rclcpp::CallbackGroupType::MutuallyExclusive, false);
+    auto dummy_cb = []() {};
+    std::string dummy_cb_symbols = "dummy_take" + topic_name;
+    TRACEPOINT(
+      agnocast_subscription_init, static_cast<const void *>(this),
+      static_cast<const void *>(
+        node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
+      static_cast<const void *>(&dummy_cb), static_cast<const void *>(dummy_cbg.get()),
+      dummy_cb_symbols.c_str(), topic_name.c_str(), qos.depth(), 0);
+#endif
+
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       RCLCPP_WARN(
         logger, "The transient local is not supported by TakeSubscription, so it is ignored.");
@@ -130,6 +154,12 @@ public:
     if (take_args.ret_addr == 0) {
       return agnocast::ipc_shared_ptr<MessageT>();
     }
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    TRACEPOINT(
+      agnocast_take, static_cast<void *>(this), reinterpret_cast<void *>(take_args.ret_addr),
+      take_args.ret_timestamp);
+#endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
     return agnocast::ipc_shared_ptr<MessageT>(

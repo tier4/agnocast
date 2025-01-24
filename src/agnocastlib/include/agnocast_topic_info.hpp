@@ -97,7 +97,7 @@ TypeErasedCallback get_erased_callback(const Func callback)
 }
 
 template <typename Func>
-void register_callback(
+uint32_t register_callback(
   const Func callback, const std::string & topic_name, const uint32_t qos_depth, const mqd_t mqdes,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
@@ -124,6 +124,8 @@ void register_callback(
   }
 
   need_epoll_updates.store(true);
+
+  return id;
 }
 
 std::shared_ptr<std::function<void()>> create_callable(

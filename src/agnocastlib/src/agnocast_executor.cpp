@@ -3,6 +3,7 @@
 #include "agnocast.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
+#include "tracetools/tracetools.h"
 
 namespace agnocast
 {
@@ -134,6 +135,15 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
       receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;
+    TRACEPOINT(
+      agnocast_create_callable, static_cast<const void *>(callable.get()),
+      reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), receive_args.ret_timestamps[i],
+      pid_ltid);
+#endif
+
     agnocast_executables.callable_queue.push(callable);
   }
 
@@ -153,7 +163,13 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
   while (!agnocast_executables.callable_queue.empty()) {
     const auto callable = agnocast_executables.callable_queue.front();
     agnocast_executables.callable_queue.pop();
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    TRACEPOINT(agnocast_callable_start, static_cast<const void *>(callable.get()));
+#endif
     (*callable)();
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    TRACEPOINT(agnocast_callable_end, static_cast<const void *>(callable.get()));
+#endif
   }
 
   agnocast_executables.callback_group->can_be_taken_from().store(true);
