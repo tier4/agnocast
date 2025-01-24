@@ -16,9 +16,9 @@ protected:
   void SetUp() override
   {
     dummy_tn = "dummy";
-    dummy_pub_index = 0;
-    dummy_sub_index = 0;
-    dummy_ts = 0;
+    dummy_pub_index = 1;
+    dummy_sub_index = 2;
+    dummy_ts = 3;
   }
 
   std::string dummy_tn;
@@ -88,7 +88,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_sub)
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_empty)
 {
-  EXPECT_GLOBAL_CALL(increment_rc_core, increment_rc_core(_, _, _, _)).Times(1);
+  EXPECT_GLOBAL_CALL(increment_rc_core, increment_rc_core(_, _, _, _)).Times(0);
   EXPECT_GLOBAL_CALL(decrement_rc, decrement_rc(_, _, _, _)).Times(0);
 
   agnocast::ipc_shared_ptr<int> sut;
