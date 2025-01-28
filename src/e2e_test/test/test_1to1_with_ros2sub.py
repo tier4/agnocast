@@ -14,23 +14,28 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config_test_1to1_with_ros
 
 EXPECT_INIT_PUB_NUM: int
 EXPECT_PUB_NUM: int
+EXPECT_INIT_SUB_NUM: int
 EXPECT_SUB_NUM: int
+EXPECT_INIT_ROS2_SUB_NUM: int
 EXPECT_ROS2_SUB_NUM: int
 
 
 def calc_expect_pub_sub_num(config: dict) -> None:
-    global EXPECT_PUB_NUM, EXPECT_INIT_PUB_NUM, EXPECT_SUB_NUM, EXPECT_ROS2_SUB_NUM
+    global EXPECT_PUB_NUM, EXPECT_INIT_PUB_NUM, EXPECT_INIT_SUB_NUM, EXPECT_SUB_NUM, EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM
 
-    EXPECT_INIT_PUB_NUM = config['pub_qos_depth'] if config['launch_pub_before_sub'] and config['pub_transient_local'] else 0
+    EXPECT_INIT_PUB_NUM = config['pub_qos_depth'] if (
+        config['launch_pub_before_sub'] and config['pub_transient_local']) else 0
     EXPECT_PUB_NUM = config['pub_qos_depth']
 
-    base_num = min(EXPECT_PUB_NUM, config['sub_qos_depth'])
+    base_sub_num = min(EXPECT_PUB_NUM, config['sub_qos_depth'])
+    EXPECT_ROS2_SUB_NUM = base_sub_num
+    EXPECT_SUB_NUM = base_sub_num
     if config['launch_pub_before_sub'] and config['sub_transient_local']:
-        EXPECT_ROS2_SUB_NUM = base_num * 2
-        EXPECT_SUB_NUM = base_num if config['use_take_sub'] else base_num * 2
+        EXPECT_INIT_ROS2_SUB_NUM = base_sub_num
+        EXPECT_INIT_SUB_NUM = 0 if config['use_take_sub'] else base_sub_num
     else:
-        EXPECT_ROS2_SUB_NUM = base_num
-        EXPECT_SUB_NUM = base_num
+        EXPECT_INIT_ROS2_SUB_NUM = 0
+        EXPECT_INIT_SUB_NUM = 0
 
 
 @launch_testing.markers.keep_alive
@@ -87,7 +92,7 @@ def generate_test_description():
                              "transient_local": config
                              ['sub_transient_local']
                              if config['pub_transient_local'] else False,
-                             "sub_num": EXPECT_ROS2_SUB_NUM}
+                             "sub_num": EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM}
                         ],
                     )
             ],
@@ -110,7 +115,7 @@ def generate_test_description():
                             {
                                 "qos_depth": config['sub_qos_depth'],
                                 "transient_local": config['sub_transient_local'],
-                                "sub_num": EXPECT_SUB_NUM
+                                "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
                             }
                         ],
                     )
@@ -138,7 +143,7 @@ def generate_test_description():
                             {
                                 "qos_depth": config['sub_qos_depth'],
                                 "transient_local": config['sub_transient_local'],
-                                "sub_num": EXPECT_SUB_NUM
+                                "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
                             }
                         ],
                     )
@@ -181,12 +186,12 @@ class Test1To1(unittest.TestCase):
 
     def test_sub(self, proc_output, test_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
-            for i in range(EXPECT_SUB_NUM):
+            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM, EXPECT_SUB_NUM):
                 cm.assertInStdout(f"Receiving {i}.")
             cm.assertInStdout("All messages received. Shutting down.")
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
-            for i in range(EXPECT_ROS2_SUB_NUM):
+            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
                 cm.assertInStdout(f"Receiving {i}.")
             cm.assertInStdout("All messages received. Shutting down.")
