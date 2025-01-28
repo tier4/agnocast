@@ -30,7 +30,7 @@ class TestPublisher : public rclcpp::Node
   }
 
 public:
-  TestPublisher() : Node("test_publisher")
+  explicit TestPublisher(const rclcpp::NodeOptions & options) : Node("test_publisher", options)
   {
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
@@ -62,19 +62,11 @@ public:
     while (publisher_->get_subscription_count() < 2) {
       sleep(1);
     }
+    sleep(2);  // HACK: wait subscribing transient local messages
 
     timer_ = this->create_wall_timer(10ms, std::bind(&TestPublisher::timer_callback, this));
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  agnocast::SingleThreadedAgnocastExecutor executor;
-  executor.add_node(std::make_shared<TestPublisher>());
-  executor.spin();
-
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(TestPublisher)

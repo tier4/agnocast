@@ -22,7 +22,8 @@ class TestROS2Subscriber : public rclcpp::Node
   }
 
 public:
-  TestROS2Subscriber() : Node("test_ros2_subscription")
+  explicit TestROS2Subscriber(const rclcpp::NodeOptions & options)
+  : Node("test_ros2_subscription", options)
   {
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
@@ -42,10 +43,5 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<TestROS2Subscriber>());
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(TestROS2Subscriber)

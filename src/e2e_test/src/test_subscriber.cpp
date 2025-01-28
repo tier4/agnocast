@@ -23,7 +23,7 @@ class TestSubscriber : public rclcpp::Node
   }
 
 public:
-  TestSubscriber() : Node("test_subscription")
+  explicit TestSubscriber(const rclcpp::NodeOptions & options) : Node("test_subscription", options)
   {
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
@@ -42,14 +42,5 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  agnocast::SingleThreadedAgnocastExecutor executor;
-  executor.add_node(std::make_shared<TestSubscriber>());
-  executor.spin();
-
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(TestSubscriber)

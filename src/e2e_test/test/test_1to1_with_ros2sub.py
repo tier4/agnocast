@@ -7,7 +7,8 @@ import launch_testing.markers
 import yaml
 from launch import LaunchDescription
 from launch.actions import TimerAction
-from launch_ros.actions import Node
+from launch_ros.actions import ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config_test_1to1_with_ros2sub.yaml')
 
@@ -41,19 +42,27 @@ def generate_test_description():
     pub_node = TimerAction(
         period=0.0 if config['launch_pub_before_sub'] else 1.0,
         actions=[
-            Node(
-                package='e2e_test',
-                executable='test_talker',
-                name='test_talker_node',
-                parameters=[
-                    {
-                        "qos_depth": config['pub_qos_depth'],
-                        "transient_local": config['pub_transient_local'],
-                        "init_pub_num": EXPECT_INIT_PUB_NUM,
-                        "pub_num": EXPECT_PUB_NUM
-                    }
+            ComposableNodeContainer(
+                name='test_talker_container',
+                namespace='',
+                package='agnocastlib',
+                executable='agnocast_component_container',
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package='e2e_test',
+                        plugin='TestPublisher',
+                        name='test_talker_node',
+                        parameters=[
+                            {
+                                "qos_depth": config['pub_qos_depth'],
+                                "transient_local": config['pub_transient_local'],
+                                "init_pub_num": EXPECT_INIT_PUB_NUM,
+                                "pub_num": EXPECT_PUB_NUM
+                            }
+                        ],
+                    )
                 ],
-                output="screen",
+                output='screen',
                 additional_env={
                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
                     'MEMPOOL_SIZE': '134217728',
@@ -63,29 +72,50 @@ def generate_test_description():
     )
 
     sub_nodes_actions = [
-        Node(
-            package='e2e_test', executable='test_ros2_listener',
-            name='test_ros2_listener_node',
-            parameters=[{"qos_depth": config['sub_qos_depth'],
-                         "transient_local": config
-                         ['sub_transient_local']
-                         if config['pub_transient_local'] else False,
-                         "sub_num": EXPECT_ROS2_SUB_NUM}],
-            output="screen",)]
+        ComposableNodeContainer(
+            name='test_ros2_lister_container',
+            namespace='',
+            package='agnocastlib',
+            executable='agnocast_component_container',
+            composable_node_descriptions=[
+                    ComposableNode(
+                        package='e2e_test',
+                        plugin='TestROS2Subscriber',
+                        name='test_ros2_listener_node',
+                        parameters=[
+                            {"qos_depth": config['sub_qos_depth'],
+                             "transient_local": config
+                             ['sub_transient_local']
+                             if config['pub_transient_local'] else False,
+                             "sub_num": EXPECT_ROS2_SUB_NUM}
+                        ],
+                    )
+            ],
+            output='screen',
+        )
+    ]
     if config['use_take_sub']:
         sub_nodes_actions.append(
-            Node(
-                package='e2e_test',
-                executable='test_taker',
-                name='test_taker_node',
-                parameters=[
-                    {
-                        "qos_depth": config['sub_qos_depth'],
-                        "transient_local": config['sub_transient_local'],
-                        "sub_num": EXPECT_SUB_NUM
-                    }
+            ComposableNodeContainer(
+                name='test_taker_container',
+                namespace='',
+                package='agnocastlib',
+                executable='agnocast_component_container',
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package='e2e_test',
+                        plugin='TestTakeSubscriber',
+                        name='test_taker_node',
+                        parameters=[
+                            {
+                                "qos_depth": config['sub_qos_depth'],
+                                "transient_local": config['sub_transient_local'],
+                                "sub_num": EXPECT_SUB_NUM
+                            }
+                        ],
+                    )
                 ],
-                output="screen",
+                output='screen',
                 additional_env={
                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
                     'MEMPOOL_SIZE': '134217728',
@@ -94,18 +124,26 @@ def generate_test_description():
         )
     else:
         sub_nodes_actions.append(
-            Node(
-                package='e2e_test',
-                executable='test_listener',
-                name='test_listener_node',
-                parameters=[
-                    {
-                        "qos_depth": config['sub_qos_depth'],
-                        "transient_local": config['sub_transient_local'],
-                        "sub_num": EXPECT_SUB_NUM
-                    }
+            ComposableNodeContainer(
+                name='test_lister_container',
+                namespace='',
+                package='agnocastlib',
+                executable='agnocast_component_container',
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package='e2e_test',
+                        plugin='TestSubscriber',
+                        name='test_listener_node',
+                        parameters=[
+                            {
+                                "qos_depth": config['sub_qos_depth'],
+                                "transient_local": config['sub_transient_local'],
+                                "sub_num": EXPECT_SUB_NUM
+                            }
+                        ],
+                    )
                 ],
-                output="screen",
+                output='screen',
                 additional_env={
                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
                     'MEMPOOL_SIZE': '134217728',
