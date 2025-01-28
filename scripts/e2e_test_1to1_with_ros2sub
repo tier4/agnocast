@@ -2,6 +2,7 @@
 
 # Setup
 rm -rf build/e2e_test install/e2e_test
+source /opt/ros/humble/setup.bash
 colcon build --symlink-install --packages-select e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 
@@ -52,9 +53,4 @@ done
 echo "All tests passed"
 
 # Reset config file
-sed -i "s/launch_pub_before_sub:.*/launch_pub_before_sub: true/g" $CONFIG_FILE
-sed -i "s/pub_qos_depth:.*/pub_qos_depth: 10/g" $CONFIG_FILE
-sed -i "s/pub_transient_local:.*/pub_transient_local: true/g" $CONFIG_FILE
-sed -i "s/sub_qos_depth:.*/sub_qos_depth: 10/g" $CONFIG_FILE
-sed -i "s/sub_transient_local:.*/sub_transient_local: true/g" $CONFIG_FILE
-sed -i "s/use_take_sub:.*/use_take_sub: true/g" $CONFIG_FILE
+git checkout -- "$CONFIG_FILE"
