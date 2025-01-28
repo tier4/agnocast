@@ -16,10 +16,6 @@ class TestPublisher : public rclcpp::Node
 
   void timer_callback()
   {
-    if (publisher_->get_subscription_count() < 2) {
-      return;
-    }
-
     agnocast::ipc_shared_ptr<std_msgs::msg::Int64> message = publisher_->borrow_loaned_message();
     message->data = count_;
     publisher_->publish(std::move(message));
@@ -62,8 +58,12 @@ public:
       count_++;
     }
 
+    // wait for the subscription to be established
+    while (publisher_->get_subscription_count() < 2) {
+      sleep(1);
+    }
+
     timer_ = this->create_wall_timer(10ms, std::bind(&TestPublisher::timer_callback, this));
-    sleep(3);  // wait for the subscription to be established
   }
 };
 
