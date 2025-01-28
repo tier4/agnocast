@@ -19,7 +19,7 @@ class TestPublisher : public rclcpp::Node
     agnocast::ipc_shared_ptr<std_msgs::msg::Int64> message = publisher_->borrow_loaned_message();
     message->data = count_;
     publisher_->publish(std::move(message));
-    RCLCPP_INFO(this->get_logger(), "%ld", count_);
+    RCLCPP_INFO(this->get_logger(), "Publishing %ld.", count_);
     count_++;
 
     if (count_ == pub_num_) {
@@ -54,7 +54,7 @@ public:
       agnocast::ipc_shared_ptr<std_msgs::msg::Int64> message = publisher_->borrow_loaned_message();
       message->data = count_;
       publisher_->publish(std::move(message));
-      RCLCPP_INFO(this->get_logger(), "%ld", count_);
+      RCLCPP_INFO(this->get_logger(), "Publishing %ld.", count_);
       count_++;
     }
 

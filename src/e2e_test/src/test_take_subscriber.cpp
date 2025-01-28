@@ -17,7 +17,7 @@ class TestTakeSubscriber : public rclcpp::Node
   {
     auto message = sub_->take();
     if (message) {
-      RCLCPP_INFO(this->get_logger(), "%ld", message->data);
+      RCLCPP_INFO(this->get_logger(), "Receiving %ld.", message->data);
       count_++;
     }
 

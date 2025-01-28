@@ -176,17 +176,17 @@ class Test1To1(unittest.TestCase):
     def test_pub(self, proc_output, test_pub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_pub) as cm:
             for i in range(EXPECT_INIT_PUB_NUM + EXPECT_PUB_NUM):
-                cm.assertInStdout(f"{i}")
+                cm.assertInStdout(f"Publishing {i}.")
             cm.assertInStdout("All messages published. Shutting down.")
 
     def test_sub(self, proc_output, test_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
             for i in range(EXPECT_SUB_NUM):
-                cm.assertInStdout(f"{i}")
+                cm.assertInStdout(f"Receiving {i}.")
             cm.assertInStdout("All messages received. Shutting down.")
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
             for i in range(EXPECT_ROS2_SUB_NUM):
-                cm.assertInStdout(f"{i}")
+                cm.assertInStdout(f"Receiving {i}.")
             cm.assertInStdout("All messages received. Shutting down.")

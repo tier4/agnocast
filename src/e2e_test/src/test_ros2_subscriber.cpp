@@ -12,7 +12,7 @@ class TestROS2Subscriber : public rclcpp::Node
 
   void callback(const std_msgs::msg::Int64 & message)
   {
-    RCLCPP_INFO(this->get_logger(), "%ld", message.data);
+    RCLCPP_INFO(this->get_logger(), "Receiving %ld.", message.data);
 
     count_++;
     if (count_ == sub_num_) {
