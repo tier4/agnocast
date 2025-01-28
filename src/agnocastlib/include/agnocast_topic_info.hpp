@@ -101,7 +101,8 @@ TypeErasedCallback get_erased_callback(const Func callback)
 template <typename Func>
 uint32_t register_callback(
   const Func callback, const std::string & topic_name, const uint32_t subscriber_index,
-  const uint32_t qos_depth, const mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
+  const uint32_t qos_depth, const mqd_t mqdes,
+  const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   using MessagePtrType = typename callback_first_arg<Func>::type;
   using MessageType = typename MessagePtrType::element_type;
