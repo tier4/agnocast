@@ -17,6 +17,7 @@ class TestROS2Subscriber : public rclcpp::Node
     count_++;
     if (count_ == sub_num_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
+      std::cout << std::flush;
       rclcpp::shutdown();
     }
   }

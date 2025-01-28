@@ -24,6 +24,7 @@ class TestPublisher : public rclcpp::Node
 
     if (count_ == pub_num_) {
       RCLCPP_INFO(this->get_logger(), "All messages published. Shutting down.");
+      std::cout << std::flush;
       timer_->cancel();
       rclcpp::shutdown();
     }
