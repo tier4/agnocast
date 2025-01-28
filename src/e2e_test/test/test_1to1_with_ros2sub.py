@@ -6,7 +6,7 @@ import launch_testing.asserts
 import launch_testing.markers
 import yaml
 from launch import LaunchDescription
-from launch.actions import TimerAction
+from launch.actions import SetEnvironmentVariable, TimerAction
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
@@ -163,9 +163,12 @@ def generate_test_description():
 
     return (
         LaunchDescription(
-            [pub_node,
-             sub_nodes,
-             TimerAction(period=5.0, actions=[launch_testing.actions.ReadyToTest()])]
+            [
+                SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '0'),
+                pub_node,
+                sub_nodes,
+                TimerAction(period=5.0, actions=[launch_testing.actions.ReadyToTest()])
+            ]
         ),
         {
             'test_pub': pub_node.actions[0],
@@ -175,7 +178,7 @@ def generate_test_description():
     )
 
 
-@ launch_testing.post_shutdown_test()
+@launch_testing.post_shutdown_test()
 class Test1To1(unittest.TestCase):
 
     def test_pub(self, proc_output, test_pub):
