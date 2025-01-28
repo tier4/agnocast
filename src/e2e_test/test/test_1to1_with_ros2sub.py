@@ -38,14 +38,23 @@ def calc_expect_pub_sub_num(config: dict) -> None:
         EXPECT_INIT_SUB_NUM = 0
 
 
+def calc_action_delays(config: dict) -> tuple:
+    unit_delay = 1.0
+    pub_delay = 0.0 if config['launch_pub_before_sub'] else unit_delay
+    sub_delay = 0.01 * EXPECT_INIT_PUB_NUM + unit_delay if config['launch_pub_before_sub'] else 0.0
+    ready_delay = pub_delay + sub_delay + 4.0
+    return pub_delay, sub_delay, ready_delay
+
+
 @launch_testing.markers.keep_alive
 def generate_test_description():
     with open(CONFIG_PATH, 'r') as f:
         config = yaml.safe_load(f)
     calc_expect_pub_sub_num(config)
+    pub_delay, sub_delay, ready_delay = calc_action_delays(config)
 
     pub_node = TimerAction(
-        period=0.0 if config['launch_pub_before_sub'] else 1.0,
+        period=pub_delay,
         actions=[
             ComposableNodeContainer(
                 name='test_talker_container',
@@ -157,7 +166,7 @@ def generate_test_description():
         )
 
     sub_nodes = TimerAction(
-        period=1.0 if config['launch_pub_before_sub'] else 0.0,
+        period=sub_delay,
         actions=sub_nodes_actions
     )
 
@@ -167,7 +176,7 @@ def generate_test_description():
                 SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '0'),
                 pub_node,
                 sub_nodes,
-                TimerAction(period=5.0, actions=[launch_testing.actions.ReadyToTest()])
+                TimerAction(period=ready_delay, actions=[launch_testing.actions.ReadyToTest()])
             ]
         ),
         {
