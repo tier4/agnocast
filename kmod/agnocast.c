@@ -1690,6 +1690,13 @@ static struct kprobe kp = {
 
 // =========================================
 
+void tmp_func(void)
+{
+  printk("tmp_func");
+}
+
+EXPORT_SYMBOL(tmp_func);
+
 static int agnocast_init(void)
 {
   mutex_init(&global_mutex);

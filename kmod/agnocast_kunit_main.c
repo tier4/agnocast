@@ -6,6 +6,8 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 static void agnocast_sample_test_case(struct kunit * test)
 {
+  printk("hoge");
+  tmp_func();
   KUNIT_EXPECT_EQ(test, 1 + 1, 2);
 }
 
