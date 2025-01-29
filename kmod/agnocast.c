@@ -1759,6 +1759,7 @@ static int agnocast_init_kprobe(void)
   return 0;
 }
 
+#ifndef KUNIT_BUILD
 static int agnocast_init(void)
 {
   int ret;
@@ -1779,6 +1780,7 @@ static int agnocast_init(void)
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
 }
+#endif
 
 static void remove_all_topics(void)
 {
@@ -1849,6 +1851,7 @@ static void agnocast_exit_kprobe(void)
   unregister_kprobe(&kp);
 }
 
+#ifndef KUNIT_BUILD
 static void agnocast_exit(void)
 {
   agnocast_exit_free_data();
@@ -1864,5 +1867,8 @@ static void agnocast_exit(void)
 
   agnocast_exit_device();
 }
+#endif
 
+#ifndef KUNIT_BUILD
 module_init(agnocast_init) module_exit(agnocast_exit)
+#endif

@@ -1,6 +1,6 @@
 obj-m := agnocast.o
 CFLAGS_agnocast.o := -Wall -Werror
-CFLAGS_agnocast_kunit.o := -Wall -Werror
+CFLAGS_agnocast_kunit.o := -Wall -Werror -DKUNIT_BUILD
 
 KERNEL_VERSION := $(shell uname -r)
 KERNEL_MAJOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 1)
@@ -32,7 +32,8 @@ endif
 # For KUnit
 ifeq ($(CONFIG_KUNIT),y)
   obj-m += agnocast_kunit.o
-	agnocast_kunit-m := agnocast_kunit_main.o agnocast.o
+	agnocast_kunit-m := agnocast_kunit_main.o agnocast_tmp_copied.o
+	CFLAGS_agnocast_tmp_copied.o += -DKUNIT_BUILD
 endif
 
 ifeq ($(CONFIG_GCOV_KERNEL),y)
@@ -41,7 +42,11 @@ ifeq ($(CONFIG_GCOV_KERNEL),y)
 endif
 
 all:
+	# In order to build with different build options (KUNIT_BUILD),
+	# we need to temporarily copy the kernel module source.
+	cp agnocast.c agnocast_tmp_copied.c
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
+	rm -f agnocast_tmp_copied.c
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
