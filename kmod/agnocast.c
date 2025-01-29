@@ -1624,26 +1624,16 @@ static void process_exit_cleanup(uint32_t pid)
 
 static int exit_worker_thread(void * data)
 {
-  AGN_DEBUG("exit_worker_thread() start: current->pid=%d", current->pid);
-
   while (!kthread_should_stop()) {
     uint32_t pid;
     unsigned long flags;
     bool got_pid = false;
 
-    AGN_DEBUG("before wait_event_interruptible() called: current->pid=%d", current->pid);
-
     wait_event_interruptible(worker_wait, atomic_read(&has_new_pid) || kthread_should_stop());
-
-    AGN_DEBUG("after wait_event_interruptible() called: current->pid=%d", current->pid);
 
     if (kthread_should_stop()) break;
 
-    AGN_DEBUG("before spin_lock_irqsave() called: current->pid=%d", current->pid);
-
     spin_lock_irqsave(&pid_queue_lock, flags);
-
-    AGN_DEBUG("after spin_lock_irqsave() called: current->pid=%d", current->pid);
 
     if (queue_head != queue_tail) {
       pid = exit_pid_queue[queue_head];
@@ -1654,23 +1644,12 @@ static int exit_worker_thread(void * data)
     // queue is empty
     if (queue_head == queue_tail) atomic_set(&has_new_pid, 0);
 
-    AGN_DEBUG("before spin_unlock_irqrestore() called: current->pid=%d", current->pid);
-
     spin_unlock_irqrestore(&pid_queue_lock, flags);
 
-    AGN_DEBUG("after spin_unlock_irqrestore() called: current->pid=%d", current->pid);
-
     if (got_pid) {
-      AGN_DEBUG(
-        "before mutex_lock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
       mutex_lock(&global_mutex);
-      AGN_DEBUG("after mutex_lock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
       process_exit_cleanup(pid);
-      AGN_DEBUG(
-        "before mutex_unlock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
       mutex_unlock(&global_mutex);
-      AGN_DEBUG(
-        "after mutex_unlock(global_mutex) called: pid=%d current->pid=%d", pid, current->pid);
     }
   }
 
@@ -1682,11 +1661,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   unsigned long flags;
   uint32_t next;
 
-  AGN_DEBUG("before spin_lock_irqsave() called: current->pid=%d", current->pid);
-
   spin_lock_irqsave(&pid_queue_lock, flags);
-
-  AGN_DEBUG("after spin_lock_irqsave() called: current->pid=%d", current->pid);
 
   // Assumes EXIT_QUEUE_SIZE is 2^N
   next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
@@ -1696,21 +1671,14 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     queue_tail = next;
     atomic_set(&has_new_pid, 1);
 
-    AGN_DEBUG("before wake_up_interruptible() called: current->pid=%d", current->pid);
-
     wake_up_interruptible(&worker_wait);
 
-    AGN_DEBUG("after wake_up_interruptible() called: current->pid=%d", current->pid);
   } else {
     // do nothing and put error message
     dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
   }
 
-  AGN_DEBUG("before spin_unlock_irqrestore() called: current->pid=%d", current->pid);
-
   spin_unlock_irqrestore(&pid_queue_lock, flags);
-
-  AGN_DEBUG("after spin_unlock_irqrestore() called: current->pid=%d", current->pid);
 
   return 0;
 }
