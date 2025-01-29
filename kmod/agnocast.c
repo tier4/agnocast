@@ -1697,10 +1697,14 @@ void tmp_func(void)
 
 EXPORT_SYMBOL(tmp_func);
 
-static int agnocast_init(void)
+static void agnocast_init_mutexes(void)
 {
+  // Assumes the global mutex will be divided into smaller ones for better performance
   mutex_init(&global_mutex);
+}
 
+static int agnocast_init_sysfs(void)
+{
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
   if (!status_kobj) {
     return -ENOMEM;
@@ -1712,6 +1716,11 @@ static int agnocast_init(void)
     kobject_put(status_kobj);
   }
 
+  return 0;
+}
+
+static void agnocast_init_device(void)
+{
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
@@ -1723,19 +1732,49 @@ static int agnocast_init(void)
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+}
 
+static int agnocast_init_kthread(void)
+{
   queue_head = queue_tail = 0;
+
   worker_task = kthread_run(exit_worker_thread, NULL, "agnocast_exit_worker");
   if (IS_ERR(worker_task)) {
     dev_warn(agnocast_device, "failed to create kernel thread\n");
     return PTR_ERR(worker_task);
   }
 
-  ret = register_kprobe(&kp);
+  return 0;
+}
+
+static int agnocast_init_kprobe(void)
+{
+  int ret = register_kprobe(&kp);
+
   if (ret < 0) {
     dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
+
+  return 0;
+}
+
+static int agnocast_init(void)
+{
+  int ret;
+
+  agnocast_init_mutexes();
+
+  ret = agnocast_init_sysfs();
+  if (ret < 0) return ret;
+
+  agnocast_init_device();
+
+  ret = agnocast_init_kthread();
+  if (ret < 0) return ret;
+
+  ret = agnocast_init_kprobe();
+  if (ret < 0) return ret;
 
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
@@ -1784,26 +1823,46 @@ static void remove_all_process_info(void)
   }
 }
 
-static void agnocast_exit(void)
+static void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
   mutex_unlock(&global_mutex);
+}
+
+static void agnocast_exit_device(void)
+{
+  device_destroy(agnocast_class, MKDEV(major, 0));
+  class_destroy(agnocast_class);
+  unregister_chrdev(major, "agnocast");
+}
+
+static void agnocast_exit_kthread(void)
+{
+  wake_up_interruptible(&worker_wait);
+  kthread_stop(worker_task);
+}
+
+static void agnocast_exit_kprobe(void)
+{
+  unregister_kprobe(&kp);
+}
+
+static void agnocast_exit(void)
+{
+  agnocast_exit_free_data();
 
   dev_info(agnocast_device, "Agnocast removed!\n");
 
   // Decrement reference count
   kobject_put(status_kobj);
 
-  device_destroy(agnocast_class, MKDEV(major, 0));
-  class_destroy(agnocast_class);
-  unregister_chrdev(major, "agnocast");
+  agnocast_exit_kthread();
 
-  wake_up_interruptible(&worker_wait);
-  kthread_stop(worker_task);
+  agnocast_exit_kprobe();
 
-  unregister_kprobe(&kp);
+  agnocast_exit_device();
 }
 
 module_init(agnocast_init) module_exit(agnocast_exit)
