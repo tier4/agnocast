@@ -16,8 +16,30 @@ struct kunit_case agnocast_test_cases[] = {
   {},
 };
 
+static int agnocast_test_init(struct kunit * test)
+{
+  return 0;
+}
+
+static void agnocast_test_exit(struct kunit * test)
+{
+}
+
+static int agnocast_test_suite_init(struct kunit_suite * test_suite)
+{
+  return 0;
+}
+
+static void agnocast_test_suite_exit(struct kunit_suite * test_suite)
+{
+}
+
 struct kunit_suite agnocast_test_suite = {
   .name = "agnocast_test_suite",
+  .init = agnocast_test_init,
+  .exit = agnocast_test_exit,
+  .suite_init = agnocast_test_suite_init,
+  .suite_exit = agnocast_test_suite_exit,
   .test_cases = agnocast_test_cases,
 };
 
