@@ -27,12 +27,13 @@ def calc_expect_pub_sub_num(config: dict) -> None:
         config['launch_pub_before_sub'] and config['pub_transient_local']) else 0
     EXPECT_PUB_NUM = config['pub_qos_depth']
 
-    base_sub_num = min(EXPECT_PUB_NUM, config['sub_qos_depth'])
-    EXPECT_ROS2_SUB_NUM = base_sub_num
-    EXPECT_SUB_NUM = base_sub_num
-    if config['launch_pub_before_sub'] and config['sub_transient_local']:
-        EXPECT_INIT_ROS2_SUB_NUM = base_sub_num
-        EXPECT_INIT_SUB_NUM = 0 if config['use_take_sub'] else base_sub_num
+    EXPECT_ROS2_SUB_NUM = min(EXPECT_PUB_NUM, config['sub_qos_depth'])
+    EXPECT_SUB_NUM = min(EXPECT_PUB_NUM, config['sub_qos_depth'])
+    if config['sub_transient_local']:
+        EXPECT_INIT_ROS2_SUB_NUM = min(
+            EXPECT_INIT_PUB_NUM, config['sub_qos_depth']) if config['pub_transient_local'] else 0
+        EXPECT_INIT_SUB_NUM = 0 if config['use_take_sub'] else min(
+            EXPECT_INIT_PUB_NUM, config['sub_qos_depth'])
     else:
         EXPECT_INIT_ROS2_SUB_NUM = 0
         EXPECT_INIT_SUB_NUM = 0
