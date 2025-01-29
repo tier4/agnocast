@@ -4,6 +4,7 @@
 *.o
 *.o.d
 *.order
+*.gcno
 Module.symvers
 agnocast.mod.c
 agnocast_kunit.mod.c

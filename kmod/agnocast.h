@@ -145,3 +145,13 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
 
 void tmp_func(void);
+
+void agnocast_init_mutexes(void);
+void agnocast_init_device(void);
+int agnocast_init_kthread(void);
+int agnocast_init_kprobe(void);
+
+void agnocast_exit_free_data(void);
+void agnocast_exit_device(void);
+void agnocast_exit_kthread(void);
+void agnocast_exit_kprobe(void);

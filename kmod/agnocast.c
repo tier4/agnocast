@@ -504,6 +504,7 @@ static int insert_message_entry(
   return 0;
 }
 
+#ifndef KUNIT_BUILD
 // =========================================
 // "/sys/module/agnocast/status/*"
 
@@ -787,6 +788,7 @@ static struct attribute * attrs[] = {
 static struct attribute_group attribute_group = {
   .attrs = attrs,
 };
+#endif
 
 // =========================================
 // /dev/agnocast
@@ -1697,12 +1699,15 @@ void tmp_func(void)
 
 EXPORT_SYMBOL(tmp_func);
 
-static void agnocast_init_mutexes(void)
+void agnocast_init_mutexes(void)
 {
   // Assumes the global mutex will be divided into smaller ones for better performance
   mutex_init(&global_mutex);
 }
 
+EXPORT_SYMBOL(agnocast_init_mutexes);
+
+#ifndef KUNIT_BUILD
 static int agnocast_init_sysfs(void)
 {
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
@@ -1718,8 +1723,9 @@ static int agnocast_init_sysfs(void)
 
   return 0;
 }
+#endif
 
-static void agnocast_init_device(void)
+void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
 
@@ -1734,7 +1740,9 @@ static void agnocast_init_device(void)
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 }
 
-static int agnocast_init_kthread(void)
+EXPORT_SYMBOL(agnocast_init_device);
+
+int agnocast_init_kthread(void)
 {
   queue_head = queue_tail = 0;
 
@@ -1747,7 +1755,9 @@ static int agnocast_init_kthread(void)
   return 0;
 }
 
-static int agnocast_init_kprobe(void)
+EXPORT_SYMBOL(agnocast_init_kthread);
+
+int agnocast_init_kprobe(void)
 {
   int ret = register_kprobe(&kp);
 
@@ -1758,6 +1768,8 @@ static int agnocast_init_kprobe(void)
 
   return 0;
 }
+
+EXPORT_SYMBOL(agnocast_init_kprobe);
 
 #ifndef KUNIT_BUILD
 static int agnocast_init(void)
@@ -1825,7 +1837,7 @@ static void remove_all_process_info(void)
   }
 }
 
-static void agnocast_exit_free_data(void)
+void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
@@ -1833,23 +1845,31 @@ static void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-static void agnocast_exit_device(void)
+EXPORT_SYMBOL(agnocast_exit_free_data);
+
+void agnocast_exit_device(void)
 {
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
 }
 
-static void agnocast_exit_kthread(void)
+EXPORT_SYMBOL(agnocast_exit_device);
+
+void agnocast_exit_kthread(void)
 {
   wake_up_interruptible(&worker_wait);
   kthread_stop(worker_task);
 }
 
-static void agnocast_exit_kprobe(void)
+EXPORT_SYMBOL(agnocast_exit_kthread);
+
+void agnocast_exit_kprobe(void)
 {
   unregister_kprobe(&kp);
 }
+
+EXPORT_SYMBOL(agnocast_exit_kprobe);
 
 #ifndef KUNIT_BUILD
 static void agnocast_exit(void)
