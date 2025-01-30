@@ -1,2 +1,0 @@
-source install/setup.bash
-ros2 launch agnocast_bridge bridge.launch.xml
