@@ -10,7 +10,7 @@ std::atomic<uint32_t> agnocast_topic_next_id;
 std::atomic<bool> need_epoll_updates{false};
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const uint32_t publisher_index, const uint32_t subscriber_index,
+  const void * ptr, const topic_local_id_t publisher_id, const topic_local_id_t subscriber_id,
   const uint64_t timestamp, const uint32_t topic_local_id)
 {
   bool found = false;
@@ -32,9 +32,9 @@ std::shared_ptr<std::function<void()>> create_callable(
   }
 
   return std::make_shared<std::function<void()>>(
-    [ptr, publisher_index, subscriber_index, timestamp, info]() {
+    [ptr, publisher_id, subscriber_id, timestamp, info]() {
       auto typed_msg =
-        info->message_creator(ptr, info->topic_name, publisher_index, subscriber_index, timestamp);
+        info->message_creator(ptr, info->topic_name, publisher_id, subscriber_id, timestamp);
       info->callback(*typed_msg);
     });
 }

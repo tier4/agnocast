@@ -20,9 +20,9 @@ void validate_ld_preload()
   }
 }
 
-std::string create_mq_name(const std::string & topic_name, const uint32_t index)
+std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
 {
-  std::string mq_name = topic_name + "@" + std::to_string(index);
+  std::string mq_name = topic_name + "@" + std::to_string(id);
 
   if (mq_name[0] != '/') {
     RCLCPP_ERROR(logger, "create_mq_name failed");

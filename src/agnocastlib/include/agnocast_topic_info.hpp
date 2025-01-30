@@ -65,7 +65,7 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
 struct AgnocastTopicInfo
 {
   std::string topic_name;
-  uint32_t subscriber_index;
+  topic_local_id_t subscriber_id;
   uint32_t qos_depth;
   mqd_t mqdes;
   rclcpp::CallbackGroup::SharedPtr callback_group;
@@ -99,7 +99,7 @@ TypeErasedCallback get_erased_callback(const Func callback)
 
 template <typename Func>
 uint32_t register_callback(
-  const Func callback, const std::string & topic_name, const uint32_t subscriber_index,
+  const Func callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
   const uint32_t qos_depth, const mqd_t mqdes,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
@@ -110,11 +110,11 @@ uint32_t register_callback(
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
-                           const uint32_t publisher_index, const uint32_t subscriber_index,
-                           const uint64_t timestamp) {
+                           const topic_local_id_t publisher_id,
+                           const topic_local_id_t subscriber_id, const uint64_t timestamp) {
     return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::ipc_shared_ptr<MessageType>(
-      const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, publisher_index,
-      subscriber_index, timestamp));
+      const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, publisher_id,
+      subscriber_id, timestamp));
   };
 
   uint32_t id = agnocast_topic_next_id.fetch_add(1);
@@ -122,8 +122,8 @@ uint32_t register_callback(
   {
     std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
     id2_topic_mq_info[id] =
-      AgnocastTopicInfo{topic_name,     subscriber_index, qos_depth,      mqdes,
-                        callback_group, erased_callback,  message_creator};
+      AgnocastTopicInfo{topic_name,     subscriber_id,   qos_depth,      mqdes,
+                        callback_group, erased_callback, message_creator};
   }
 
   need_epoll_updates.store(true);
@@ -132,7 +132,7 @@ uint32_t register_callback(
 }
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const uint32_t publisher_index, const uint32_t subscriber_index,
+  const void * ptr, const topic_local_id_t publisher_id, const topic_local_id_t subscriber_id,
   const uint64_t timestamp, const uint32_t topic_local_id);
 
 }  // namespace agnocast

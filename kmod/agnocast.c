@@ -29,7 +29,7 @@ static DEFINE_MUTEX(global_mutex);
 
 struct process_info
 {
-  uint32_t pid;
+  pid_t pid;
   uint64_t shm_addr;
   uint64_t shm_size;
   struct hlist_node node;
@@ -39,8 +39,8 @@ DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 
 struct publisher_info
 {
-  uint32_t pid;
-  uint32_t index;
+  topic_local_id_t id;
+  pid_t pid;
   uint32_t entries_num;
   bool exited;
   struct hlist_node node;
@@ -48,8 +48,8 @@ struct publisher_info
 
 struct subscriber_info
 {
-  uint32_t pid;
-  uint32_t index;
+  topic_local_id_t id;
+  pid_t pid;
   uint64_t latest_received_timestamp;
   bool is_take_sub;
   struct hlist_node node;
@@ -67,16 +67,16 @@ struct topic_wrapper
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
-  uint32_t current_index;
+  topic_local_id_t current_id;
 };
 
 struct entry_node
 {
   struct rb_node node;
   uint64_t timestamp;  // rbtree key
-  uint32_t publisher_index;
+  topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  uint32_t referencing_subscriber_indexes[MAX_SUBSCRIBER_NUM];
+  topic_local_id_t referencing_subscriber_ids[MAX_SUBSCRIBER_NUM];
   uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
   bool published;
 };
@@ -104,7 +104,7 @@ static struct topic_wrapper * insert_topic(const char * topic_name)
     return NULL;
   }
 
-  wrapper->current_index = 1;
+  wrapper->current_id = 0;
   wrapper->topic.entries = RB_ROOT;
   hash_init(wrapper->topic.pub_info_htable);
   hash_init(wrapper->topic.sub_info_htable);
@@ -139,13 +139,13 @@ static int get_size_sub_info_htable(struct topic_wrapper * wrapper)
 }
 
 static struct subscriber_info * find_subscriber_info(
-  const struct topic_wrapper * wrapper, const uint32_t subscriber_index)
+  const struct topic_wrapper * wrapper, const topic_local_id_t subscriber_id)
 {
   struct subscriber_info * info;
-  uint32_t hash_val = hash_min(subscriber_index, SUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(subscriber_id, SUB_INFO_HASH_BITS);
   hash_for_each_possible(wrapper->topic.sub_info_htable, info, node, hash_val)
   {
-    if (info->index == subscriber_index) {
+    if (info->id == subscriber_id) {
       return info;
     }
   }
@@ -154,7 +154,7 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static struct subscriber_info * insert_subscriber_info(
-  struct topic_wrapper * wrapper, uint32_t subscriber_pid, bool is_take_sub)
+  struct topic_wrapper * wrapper, const pid_t subscriber_pid, bool is_take_sub)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -173,22 +173,22 @@ static struct subscriber_info * insert_subscriber_info(
     return NULL;
   }
 
-  const uint32_t new_index = wrapper->current_index;
-  wrapper->current_index++;
+  const topic_local_id_t new_id = wrapper->current_id;
+  wrapper->current_id++;
 
+  new_info->id = new_id;
   new_info->pid = subscriber_pid;
-  new_info->index = new_index;
   new_info->latest_received_timestamp = 0;
   new_info->is_take_sub = is_take_sub;
   INIT_HLIST_NODE(&new_info->node);
-  uint32_t hash_val = hash_min(new_index, SUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
 
   dev_info(
     agnocast_device,
-    "Subscriber (pid=%d, index=%d) is added to the topic (topic_name=%s). "
+    "Subscriber (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
     "(insert_subscriber_info)\n",
-    subscriber_pid, new_index, wrapper->key);
+    subscriber_pid, new_id, wrapper->key);
 
   return new_info;
 }
@@ -206,13 +206,13 @@ static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
 }
 
 static struct publisher_info * find_publisher_info(
-  const struct topic_wrapper * wrapper, const uint32_t publisher_index)
+  const struct topic_wrapper * wrapper, const topic_local_id_t publisher_id)
 {
   struct publisher_info * info;
-  uint32_t hash_val = hash_min(publisher_index, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(publisher_id, PUB_INFO_HASH_BITS);
   hash_for_each_possible(wrapper->topic.pub_info_htable, info, node, hash_val)
   {
-    if (info->index == publisher_index) {
+    if (info->id == publisher_id) {
       return info;
     }
   }
@@ -221,7 +221,7 @@ static struct publisher_info * find_publisher_info(
 }
 
 static struct publisher_info * insert_publisher_info(
-  struct topic_wrapper * wrapper, uint32_t publisher_pid)
+  struct topic_wrapper * wrapper, const pid_t publisher_pid)
 {
   int count = get_size_pub_info_htable(wrapper);
   if (count == MAX_PUBLISHER_NUM) {
@@ -240,54 +240,55 @@ static struct publisher_info * insert_publisher_info(
     return NULL;
   }
 
-  const uint32_t new_index = wrapper->current_index;
-  wrapper->current_index++;
+  const topic_local_id_t new_id = wrapper->current_id;
+  wrapper->current_id++;
 
+  new_info->id = new_id;
   new_info->pid = publisher_pid;
-  new_info->index = new_index;
   new_info->entries_num = 0;
   new_info->exited = false;
   INIT_HLIST_NODE(&new_info->node);
-  uint32_t hash_val = hash_min(new_index, PUB_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(new_id, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
 
   dev_info(
     agnocast_device,
-    "Publisher (pid=%d, index=%d) is added to the topic (topic_name=%s). (insert_publisher_info)\n",
-    publisher_pid, new_index, wrapper->key);
+    "Publisher (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
+    "(insert_publisher_info)\n",
+    new_id, publisher_pid, wrapper->key);
 
   return new_info;
 }
 
 static bool is_subscriber_referencing(struct entry_node * en)
 {
-  // Since referencing_subscriber_indexes always stores entries in order from the lowest index,
+  // Since referencing_subscriber_ids always stores entries in order from the lowest index,
   // if there's nothing at index 0, it means it doesn't exist.
-  return (en->referencing_subscriber_indexes[0] > 0);
+  return (en->referencing_subscriber_ids[0] > 0);
 }
 
 static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
 {
   for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
-    en->referencing_subscriber_indexes[i] = en->referencing_subscriber_indexes[i + 1];
+    en->referencing_subscriber_ids[i] = en->referencing_subscriber_ids[i + 1];
     en->subscriber_reference_count[i] = en->subscriber_reference_count[i + 1];
   }
 
-  en->referencing_subscriber_indexes[MAX_SUBSCRIBER_NUM - 1] = 0;
+  en->referencing_subscriber_ids[MAX_SUBSCRIBER_NUM - 1] = -1;
   en->subscriber_reference_count[MAX_SUBSCRIBER_NUM - 1] = 0;
   return;
 }
 
-static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_index)
+static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subscriber_id)
 {
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_indexes[i] == subscriber_index) {
+    if (en->referencing_subscriber_ids[i] == subscriber_id) {
       en->subscriber_reference_count[i]++;
       return 0;
     }
 
     if (en->subscriber_reference_count[i] == 0) {
-      en->referencing_subscriber_indexes[i] = subscriber_index;
+      en->referencing_subscriber_ids[i] = subscriber_id;
       en->subscriber_reference_count[i] = 1;
       return 0;
     }
@@ -303,7 +304,7 @@ static int increment_sub_rc(struct entry_node * en, uint32_t subscriber_index)
 }
 
 static struct entry_node * find_message_entry(
-  struct topic_wrapper * wrapper, uint32_t publisher_index, uint64_t msg_timestamp)
+  struct topic_wrapper * wrapper, const topic_local_id_t publisher_id, uint64_t msg_timestamp)
 {
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -327,8 +328,8 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const uint32_t subscriber_index, const uint32_t publisher_index,
-  const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id,
+  const topic_local_id_t publisher_id, const uint64_t msg_timestamp)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -338,17 +339,17 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_index, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s publisher_index=%d timestamp=%lld) not found. "
+      "Message entry (topic_name=%s publisher_id=%d timestamp=%lld) not found. "
       "(increment_message_entry_rc)\n",
-      topic_name, publisher_index, msg_timestamp);
+      topic_name, publisher_id, msg_timestamp);
     return -1;
   }
 
-  if (increment_sub_rc(en, subscriber_index) == -1) {
+  if (increment_sub_rc(en, subscriber_id) == -1) {
     return -1;
   }
 
@@ -356,8 +357,8 @@ static int increment_message_entry_rc(
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const uint32_t subscriber_index, const uint32_t publisher_index,
-  const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id,
+  const topic_local_id_t publisher_id, const uint64_t msg_timestamp)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -367,19 +368,19 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_index, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s publisher_index=%d timestamp=%lld) not found. "
+      "Message entry (topic_name=%s publisher_id=%d timestamp=%lld) not found. "
       "(decrement_message_entry_rc)\n",
-      topic_name, publisher_index, msg_timestamp);
+      topic_name, publisher_id, msg_timestamp);
     return -1;
   }
 
   // decrement subscriber_reference_count
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_indexes[i] == subscriber_index) {
+    if (en->referencing_subscriber_ids[i] == subscriber_id) {
       en->subscriber_reference_count[i]--;
       if (en->subscriber_reference_count[i] == 0) {
         remove_referencing_subscriber_by_index(en, i);
@@ -416,9 +417,9 @@ static int insert_message_entry(
     } else {
       dev_warn(
         agnocast_device,
-        "Message entry (timestamp=%lld) already exists in the publisher queue (index=%d) "
+        "Message entry (timestamp=%lld) already exists in the publisher queue (id=%d) "
         "for the topic (topic_name=%s). (insert_message_entry)\n",
-        timestamp, pub_info->index, wrapper->key);
+        timestamp, pub_info->id, wrapper->key);
       return -1;
     }
   }
@@ -430,10 +431,10 @@ static int insert_message_entry(
   }
 
   new_node->timestamp = timestamp;
-  new_node->publisher_index = pub_info->index;
+  new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    new_node->referencing_subscriber_indexes[i] = 0;
+    new_node->referencing_subscriber_ids[i] = -1;
     new_node->subscriber_reference_count[i] = 0;
   }
   new_node->published = false;
@@ -445,9 +446,9 @@ static int insert_message_entry(
 
   dev_dbg(
     agnocast_device,
-    "Insert a message entry (topic_name=%s index=%d msg_virtual_address=%lld "
-    "timestamp=%lld). (insert_message_entry)",
-    wrapper->key, pub_info->index, msg_virtual_address, timestamp);
+    "Insert a message entry (topic_name=%s id=%d msg_virtual_address=%lld timestamp=%lld). "
+    "(insert_message_entry)",
+    wrapper->key, pub_info->id, msg_virtual_address, timestamp);
 
   return 0;
 }
@@ -500,7 +501,7 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
+  char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, uint64_t init_timestamp,
   bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -524,7 +525,7 @@ static int subscriber_add(
   }
   sub_info->latest_received_timestamp = init_timestamp;
 
-  ioctl_ret->ret_index = sub_info->index;
+  ioctl_ret->ret_id = sub_info->id;
 
   // Return qos_depth messages in order from newest to oldest for transient local
   ioctl_ret->ret_transient_local_num = 0;
@@ -545,7 +546,7 @@ static int subscriber_add(
       continue;
     }
 
-    if (increment_sub_rc(en, sub_info->index) == -1) {
+    if (increment_sub_rc(en, sub_info->id) == -1) {
       dev_warn(
         agnocast_device,
         "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
@@ -555,7 +556,7 @@ static int subscriber_add(
       return -1;
     }
 
-    ioctl_ret->ret_publisher_indexes[ioctl_ret->ret_transient_local_num] = en->publisher_index;
+    ioctl_ret->ret_publisher_ids[ioctl_ret->ret_transient_local_num] = en->publisher_id;
     ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
@@ -595,7 +596,7 @@ static int subscriber_add(
 }
 
 static int publisher_add(
-  const char * topic_name, uint32_t publisher_pid, union ioctl_publisher_args * ioctl_ret)
+  const char * topic_name, const pid_t publisher_pid, union ioctl_publisher_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -617,7 +618,7 @@ static int publisher_add(
     return -1;
   }
 
-  ioctl_ret->ret_index = pub_info->index;
+  ioctl_ret->ret_id = pub_info->id;
 
   // set shm addr to ioctl_ret
   struct process_info * proc_info;
@@ -668,9 +669,9 @@ static uint64_t release_msgs_to_meet_depth(
     dev_warn(
       agnocast_device,
       "For some reason, the reference count hasn't been decremented, causing the number of "
-      "messages for this publisher to increase. (topic_name=%s, index=%d, entries_num=%d)."
+      "messages for this publisher to increase. (topic_name=%s, id=%d, entries_num=%d)."
       "(release_msgs_to_meet_depth)\n",
-      wrapper->key, pub_info->index, pub_info->entries_num);
+      wrapper->key, pub_info->id, pub_info->entries_num);
     return -1;
   }
 
@@ -678,8 +679,8 @@ static uint64_t release_msgs_to_meet_depth(
   if (!node) {
     dev_warn(
       agnocast_device,
-      "Failed to get message entries in publisher (index=%d). (release_msgs_to_meet_depth)\n",
-      pub_info->index);
+      "Failed to get message entries in publisher (id=%d). (release_msgs_to_meet_depth)\n",
+      pub_info->id);
     return -1;
   }
 
@@ -709,7 +710,7 @@ static uint64_t release_msgs_to_meet_depth(
       return -1;
     }
 
-    if (en->publisher_index != pub_info->index) continue;
+    if (en->publisher_id != pub_info->id) continue;
 
     num_search_entries--;
 
@@ -726,16 +727,16 @@ static uint64_t release_msgs_to_meet_depth(
 
     dev_dbg(
       agnocast_device,
-      "Release oldest message in the publisher_info (index=$%d) of the topic "
+      "Release oldest message in the publisher_info (id=$%d) of the topic "
       "(topic_name=%s) with qos_depth=%d. (release_msgs_to_meet_depth)\n",
-      pub_info->index, wrapper->key, qos_depth);
+      pub_info->id, wrapper->key, qos_depth);
   }
 
   return 0;
 }
 
 static uint64_t enqueue_and_release(
-  const char * topic_name, const uint32_t publisher_index, const uint32_t qos_depth,
+  const char * topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
   const uint64_t msg_virtual_address, const uint64_t timestamp,
   union ioctl_enqueue_and_release_args * ioctl_ret)
 {
@@ -746,12 +747,12 @@ static uint64_t enqueue_and_release(
     return -1;
   }
 
-  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_index);
+  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
     dev_warn(
       agnocast_device,
-      "Publisher (index=%d) not found in the topic (topic_name=%s). (enqueue_and_release)\n",
-      publisher_index, topic_name);
+      "Publisher (id=%d) not found in the topic (topic_name=%s). (enqueue_and_release)\n",
+      publisher_id, topic_name);
     return -1;
   }
 
@@ -767,7 +768,7 @@ static uint64_t enqueue_and_release(
 }
 
 static int receive_and_update(
-  const char * topic_name, const uint32_t subscriber_index, const uint32_t qos_depth,
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
   union ioctl_receive_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -777,13 +778,13 @@ static int receive_and_update(
     return -1;
   }
 
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_index);
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
       agnocast_device,
-      "Subscriber (index=%d) for the topic (topic_name=%s) not found. "
+      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
       "(receive_and_update)\n",
-      subscriber_index, topic_name);
+      subscriber_id, topic_name);
     return -1;
   }
 
@@ -807,11 +808,11 @@ static int receive_and_update(
       continue;
     }
 
-    if (increment_sub_rc(en, subscriber_index) == -1) {
+    if (increment_sub_rc(en, subscriber_id) == -1) {
       return -1;
     }
 
-    ioctl_ret->ret_publisher_indexes[ioctl_ret->ret_len] = en->publisher_index;
+    ioctl_ret->ret_publisher_ids[ioctl_ret->ret_len] = en->publisher_id;
     ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -826,7 +827,7 @@ static int receive_and_update(
 }
 
 static int publish_msg(
-  const char * topic_name, const uint32_t publisher_index, const uint64_t msg_timestamp,
+  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_timestamp,
   union ioctl_publish_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -835,23 +836,21 @@ static int publish_msg(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_index, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s publisher_index=%d timestamp=%lld) not found. "
-      "(publish_msg)\n",
-      topic_name, publisher_index, msg_timestamp);
+      "Message entry (topic_name=%s id=%d timestamp=%lld) not found. (publish_msg)\n", topic_name,
+      publisher_id, msg_timestamp);
     return -1;
   }
 
   if (en->published) {
     dev_warn(
       agnocast_device,
-      "Tried to publish a message that has already been published. (topic_name=%s "
-      "publisher_index=%d "
+      "Tried to publish a message that has already been published. (topic_name=%s id=%d "
       "timestamp=%lld). (publish_msg)\n",
-      topic_name, publisher_index, msg_timestamp);
+      topic_name, publisher_id, msg_timestamp);
     return -1;
   }
 
@@ -861,7 +860,7 @@ static int publish_msg(
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
     if (sub_info->is_take_sub) continue;
-    ioctl_ret->ret_subscriber_indexes[subscriber_num] = sub_info->index;
+    ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
     subscriber_num++;
   }
   ioctl_ret->ret_subscriber_num = subscriber_num;
@@ -872,7 +871,7 @@ static int publish_msg(
 }
 
 static int take_msg(
-  const char * topic_name, const uint32_t subscriber_index, const uint32_t qos_depth,
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
   bool allow_same_message, union ioctl_take_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -881,20 +880,18 @@ static int take_msg(
     return -1;
   }
 
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_index);
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
-      agnocast_device,
-      "Subscriber (index=%d) for the topic (topic_name=%s) not found. "
-      "(take_msg)\n",
-      subscriber_index, topic_name);
+      agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
+      subscriber_id, topic_name);
     return -1;
   }
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
   ioctl_ret->ret_timestamp = 0;
-  ioctl_ret->ret_publisher_index = 0;
+  ioctl_ret->ret_publisher_id = 0;
 
   // TODO: There is a slight possibility that there are messages with same timestamps,
   // but this has not been taken into account.
@@ -916,20 +913,20 @@ static int take_msg(
 
   if (!candidate_en) return 0;
 
-  if (increment_sub_rc(candidate_en, subscriber_index) == -1) {
+  if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
     return -1;
   }
 
   ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
   ioctl_ret->ret_timestamp = candidate_en->timestamp;
-  ioctl_ret->ret_publisher_index = candidate_en->publisher_index;
+  ioctl_ret->ret_publisher_id = candidate_en->publisher_id;
 
   sub_info->latest_received_timestamp = ioctl_ret->ret_timestamp;
 
   return 0;
 }
 
-static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
   static uint64_t allocatable_addr = 0x40000000000;
@@ -1005,7 +1002,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)enqueue_release_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = enqueue_and_release(
-        topic_name_buf, enqueue_release_args.publisher_index, enqueue_release_args.qos_depth,
+        topic_name_buf, enqueue_release_args.publisher_id, enqueue_release_args.qos_depth,
         enqueue_release_args.msg_virtual_address, enqueue_release_args.timestamp,
         &enqueue_release_args);
       if (copy_to_user((uint64_t __user *)arg, &enqueue_release_args, sizeof(enqueue_release_args)))
@@ -1019,7 +1016,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = increment_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_index, entry_args.publisher_index,
+        topic_name_buf, entry_args.subscriber_id, entry_args.publisher_id,
         entry_args.msg_timestamp);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
@@ -1030,7 +1027,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = decrement_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_index, entry_args.publisher_index,
+        topic_name_buf, entry_args.subscriber_id, entry_args.publisher_id,
         entry_args.msg_timestamp);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
@@ -1043,7 +1040,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = receive_and_update(
-        topic_name_buf, receive_msg_args.subscriber_index, receive_msg_args.qos_depth,
+        topic_name_buf, receive_msg_args.subscriber_id, receive_msg_args.qos_depth,
         &receive_msg_args);
       if (copy_to_user(
             (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
@@ -1059,7 +1056,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = publish_msg(
-        topic_name_buf, publish_args.publisher_index, publish_args.msg_timestamp, &publish_args);
+        topic_name_buf, publish_args.publisher_id, publish_args.msg_timestamp, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1071,8 +1068,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = take_msg(
-        topic_name_buf, take_args.subscriber_index, take_args.qos_depth,
-        take_args.allow_same_message, &take_args);
+        topic_name_buf, take_args.subscriber_id, take_args.qos_depth, take_args.allow_same_message,
+        &take_args);
       if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1136,7 +1133,7 @@ static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node 
   kfree(en);
 }
 
-static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t pid)
+static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pid_t pid)
 {
   struct subscriber_info * sub_info;
   int bkt_sub_info;
@@ -1145,7 +1142,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t
   {
     if (sub_info->pid != pid) continue;
 
-    const uint32_t subscriber_index = sub_info->index;
+    const topic_local_id_t subscriber_id = sub_info->id;
     hash_del(&sub_info->node);
     kfree(sub_info);
 
@@ -1156,7 +1153,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t
       node = rb_next(node);
 
       for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-        if (en->referencing_subscriber_indexes[i] == subscriber_index) {
+        if (en->referencing_subscriber_ids[i] == subscriber_id) {
           remove_referencing_subscriber_by_index(en, i);
         }
       }
@@ -1165,10 +1162,10 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t
 
       bool publisher_exited = false;
       struct publisher_info * pub_info;
-      uint32_t hash_val = hash_min(en->publisher_index, PUB_INFO_HASH_BITS);
+      uint32_t hash_val = hash_min(en->publisher_id, PUB_INFO_HASH_BITS);
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
-        if (pub_info->index == en->publisher_index) {
+        if (pub_info->id == en->publisher_id) {
           if (pub_info->exited) publisher_exited = true;
           break;
         }
@@ -1192,7 +1189,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, uint32_t
     pid, wrapper->key);
 }
 
-static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t pid)
+static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid_t pid)
 {
   struct publisher_info * pub_info;
   int bkt_pub_info;
@@ -1201,7 +1198,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t 
   {
     if (pub_info->pid != pid) continue;
 
-    const uint32_t publisher_index = pub_info->index;
+    const topic_local_id_t publisher_id = pub_info->id;
     pub_info->exited = true;
 
     struct rb_root * root = &wrapper->topic.entries;
@@ -1209,7 +1206,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t 
     while (node) {
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
-      if (en->publisher_index == publisher_index && !is_subscriber_referencing(en)) {
+      if (en->publisher_id == publisher_id && !is_subscriber_referencing(en)) {
         pub_info->entries_num--;
         remove_entry_node(wrapper, en);
       }
@@ -1244,7 +1241,7 @@ static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
 static atomic_t has_new_pid = ATOMIC_INIT(0);
 
-static void process_exit_cleanup(uint32_t pid)
+static void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;
@@ -1288,7 +1285,7 @@ static int exit_worker_thread(void * data)
   AGN_DEBUG("exit_worker_thread() start: current->pid=%d", current->pid);
 
   while (!kthread_should_stop()) {
-    uint32_t pid;
+    pid_t pid;
     unsigned long flags;
     bool got_pid = false;
 

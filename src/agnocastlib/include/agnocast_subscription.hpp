@@ -36,7 +36,7 @@ struct SubscriptionOptions
 
 // These are cut out of the class for information hiding.
 mqd_t open_mq_for_subscription(
-  const std::string & topic_name, const uint32_t subscriber_index,
+  const std::string & topic_name, const topic_local_id_t subscriber_id,
   std::pair<mqd_t, std::string> & mq_subscription);
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
@@ -46,7 +46,7 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
 class SubscriptionBase
 {
 protected:
-  uint32_t index_;
+  topic_local_id_t id_;
   const std::string topic_name_;
   const rclcpp::QoS qos_;
   union ioctl_subscriber_args initialize(bool is_take_sub);
@@ -71,15 +71,15 @@ public:
   {
     union ioctl_subscriber_args subscriber_args = initialize(false);
 
-    index_ = subscriber_args.ret_index;
+    id_ = subscriber_args.ret_id;
 
-    mqd_t mq = open_mq_for_subscription(topic_name_, index_, mq_subscription);
+    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
     // cppcheck-suppress unreadVariable
     uint32_t local_topic_id = agnocast::register_callback(
-      callback, topic_name_, index_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
+      callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ltid = (static_cast<uint64_t>(subscriber_pid_) << 32) | local_topic_id;
@@ -97,7 +97,7 @@ public:
       for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
         MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
         agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-          ptr, topic_name_, subscriber_args.ret_publisher_indexes[i], index_,
+          ptr, topic_name_, subscriber_args.ret_publisher_ids[i], id_,
           subscriber_args.ret_timestamps[i]);
         callback(agnocast_ptr);
       }
@@ -136,14 +136,14 @@ public:
 
     union ioctl_subscriber_args subscriber_args = initialize(true);
 
-    index_ = subscriber_args.ret_index;
+    id_ = subscriber_args.ret_id;
   }
 
   agnocast::ipc_shared_ptr<MessageT> take(bool allow_same_message = false)
   {
     union ioctl_take_msg_args take_args;
     take_args.topic_name = topic_name_.c_str();
-    take_args.subscriber_index = index_;
+    take_args.subscriber_id = id_;
     take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
     take_args.allow_same_message = allow_same_message;
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
@@ -164,7 +164,7 @@ public:
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
     return agnocast::ipc_shared_ptr<MessageT>(
-      ptr, topic_name_, take_args.ret_publisher_index, index_, take_args.ret_timestamp);
+      ptr, topic_name_, take_args.ret_publisher_id, id_, take_args.ret_timestamp);
   }
 };
 

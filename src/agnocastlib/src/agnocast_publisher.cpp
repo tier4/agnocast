@@ -1,10 +1,13 @@
 #include "agnocast_publisher.hpp"
 
-using namespace agnocast;
+#include <sys/types.h>
+
+namespace agnocast
+{
 
 thread_local uint32_t borrowed_publisher_num = 0;
 
-extern "C" uint32_t agnocast::get_borrowed_publisher_num()
+extern "C" uint32_t get_borrowed_publisher_num()
 {
   return borrowed_publisher_num;
 }
@@ -25,7 +28,7 @@ void decrement_borrowed_publisher_num()
   borrowed_publisher_num--;
 }
 
-uint32_t initialize_publisher(const uint32_t publisher_pid, const std::string & topic_name)
+topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name)
 {
   validate_ld_preload();
 
@@ -63,16 +66,16 @@ uint32_t initialize_publisher(const uint32_t publisher_pid, const std::string & 
     }
   }
 
-  return pub_args.ret_index;
+  return pub_args.ret_id;
 }
 
 void publish_core(
-  const std::string & topic_name, const uint32_t publisher_index, const uint64_t timestamp,
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
-  publish_args.publisher_index = publisher_index;
+  publish_args.publisher_id = publisher_id;
   publish_args.msg_timestamp = timestamp;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
@@ -81,9 +84,9 @@ void publish_core(
   }
 
   for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
-    const uint32_t subscriber_index = publish_args.ret_subscriber_indexes[i];
+    const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
 
-    const std::string mq_name = create_mq_name(topic_name, subscriber_index);
+    const std::string mq_name = create_mq_name(topic_name, subscriber_id);
     mqd_t mq = 0;
     if (opened_mqs.find(mq_name) != opened_mqs.end()) {
       mq = opened_mqs[mq_name];
@@ -109,12 +112,12 @@ void publish_core(
 }
 
 std::vector<uint64_t> borrow_loaned_message_core(
-  const std::string & topic_name, const uint32_t publisher_index, const uint32_t qos_depth,
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
   const uint64_t msg_virtual_address, const uint64_t timestamp)
 {
   union ioctl_enqueue_and_release_args ioctl_args = {};
   ioctl_args.topic_name = topic_name.c_str();
-  ioctl_args.publisher_index = publisher_index;
+  ioctl_args.publisher_id = publisher_id;
   ioctl_args.qos_depth = qos_depth;
   ioctl_args.msg_virtual_address = msg_virtual_address;
   ioctl_args.timestamp = timestamp;
@@ -143,3 +146,5 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
 
   return get_subscriber_count_args.ret_subscriber_num;
 }
+
+}  // namespace agnocast

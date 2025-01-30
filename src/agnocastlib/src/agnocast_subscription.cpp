@@ -9,9 +9,7 @@ extern std::vector<std::thread> threads;
 
 SubscriptionBase::SubscriptionBase(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-: index_(0),
-  topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-  qos_(qos)
+: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)), qos_(qos)
 {
   validate_ld_preload();
 }
@@ -108,10 +106,10 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 }
 
 mqd_t open_mq_for_subscription(
-  const std::string & topic_name, const uint32_t subscriber_index,
+  const std::string & topic_name, const topic_local_id_t subscriber_id,
   std::pair<mqd_t, std::string> & mq_subscription)
 {
-  std::string mq_name = create_mq_name(topic_name, subscriber_index);
+  std::string mq_name = create_mq_name(topic_name, subscriber_id);
   struct mq_attr attr = {};
   attr.mq_flags = 0;                        // Blocking queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size
