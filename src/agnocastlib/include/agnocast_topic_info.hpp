@@ -2,7 +2,6 @@
 
 #include "agnocast_smart_pointer.hpp"
 
-#include <cstdint>
 #include <mutex>
 
 namespace agnocast

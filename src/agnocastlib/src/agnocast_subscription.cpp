@@ -1,9 +1,5 @@
 #include "agnocast.hpp"
 
-#include <sched.h>
-
-#include <cstdint>
-
 namespace agnocast
 {
 
