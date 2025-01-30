@@ -56,6 +56,7 @@ show_config() {
     echo "----------------------------------------------"
 }
 
+FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
     show_config
     launch_test src/e2e_test/test/test_1to1_with_ros2sub.py
@@ -72,7 +73,6 @@ else
     USE_TAKE_SUB=(true false)
 
     COUNT=0
-    FAILURE_COUNT=0
     for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
         for pub_qos_depth in ${PUB_QOS_DEPTH[@]}; do
             for pub_transient_local in ${PUB_TRANSIENT_LOCAL[@]}; do
