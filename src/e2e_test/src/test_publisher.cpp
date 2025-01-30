@@ -87,12 +87,6 @@ public:
       count_++;
     }
 
-    // wait for the subscription to be established
-    while (publisher_->get_subscription_count() < 2) {
-      sleep(1);
-    }
-    sleep(2);  // HACK: wait subscribing transient local messages
-
     timer_ = this->create_wall_timer(10ms, std::bind(&TestPublisher::timer_callback, this));
   }
 };
