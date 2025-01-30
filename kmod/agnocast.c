@@ -1130,22 +1130,6 @@ static struct file_operations fops = {
   .unlocked_ioctl = agnocast_ioctl,
 };
 
-// =========================================
-// Cleanup resources related to exited processes
-
-// Ring buffer to hold exited pids
-#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
-#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
-static DEFINE_SPINLOCK(pid_queue_lock);
-static uint32_t exit_pid_queue[EXIT_QUEUE_SIZE];
-static uint32_t queue_head;
-static uint32_t queue_tail;
-
-// For controling the kernel thread
-static struct task_struct * worker_task;
-static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
-static atomic_t has_new_pid = ATOMIC_INIT(0);
-
 static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en)
 {
   rb_erase(&en->node, &wrapper->topic.entries);
@@ -1243,6 +1227,22 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, uint32_t 
     "(pre_handler_publisher)\n",
     pid, wrapper->key);
 }
+
+// =========================================
+// Cleanup resources related to exited processes
+
+// Ring buffer to hold exited pids
+#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
+static DEFINE_SPINLOCK(pid_queue_lock);
+static uint32_t exit_pid_queue[EXIT_QUEUE_SIZE];
+static uint32_t queue_head;
+static uint32_t queue_tail;
+
+// For controling the kernel thread
+static struct task_struct * worker_task;
+static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
+static atomic_t has_new_pid = ATOMIC_INIT(0);
 
 static void process_exit_cleanup(uint32_t pid)
 {
