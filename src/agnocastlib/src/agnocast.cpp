@@ -3,6 +3,8 @@
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
 
+#include <sys/types.h>
+
 #include <atomic>
 #include <cstdint>
 #include <mutex>
@@ -112,7 +114,7 @@ void * initialize_agnocast(const uint64_t shm_size)
     return nullptr;
   }
 
-  const uint32_t pid = getpid();
+  const pid_t pid = getpid();
 
   union ioctl_new_shm_args new_shm_args = {};
   new_shm_args.pid = pid;
@@ -130,7 +132,7 @@ static void shutdown_agnocast()
   printf("[INFO] [Agnocast]: shutdown_agnocast started\n");
   is_running.store(false);
 
-  const uint32_t pid = getpid();
+  const pid_t pid = getpid();
 
   {
     std::lock_guard<std::mutex> lock(shm_fds_mtx);

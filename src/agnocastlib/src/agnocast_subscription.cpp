@@ -82,7 +82,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
                                 ? static_cast<uint32_t>(qos_.depth())
                                 : 0;
-  subscriber_args.subscriber_pid = static_cast<uint32_t>(subscriber_pid);
+  subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.init_timestamp = agnocast_get_timestamp();
   subscriber_args.is_take_sub = is_take_sub;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
@@ -92,7 +92,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (static_cast<pid_t>(subscriber_args.ret_publisher_pids[i]) == subscriber_pid) {
+    if (subscriber_args.ret_publisher_pids[i] == subscriber_pid) {
       continue;
     }
 
