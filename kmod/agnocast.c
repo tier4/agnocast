@@ -569,18 +569,29 @@ static int subscriber_add(
 
   // set publisher information for shared memory mapping
   int publisher_num = 0;
-  struct process_info * proc_info;
-  int bkt_proc_info;
-  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
+  struct publisher_info * pub_info;
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
-    struct publisher_info * pub_info;
-    int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-    {
-      if (pub_info->exited) {
-        continue;
-      }
+    if (pub_info->exited) {
+      continue;
+    }
 
+    bool already_added = false;
+    for (int i = 0; i < publisher_num; i++) {
+      if (ioctl_ret->ret_publisher_pids[i] == pub_info->pid) {
+        already_added = true;
+        break;
+      }
+    }
+    if (already_added) {
+      continue;
+    }
+
+    struct process_info * proc_info;
+    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
+    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+    {
       if (proc_info->pid == pub_info->pid) {
         ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
         ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
@@ -590,6 +601,7 @@ static int subscriber_add(
       }
     }
   }
+
   ioctl_ret->ret_publisher_num = publisher_num;
 
   return 0;
