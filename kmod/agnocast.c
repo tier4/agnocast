@@ -12,7 +12,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 // Temporary debug messages to solve a specific problem
 #define AGN_DEBUG(fmt, ...) \
-  // printk(KERN_DEBUG "agnocast_debug[%s:%d]: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+  printk(KERN_DEBUG "agnocast_debug[%s:%d]: " fmt, __func__, __LINE__, ##__VA_ARGS__)
 
 static int major;
 static struct class * agnocast_class;
