@@ -20,20 +20,29 @@ MOCK_GLOBAL_FUNC5(
 MOCK_GLOBAL_FUNC4(
   publish_core_mock,
   void(
-    const std::string & topic_name, const topic_local_id_t publisher_id,
-    const uint64_t timestamp, std::unordered_map<std::string, mqd_t> & opened_mqs));
+    const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
+    std::unordered_map<std::string, mqd_t> & opened_mqs));
 
-namespace agnocast {
-  topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name) {
-    return initialize_publisher_mock(publisher_pid, topic_name);
-  }
-  std::vector<uint64_t> borrow_loaned_message_core(const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address, const uint64_t timestamp) {
-    return borrow_loaned_message_core_mock(topic_name, publisher_id, qos_depth, msg_virtual_address, timestamp);
-  }
-  void publish_core(const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp, std::unordered_map<std::string, mqd_t> & opened_mqs) {
-    publish_core_mock(topic_name, publisher_id, timestamp, opened_mqs);
-  }
+namespace agnocast
+{
+topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name)
+{
+  return initialize_publisher_mock(publisher_pid, topic_name);
 }
+std::vector<uint64_t> borrow_loaned_message_core(
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, const uint64_t timestamp)
+{
+  return borrow_loaned_message_core_mock(
+    topic_name, publisher_id, qos_depth, msg_virtual_address, timestamp);
+}
+void publish_core(
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
+  std::unordered_map<std::string, mqd_t> & opened_mqs)
+{
+  publish_core_mock(topic_name, publisher_id, timestamp, opened_mqs);
+}
+}  // namespace agnocast
 
 class AgnocastPublisherTest : public ::testing::Test
 {
@@ -46,7 +55,8 @@ protected:
     pid = getpid();
     node = std::make_shared<rclcpp::Node>("dummy_node");
     dummy_qd = 10;
-    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn)).Times(1);
+    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn))
+      .Times(1);
     dummy_publisher =
       agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qd);
   }
@@ -83,7 +93,8 @@ TEST_F(AgnocastPublisherTest, test_publish_null_message)
 
 TEST_F(AgnocastPublisherTest, test_publish_already_published_message)
 {
-  EXPECT_GLOBAL_CALL(borrow_loaned_message_core_mock, borrow_loaned_message_core_mock(dummy_tn, _, _, _, _))
+  EXPECT_GLOBAL_CALL(
+    borrow_loaned_message_core_mock, borrow_loaned_message_core_mock(dummy_tn, _, _, _, _))
     .WillOnce(testing::Return(std::vector<uint64_t>()));
   EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(dummy_tn, _, _, _)).Times(1);
 
@@ -99,11 +110,14 @@ TEST_F(AgnocastPublisherTest, test_publish_already_published_message)
 TEST_F(AgnocastPublisherTest, test_publish_different_message)
 {
   std::string diff_dummy_tn = "/dummy2";
-  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn)).Times(1);
+  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn))
+    .Times(1);
   EXPECT_GLOBAL_CALL(
-    borrow_loaned_message_core_mock, borrow_loaned_message_core_mock(diff_dummy_tn, _, dummy_qd, _, _))
+    borrow_loaned_message_core_mock,
+    borrow_loaned_message_core_mock(diff_dummy_tn, _, dummy_qd, _, _))
     .WillOnce(testing::Return(std::vector<uint64_t>()));
-  EXPECT_GLOBAL_CALL(borrow_loaned_message_core_mock, borrow_loaned_message_core_mock(dummy_tn, _, dummy_qd, _, _))
+  EXPECT_GLOBAL_CALL(
+    borrow_loaned_message_core_mock, borrow_loaned_message_core_mock(dummy_tn, _, dummy_qd, _, _))
     .WillOnce(testing::Return(std::vector<uint64_t>()));
   EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(dummy_tn, _, _, _)).Times(0);
 
