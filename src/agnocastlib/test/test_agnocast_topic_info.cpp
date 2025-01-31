@@ -13,8 +13,7 @@ TEST(AgnocastTopicInfoTest, get_erased_callback_normal)
 {
   bool callback_called = false;
   int data = 0;
-  agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0, false)};
+  agnocast::TypedMessagePtr<int> int_arg{agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0)};
   auto int_callback = [&](const agnocast::ipc_shared_ptr<int> & /*unused_arg*/) {
     callback_called = true;
   };
@@ -28,8 +27,7 @@ TEST(AgnocastTopicInfoTest, get_erased_callback_normal)
 TEST(AgnocastTopicInfoTest, get_erased_callback_invalid_type)
 {
   int data = 0;
-  agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0, false)};
+  agnocast::TypedMessagePtr<int> int_arg{agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0)};
   auto float_callback = [&](agnocast::ipc_shared_ptr<float> /*unused_arg*/) {};
 
   agnocast::TypeErasedCallback erased_callback =

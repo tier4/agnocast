@@ -13,25 +13,26 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstdint>
 #include <cstring>
 
+namespace agnocast
+{
+
 // These are cut out of the class for information hiding.
-void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name);
+topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name);
 void publish_core(
-  const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
   std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 std::vector<uint64_t> borrow_loaned_message_core(
-  const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
-  uint64_t msg_virtual_address, uint64_t timestamp);
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, const uint64_t timestamp);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
-
-namespace agnocast
-{
 
 extern int agnocast_fd;
 extern "C" uint32_t get_borrowed_publisher_num();
@@ -39,8 +40,9 @@ extern "C" uint32_t get_borrowed_publisher_num();
 template <typename MessageT>
 class Publisher
 {
+  topic_local_id_t id_ = -1;
   std::string topic_name_;
-  uint32_t publisher_pid_;
+  pid_t publisher_pid_;
   rclcpp::QoS qos_;
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
@@ -73,7 +75,7 @@ public:
       do_always_ros2_publish_ = false;
     }
 
-    initialize_publisher(publisher_pid_, topic_name_);
+    id_ = initialize_publisher(publisher_pid_, topic_name_);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
@@ -87,15 +89,15 @@ public:
   {
     uint64_t timestamp = agnocast_get_timestamp();
     std::vector<uint64_t> released_addrs = borrow_loaned_message_core(
-      topic_name_, publisher_pid_, static_cast<uint32_t>(qos_.depth()),
-      reinterpret_cast<uint64_t>(ptr), timestamp);
+      topic_name_, id_, static_cast<uint32_t>(qos_.depth()), reinterpret_cast<uint64_t>(ptr),
+      timestamp);
 
     for (uint64_t addr : released_addrs) {
       MessageT * release_ptr = reinterpret_cast<MessageT *>(addr);
       delete release_ptr;
     }
 
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), publisher_pid_, timestamp, false);
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_, timestamp);
   }
 
   void publish(ipc_shared_ptr<MessageT> && message)
@@ -123,6 +125,7 @@ public:
       const MessageT * raw = message.get();
       ros2_publisher_->publish(*raw);
     }
+
     message.reset();
   }
 

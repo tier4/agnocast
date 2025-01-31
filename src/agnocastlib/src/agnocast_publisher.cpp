@@ -1,10 +1,13 @@
 #include "agnocast_publisher.hpp"
 
-using namespace agnocast;
+#include <sys/types.h>
+
+namespace agnocast
+{
 
 thread_local uint32_t borrowed_publisher_num = 0;
 
-extern "C" uint32_t agnocast::get_borrowed_publisher_num()
+extern "C" uint32_t get_borrowed_publisher_num()
 {
   return borrowed_publisher_num;
 }
@@ -25,7 +28,7 @@ void decrement_borrowed_publisher_num()
   borrowed_publisher_num--;
 }
 
-void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name)
+topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name)
 {
   validate_ld_preload();
 
@@ -39,21 +42,11 @@ void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name
   }
 
   // Send messages to subscribers to notify that a new publisher appears
-  for (uint32_t i = 0; i < pub_args.ret_subscriber_len; i++) {
+  for (uint32_t i = 0; i < pub_args.ret_subscriber_num; i++) {
     if (pub_args.ret_subscriber_pids[i] == publisher_pid) {
-      /*
-       * NOTE: In ROS2, communication should work fine even if the same process exists as both a
-       * publisher and a subscriber for a given topic. However, in Agnocast, to avoid applying
-       * Agnocast to topic communication within a component container, the system will explicitly
-       * fail with an error during initialization.
-       */
-      RCLCPP_ERROR(
-        logger,
-        "This process (pid=%d) already exists in the topic (topic_name=%s) "
-        "as a publisher.",
-        publisher_pid, topic_name.c_str());
-      exit(EXIT_FAILURE);
+      continue;
     }
+
     const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
     if (mq == -1) {
@@ -72,15 +65,17 @@ void initialize_publisher(uint32_t publisher_pid, const std::string & topic_name
       exit(EXIT_FAILURE);
     }
   }
+
+  return pub_args.ret_id;
 }
 
 void publish_core(
-  const std::string & topic_name, uint32_t publisher_pid, uint64_t timestamp,
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
-  publish_args.publisher_pid = publisher_pid;
+  publish_args.publisher_id = publisher_id;
   publish_args.msg_timestamp = timestamp;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
@@ -88,10 +83,10 @@ void publish_core(
     exit(EXIT_FAILURE);
   }
 
-  for (uint32_t i = 0; i < publish_args.ret_len; i++) {
-    uint32_t pid = publish_args.ret_pids[i];
+  for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
+    const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
 
-    const std::string mq_name = create_mq_name(topic_name, pid);
+    const std::string mq_name = create_mq_name(topic_name, subscriber_id);
     mqd_t mq = 0;
     if (opened_mqs.find(mq_name) != opened_mqs.end()) {
       mq = opened_mqs[mq_name];
@@ -117,12 +112,12 @@ void publish_core(
 }
 
 std::vector<uint64_t> borrow_loaned_message_core(
-  const std::string & topic_name, uint32_t publisher_pid, uint32_t qos_depth,
-  uint64_t msg_virtual_address, uint64_t timestamp)
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, const uint64_t timestamp)
 {
   union ioctl_enqueue_and_release_args ioctl_args = {};
   ioctl_args.topic_name = topic_name.c_str();
-  ioctl_args.publisher_pid = publisher_pid;
+  ioctl_args.publisher_id = publisher_id;
   ioctl_args.qos_depth = qos_depth;
   ioctl_args.msg_virtual_address = msg_virtual_address;
   ioctl_args.timestamp = timestamp;
@@ -151,3 +146,5 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
 
   return get_subscriber_count_args.ret_subscriber_num;
 }
+
+}  // namespace agnocast

@@ -121,7 +121,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
 
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = topic_info.topic_name.c_str();
-  receive_args.subscriber_pid = my_pid_;
+  receive_args.subscriber_id = topic_info.subscriber_id;
   receive_args.qos_depth = topic_info.qos_depth;
 
   if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
@@ -134,7 +134,8 @@ bool AgnocastExecutor::get_next_agnocast_executables(
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
-      receive_args.ret_publisher_pids[i], receive_args.ret_timestamps[i], topic_local_id);
+      receive_args.ret_publisher_ids[i], topic_info.subscriber_id, receive_args.ret_timestamps[i],
+      topic_local_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;

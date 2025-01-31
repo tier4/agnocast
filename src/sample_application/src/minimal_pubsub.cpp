@@ -3,115 +3,71 @@
 #include "sample_interfaces/msg/dynamic_size_array.hpp"
 #include "sample_interfaces/msg/static_size_array.hpp"
 
-#include <fstream>
-#include <vector>
-
 using namespace std::chrono_literals;
 const long long MESSAGE_SIZE = 1000ll * 1024;
-
-uint64_t agnocast_get_timestamp()
-{
-  auto now = std::chrono::system_clock::now();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-}
 
 using std::placeholders::_1;
 
 class MinimalPubSub : public rclcpp::Node
 {
-  void topic_callback(
-    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & sub_message)
+  void static_topic_callback(
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & message)
   {
-    // subscribe
     RCLCPP_INFO(
       this->get_logger(), "I heard static message: addr=%016lx",
-      reinterpret_cast<uint64_t>(sub_message.get()));
-
-    // publish
-    agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> pub_message =
-      publisher_dynamic_->borrow_loaned_message();
-    pub_message->id = count_;
-    pub_message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
-    for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
-      pub_message->data.push_back(i + count_);
-    }
-
-    count_++;
-    RCLCPP_INFO(this->get_logger(), "publish dynamic message: %d", count_);
-    timestamp_ids_[timestamp_idx_] = count_;
-    timestamps_[timestamp_idx_++] = agnocast_get_timestamp();
-    publisher_dynamic_->publish(std::move(pub_message));
+      reinterpret_cast<uint64_t>(message.get()));
   }
 
-  void internal_topic_callback(
-    const agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> & sub_message)
+  void dynamic_topic_callback(
+    const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
   {
     RCLCPP_INFO(
-      this->get_logger(), "I heard internal message: addr=%016lx",
-      reinterpret_cast<uint64_t>(sub_message.get()));
+      this->get_logger(), "I heard dynamic message: addr=%016lx",
+      reinterpret_cast<uint64_t>(message.get()));
   }
 
   void timer_callback()
   {
-    agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
-      publisher_internal_->borrow_loaned_message();
-    message->timestamp = agnocast_get_timestamp();
-    for (int i = 0; i < 1000; i++) {
-      message->data[i] = (i + count_) % 256;
+    {
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> message =
+        pub_dynamic_->borrow_loaned_message();
+      message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
+      for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
+        message->data.push_back(i);
+      }
+      pub_dynamic_->publish(std::move(message));
+      RCLCPP_INFO(this->get_logger(), "publish dynamic message");
     }
-    publisher_internal_->publish(std::move(message));
-    RCLCPP_INFO(this->get_logger(), "publish internal message");
+
+    {
+      agnocast::ipc_shared_ptr<sample_interfaces::msg::StaticSizeArray> message =
+        pub_static_->borrow_loaned_message();
+      for (int i = 0; i < 1000; i++) {
+        message->data[i] = i;
+      }
+      pub_static_->publish(std::move(message));
+      RCLCPP_INFO(this->get_logger(), "publish static message");
+    }
   }
 
-  agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_dynamic_;
+  agnocast::Publisher<sample_interfaces::msg::DynamicSizeArray>::SharedPtr pub_dynamic_;
+  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr pub_static_;
+  agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_static_;
-
-  // These publisher/subscription are used to test process-internal communication
-  agnocast::Publisher<sample_interfaces::msg::StaticSizeArray>::SharedPtr publisher_internal_;
-  agnocast::Subscription<sample_interfaces::msg::StaticSizeArray>::SharedPtr sub_internal_;
   rclcpp::TimerBase::SharedPtr timer_;
-
-  int count_;
-
-  std::vector<uint64_t> timestamps_;
-  std::vector<uint64_t> timestamp_ids_;
-  int timestamp_idx_ = 0;
 
 public:
   MinimalPubSub() : Node("minimal_pubsub")
   {
-    publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
+    pub_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
       this, "/my_dynamic_topic", 10);
+    pub_static_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
+      this, "/my_static_topic", 10);
+    sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
+      this, "/my_dynamic_topic", 10, std::bind(&MinimalPubSub::dynamic_topic_callback, this, _1));
     sub_static_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
-      this, "/my_static_topic", 10, std::bind(&MinimalPubSub::topic_callback, this, _1));
-
-    publisher_internal_ = agnocast::create_publisher<sample_interfaces::msg::StaticSizeArray>(
-      this, "/my_internal_topic", 1);
-    sub_internal_ = agnocast::create_subscription<sample_interfaces::msg::StaticSizeArray>(
-      this, "/my_internal_topic", 1, std::bind(&MinimalPubSub::internal_topic_callback, this, _1));
+      this, "/my_static_topic", 10, std::bind(&MinimalPubSub::static_topic_callback, this, _1));
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPubSub::timer_callback, this));
-
-    count_ = 0;
-
-    timestamps_.resize(10000, 0);
-    timestamp_ids_.resize(10000, 0);
-    timestamp_idx_ = 0;
-  }
-
-  ~MinimalPubSub()
-  {
-    {
-      std::ofstream f("listen_talker.log");
-
-      if (!f) {
-        std::cerr << "file open error" << std::endl;
-        return;
-      }
-
-      for (int i = 0; i < timestamp_idx_; i++) {
-        f << timestamp_ids_[i] << " " << timestamps_[i] << std::endl;
-      }
-    }
   }
 };
 
