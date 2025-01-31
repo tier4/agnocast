@@ -1696,6 +1696,15 @@ static void remove_all_topics(void)
       kfree(pub_info);
     }
 
+    struct subscriber_info * sub_info;
+    int bkt_sub_info;
+    struct hlist_node * tmp_sub_info;
+    hash_for_each_safe(wrapper->topic.sub_info_htable, bkt_sub_info, tmp_sub_info, sub_info, node)
+    {
+      hash_del(&sub_info->node);
+      kfree(sub_info);
+    }
+
     hash_del(&wrapper->node);
     kfree(wrapper->key);
     kfree(wrapper);
