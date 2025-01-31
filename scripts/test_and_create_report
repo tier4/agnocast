@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Remove agnocast-heaphook if it is installed, for unit tests
-HEAP_HOOK_FOUND=0
+HEAPHOOK_FOUND=0
 if ls "/usr/lib/" | grep -q "libagnocast_heaphook.so"; then
     sudo apt-get -y remove agnocast-heaphook
-    HEAP_HOOK_FOUND=1
+    HEAPHOOK_FOUND=1
 fi
 
 rm -rf build install log
@@ -18,7 +18,7 @@ rm -rf coverage.info coverage_filtered.info
 echo "Please open coverage_report_agnocastlib/index.html"
 
 # Reinstall agnocast-heaphook if it was installed
-if [ $HEAP_HOOK_FOUND -eq 1 ]; then
+if [ $HEAPHOOK_FOUND -eq 1 ]; then
     cd src/agnocast_heaphook
     cargo deb --install
 fi
