@@ -88,7 +88,7 @@ def generate_test_description():
 
     sub_nodes_actions = [
         ComposableNodeContainer(
-            name='test_ros2_lister_container',
+            name='test_ros2_listener_container',
             namespace='',
             package='agnocastlib',
             executable='agnocast_component_container',
