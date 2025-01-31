@@ -1,9 +1,24 @@
+#!/bin/bash
+
+# Remove agnocast-heaphook if it is installed, for unit tests
+HEAP_HOOK_FOUND=0
+if ls "/usr/lib/" | grep -q "libagnocast_heaphook.so"; then
+    sudo apt-get -y remove agnocast-heaphook
+    HEAP_HOOK_FOUND=1
+fi
+
 rm -rf build install log
 colcon build --cmake-args -DCOVERAGE=ON
-colcon test
+colcon test --event-handlers console_direct+
 lcov --capture --directory . --output-file coverage.info
 lcov --remove coverage.info '/usr/*' '*/test/*' '*/gtest/*' '/opt/*' --output-file coverage_filtered.info
 genhtml coverage_filtered.info --output-directory coverage_report_agnocastlib
 rm -rf coverage.info coverage_filtered.info
 
 echo "Please open coverage_report_agnocastlib/index.html"
+
+# Reinstall agnocast-heaphook if it was installed
+if [ $HEAP_HOOK_FOUND -eq 1 ]; then
+    cd src/agnocast_heaphook
+    cargo deb --install
+fi
