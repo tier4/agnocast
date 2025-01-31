@@ -140,7 +140,7 @@ def generate_test_description():
     else:
         sub_nodes_actions.append(
             ComposableNodeContainer(
-                name='test_lister_container',
+                name='test_listener_container',
                 namespace='',
                 package='agnocastlib',
                 executable='agnocast_component_container',
