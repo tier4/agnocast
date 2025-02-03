@@ -90,8 +90,8 @@ def generate_test_description():
         ComposableNodeContainer(
             name='test_ros2_listener_container',
             namespace='',
-            package='agnocastlib',
-            executable='agnocast_component_container',
+            package='rclcpp_components',
+            executable='component_container',
             composable_node_descriptions=[
                     ComposableNode(
                         package='e2e_test',
