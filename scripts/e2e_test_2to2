@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# Parsing arguments
+OPTIONS=$(getopt -o hsc --long help,single,continue -- "$@")
+if [ $? -ne 0 ]; then
+    echo "Invalid options provided"
+    exit 1
+fi
+eval set -- "$OPTIONS"
+
+usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  -h, --help      Show this help message"
+    echo "  -s, --single    Run only one test case using current config file"
+    echo "  -c, --continue  Continue running tests even if one fails"
+    exit 0
+}
+
+RUN_SINGLE=false
+CONTINUE_ON_FAILURE=false
+while true; do
+    case "$1" in
+    -h | --help)
+        usage
+        ;;
+    -s | --single)
+        RUN_SINGLE=true
+        shift
+        ;;
+    -c | --continue)
+        CONTINUE_ON_FAILURE=true
+        shift
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+
+# Setup
+rm -rf build/e2e_test install/e2e_test
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+
+# Run test
+CONFIG_FILE=src/e2e_test/test/config_test_2to2.yaml
+show_config() {
+    echo "----------------------------------------------"
+    cat $CONFIG_FILE
+    echo "----------------------------------------------"
+}
+
+FAILURE_COUNT=0
+if [ "$RUN_SINGLE" = true ]; then
+    show_config
+    launch_test src/e2e_test/test/test_2to2.py
+    if [ $? -ne 0 ]; then
+        echo "Test failed"
+        exit 1
+    fi
+else
+    CONTAINER_LAYOUT=("PPSS" "PP|SS" "P|PSS" "PPS|S" "P|P|SS" "P|PS|S" "PP|S|S" "P|P|S|S")
+
+    COUNT=0
+    for layout in "${CONTAINER_LAYOUT[@]}"; do
+        COUNT=$((COUNT + 1))
+
+        IFS='|' read -ra containers <<<"$layout"
+        for i in {0..3}; do # 4 containers
+            if [ "$i" -lt "${#containers[@]}" ]; then
+                list=$(echo "${containers[$i]}" | sed 's/./\L&,/g; s/,$//') # PPSS" -> "p,p,s,s"
+            else
+                list=""
+            fi
+            sed -i "s|^container$i:.*|container$i: [$list]|" "$CONFIG_FILE"
+        done
+
+        echo "====================== $COUNT / 8 ======================"
+        show_config
+        launch_test src/e2e_test/test/test_2to2.py
+
+        if [ $? -ne 0 ]; then
+            echo "Test failed"
+            if [ "$CONTINUE_ON_FAILURE" = true ]; then
+                FAILURE_COUNT=$((FAILURE_COUNT + 1))
+            else
+                exit 1
+            fi
+        fi
+    done
+fi
+
+if [ "$FAILURE_COUNT" -gt 0 ]; then
+    echo "$FAILURE_COUNT / $COUNT tests failed"
+    exit 1
+else
+    echo "All tests passed!!"
+fi
+
+# Reset config file
+git checkout -- "$CONFIG_FILE"
