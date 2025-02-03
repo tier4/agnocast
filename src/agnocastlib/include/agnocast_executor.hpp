@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast_topic_info.hpp"
+#include "agnocast_callback_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <queue>

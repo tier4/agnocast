@@ -1,7 +1,7 @@
 #pragma once
 
+#include "agnocast_callback_info.hpp"
 #include "agnocast_executor.hpp"
-#include "agnocast_topic_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace agnocast

@@ -1,9 +1,9 @@
 #pragma once
 
+#include "agnocast_callback_info.hpp"
 #include "agnocast_ioctl.hpp"
 #include "agnocast_mq.hpp"
 #include "agnocast_smart_pointer.hpp"
-#include "agnocast_topic_info.hpp"
 #include "agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tracetools/tracetools.h"
@@ -78,16 +78,16 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
     // cppcheck-suppress unreadVariable
-    uint32_t agnocast_topic_info_id = agnocast::register_callback(
+    uint32_t callback_info_id = agnocast::register_callback(
       callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_tiid = (static_cast<uint64_t>(subscriber_pid_) << 32) | agnocast_topic_info_id;
+    uint64_t pid_ciid = (static_cast<uint64_t>(subscriber_pid_) << 32) | callback_info_id;
     TRACEPOINT(
       agnocast_subscription_init, static_cast<const void *>(this),
       static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
       static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
-      tracetools::get_symbol(callback), topic_name.c_str(), qos.depth(), pid_tiid);
+      tracetools::get_symbol(callback), topic_name.c_str(), qos.depth(), pid_ciid);
 #endif
 
     // If there are messages available and the transient local is enabled, immediately call the

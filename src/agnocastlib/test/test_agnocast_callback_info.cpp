@@ -1,15 +1,15 @@
-#include "agnocast_topic_info.hpp"
+#include "agnocast_callback_info.hpp"
 
 #include <gtest/gtest.h>
 
-TEST(AgnocastTopicInfoTest, callback_first_arg)
+TEST(CallbackInfoTest, callback_first_arg)
 {
   using FuncType = std::function<void(int, float)>;
   using FirstArgType = agnocast::callback_first_arg<FuncType>::type;
   EXPECT_TRUE((std::is_same<FirstArgType, int>::value));
 }
 
-TEST(AgnocastTopicInfoTest, get_erased_callback_normal)
+TEST(CallbackInfoTest, get_erased_callback_normal)
 {
   bool callback_called = false;
   int data = 0;
@@ -24,7 +24,7 @@ TEST(AgnocastTopicInfoTest, get_erased_callback_normal)
   EXPECT_TRUE(callback_called);
 }
 
-TEST(AgnocastTopicInfoTest, get_erased_callback_invalid_type)
+TEST(CallbackInfoTest, get_erased_callback_invalid_type)
 {
   int data = 0;
   agnocast::TypedMessagePtr<int> int_arg{agnocast::ipc_shared_ptr<int>(&data, "dummy", 0, 0)};

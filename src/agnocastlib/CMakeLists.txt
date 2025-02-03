@@ -19,7 +19,7 @@ find_package(tracetools REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
-  src/agnocast_smart_pointer.cpp src/agnocast_topic_info.cpp src/agnocast_executor.cpp
+  src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
@@ -81,8 +81,8 @@ if(BUILD_TESTING)
   include_directories(${gmock-global_SOURCE_DIR}/include)
 
   find_package(ament_cmake_gmock REQUIRED)
-  ament_add_gmock(test_${PROJECT_NAME} test/test_agnocast_utils.cpp 
-    test/test_agnocast_topic_info.cpp test/test_agnocast_subscription.cpp
+  ament_add_gmock(test_${PROJECT_NAME} test/test_agnocast_utils.cpp
+    test/test_agnocast_callback_info.cpp test/test_agnocast_subscription.cpp
     test/test_agnocast_smart_pointer.cpp test/test_agnocast_publisher.cpp)
   target_include_directories(test_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_${PROJECT_NAME} gmock-global agnocast)
