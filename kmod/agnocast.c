@@ -7,7 +7,6 @@
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/spinlock.h>
 #include <linux/version.h>
-#include <sys/types.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
