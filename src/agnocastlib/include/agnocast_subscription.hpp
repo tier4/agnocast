@@ -27,7 +27,7 @@
 namespace agnocast
 {
 
-void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size);
+void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
 struct SubscriptionOptions
 {

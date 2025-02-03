@@ -7,7 +7,7 @@ namespace agnocast
 
 struct MqMsgNewPublisher
 {
-  uint32_t publisher_pid;
+  pid_t publisher_pid;
   uint64_t shm_addr;
   uint64_t shm_size;
 };
