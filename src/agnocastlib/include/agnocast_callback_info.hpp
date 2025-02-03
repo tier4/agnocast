@@ -71,7 +71,7 @@ struct CallbackInfo
   rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
   std::function<std::unique_ptr<AnyObject>(
-    const void *, const std::string &, const uint32_t, const uint32_t, const uint64_t)>
+    const void *, const std::string &, const topic_local_id_t, const uint64_t)>
     message_creator;
   bool need_epoll_update = true;
 };
@@ -110,11 +110,10 @@ uint32_t register_callback(
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
-                           const topic_local_id_t publisher_id,
                            const topic_local_id_t subscriber_id, const uint64_t timestamp) {
     return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::ipc_shared_ptr<MessageType>(
-      const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, publisher_id,
-      subscriber_id, timestamp));
+      const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, subscriber_id,
+      timestamp));
   };
 
   uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
@@ -132,7 +131,7 @@ uint32_t register_callback(
 }
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const topic_local_id_t publisher_id, const topic_local_id_t subscriber_id,
-  const uint64_t timestamp, const uint32_t callback_info_id);
+  const void * ptr, const topic_local_id_t subscriber_id, const uint64_t timestamp,
+  const uint32_t callback_info_id);
 
 }  // namespace agnocast

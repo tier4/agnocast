@@ -31,7 +31,6 @@ union ioctl_subscriber_args {
   {
     topic_local_id_t ret_id;
     uint32_t ret_transient_local_num;
-    topic_local_id_t ret_publisher_ids[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
     uint32_t ret_publisher_num;
@@ -89,7 +88,6 @@ union ioctl_update_entry_args {
   {
     const char * topic_name;
     topic_local_id_t subscriber_id;
-    topic_local_id_t publisher_id;
     uint64_t msg_timestamp;
   };
   uint64_t ret;
@@ -108,7 +106,6 @@ union ioctl_receive_msg_args {
   struct
   {
     uint16_t ret_len;
-    topic_local_id_t ret_publisher_ids[MAX_QOS_DEPTH];
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
   };
@@ -146,7 +143,6 @@ union ioctl_take_msg_args {
   {
     uint64_t ret_addr;
     uint64_t ret_timestamp;
-    topic_local_id_t ret_publisher_id;
   };
 };
 #pragma GCC diagnostic pop

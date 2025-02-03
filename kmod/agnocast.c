@@ -300,7 +300,7 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subsc
 }
 
 static struct entry_node * find_message_entry(
-  struct topic_wrapper * wrapper, const topic_local_id_t publisher_id, uint64_t msg_timestamp)
+  struct topic_wrapper * wrapper, const uint64_t msg_timestamp)
 {
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -324,8 +324,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id,
-  const topic_local_id_t publisher_id, const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t msg_timestamp)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -335,13 +334,13 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s publisher_id=%d timestamp=%lld) not found. "
+      "Message entry (topic_name=%s timestamp=%lld) not found. "
       "(increment_message_entry_rc)\n",
-      topic_name, publisher_id, msg_timestamp);
+      topic_name, msg_timestamp);
     return -1;
   }
 
@@ -353,8 +352,7 @@ static int increment_message_entry_rc(
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id,
-  const topic_local_id_t publisher_id, const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t msg_timestamp)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -364,13 +362,13 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, msg_timestamp);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s publisher_id=%d timestamp=%lld) not found. "
+      "Message entry (topic_name=%s timestamp=%lld) not found. "
       "(decrement_message_entry_rc)\n",
-      topic_name, publisher_id, msg_timestamp);
+      topic_name, msg_timestamp);
     return -1;
   }
 
@@ -789,7 +787,6 @@ static int subscriber_add(
       return -1;
     }
 
-    ioctl_ret->ret_publisher_ids[ioctl_ret->ret_transient_local_num] = en->publisher_id;
     ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
@@ -1057,7 +1054,6 @@ static int receive_and_update(
       return -1;
     }
 
-    ioctl_ret->ret_publisher_ids[ioctl_ret->ret_len] = en->publisher_id;
     ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
     ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
     ioctl_ret->ret_len++;
@@ -1072,8 +1068,7 @@ static int receive_and_update(
 }
 
 static int publish_msg(
-  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_timestamp,
-  union ioctl_publish_args * ioctl_ret)
+  const char * topic_name, const uint64_t msg_timestamp, union ioctl_publish_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1081,21 +1076,20 @@ static int publish_msg(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, publisher_id, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, msg_timestamp);
   if (!en) {
     dev_warn(
-      agnocast_device,
-      "Message entry (topic_name=%s id=%d timestamp=%lld) not found. (publish_msg)\n", topic_name,
-      publisher_id, msg_timestamp);
+      agnocast_device, "Message entry (topic_name=%s timestamp=%lld) not found. (publish_msg)\n",
+      topic_name, msg_timestamp);
     return -1;
   }
 
   if (en->published) {
     dev_warn(
       agnocast_device,
-      "Tried to publish a message that has already been published. (topic_name=%s id=%d "
+      "Tried to publish a message that has already been published. (topic_name=%s "
       "timestamp=%lld). (publish_msg)\n",
-      topic_name, publisher_id, msg_timestamp);
+      topic_name, msg_timestamp);
     return -1;
   }
 
@@ -1136,7 +1130,6 @@ static int take_msg(
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
   ioctl_ret->ret_timestamp = 0;
-  ioctl_ret->ret_publisher_id = 0;
 
   // TODO: There is a slight possibility that there are messages with same timestamps,
   // but this has not been taken into account.
@@ -1164,7 +1157,6 @@ static int take_msg(
 
   ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
   ioctl_ret->ret_timestamp = candidate_en->timestamp;
-  ioctl_ret->ret_publisher_id = candidate_en->publisher_id;
 
   sub_info->latest_received_timestamp = ioctl_ret->ret_timestamp;
 
@@ -1261,8 +1253,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = increment_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_id, entry_args.publisher_id,
-        entry_args.msg_timestamp);
+        topic_name_buf, entry_args.subscriber_id, entry_args.msg_timestamp);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
@@ -1272,8 +1263,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = decrement_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_id, entry_args.publisher_id,
-        entry_args.msg_timestamp);
+        topic_name_buf, entry_args.subscriber_id, entry_args.msg_timestamp);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       union ioctl_receive_msg_args receive_msg_args;
@@ -1300,8 +1290,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = publish_msg(
-        topic_name_buf, publish_args.publisher_id, publish_args.msg_timestamp, &publish_args);
+      ret = publish_msg(topic_name_buf, publish_args.msg_timestamp, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
       break;
