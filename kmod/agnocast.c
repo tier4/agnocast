@@ -1481,7 +1481,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 #define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
 #define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 static DEFINE_SPINLOCK(pid_queue_lock);
-static uint32_t exit_pid_queue[EXIT_QUEUE_SIZE];
+static pid_t exit_pid_queue[EXIT_QUEUE_SIZE];
 static uint32_t queue_head;
 static uint32_t queue_tail;
 

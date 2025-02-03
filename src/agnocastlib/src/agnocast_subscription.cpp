@@ -58,7 +58,7 @@ static void wait_for_new_publisher(const pid_t subscriber_pid)
         exit(EXIT_FAILURE);
       }
 
-      const uint32_t publisher_pid = mq_msg.publisher_pid;
+      const pid_t publisher_pid = mq_msg.publisher_pid;
       const uint64_t publisher_shm_addr = mq_msg.shm_addr;
       const uint64_t publisher_shm_size = mq_msg.shm_size;
       map_read_only_area(publisher_pid, publisher_shm_addr, publisher_shm_size);
@@ -96,7 +96,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
       continue;
     }
 
-    const uint32_t pid = subscriber_args.ret_publisher_pids[i];
+    const pid_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];
     const uint64_t size = subscriber_args.ret_shm_sizes[i];
     map_read_only_area(pid, addr, size);

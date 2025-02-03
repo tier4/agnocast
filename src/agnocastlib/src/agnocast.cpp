@@ -26,10 +26,10 @@ bool ok()
   return is_running.load();
 }
 
-bool already_mapped(const uint32_t pid)
+bool already_mapped(const pid_t pid)
 {
   static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
-  static std::set<uint32_t> mapped_publisher_pids;
+  static std::set<pid_t> mapped_publisher_pids;
 
   pthread_mutex_lock(&mapped_pid_mtx);
   const bool inserted = mapped_publisher_pids.insert(pid).second;
@@ -39,7 +39,7 @@ bool already_mapped(const uint32_t pid)
 }
 
 void * map_area(
-  const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
+  const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
   const std::string shm_name = create_shm_name(pid);
 
@@ -79,7 +79,7 @@ void * map_area(
   return ret;
 }
 
-void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
     RCLCPP_ERROR(logger, "map_writeable_area failed");
@@ -90,7 +90,7 @@ void * map_writable_area(const uint32_t pid, const uint64_t shm_addr, const uint
   return map_area(pid, shm_addr, shm_size, true);
 }
 
-void map_read_only_area(const uint32_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
   if (already_mapped(pid)) {
     return;
