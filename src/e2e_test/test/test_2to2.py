@@ -90,7 +90,7 @@ def generate_test_description():
 
 
 @launch_testing.post_shutdown_test()
-class Test1To1(unittest.TestCase):
+class Test2To2(unittest.TestCase):
     pub_i_ = 0
     sub_i_ = 0
 
