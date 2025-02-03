@@ -29,14 +29,14 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+  std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
   std::lock_guard<std::mutex> lock2(rclcpp::Executor::mutex_);  // weak_groups_to_nodes_
 
   // Check if each callback's callback_group is included in this executor
-  for (auto & it : id2_topic_mq_info) {
-    const uint32_t topic_local_id = it.first;
-    AgnocastTopicInfo & topic_info = it.second;
-    if (!topic_info.need_epoll_update) {
+  for (auto & it : id2_callback_info) {
+    const uint32_t callback_info_id = it.first;
+    CallbackInfo & callback_info = it.second;
+    if (!callback_info.need_epoll_update) {
       continue;
     }
 
@@ -45,21 +45,21 @@ void AgnocastExecutor::prepare_epoll()
       if (!group) {
         continue;
       }
-      if (group != topic_info.callback_group) {
+      if (group != callback_info.callback_group) {
         continue;
       }
 
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
-      ev.data.u32 = topic_local_id;
+      ev.data.u32 = callback_info_id;
 
-      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, topic_info.mqdes, &ev) == -1) {
+      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
         RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
 
-      topic_info.need_epoll_update = false;
+      callback_info.need_epoll_update = false;
       break;
     }
   }
@@ -88,27 +88,27 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     return false;
   }
 
-  const uint32_t topic_local_id = event.data.u32;
-  AgnocastTopicInfo topic_info;
+  const uint32_t callback_info_id = event.data.u32;
+  CallbackInfo callback_info;
 
   {
-    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
-    const auto it = id2_topic_mq_info.find(topic_local_id);
-    if (it == id2_topic_mq_info.end()) {
-      RCLCPP_ERROR(logger, "Agnocast internal implementation error: topic info cannot be found");
+    const auto it = id2_callback_info.find(callback_info_id);
+    if (it == id2_callback_info.end()) {
+      RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
 
-    topic_info = it->second;
+    callback_info = it->second;
   }
 
   MqMsgAgnocast mq_msg = {};
 
   // non-blocking
   auto ret =
-    mq_receive(topic_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+    mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
   if (ret < 0) {
     if (errno != EAGAIN) {
       RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
@@ -120,9 +120,9 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   }
 
   union ioctl_receive_msg_args receive_args = {};
-  receive_args.topic_name = topic_info.topic_name.c_str();
-  receive_args.subscriber_id = topic_info.subscriber_id;
-  receive_args.qos_depth = topic_info.qos_depth;
+  receive_args.topic_name = callback_info.topic_name.c_str();
+  receive_args.subscriber_id = callback_info.subscriber_id;
+  receive_args.qos_depth = callback_info.qos_depth;
 
   if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
@@ -134,21 +134,21 @@ bool AgnocastExecutor::get_next_agnocast_executables(
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
-      receive_args.ret_publisher_ids[i], topic_info.subscriber_id, receive_args.ret_timestamps[i],
-      topic_local_id);
+      receive_args.ret_publisher_ids[i], callback_info.subscriber_id,
+      receive_args.ret_timestamps[i], callback_info_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;
+    uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
     TRACEPOINT(
       agnocast_create_callable, static_cast<const void *>(callable.get()),
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), receive_args.ret_timestamps[i],
-      pid_ltid);
+      pid_ciid);
 #endif
 
     agnocast_executables.callable_queue.push(callable);
   }
 
-  agnocast_executables.callback_group = topic_info.callback_group;
+  agnocast_executables.callback_group = callback_info.callback_group;
 
   return true;
 }

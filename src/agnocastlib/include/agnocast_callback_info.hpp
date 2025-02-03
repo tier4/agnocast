@@ -62,7 +62,7 @@ struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
   using type = typename std::decay<Arg>::type;
 };
 
-struct AgnocastTopicInfo
+struct CallbackInfo
 {
   std::string topic_name;
   topic_local_id_t subscriber_id;
@@ -76,9 +76,9 @@ struct AgnocastTopicInfo
   bool need_epoll_update = true;
 };
 
-extern std::mutex id2_topic_mq_info_mtx;
-extern std::unordered_map<uint32_t, AgnocastTopicInfo> id2_topic_mq_info;
-extern std::atomic<uint32_t> agnocast_topic_next_id;
+extern std::mutex id2_callback_info_mtx;
+extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
+extern std::atomic<uint32_t> next_callback_info_id;
 extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
@@ -117,22 +117,22 @@ uint32_t register_callback(
       subscriber_id, timestamp));
   };
 
-  uint32_t id = agnocast_topic_next_id.fetch_add(1);
+  uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
 
   {
-    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
-    id2_topic_mq_info[id] =
-      AgnocastTopicInfo{topic_name,     subscriber_id,   qos_depth,      mqdes,
-                        callback_group, erased_callback, message_creator};
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+    id2_callback_info[callback_info_id] =
+      CallbackInfo{topic_name,     subscriber_id,   qos_depth,      mqdes,
+                   callback_group, erased_callback, message_creator};
   }
 
   need_epoll_updates.store(true);
 
-  return id;
+  return callback_info_id;
 }
 
 std::shared_ptr<std::function<void()>> create_callable(
   const void * ptr, const topic_local_id_t publisher_id, const topic_local_id_t subscriber_id,
-  const uint64_t timestamp, const uint32_t topic_local_id);
+  const uint64_t timestamp, const uint32_t callback_info_id);
 
 }  // namespace agnocast
