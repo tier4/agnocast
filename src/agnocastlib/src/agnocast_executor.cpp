@@ -29,12 +29,12 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+  std::lock_guard<std::mutex> lock(id2_topic_info_mtx);
   std::lock_guard<std::mutex> lock2(rclcpp::Executor::mutex_);  // weak_groups_to_nodes_
 
   // Check if each callback's callback_group is included in this executor
-  for (auto & it : id2_topic_mq_info) {
-    const uint32_t topic_local_id = it.first;
+  for (auto & it : id2_topic_info) {
+    const uint32_t agnocast_topic_info_id = it.first;
     AgnocastTopicInfo & topic_info = it.second;
     if (!topic_info.need_epoll_update) {
       continue;
@@ -51,7 +51,7 @@ void AgnocastExecutor::prepare_epoll()
 
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
-      ev.data.u32 = topic_local_id;
+      ev.data.u32 = agnocast_topic_info_id;
 
       if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, topic_info.mqdes, &ev) == -1) {
         RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
@@ -88,14 +88,14 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     return false;
   }
 
-  const uint32_t topic_local_id = event.data.u32;
+  const uint32_t agnocast_topic_info_id = event.data.u32;
   AgnocastTopicInfo topic_info;
 
   {
-    std::lock_guard<std::mutex> lock(id2_topic_mq_info_mtx);
+    std::lock_guard<std::mutex> lock(id2_topic_info_mtx);
 
-    const auto it = id2_topic_mq_info.find(topic_local_id);
-    if (it == id2_topic_mq_info.end()) {
+    const auto it = id2_topic_info.find(agnocast_topic_info_id);
+    if (it == id2_topic_info.end()) {
       RCLCPP_ERROR(logger, "Agnocast internal implementation error: topic info cannot be found");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
@@ -135,14 +135,14 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
       receive_args.ret_publisher_ids[i], topic_info.subscriber_id, receive_args.ret_timestamps[i],
-      topic_local_id);
+      agnocast_topic_info_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ltid = (static_cast<uint64_t>(my_pid_) << 32) | topic_local_id;
+    uint64_t pid_tiid = (static_cast<uint64_t>(my_pid_) << 32) | agnocast_topic_info_id;
     TRACEPOINT(
       agnocast_create_callable, static_cast<const void *>(callable.get()),
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), receive_args.ret_timestamps[i],
-      pid_ltid);
+      pid_tiid);
 #endif
 
     agnocast_executables.callable_queue.push(callable);
