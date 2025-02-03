@@ -9,16 +9,17 @@ class TestSubscriber : public rclcpp::Node
 {
   agnocast::Subscription<std_msgs::msg::Int64>::SharedPtr sub_;
   uint64_t count_;
-  uint64_t sub_num_;
+  uint64_t target_sub_num_;
 
   void callback(const agnocast::ipc_shared_ptr<std_msgs::msg::Int64> & message)
   {
     RCLCPP_INFO(this->get_logger(), "Receiving %ld.", message->data);
 
     count_++;
-    if (count_ == sub_num_) {
+    if (count_ == target_sub_num_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
       std::cout << std::flush;
+      sleep(3);  // HACK: wait for other nodes in the same container
       rclcpp::shutdown();
     }
   }
@@ -37,7 +38,7 @@ public:
     }
 
     count_ = 0;
-    sub_num_ = this->get_parameter("sub_num").as_int();
+    target_sub_num_ = this->get_parameter("sub_num").as_int();
     sub_ = agnocast::create_subscription<std_msgs::msg::Int64>(
       this, "/test_topic", qos, std::bind(&TestSubscriber::callback, this, _1));
   }

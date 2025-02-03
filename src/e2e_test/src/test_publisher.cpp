@@ -47,9 +47,10 @@ class TestPublisher : public rclcpp::Node
     count_++;
 
     if (count_ == target_pub_num_) {
+      timer_->cancel();
       RCLCPP_INFO(this->get_logger(), "All messages published. Shutting down.");
       std::cout << std::flush;
-      timer_->cancel();
+      sleep(3);  // HACK: wait for other nodes in the same container
       rclcpp::shutdown();
     }
   }
