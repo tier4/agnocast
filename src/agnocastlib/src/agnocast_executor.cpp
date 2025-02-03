@@ -163,6 +163,9 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
   while (!agnocast_executables.callable_queue.empty()) {
     const auto callable = agnocast_executables.callable_queue.front();
     agnocast_executables.callable_queue.pop();
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    TRACEPOINT(agnocast_callable_start, static_cast<const void *>(callable.get()));
+#endif
     (*callable)();
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(agnocast_callable_end, static_cast<const void *>(callable.get()));
