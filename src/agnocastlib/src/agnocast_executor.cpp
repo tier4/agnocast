@@ -133,8 +133,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   for (int32_t i = static_cast<int32_t>(receive_args.ret_len) - 1; i >= 0;
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
-      reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]),
-      receive_args.ret_publisher_ids[i], callback_info.subscriber_id,
+      reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), callback_info.subscriber_id,
       receive_args.ret_timestamps[i], callback_info_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
@@ -164,9 +163,6 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
   while (!agnocast_executables.callable_queue.empty()) {
     const auto callable = agnocast_executables.callable_queue.front();
     agnocast_executables.callable_queue.pop();
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    TRACEPOINT(agnocast_callable_start, static_cast<const void *>(callable.get()));
-#endif
     (*callable)();
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(agnocast_callable_end, static_cast<const void *>(callable.get()));

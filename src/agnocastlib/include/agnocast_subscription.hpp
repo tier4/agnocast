@@ -97,8 +97,7 @@ public:
       for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
         MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
         agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-          ptr, topic_name_, subscriber_args.ret_publisher_ids[i], id_,
-          subscriber_args.ret_timestamps[i]);
+          ptr, topic_name_, id_, subscriber_args.ret_timestamps[i]);
         callback(agnocast_ptr);
       }
     }
@@ -163,8 +162,7 @@ public:
 #endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    return agnocast::ipc_shared_ptr<MessageT>(
-      ptr, topic_name_, take_args.ret_publisher_id, id_, take_args.ret_timestamp);
+    return agnocast::ipc_shared_ptr<MessageT>(ptr, topic_name_, id_, take_args.ret_timestamp);
   }
 };
 

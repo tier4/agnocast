@@ -97,7 +97,7 @@ public:
       delete release_ptr;
     }
 
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_, timestamp);
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), timestamp);
   }
 
   void publish(ipc_shared_ptr<MessageT> && message)
