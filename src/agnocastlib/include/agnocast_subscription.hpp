@@ -77,8 +77,7 @@ public:
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
-    // cppcheck-suppress unreadVariable
-    uint32_t callback_info_id = agnocast::register_callback(
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
       callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
