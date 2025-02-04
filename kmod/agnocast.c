@@ -63,7 +63,7 @@ struct topic_wrapper
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
-  topic_local_id_t current_id;
+  topic_local_id_t current_pubsub_id;
   uint64_t current_entry_id;
 };
 
@@ -100,7 +100,8 @@ static struct topic_wrapper * insert_topic(const char * topic_name)
     return NULL;
   }
 
-  wrapper->current_id = 0;
+  wrapper->current_pubsub_id = 0;
+  wrapper->current_entry_id = 0;
   wrapper->topic.entries = RB_ROOT;
   hash_init(wrapper->topic.pub_info_htable);
   hash_init(wrapper->topic.sub_info_htable);
@@ -169,8 +170,8 @@ static struct subscriber_info * insert_subscriber_info(
     return NULL;
   }
 
-  const topic_local_id_t new_id = wrapper->current_id;
-  wrapper->current_id++;
+  const topic_local_id_t new_id = wrapper->current_pubsub_id;
+  wrapper->current_pubsub_id++;
 
   new_info->id = new_id;
   new_info->pid = subscriber_pid;
@@ -236,8 +237,8 @@ static struct publisher_info * insert_publisher_info(
     return NULL;
   }
 
-  const topic_local_id_t new_id = wrapper->current_id;
-  wrapper->current_id++;
+  const topic_local_id_t new_id = wrapper->current_pubsub_id;
+  wrapper->current_pubsub_id++;
 
   new_info->id = new_id;
   new_info->pid = publisher_pid;
@@ -419,9 +420,11 @@ static int insert_message_entry(
     } else {
       dev_warn(
         agnocast_device,
-        "New message entry (entry_id=%lld) does not have the latest entry_id in the topic (topic_name=%s). "
+        "New message entry (entry_id=%lld) does not have the largest entry_id in the topic "
+        "(topic_name=%s). "
         "(insert_message_entry)\n",
         new_node->entry_id, wrapper->key);
+      kfree(new_node);
       return -1;
     }
   }
