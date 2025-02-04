@@ -70,14 +70,12 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
 }
 
 std::vector<uint64_t> publish_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
-  const uint32_t qos_depth, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, mqd_t> & opened_mqs)
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
   publish_args.publisher_id = publisher_id;
-  publish_args.msg_timestamp = timestamp;
   publish_args.qos_depth = qos_depth;
   publish_args.msg_virtual_address = msg_virtual_address;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {

@@ -46,7 +46,7 @@ struct subscriber_info
 {
   topic_local_id_t id;
   pid_t pid;
-  uint64_t latest_received_timestamp;
+  uint64_t latest_received_entry_id;
   bool is_take_sub;
   struct hlist_node node;
 };
@@ -64,12 +64,13 @@ struct topic_wrapper
   struct topic_struct topic;
   struct hlist_node node;
   topic_local_id_t current_id;
+  uint64_t current_entry_id;
 };
 
 struct entry_node
 {
   struct rb_node node;
-  uint64_t timestamp;  // rbtree key
+  uint64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
   topic_local_id_t referencing_subscriber_ids[MAX_SUBSCRIBER_NUM];
@@ -173,7 +174,7 @@ static struct subscriber_info * insert_subscriber_info(
 
   new_info->id = new_id;
   new_info->pid = subscriber_pid;
-  new_info->latest_received_timestamp = 0;
+  new_info->latest_received_entry_id = wrapper->current_entry_id++;
   new_info->is_take_sub = is_take_sub;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
@@ -299,7 +300,7 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subsc
 }
 
 static struct entry_node * find_message_entry(
-  struct topic_wrapper * wrapper, const uint64_t msg_timestamp)
+  struct topic_wrapper * wrapper, const uint64_t entry_id)
 {
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -307,14 +308,11 @@ static struct entry_node * find_message_entry(
   while (*new) {
     struct entry_node * this = container_of(*new, struct entry_node, node);
 
-    if (msg_timestamp < this->timestamp) {
+    if (entry_id < this->entry_id) {
       new = &((*new)->rb_left);
-    } else if (msg_timestamp > this->timestamp) {
+    } else if (entry_id > this->entry_id) {
       new = &((*new)->rb_right);
     } else {
-      // TODO: Previously, each publisher had its own tree, so timestamps did not overlap. However,
-      // with unification, there is a slight possibility of timestamp conflict. This could be
-      // resolved by using a timestamp and PID pair, but it is not implemented yet.
       return this;
     }
   }
@@ -323,7 +321,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -333,13 +331,13 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s timestamp=%lld) not found. "
+      "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(increment_message_entry_rc)\n",
-      topic_name, msg_timestamp);
+      topic_name, entry_id);
     return -1;
   }
 
@@ -351,7 +349,7 @@ static int increment_message_entry_rc(
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t msg_timestamp)
+  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -361,13 +359,13 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  struct entry_node * en = find_message_entry(wrapper, msg_timestamp);
+  struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
     dev_warn(
       agnocast_device,
-      "Message entry (topic_name=%s timestamp=%lld) not found. "
+      "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(decrement_message_entry_rc)\n",
-      topic_name, msg_timestamp);
+      topic_name, entry_id);
     return -1;
   }
 
@@ -385,16 +383,29 @@ static int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "Subscriber is not referencing (topic_name=%s timestamp=%lld). (decrement_message_entry_rc)\n",
-    topic_name, msg_timestamp);
+    "Subscriber is not referencing (topic_name=%s entry_id=%lld). (decrement_message_entry_rc)\n",
+    topic_name, entry_id);
 
   return -1;
 }
 
 static int insert_message_entry(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
-  uint64_t timestamp)
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address)
 {
+  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
+  if (!new_node) {
+    dev_warn(agnocast_device, "kmalloc failed. (insert_message_entry)\n");
+    return -1;
+  }
+
+  new_node->entry_id = wrapper->current_entry_id++;
+  new_node->publisher_id = pub_info->id;
+  new_node->msg_virtual_address = msg_virtual_address;
+  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+    new_node->referencing_subscriber_ids[i] = -1;
+    new_node->subscriber_reference_count[i] = 0;
+  }
+
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
   struct rb_node * parent = NULL;
@@ -403,32 +414,18 @@ static int insert_message_entry(
     struct entry_node * this = container_of(*new, struct entry_node, node);
     parent = *new;
 
-    if (timestamp < this->timestamp) {
+    if (new_node->entry_id < this->entry_id) {
       new = &((*new)->rb_left);
-    } else if (timestamp > this->timestamp) {
+    } else if (new_node->entry_id > this->entry_id) {
       new = &((*new)->rb_right);
     } else {
       dev_warn(
         agnocast_device,
-        "Message entry (timestamp=%lld) already exists in the publisher queue (id=%d) "
-        "for the topic (topic_name=%s). (insert_message_entry)\n",
-        timestamp, pub_info->id, wrapper->key);
+        "Message entry (entry_id=%lld) already exists in the topic (topic_name=%s). "
+        "(insert_message_entry)\n",
+        new_node->entry_id, wrapper->key);
       return -1;
     }
-  }
-
-  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
-  if (!new_node) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_message_entry)\n");
-    return -1;
-  }
-
-  new_node->timestamp = timestamp;
-  new_node->publisher_id = pub_info->id;
-  new_node->msg_virtual_address = msg_virtual_address;
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    new_node->referencing_subscriber_ids[i] = -1;
-    new_node->subscriber_reference_count[i] = 0;
   }
 
   rb_link_node(&new_node->node, parent, new);
@@ -438,9 +435,9 @@ static int insert_message_entry(
 
   dev_dbg(
     agnocast_device,
-    "Insert a message entry (topic_name=%s id=%d msg_virtual_address=%lld timestamp=%lld). "
-    "(insert_message_entry)",
-    wrapper->key, pub_info->id, msg_virtual_address, timestamp);
+    "Insert a message entry (topic_name=%s entry_id=%lld msg_virtual_address=%lld). "
+    "(insert_message_entry)\n",
+    wrapper->key, new_node->entry_id, msg_virtual_address);
 
   return 0;
 }
@@ -683,8 +680,8 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
 
       ret = scnprintf(
         buf + used_size, PAGE_SIZE - used_size,
-        "  time=%lld, topic_local_id=%u, addr=%lld, referencing=[", en->timestamp, en->publisher_id,
-        en->msg_virtual_address);
+        "  entry_id=%lld, topic_local_id=%u, addr=%lld, referencing=[", en->entry_id,
+        en->publisher_id, en->msg_virtual_address);
       used_size += ret;
 
       for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
@@ -730,8 +727,8 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, uint64_t init_timestamp,
-  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
+  union ioctl_subscriber_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -752,7 +749,6 @@ static int subscriber_add(
   if (!sub_info) {
     return -1;
   }
-  sub_info->latest_received_timestamp = init_timestamp;
 
   ioctl_ret->ret_id = sub_info->id;
 
@@ -768,19 +764,19 @@ static int subscriber_add(
     if (increment_sub_rc(en, sub_info->id) == -1) {
       dev_warn(
         agnocast_device,
-        "The number of subscribers for the entry_node (timestamp=%lld) reached the upper "
+        "The number of subscribers for the entry_node (entry_id=%lld) reached the upper "
         "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
         " (subscriber_add)\n",
-        en->timestamp, MAX_SUBSCRIBER_NUM);
+        en->entry_id, MAX_SUBSCRIBER_NUM);
       return -1;
     }
 
-    ioctl_ret->ret_timestamps[ioctl_ret->ret_transient_local_num] = en->timestamp;
-    ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
+    ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
+    ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
     ioctl_ret->ret_transient_local_num++;
 
     if (!sub_info_updated) {
-      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info->latest_received_entry_id = en->entry_id;
       sub_info_updated = true;
     }
   }
@@ -986,12 +982,13 @@ static int receive_and_update(
     return -1;
   }
 
-  ioctl_ret->ret_len = 0;
+  ioctl_ret->ret_entry_num = 0;
   bool sub_info_updated = false;
-  uint64_t prev_latest_received_timestamp = sub_info->latest_received_timestamp;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if ((en->timestamp <= prev_latest_received_timestamp) || (qos_depth == ioctl_ret->ret_len)) {
+    if (
+      (en->entry_id <= sub_info->latest_received_entry_id) ||
+      (qos_depth == ioctl_ret->ret_entry_num)) {
       break;
     }
 
@@ -999,12 +996,12 @@ static int receive_and_update(
       return -1;
     }
 
-    ioctl_ret->ret_timestamps[ioctl_ret->ret_len] = en->timestamp;
-    ioctl_ret->ret_last_msg_addrs[ioctl_ret->ret_len] = en->msg_virtual_address;
-    ioctl_ret->ret_len++;
+    ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
+    ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
+    ioctl_ret->ret_entry_num++;
 
     if (!sub_info_updated) {
-      sub_info->latest_received_timestamp = en->timestamp;
+      sub_info->latest_received_entry_id = en->entry_id;
       sub_info_updated = true;
     }
   }
@@ -1014,8 +1011,7 @@ static int receive_and_update(
 
 static int publish_msg(
   const char * topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, const uint64_t timestamp,
-  union ioctl_publish_args * ioctl_ret)
+  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1031,7 +1027,7 @@ static int publish_msg(
     return -1;
   }
 
-  if (insert_message_entry(wrapper, pub_info, msg_virtual_address, timestamp) == -1) {
+  if (insert_message_entry(wrapper, pub_info, msg_virtual_address) == -1) {
     return -1;
   }
 
@@ -1073,19 +1069,17 @@ static int take_msg(
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
-  ioctl_ret->ret_timestamp = 0;
+  ioctl_ret->ret_entry_id = 0;
 
-  // TODO: There is a slight possibility that there are messages with same timestamps,
-  // but this has not been taken into account.
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
   struct rb_node * node = rb_last(&wrapper->topic.entries);
   while (node && searched_count < qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if (!allow_same_message && en->timestamp == sub_info->latest_received_timestamp) {
+    if (!allow_same_message && en->entry_id == sub_info->latest_received_entry_id) {
       break;  // Don't take the same message if it's not allowed
     }
-    if (en->timestamp < sub_info->latest_received_timestamp) {
+    if (en->entry_id < sub_info->latest_received_entry_id) {
       break;  // Never take any messages that are older than the most recently received
     }
     candidate_en = en;
@@ -1100,9 +1094,9 @@ static int take_msg(
   }
 
   ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
-  ioctl_ret->ret_timestamp = candidate_en->timestamp;
+  ioctl_ret->ret_entry_id = candidate_en->entry_id;
 
-  sub_info->latest_received_timestamp = ioctl_ret->ret_timestamp;
+  sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
 
   return 0;
 }
@@ -1157,8 +1151,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = subscriber_add(
-        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.init_timestamp,
-        sub_args.is_take_sub, &sub_args);
+        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.is_take_sub,
+        &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1180,8 +1174,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = increment_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_id, entry_args.msg_timestamp);
+      ret =
+        increment_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
@@ -1190,8 +1184,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = decrement_message_entry_rc(
-        topic_name_buf, entry_args.subscriber_id, entry_args.msg_timestamp);
+      ret =
+        decrement_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       union ioctl_receive_msg_args receive_msg_args;
@@ -1220,7 +1214,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       ret = publish_msg(
         topic_name_buf, publish_args.publisher_id, publish_args.qos_depth,
-        publish_args.msg_virtual_address, publish_args.msg_timestamp, &publish_args);
+        publish_args.msg_virtual_address, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
       break;

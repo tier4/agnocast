@@ -24,15 +24,14 @@ union ioctl_subscriber_args {
     const char * topic_name;
     uint32_t qos_depth;
     pid_t subscriber_pid;
-    uint64_t init_timestamp;
     bool is_take_sub;
   };
   struct
   {
     topic_local_id_t ret_id;
     uint32_t ret_transient_local_num;
-    uint64_t ret_timestamps[MAX_QOS_DEPTH];
-    uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+    uint64_t ret_entry_ids[MAX_QOS_DEPTH];
+    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
     uint32_t ret_publisher_num;
     pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
     uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
@@ -67,7 +66,7 @@ union ioctl_update_entry_args {
   {
     const char * topic_name;
     topic_local_id_t subscriber_id;
-    uint64_t msg_timestamp;
+    uint64_t entry_id;
   };
   uint64_t ret;
 };
@@ -84,9 +83,9 @@ union ioctl_receive_msg_args {
   };
   struct
   {
-    uint16_t ret_len;
-    uint64_t ret_timestamps[MAX_QOS_DEPTH];
-    uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+    uint16_t ret_entry_num;
+    uint64_t ret_entry_ids[MAX_QOS_DEPTH];
+    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
   };
 };
 #pragma GCC diagnostic pop
@@ -98,7 +97,6 @@ union ioctl_publish_args {
   {
     const char * topic_name;
     topic_local_id_t publisher_id;
-    uint64_t msg_timestamp;
     uint32_t qos_depth;
     uint64_t msg_virtual_address;
   };
@@ -125,7 +123,7 @@ union ioctl_take_msg_args {
   struct
   {
     uint64_t ret_addr;
-    uint64_t ret_timestamp;
+    uint64_t ret_entry_id;
   };
 };
 #pragma GCC diagnostic pop

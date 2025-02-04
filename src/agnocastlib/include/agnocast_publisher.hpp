@@ -25,9 +25,8 @@ namespace agnocast
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name);
 std::vector<uint64_t> publish_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
-  const uint32_t qos_depth, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, mqd_t> & opened_mqs);
+  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
+  const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
@@ -85,12 +84,9 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
-    const uint64_t timestamp = agnocast::agnocast_get_timestamp();
-
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
-      agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()),
-      timestamp);
+      agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()));
 #endif
 
     if (!message || topic_name_ != message.get_topic_name()) {
@@ -100,7 +96,7 @@ public:
     }
 
     std::vector<uint64_t> released_addrs = publish_core(
-      topic_name_, id_, timestamp, static_cast<uint32_t>(qos_.depth()),
+      topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
       reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
 
     // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
