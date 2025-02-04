@@ -883,7 +883,7 @@ static int publisher_add(
   return 0;
 }
 
-static uint64_t release_msgs_to_meet_depth(
+static int release_msgs_to_meet_depth(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info, const uint32_t qos_depth,
   union ioctl_publish_args * ioctl_ret)
 {
