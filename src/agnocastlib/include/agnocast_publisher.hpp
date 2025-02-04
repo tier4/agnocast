@@ -115,11 +115,14 @@ public:
     }
 
     if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
-      const MessageT * raw = message.get();
-      ros2_publisher_->publish(*raw);
+      std::thread([this, message = std::move(message)]() mutable {
+        const MessageT * raw = message.get();
+        ros2_publisher_->publish(*raw);
+        message.reset();
+      }).detach();
+    } else {
+      message.reset();
     }
-
-    message.reset();
   }
 
   uint32_t get_subscription_count() const
