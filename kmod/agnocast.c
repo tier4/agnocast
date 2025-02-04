@@ -414,14 +414,12 @@ static int insert_message_entry(
     struct entry_node * this = container_of(*new, struct entry_node, node);
     parent = *new;
 
-    if (new_node->entry_id < this->entry_id) {
-      new = &((*new)->rb_left);
-    } else if (new_node->entry_id > this->entry_id) {
+    if (new_node->entry_id > this->entry_id) {
       new = &((*new)->rb_right);
     } else {
       dev_warn(
         agnocast_device,
-        "Message entry (entry_id=%lld) already exists in the topic (topic_name=%s). "
+        "New message entry (entry_id=%lld) does not have the latest entry_id in the topic (topic_name=%s). "
         "(insert_message_entry)\n",
         new_node->entry_id, wrapper->key);
       return -1;
