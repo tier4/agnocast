@@ -24,13 +24,11 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name);
-void publish_core(
+std::vector<uint64_t> publish_core(
   const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
+  const uint32_t qos_depth, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
-std::vector<uint64_t> borrow_loaned_message_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, const uint64_t timestamp);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
 
@@ -82,30 +80,17 @@ public:
   {
     increment_borrowed_publisher_num();
     MessageT * ptr = new MessageT();
-    return borrow_loaned_message(ptr);
-  }
-
-  ipc_shared_ptr<MessageT> borrow_loaned_message(MessageT * ptr)
-  {
-    uint64_t timestamp = agnocast_get_timestamp();
-    std::vector<uint64_t> released_addrs = borrow_loaned_message_core(
-      topic_name_, id_, static_cast<uint32_t>(qos_.depth()), reinterpret_cast<uint64_t>(ptr),
-      timestamp);
-
-    for (uint64_t addr : released_addrs) {
-      MessageT * release_ptr = reinterpret_cast<MessageT *>(addr);
-      delete release_ptr;
-    }
-
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), timestamp);
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str());
   }
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
+    const uint64_t timestamp = agnocast::agnocast_get_timestamp();
+
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()),
-      message.get_timestamp());
+      timestamp);
 #endif
 
     if (!message || topic_name_ != message.get_topic_name()) {
@@ -114,12 +99,20 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    publish_core(topic_name_, publisher_pid_, message.get_timestamp(), opened_mqs_);
+    std::vector<uint64_t> released_addrs = publish_core(
+      topic_name_, id_, timestamp, static_cast<uint32_t>(qos_.depth()),
+      reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+
     // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
     // for ROS2 serialization will also use shared memory. Since we don't need to store any
     // additional data in shared memory after the agnocast publish operation, here is the ideal
     // point to decrement.
     decrement_borrowed_publisher_num();
+
+    for (uint64_t addr : released_addrs) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(addr);
+      delete release_ptr;
+    }
 
     if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
       const MessageT * raw = message.get();

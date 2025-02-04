@@ -69,14 +69,17 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
   return pub_args.ret_id;
 }
 
-void publish_core(
+std::vector<uint64_t> publish_core(
   const std::string & topic_name, const topic_local_id_t publisher_id, const uint64_t timestamp,
+  const uint32_t qos_depth, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
   publish_args.publisher_id = publisher_id;
   publish_args.msg_timestamp = timestamp;
+  publish_args.qos_depth = qos_depth;
+  publish_args.msg_virtual_address = msg_virtual_address;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -109,27 +112,10 @@ void publish_core(
       }
     }
   }
-}
 
-std::vector<uint64_t> borrow_loaned_message_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, const uint64_t timestamp)
-{
-  union ioctl_enqueue_and_release_args ioctl_args = {};
-  ioctl_args.topic_name = topic_name.c_str();
-  ioctl_args.publisher_id = publisher_id;
-  ioctl_args.qos_depth = qos_depth;
-  ioctl_args.msg_virtual_address = msg_virtual_address;
-  ioctl_args.timestamp = timestamp;
-  if (ioctl(agnocast_fd, AGNOCAST_ENQUEUE_AND_RELEASE_CMD, &ioctl_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_ENQUEUE_AND_RELEASE_CMD failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  std::vector<uint64_t> addresses(ioctl_args.ret_len);
+  std::vector<uint64_t> addresses(publish_args.ret_released_num);
   std::copy_n(
-    static_cast<const uint64_t *>(ioctl_args.ret_released_addrs), ioctl_args.ret_len,
+    static_cast<const uint64_t *>(publish_args.ret_released_addrs), publish_args.ret_released_num,
     addresses.begin());
   return addresses;
 }

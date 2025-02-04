@@ -5,8 +5,8 @@
 // TODO: should be made larger when applied for Autoware
 #define MAX_PUBLISHER_NUM 4   // At least 4 is required for sample application
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
-
-#define MAX_QOS_DEPTH 10  // Maximum depth of transient local usage part in Autoware
+#define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
+#define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
 
 typedef int32_t topic_local_id_t;
 
@@ -48,24 +48,6 @@ union ioctl_publisher_args {
   };
 };
 
-#define MAX_RELEASE_NUM 3  // Max to keep union size equal to 32 bytes
-
-union ioctl_enqueue_and_release_args {
-  struct
-  {
-    const char * topic_name;
-    topic_local_id_t publisher_id;
-    uint32_t qos_depth;
-    uint64_t msg_virtual_address;
-    uint64_t timestamp;
-  };
-  struct
-  {
-    uint32_t ret_len;
-    uint64_t ret_released_addrs[MAX_RELEASE_NUM];
-  };
-};
-
 union ioctl_update_entry_args {
   struct
   {
@@ -97,11 +79,15 @@ union ioctl_publish_args {
     const char * topic_name;
     topic_local_id_t publisher_id;
     uint64_t msg_timestamp;
+    uint32_t qos_depth;
+    uint64_t msg_virtual_address;
   };
   struct
   {
     uint32_t ret_subscriber_num;
     topic_local_id_t ret_subscriber_ids[MAX_SUBSCRIBER_NUM];
+    uint32_t ret_released_num;
+    uint64_t ret_released_addrs[MAX_RELEASE_NUM];
   };
 };
 
@@ -136,7 +122,6 @@ union ioctl_get_subscriber_num_args {
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-#define AGNOCAST_ENQUEUE_AND_RELEASE_CMD _IOW('E', 1, union ioctl_enqueue_and_release_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)

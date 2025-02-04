@@ -55,8 +55,8 @@ public:
 
   ipc_shared_ptr() = default;
 
-  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const uint64_t timestamp)
-  : ptr_(ptr), topic_name_(topic_name), timestamp_(timestamp)
+  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name)
+  : ptr_(ptr), topic_name_(topic_name)
   {
   }
 

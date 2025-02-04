@@ -52,7 +52,7 @@ TEST_F(AgnocastSmartPointerTest, reset_normal)
 TEST_F(AgnocastSmartPointerTest, reset_isnt_created_by_sub)
 {
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, dummy_ts)).Times(0);
-  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn};
 
   sut.reset();
 
@@ -84,7 +84,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_sub)
 {
-  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn};
 
   EXPECT_EXIT(
     agnocast::ipc_shared_ptr<int> sut2{sut}, ::testing::ExitedWithCode(EXIT_FAILURE),
