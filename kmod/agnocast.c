@@ -185,7 +185,7 @@ static struct subscriber_info * insert_subscriber_info(
     agnocast_device,
     "Subscriber (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
     "(insert_subscriber_info)\n",
-    subscriber_pid, new_id, wrapper->key);
+    new_id, subscriber_pid, wrapper->key);
 
   return new_info;
 }
@@ -988,11 +988,10 @@ static int receive_and_update(
 
   ioctl_ret->ret_entry_num = 0;
   bool sub_info_updated = false;
+  uint64_t latest_received_entry_id = sub_info->latest_received_entry_id;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if (
-      (en->entry_id <= sub_info->latest_received_entry_id) ||
-      (qos_depth == ioctl_ret->ret_entry_num)) {
+    if ((en->entry_id <= latest_received_entry_id) || (qos_depth == ioctl_ret->ret_entry_num)) {
       break;
     }
 
