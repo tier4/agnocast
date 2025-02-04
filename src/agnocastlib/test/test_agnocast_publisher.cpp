@@ -14,7 +14,7 @@ MOCK_GLOBAL_FUNC2(
   topic_local_id_t(const pid_t publisher_pid, const std::string & topic_name));
 MOCK_GLOBAL_FUNC5(
   publish_core_mock,
-  std::vector<uint64_t>(
+  union ioctl_publish_args(
     const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
     const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs));
 
@@ -24,7 +24,7 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
 {
   return initialize_publisher_mock(publisher_pid, topic_name);
 }
-std::vector<uint64_t> publish_core(
+union ioctl_publish_args publish_core(
   const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
   const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs)
 {

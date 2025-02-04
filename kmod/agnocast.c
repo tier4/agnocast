@@ -391,7 +391,8 @@ static int decrement_message_entry_rc(
 }
 
 static int insert_message_entry(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address)
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
+  union ioctl_publish_args * ioctl_ret)
 {
   struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   if (!new_node) {
@@ -439,6 +440,8 @@ static int insert_message_entry(
     "Insert a message entry (topic_name=%s entry_id=%lld msg_virtual_address=%lld). "
     "(insert_message_entry)\n",
     wrapper->key, new_node->entry_id, msg_virtual_address);
+
+  ioctl_ret->ret_entry_id = new_node->entry_id;
 
   return 0;
 }
@@ -1028,7 +1031,7 @@ static int publish_msg(
     return -1;
   }
 
-  if (insert_message_entry(wrapper, pub_info, msg_virtual_address) == -1) {
+  if (insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret) == -1) {
     return -1;
   }
 

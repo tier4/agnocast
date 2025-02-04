@@ -102,6 +102,7 @@ union ioctl_publish_args {
   };
   struct
   {
+    uint64_t ret_entry_id;
     uint32_t ret_subscriber_num;
     topic_local_id_t ret_subscriber_ids[MAX_SUBSCRIBER_NUM];
     uint32_t ret_released_num;

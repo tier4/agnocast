@@ -69,7 +69,7 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
   return pub_args.ret_id;
 }
 
-std::vector<uint64_t> publish_core(
+union ioctl_publish_args publish_core(
   const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
   const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
@@ -111,11 +111,7 @@ std::vector<uint64_t> publish_core(
     }
   }
 
-  std::vector<uint64_t> addresses(publish_args.ret_released_num);
-  std::copy_n(
-    static_cast<const uint64_t *>(publish_args.ret_released_addrs), publish_args.ret_released_num,
-    addresses.begin());
-  return addresses;
+  return publish_args;
 }
 
 uint32_t get_subscription_count_core(const std::string & topic_name)
