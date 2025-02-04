@@ -32,7 +32,7 @@ class ipc_shared_ptr
   T * ptr_ = nullptr;
   std::string topic_name_;
   topic_local_id_t subscriber_id_ = -1;
-  uint64_t entry_id_ = 0;
+  uint64_t entry_id_ = -1;
   bool is_created_by_sub_ = false;
 
   void increment_rc() const
