@@ -16,8 +16,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <utility>
 
 namespace agnocast
 {
@@ -34,6 +37,8 @@ void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
 extern "C" uint32_t get_borrowed_publisher_num();
+extern std::vector<std::thread> threads;
+extern std::mutex threads_mtx;
 
 template <typename MessageT>
 class Publisher
@@ -47,6 +52,10 @@ class Publisher
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   bool do_always_ros2_publish_;  // For transient local.
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
+  ipc_shared_ptr<MessageT> message_ptr_;
+  std::mutex ros2_publish_mtx_;
+  std::condition_variable ros2_publish_cv_;
+  bool ros2_publish_ready_ = false;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -71,6 +80,22 @@ public:
       do_always_ros2_publish_ = do_always_ros2_publish;
     } else {
       do_always_ros2_publish_ = false;
+    }
+
+    auto th = std::thread([this]() {
+      while (true) {
+        std::unique_lock<std::mutex> lock(ros2_publish_mtx_);
+        ros2_publish_cv_.wait(lock, [this]() { return ros2_publish_ready_; });
+
+        ros2_publisher_->publish(*message_ptr_.get());
+        message_ptr_.reset();
+        ros2_publish_ready_ = false;
+      }
+    });
+
+    {
+      std::lock_guard<std::mutex> lock(threads_mtx);
+      threads.push_back(std::move(th));
     }
 
     id_ = initialize_publisher(publisher_pid_, topic_name_);
@@ -115,11 +140,10 @@ public:
     }
 
     if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
-      std::thread([this, message = std::move(message)]() mutable {
-        const MessageT * raw = message.get();
-        ros2_publisher_->publish(*raw);
-        message.reset();
-      }).detach();
+      std::unique_lock<std::mutex> lock(ros2_publish_mtx_);
+      message_ptr_ = std::move(message);
+      ros2_publish_ready_ = true;
+      ros2_publish_cv_.notify_one();
     } else {
       message.reset();
     }

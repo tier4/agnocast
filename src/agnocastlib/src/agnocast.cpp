@@ -16,6 +16,7 @@ namespace agnocast
 int agnocast_fd = -1;
 std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
+std::mutex threads_mtx;
 extern mqd_t mq_new_publisher;
 
 std::vector<int> shm_fds;
@@ -159,8 +160,11 @@ static void shutdown_agnocast()
     }
   }
 
-  for (auto & th : threads) {
-    th.join();
+  {
+    std::lock_guard<std::mutex> lock(threads_mtx);
+    for (auto & th : threads) {
+      th.join();
+    }
   }
 
   printf("[INFO] [Agnocast]: shutdown_agnocast completed\n");

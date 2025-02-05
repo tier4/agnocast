@@ -6,6 +6,7 @@ namespace agnocast
 mqd_t mq_new_publisher = -1;
 
 extern std::vector<std::thread> threads;
+extern std::mutex threads_mtx;
 
 SubscriptionBase::SubscriptionBase(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
@@ -65,7 +66,10 @@ static void wait_for_new_publisher(const pid_t subscriber_pid)
     }
   });
 
-  threads.push_back(std::move(th));
+  {
+    std::lock_guard<std::mutex> lock(threads_mtx);
+    threads.push_back(std::move(th));
+  }
 }
 
 union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
