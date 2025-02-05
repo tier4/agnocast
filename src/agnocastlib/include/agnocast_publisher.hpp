@@ -52,9 +52,9 @@ class Publisher
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   bool do_always_ros2_publish_;  // For transient local.
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
-  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
-  std::mutex ros2_publish_mtx_;
-  std::condition_variable ros2_publish_cv_;
+  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_ = std::queue<ipc_shared_ptr<MessageT>>();
+  std::mutex ros2_publish_mtx_ = std::mutex();
+  std::condition_variable ros2_publish_cv_ = std::condition_variable();
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -87,7 +87,7 @@ public:
         ros2_publish_cv_.wait(lock, [this]() { return !ros2_message_queue_.empty(); });
 
         while (!ros2_message_queue_.empty()) {
-          auto message = ros2_message_queue_.front();
+          auto message = std::move(ros2_message_queue_.front());
           ros2_message_queue_.pop();
 
           lock.unlock();
