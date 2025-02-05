@@ -85,6 +85,8 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
+    decrement_borrowed_publisher_num();
+
     const uint64_t timestamp = agnocast::agnocast_get_timestamp();
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
@@ -102,12 +104,6 @@ public:
     std::vector<uint64_t> released_addrs = publish_core(
       topic_name_, id_, timestamp, static_cast<uint32_t>(qos_.depth()),
       reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
-
-    // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
-    // for ROS2 serialization will also use shared memory. Since we don't need to store any
-    // additional data in shared memory after the agnocast publish operation, here is the ideal
-    // point to decrement.
-    decrement_borrowed_publisher_num();
 
     for (uint64_t addr : released_addrs) {
       MessageT * release_ptr = reinterpret_cast<MessageT *>(addr);
