@@ -90,6 +90,8 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    decrement_borrowed_publisher_num();
+
     const union ioctl_publish_args publish_args = publish_core(
       topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
       reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
@@ -99,12 +101,6 @@ public:
       agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()),
       publish_args.ret_entry_id);
 #endif
-
-    // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
-    // for ROS2 serialization will also use shared memory. Since we don't need to store any
-    // additional data in shared memory after the agnocast publish operation, here is the ideal
-    // point to decrement.
-    decrement_borrowed_publisher_num();
 
     for (uint32_t i = 0; i < publish_args.ret_released_num; i++) {
       MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_args.ret_released_addrs[i]);
