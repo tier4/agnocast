@@ -49,7 +49,7 @@ static void wait_for_new_publisher(const pid_t subscriber_pid)
 
   // Create a thread that maps the areas for publishers afterwards
   auto th = std::thread([=]() {
-    while (agnocast::ok()) {
+    while (true) {
       MqMsgNewPublisher mq_msg = {};
       auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
       if (ret == -1) {

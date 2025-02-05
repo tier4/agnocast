@@ -14,17 +14,11 @@ namespace agnocast
 {
 
 int agnocast_fd = -1;
-std::atomic<bool> is_running = true;
 std::vector<std::thread> threads;
 extern mqd_t mq_new_publisher;
 
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
-
-bool ok()
-{
-  return is_running.load();
-}
 
 bool already_mapped(const pid_t pid)
 {
@@ -130,7 +124,6 @@ void * initialize_agnocast(const uint64_t shm_size)
 static void shutdown_agnocast()
 {
   printf("[INFO] [Agnocast]: shutdown_agnocast started\n");
-  is_running.store(false);
 
   const pid_t pid = getpid();
 

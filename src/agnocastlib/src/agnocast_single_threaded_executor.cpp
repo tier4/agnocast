@@ -25,7 +25,7 @@ void SingleThreadedAgnocastExecutor::spin()
 
   // TODO(sykwer): Transient local
 
-  while (rclcpp::ok(this->context_) && agnocast::ok() && spinning.load()) {
+  while (rclcpp::ok(this->context_) && spinning.load()) {
     if (need_epoll_updates.exchange(false)) {
       prepare_epoll();
     }
