@@ -84,13 +84,13 @@ public:
 
   void publish(ipc_shared_ptr<MessageT> && message)
   {
-    decrement_borrowed_publisher_num();
-
     if (!message || topic_name_ != message.get_topic_name()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
+
+    decrement_borrowed_publisher_num();
 
     const union ioctl_publish_args publish_args = publish_core(
       topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
