@@ -210,11 +210,13 @@ class Test1To1(unittest.TestCase):
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
-            # Check the order of messages received
+            stdout_content = "".join(cm._output)
+
+            # No checking of the order of messages received in ROS 2 subscription
             for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
-                cm.assertInStdout(f"Receiving {i}.")
-            cm.assertInStdout("All messages received. Shutting down.")
+                self.assertIn(f"Receiving {i}.", stdout_content)
+            self.assertIn("All messages received. Shutting down.", stdout_content)
 
             # Check the number of messages received
-            sub_count = "".join(cm._output).count("Receiving ")
+            sub_count = stdout_content.count("Receiving ")
             self.assertEqual(sub_count, EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM)

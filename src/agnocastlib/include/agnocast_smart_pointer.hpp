@@ -20,9 +20,9 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 void decrement_rc(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const uint64_t timestamp);
+  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
 void increment_rc_core(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const uint64_t timestamp);
+  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
 
 extern int agnocast_fd;
 
@@ -32,14 +32,14 @@ class ipc_shared_ptr
   T * ptr_ = nullptr;
   std::string topic_name_;
   topic_local_id_t subscriber_id_ = -1;
-  uint64_t timestamp_ = 0;
+  int64_t entry_id_ = -1;
   bool is_created_by_sub_ = false;
 
   void increment_rc() const
   {
     if (!is_created_by_sub_) return;
 
-    increment_rc_core(topic_name_, subscriber_id_, timestamp_);
+    increment_rc_core(topic_name_, subscriber_id_, entry_id_);
   }
 
   // Unimplemented operators. If these are called, a compile error is raised.
@@ -51,7 +51,7 @@ public:
   using element_type = T;
 
   const std::string get_topic_name() const { return topic_name_; }
-  uint64_t get_timestamp() const { return timestamp_; }
+  int64_t get_entry_id() const { return entry_id_; }
 
   ipc_shared_ptr() = default;
 
@@ -62,11 +62,11 @@ public:
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t subscriber_id,
-    const uint64_t timestamp)
+    const int64_t entry_id)
   : ptr_(ptr),
     topic_name_(topic_name),
     subscriber_id_(subscriber_id),
-    timestamp_(timestamp),
+    entry_id_(entry_id),
     is_created_by_sub_(true)
   {
   }
@@ -77,7 +77,7 @@ public:
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     subscriber_id_(r.subscriber_id_),
-    timestamp_(r.timestamp_),
+    entry_id_(r.entry_id_),
     is_created_by_sub_(r.is_created_by_sub_)
   {
     if (ptr_ != nullptr && !is_created_by_sub_) {
@@ -95,7 +95,7 @@ public:
   : ptr_(r.ptr_),
     topic_name_(r.topic_name_),
     subscriber_id_(r.subscriber_id_),
-    timestamp_(r.timestamp_),
+    entry_id_(r.entry_id_),
     is_created_by_sub_(r.is_created_by_sub_)
   {
     r.ptr_ = nullptr;
@@ -108,7 +108,7 @@ public:
       ptr_ = r.ptr_;
       topic_name_ = r.topic_name_;
       subscriber_id_ = r.subscriber_id_;
-      timestamp_ = r.timestamp_;
+      entry_id_ = r.entry_id_;
       is_created_by_sub_ = r.is_created_by_sub_;
 
       r.ptr_ = nullptr;
@@ -129,7 +129,7 @@ public:
     if (ptr_ == nullptr) return;
 
     if (is_created_by_sub_) {
-      decrement_rc(topic_name_, subscriber_id_, timestamp_);
+      decrement_rc(topic_name_, subscriber_id_, entry_id_);
     }
     ptr_ = nullptr;
   }

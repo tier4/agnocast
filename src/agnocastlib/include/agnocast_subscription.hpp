@@ -94,9 +94,9 @@ public:
     if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       // old messages first
       for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
-        MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_last_msg_addrs[i]);
+        MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_entry_addrs[i]);
         agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-          ptr, topic_name_, id_, subscriber_args.ret_timestamps[i]);
+          ptr, topic_name_, id_, subscriber_args.ret_entry_ids[i]);
         callback(agnocast_ptr);
       }
     }
@@ -157,11 +157,11 @@ public:
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_take, static_cast<void *>(this), reinterpret_cast<void *>(take_args.ret_addr),
-      take_args.ret_timestamp);
+      take_args.ret_entry_id);
 #endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    return agnocast::ipc_shared_ptr<MessageT>(ptr, topic_name_, id_, take_args.ret_timestamp);
+    return agnocast::ipc_shared_ptr<MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
   }
 };
 
