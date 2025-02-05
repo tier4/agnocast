@@ -143,6 +143,7 @@ public:
         while (!ros2_message_queue_.empty()) {
           auto message = std::move(ros2_message_queue_.front());
           ros2_message_queue_.pop();
+          message.reset();
           ros2_publish_mtx_.unlock();
 
           ros2_publisher_->publish(*message.get());
@@ -216,6 +217,8 @@ public:
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
+    } else {
+      message.reset();
     }
   }
 
