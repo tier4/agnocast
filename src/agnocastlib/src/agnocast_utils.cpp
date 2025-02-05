@@ -22,7 +22,7 @@ void validate_ld_preload()
   }
 }
 
-std::string create_mq_name(const std::string & topic_name, const std::string & id)
+static std::string create_mq_name(const std::string & topic_name, const std::string & id)
 {
   std::string mq_name = topic_name + "@" + id;
 
