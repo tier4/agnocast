@@ -48,6 +48,8 @@ struct subscriber_info
   pid_t pid;
   uint64_t latest_received_timestamp;
   bool is_take_sub;
+  bool new_publisher;
+  pid_t mapped_publisher_pids[MAX_PUBLISHER_NUM];
   struct hlist_node node;
 };
 
@@ -175,7 +177,13 @@ static struct subscriber_info * insert_subscriber_info(
   new_info->pid = subscriber_pid;
   new_info->latest_received_timestamp = 0;
   new_info->is_take_sub = is_take_sub;
+  new_info->new_publisher = false;
   INIT_HLIST_NODE(&new_info->node);
+
+  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+    new_info->mapped_publisher_pids[i] = -1;
+  }
+
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
 
@@ -814,6 +822,7 @@ static int subscriber_add(
         ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
         ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
         ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+        sub_info->mapped_publisher_pids[publisher_num] = pub_info->pid;
         publisher_num++;
         break;
       }
@@ -869,16 +878,13 @@ static int publisher_add(
     return -1;
   }
 
-  // set subscriber info to ioctl_ret
-  int subscriber_num = 0;
+  // set true to subscriber_info.new_publisher to notify
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    ioctl_ret->ret_subscriber_pids[subscriber_num] = sub_info->pid;
-    subscriber_num++;
+    sub_info->new_publisher = true;
   }
-  ioctl_ret->ret_subscriber_num = subscriber_num;
 
   return 0;
 }

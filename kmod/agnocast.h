@@ -25,10 +25,6 @@ union ioctl_subscriber_args {
     uint32_t ret_transient_local_num;
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
-    uint32_t ret_publisher_num;
-    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 
@@ -67,9 +63,13 @@ union ioctl_receive_msg_args {
   };
   struct
   {
-    uint16_t ret_len;
+    uint16_t ret_msg_num;
     uint64_t ret_timestamps[MAX_QOS_DEPTH];
     uint64_t ret_last_msg_addrs[MAX_QOS_DEPTH];
+    uint32_t ret_publisher_num;
+    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 
