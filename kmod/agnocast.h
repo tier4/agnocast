@@ -22,7 +22,7 @@ union ioctl_subscriber_args {
   {
     topic_local_id_t ret_id;
     uint32_t ret_transient_local_num;
-    uint64_t ret_entry_ids[MAX_QOS_DEPTH];
+    int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
     uint32_t ret_publisher_num;
     pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
@@ -52,7 +52,7 @@ union ioctl_update_entry_args {
   {
     const char * topic_name;
     topic_local_id_t subscriber_id;
-    uint64_t entry_id;
+    int64_t entry_id;
   };
   uint64_t ret;
 };
@@ -67,7 +67,7 @@ union ioctl_receive_msg_args {
   struct
   {
     uint16_t ret_entry_num;
-    uint64_t ret_entry_ids[MAX_QOS_DEPTH];
+    int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
   };
 };
@@ -82,7 +82,7 @@ union ioctl_publish_args {
   };
   struct
   {
-    uint64_t ret_entry_id;
+    int64_t ret_entry_id;
     uint32_t ret_subscriber_num;
     topic_local_id_t ret_subscriber_ids[MAX_SUBSCRIBER_NUM];
     uint32_t ret_released_num;
@@ -101,7 +101,7 @@ union ioctl_take_msg_args {
   struct
   {
     uint64_t ret_addr;
-    uint64_t ret_entry_id;
+    int64_t ret_entry_id;
   };
 };
 
