@@ -46,7 +46,7 @@ struct subscriber_info
 {
   topic_local_id_t id;
   pid_t pid;
-  uint64_t latest_received_entry_id;
+  int64_t latest_received_entry_id;
   bool is_take_sub;
   struct hlist_node node;
 };
@@ -64,13 +64,13 @@ struct topic_wrapper
   struct topic_struct topic;
   struct hlist_node node;
   topic_local_id_t current_pubsub_id;
-  uint64_t current_entry_id;
+  int64_t current_entry_id;
 };
 
 struct entry_node
 {
   struct rb_node node;
-  uint64_t entry_id;  // rbtree key
+  int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
   topic_local_id_t referencing_subscriber_ids[MAX_SUBSCRIBER_NUM];
@@ -301,7 +301,7 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subsc
 }
 
 static struct entry_node * find_message_entry(
-  struct topic_wrapper * wrapper, const uint64_t entry_id)
+  struct topic_wrapper * wrapper, const int64_t entry_id)
 {
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -322,7 +322,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id)
+  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -350,7 +350,7 @@ static int increment_message_entry_rc(
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id)
+  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -988,7 +988,7 @@ static int receive_and_update(
 
   ioctl_ret->ret_entry_num = 0;
   bool sub_info_updated = false;
-  uint64_t latest_received_entry_id = sub_info->latest_received_entry_id;
+  int64_t latest_received_entry_id = sub_info->latest_received_entry_id;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     if ((en->entry_id <= latest_received_entry_id) || (qos_depth == ioctl_ret->ret_entry_num)) {

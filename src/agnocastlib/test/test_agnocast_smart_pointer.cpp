@@ -7,19 +7,20 @@ using namespace agnocast;
 using testing::_;
 
 MOCK_GLOBAL_FUNC3(
-  decrement_rc_mock, void(const std::string &, const topic_local_id_t, const uint64_t));
+  decrement_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 MOCK_GLOBAL_FUNC3(
-  increment_rc_core_mock, void(const std::string &, const topic_local_id_t, const uint64_t));
+  increment_rc_core_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 
 namespace agnocast
 {
-void decrement_rc(const std::string & tn, const topic_local_id_t sub_id, const uint64_t ts)
+void decrement_rc(const std::string & tn, const topic_local_id_t sub_id, const int64_t entry_id)
 {
-  decrement_rc_mock(tn, sub_id, ts);
+  decrement_rc_mock(tn, sub_id, entry_id);
 }
-void increment_rc_core(const std::string & tn, const topic_local_id_t sub_id, const uint64_t ts)
+void increment_rc_core(
+  const std::string & tn, const topic_local_id_t sub_id, const int64_t entry_id)
 {
-  increment_rc_core_mock(tn, sub_id, ts);
+  increment_rc_core_mock(tn, sub_id, entry_id);
 }
 }  // namespace agnocast
 
@@ -35,7 +36,7 @@ protected:
 
   std::string dummy_tn;
   topic_local_id_t dummy_sub_id;
-  uint64_t dummy_entry_id;
+  int64_t dummy_entry_id;
 };
 
 TEST_F(AgnocastSmartPointerTest, reset_normal)

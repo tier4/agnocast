@@ -10,7 +10,7 @@ std::atomic<uint32_t> next_callback_info_id;
 std::atomic<bool> need_epoll_updates{false};
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const topic_local_id_t subscriber_id, const uint64_t entry_id,
+  const void * ptr, const topic_local_id_t subscriber_id, const int64_t entry_id,
   const uint32_t callback_info_id)
 {
   bool found = false;

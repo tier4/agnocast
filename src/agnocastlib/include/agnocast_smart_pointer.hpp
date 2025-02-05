@@ -20,9 +20,9 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 void decrement_rc(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
 void increment_rc_core(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const uint64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
 
 extern int agnocast_fd;
 
@@ -32,7 +32,7 @@ class ipc_shared_ptr
   T * ptr_ = nullptr;
   std::string topic_name_;
   topic_local_id_t subscriber_id_ = -1;
-  uint64_t entry_id_ = -1;
+  int64_t entry_id_ = -1;
   bool is_created_by_sub_ = false;
 
   void increment_rc() const
@@ -51,7 +51,7 @@ public:
   using element_type = T;
 
   const std::string get_topic_name() const { return topic_name_; }
-  uint64_t get_entry_id() const { return entry_id_; }
+  int64_t get_entry_id() const { return entry_id_; }
 
   ipc_shared_ptr() = default;
 
@@ -62,7 +62,7 @@ public:
 
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t subscriber_id,
-    const uint64_t entry_id)
+    const int64_t entry_id)
   : ptr_(ptr),
     topic_name_(topic_name),
     subscriber_id_(subscriber_id),
