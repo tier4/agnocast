@@ -87,7 +87,6 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
                                 ? static_cast<uint32_t>(qos_.depth())
                                 : 0;
   subscriber_args.subscriber_pid = subscriber_pid;
-  subscriber_args.init_timestamp = agnocast_get_timestamp();
   subscriber_args.is_take_sub = is_take_sub;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
