@@ -16,12 +16,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <queue>
-#include <utility>
+#include <thread>
 
 namespace agnocast
 {
@@ -37,8 +36,6 @@ void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
 extern "C" uint32_t get_borrowed_publisher_num();
-extern std::vector<std::thread> threads;
-extern std::mutex threads_mtx;
 
 template <typename MessageT>
 class Publisher
@@ -50,11 +47,16 @@ class Publisher
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
+
+  // ROS2 publish related variables
   bool do_always_ros2_publish_;  // For transient local.
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
-  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_ = std::queue<ipc_shared_ptr<MessageT>>();
-  std::mutex ros2_publish_mtx_ = std::mutex();
-  std::condition_variable ros2_publish_cv_ = std::condition_variable();
+  mqd_t ros2_publish_mq_;
+  std::string ros2_publish_mq_name_;
+  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
+  std::thread ros2_publish_thread_;
+  std::mutex ros2_publish_mtx_;
+  bool should_terminate_ = false;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -81,28 +83,91 @@ public:
       do_always_ros2_publish_ = false;
     }
 
-    auto th = std::thread([this]() {
-      while (true) {
-        std::unique_lock<std::mutex> lock(ros2_publish_mtx_);
-        ros2_publish_cv_.wait(lock, [this]() { return !ros2_message_queue_.empty(); });
+    const std::thread::id tid = std::this_thread::get_id();
+    ros2_publish_mq_name_ = create_mq_name(topic_name_, tid);
 
+    create_ros2_publish_thread();
+
+    ros2_publish_mq_ = mq_open(ros2_publish_mq_name_.c_str(), O_WRONLY);
+    if (ros2_publish_mq_ == -1) {
+      RCLCPP_ERROR(logger, "mq_open for ROS 2 publish notification failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    id_ = initialize_publisher(publisher_pid_, topic_name_);
+  }
+
+  ~Publisher()
+  {
+    {
+      std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+      should_terminate_ = true;
+    }
+
+    MqMsgPublishNotification mq_msg = {};
+    mq_msg.should_terminate = true;
+    if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+      RCLCPP_ERROR(logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    ros2_publish_thread_.join();
+  }
+
+  void create_ros2_publish_thread()
+  {
+    struct mq_attr attr = {};
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(MqMsgPublishNotification);
+    attr.mq_curmsgs = 0;
+    mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+    if (mq == -1) {
+      RCLCPP_ERROR(logger, "mq_open for ROS 2 publish notification failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    ros2_publish_thread_ = std::thread([this, mq]() {
+      while (true) {
+        MqMsgPublishNotification mq_msg = {};
+        auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+        if (ret == -1) {
+          RCLCPP_ERROR(
+            logger, "mq_receive for ROS 2 publish notification failed: %s", strerror(errno));
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
+
+        if (mq_msg.should_terminate) {
+          break;
+        }
+
+        ros2_publish_mtx_.lock();
         while (!ros2_message_queue_.empty()) {
           auto message = std::move(ros2_message_queue_.front());
           ros2_message_queue_.pop();
 
-          lock.unlock();
+          ros2_publish_mtx_.unlock();
           ros2_publisher_->publish(*message.get());
-          lock.lock();
+          ros2_publish_mtx_.lock();
         }
+        ros2_publish_mtx_.unlock();
+      }
+
+      if (mq_close(mq) == -1) {
+        RCLCPP_ERROR(logger, "mq_close for ROS 2 publish notification failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
+        RCLCPP_ERROR(
+          logger, "mq_unlink for ROS 2 publish notification failed: %s", strerror(errno));
       }
     });
-
-    {
-      std::lock_guard<std::mutex> lock(threads_mtx);
-      threads.push_back(std::move(th));
-    }
-
-    id_ = initialize_publisher(publisher_pid_, topic_name_);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
@@ -147,7 +212,13 @@ public:
         ros2_message_queue_.push(std::move(message));
       }
 
-      ros2_publish_cv_.notify_one();
+      MqMsgPublishNotification mq_msg = {};
+      mq_msg.should_terminate = false;
+      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        RCLCPP_ERROR(logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
     }
   }
 

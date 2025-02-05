@@ -1,6 +1,8 @@
 #include "agnocast_utils.hpp"
 
 #include <cstring>
+#include <sstream>
+#include <thread>
 
 namespace agnocast
 {
@@ -20,9 +22,9 @@ void validate_ld_preload()
   }
 }
 
-std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
+std::string create_mq_name(const std::string & topic_name, const std::string & id)
 {
-  std::string mq_name = topic_name + "@" + std::to_string(id);
+  std::string mq_name = topic_name + "@" + id;
 
   if (mq_name[0] != '/') {
     RCLCPP_ERROR(logger, "create_mq_name failed");
@@ -38,6 +40,18 @@ std::string create_mq_name(const std::string & topic_name, const topic_local_id_
   }
 
   return mq_name;
+}
+
+std::string create_mq_name(const std::string & topic_name, const std::thread::id tid)
+{
+  std::stringstream ss;
+  ss << tid;
+  return create_mq_name(topic_name, "thread_" + ss.str());
+}
+
+std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
+{
+  return create_mq_name(topic_name, std::to_string(id));
 }
 
 std::string create_shm_name(const pid_t pid)

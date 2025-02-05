@@ -17,4 +17,9 @@ struct MqMsgAgnocast
   bool dummy;
 };
 
+struct MqMsgPublishNotification
+{
+  bool should_terminate;
+};
+
 }  // namespace agnocast
