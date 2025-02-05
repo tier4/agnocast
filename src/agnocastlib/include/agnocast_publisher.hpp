@@ -56,7 +56,6 @@ class Publisher
   std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
   std::thread ros2_publish_thread_;
   std::mutex ros2_publish_mtx_;
-  bool should_terminate_ = false;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -100,11 +99,6 @@ public:
 
   ~Publisher()
   {
-    {
-      std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
-      should_terminate_ = true;
-    }
-
     MqMsgPublishNotification mq_msg = {};
     mq_msg.should_terminate = true;
     if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
@@ -149,9 +143,10 @@ public:
         while (!ros2_message_queue_.empty()) {
           auto message = std::move(ros2_message_queue_.front());
           ros2_message_queue_.pop();
-
           ros2_publish_mtx_.unlock();
+
           ros2_publisher_->publish(*message.get());
+
           ros2_publish_mtx_.lock();
         }
         ros2_publish_mtx_.unlock();
@@ -166,6 +161,8 @@ public:
       if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
         RCLCPP_ERROR(
           logger, "mq_unlink for ROS 2 publish notification failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
       }
     });
   }
