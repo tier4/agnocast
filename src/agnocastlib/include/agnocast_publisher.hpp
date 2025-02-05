@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <mutex>
+#include <queue>
 #include <utility>
 
 namespace agnocast
@@ -51,10 +52,9 @@ class Publisher
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   bool do_always_ros2_publish_;  // For transient local.
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
-  ipc_shared_ptr<MessageT> message_ptr_;
+  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
   std::mutex ros2_publish_mtx_;
   std::condition_variable ros2_publish_cv_;
-  bool ros2_publish_ready_ = false;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -84,11 +84,16 @@ public:
     auto th = std::thread([this]() {
       while (true) {
         std::unique_lock<std::mutex> lock(ros2_publish_mtx_);
-        ros2_publish_cv_.wait(lock, [this]() { return ros2_publish_ready_; });
+        ros2_publish_cv_.wait(lock, [this]() { return !ros2_message_queue_.empty(); });
 
-        ros2_publisher_->publish(*message_ptr_.get());
-        message_ptr_.reset();
-        ros2_publish_ready_ = false;
+        while (!ros2_message_queue_.empty()) {
+          auto message = ros2_message_queue_.front();
+          ros2_message_queue_.pop();
+
+          lock.unlock();
+          ros2_publisher_->publish(*message.get());
+          lock.lock();
+        }
       }
     });
 
@@ -137,12 +142,12 @@ public:
     }
 
     if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
-      std::unique_lock<std::mutex> lock(ros2_publish_mtx_);
-      message_ptr_ = std::move(message);
-      ros2_publish_ready_ = true;
+      {
+        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+        ros2_message_queue_.push(std::move(message));
+      }
+
       ros2_publish_cv_.notify_one();
-    } else {
-      message.reset();
     }
   }
 
