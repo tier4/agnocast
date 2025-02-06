@@ -87,7 +87,7 @@ public:
 
     create_ros2_publish_thread();
 
-    ros2_publish_mq_ = mq_open(ros2_publish_mq_name_.c_str(), O_WRONLY);
+    ros2_publish_mq_ = mq_open(ros2_publish_mq_name_.c_str(), O_WRONLY | O_NONBLOCK);
     if (ros2_publish_mq_ == -1) {
       RCLCPP_ERROR(logger, "mq_open for ROS 2 publish notification failed: %s", strerror(errno));
       close(agnocast_fd);
@@ -212,9 +212,15 @@ public:
       MqMsgPublishNotification mq_msg = {};
       mq_msg.should_terminate = false;
       if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        RCLCPP_ERROR(logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+        // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
+        // hasn't received it yet. Thus, there's no need to send it again since the notification has
+        // already been sent.
+        if (errno != EAGAIN) {
+          RCLCPP_ERROR(
+            logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
       }
     } else {
       message.reset();
