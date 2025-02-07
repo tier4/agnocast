@@ -836,6 +836,7 @@ static int subscriber_add(
       }
     }
   }
+
   ioctl_ret->ret_publisher_num = publisher_num;
 
   return 0;
