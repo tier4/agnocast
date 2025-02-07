@@ -110,10 +110,10 @@ uint32_t register_callback(
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
-                           const topic_local_id_t subscriber_id, const uint64_t timestamp) {
+                           const topic_local_id_t subscriber_id, const int64_t entry_id) {
     return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::ipc_shared_ptr<MessageType>(
       const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, subscriber_id,
-      timestamp));
+      entry_id));
   };
 
   uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
@@ -131,7 +131,7 @@ uint32_t register_callback(
 }
 
 std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const topic_local_id_t subscriber_id, const uint64_t timestamp,
+  const void * ptr, const topic_local_id_t subscriber_id, const int64_t entry_id,
   const uint32_t callback_info_id);
 
 }  // namespace agnocast

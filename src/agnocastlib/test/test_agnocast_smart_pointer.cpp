@@ -7,19 +7,20 @@ using namespace agnocast;
 using testing::_;
 
 MOCK_GLOBAL_FUNC3(
-  decrement_rc_mock, void(const std::string &, const topic_local_id_t, const uint64_t));
+  decrement_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 MOCK_GLOBAL_FUNC3(
-  increment_rc_core_mock, void(const std::string &, const topic_local_id_t, const uint64_t));
+  increment_rc_core_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 
 namespace agnocast
 {
-void decrement_rc(const std::string & tn, const topic_local_id_t sub_id, const uint64_t ts)
+void decrement_rc(const std::string & tn, const topic_local_id_t sub_id, const int64_t entry_id)
 {
-  decrement_rc_mock(tn, sub_id, ts);
+  decrement_rc_mock(tn, sub_id, entry_id);
 }
-void increment_rc_core(const std::string & tn, const topic_local_id_t sub_id, const uint64_t ts)
+void increment_rc_core(
+  const std::string & tn, const topic_local_id_t sub_id, const int64_t entry_id)
 {
-  increment_rc_core_mock(tn, sub_id, ts);
+  increment_rc_core_mock(tn, sub_id, entry_id);
 }
 }  // namespace agnocast
 
@@ -30,19 +31,19 @@ protected:
   {
     dummy_tn = "dummy";
     dummy_sub_id = 1;
-    dummy_ts = 2;
+    dummy_entry_id = 2;
   }
 
   std::string dummy_tn;
   topic_local_id_t dummy_sub_id;
-  uint64_t dummy_ts;
+  int64_t dummy_entry_id;
 };
 
 TEST_F(AgnocastSmartPointerTest, reset_normal)
 {
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_entry_id};
 
   sut.reset();
 
@@ -51,7 +52,7 @@ TEST_F(AgnocastSmartPointerTest, reset_normal)
 
 TEST_F(AgnocastSmartPointerTest, reset_isnt_created_by_sub)
 {
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, dummy_ts)).Times(0);
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, dummy_entry_id)).Times(0);
   agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn};
 
   sut.reset();
@@ -69,17 +70,17 @@ TEST_F(AgnocastSmartPointerTest, reset_nullptr)
 TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
 {
   EXPECT_GLOBAL_CALL(
-    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_ts))
+    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(2);
-  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_entry_id};
 
   agnocast::ipc_shared_ptr<int> sut2 = sut;
 
   EXPECT_EQ(sut.get(), sut2.get());
   EXPECT_EQ(sut.get_topic_name(), sut2.get_topic_name());
-  EXPECT_EQ(sut.get_timestamp(), sut2.get_timestamp());
+  EXPECT_EQ(sut.get_entry_id(), sut2.get_entry_id());
 }
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_isnt_created_by_sub)
@@ -104,29 +105,29 @@ TEST_F(AgnocastSmartPointerTest, move_constructor_normal)
 {
   int * ptr = new int(0);
   EXPECT_GLOBAL_CALL(
-    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_ts))
+    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(0);
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_entry_id};
 
   agnocast::ipc_shared_ptr<int> sut2 = std::move(sut);
 
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
-  EXPECT_EQ(dummy_ts, sut2.get_timestamp());
+  EXPECT_EQ(dummy_entry_id, sut2.get_entry_id());
 }
 
 TEST_F(AgnocastSmartPointerTest, move_assignment_normal)
 {
   int * ptr = new int(0);
   EXPECT_GLOBAL_CALL(
-    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_ts))
+    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(0);
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_entry_id};
 
   agnocast::ipc_shared_ptr<int> sut2;
   sut2 = std::move(sut);
@@ -134,32 +135,32 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_normal)
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
-  EXPECT_EQ(dummy_ts, sut2.get_timestamp());
+  EXPECT_EQ(dummy_entry_id, sut2.get_entry_id());
 }
 
 TEST_F(AgnocastSmartPointerTest, move_assignment_self)
 {
   int * ptr = new int(0);
   EXPECT_GLOBAL_CALL(
-    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_ts))
+    increment_rc_core_mock, increment_rc_core_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(0);
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_entry_id};
 
   sut = std::move(sut);
 
   EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(dummy_tn, sut.get_topic_name());
-  EXPECT_EQ(dummy_ts, sut.get_timestamp());
+  EXPECT_EQ(dummy_entry_id, sut.get_entry_id());
 }
 
 TEST_F(AgnocastSmartPointerTest, dereference_operator)
 {
   int * ptr = new int(0);
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_sub_id, dummy_entry_id};
 
   int & result = *sut;
 
@@ -168,10 +169,10 @@ TEST_F(AgnocastSmartPointerTest, dereference_operator)
 
 TEST_F(AgnocastSmartPointerTest, arrow_operator)
 {
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
   agnocast::ipc_shared_ptr<std::vector<int>> sut{
-    new std::vector<int>{0}, dummy_tn, dummy_sub_id, dummy_ts};
+    new std::vector<int>{0}, dummy_tn, dummy_sub_id, dummy_entry_id};
 
   size_t result = sut->size();
 
@@ -180,9 +181,9 @@ TEST_F(AgnocastSmartPointerTest, arrow_operator)
 
 TEST_F(AgnocastSmartPointerTest, bool_operator_true)
 {
-  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_ts))
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_sub_id, dummy_entry_id))
     .Times(1);
-  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_ts};
+  agnocast::ipc_shared_ptr<int> sut{new int(0), dummy_tn, dummy_sub_id, dummy_entry_id};
 
   bool result = static_cast<bool>(sut);
 

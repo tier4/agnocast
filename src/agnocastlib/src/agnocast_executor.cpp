@@ -144,17 +144,17 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     map_read_only_area(pid, addr, size);
   }
 
-  for (int32_t i = static_cast<int32_t>(receive_args.ret_msg_num) - 1; i >= 0;
+  for (int32_t i = static_cast<int32_t>(receive_args.ret_entry_num) - 1; i >= 0;
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
-      reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), callback_info.subscriber_id,
-      receive_args.ret_timestamps[i], callback_info_id);
+      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.subscriber_id,
+      receive_args.ret_entry_ids[i], callback_info_id);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
     TRACEPOINT(
       agnocast_create_callable, static_cast<const void *>(callable.get()),
-      reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), receive_args.ret_timestamps[i],
+      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
       pid_ciid);
 #endif
 

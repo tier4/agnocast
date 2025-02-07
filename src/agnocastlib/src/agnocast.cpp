@@ -14,16 +14,8 @@ namespace agnocast
 {
 
 int agnocast_fd = -1;
-std::atomic<bool> is_running = true;
-extern mqd_t mq_new_publisher;
-
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
-
-bool ok()
-{
-  return is_running.load();
-}
 
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
@@ -108,7 +100,6 @@ void * initialize_agnocast(const uint64_t shm_size)
 static void shutdown_agnocast()
 {
   printf("[INFO] [Agnocast]: shutdown_agnocast started\n");
-  is_running.store(false);
 
   const pid_t pid = getpid();
 

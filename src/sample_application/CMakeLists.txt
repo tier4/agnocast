@@ -20,12 +20,6 @@ target_include_directories(talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-add_executable(listen_talker src/minimal_pubsub.cpp)
-ament_target_dependencies(listen_talker rclcpp agnocastlib sample_interfaces)
-target_include_directories(listen_talker PRIVATE
-  ${agnocastlib_INCLUDE_DIRS}
-)
-
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib sample_interfaces)
 target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
@@ -68,7 +62,7 @@ install(TARGETS callback_group_test_listener_component
         RUNTIME DESTINATION bin
 )
 
-install(TARGETS talker listen_talker callback_group_test_talker callback_group_test_listener
+install(TARGETS talker callback_group_test_talker callback_group_test_listener
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
