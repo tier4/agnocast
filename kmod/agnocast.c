@@ -1025,59 +1025,61 @@ static int receive_and_check_new_publisher(
   }
 
   // Check for new publisher
-  if (sub_info->new_publisher) {
-    // set publisher information for shared memory mapping
-    struct process_info * sub_proc_info;
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == sub_info->pid) {
-        sub_proc_info = proc_info;
+  if (!sub_info->new_publisher) {
+    return 0;
+  }
+
+  // set publisher information for shared memory mapping
+  struct process_info * sub_proc_info;
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
+    if (proc_info->pid == sub_info->pid) {
+      sub_proc_info = proc_info;
+      break;
+    }
+  }
+
+  int publisher_num = 0;
+  struct publisher_info * pub_info;
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
+  {
+    if (pub_info->exited) {
+      continue;
+    }
+
+    int already_mapped = false;
+    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
+        already_mapped = true;
         break;
       }
     }
 
-    int publisher_num = 0;
-    struct publisher_info * pub_info;
-    int bkt;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
+    if (already_mapped) {
+      continue;
+    }
+
+    struct process_info * proc_info;
+    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
+    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
     {
-      if (pub_info->exited) {
-        continue;
-      }
-
-      int already_mapped = false;
-      for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-        if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
-          already_mapped = true;
-          break;
-        }
-      }
-
-      if (already_mapped) {
-        continue;
-      }
-
-      struct process_info * proc_info;
-      uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-      hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-      {
-        if (proc_info->pid == pub_info->pid) {
-          ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
-          ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-          ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-          publisher_num++;
-          sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-          sub_proc_info->mapped_num++;
-          break;
-        }
+      if (proc_info->pid == pub_info->pid) {
+        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
+        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
+        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+        publisher_num++;
+        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
+        sub_proc_info->mapped_num++;
+        break;
       }
     }
-    ioctl_ret->ret_publisher_num = publisher_num;
-
-    sub_info->new_publisher = false;
   }
+  ioctl_ret->ret_publisher_num = publisher_num;
+
+  sub_info->new_publisher = false;
 
   return 0;
 }
