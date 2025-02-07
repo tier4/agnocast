@@ -16,14 +16,14 @@ class MinimalPublisher : public rclcpp::Node
     agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> message =
       publisher_dynamic_->borrow_loaned_message();
 
-    message->id = count_++;
+    message->id = count_;
     message->data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
     for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
       message->data.push_back(i + count_);
     }
 
     publisher_dynamic_->publish(std::move(message));
-    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", message->id);
+    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_++);
   }
 
 public:
