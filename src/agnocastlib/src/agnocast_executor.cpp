@@ -130,7 +130,21 @@ bool AgnocastExecutor::get_next_agnocast_executables(
     exit(EXIT_FAILURE);
   }
 
-  for (int32_t i = static_cast<int32_t>(receive_args.ret_len) - 1; i >= 0;
+  // Map the shared memory region with read permissions whenever a new publisher is discovered.
+  const pid_t subscriber_pid = getpid();
+  uint32_t unmapped_publisher_num = receive_args.ret_publisher_num;
+  for (uint32_t i = 0; i < unmapped_publisher_num; i++) {
+    if (receive_args.ret_publisher_pids[i] == subscriber_pid) {
+      continue;
+    }
+
+    const pid_t pid = receive_args.ret_publisher_pids[i];
+    const uint64_t addr = receive_args.ret_shm_addrs[i];
+    const uint64_t size = receive_args.ret_shm_sizes[i];
+    map_read_only_area(pid, addr, size);
+  }
+
+  for (int32_t i = static_cast<int32_t>(receive_args.ret_msg_num) - 1; i >= 0;
        i--) {  // older messages first
     const auto callable = agnocast::create_callable(
       reinterpret_cast<void *>(receive_args.ret_last_msg_addrs[i]), callback_info.subscriber_id,

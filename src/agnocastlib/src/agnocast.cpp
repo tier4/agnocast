@@ -26,18 +26,6 @@ bool ok()
   return is_running.load();
 }
 
-bool already_mapped(const pid_t pid)
-{
-  static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
-  static std::set<pid_t> mapped_publisher_pids;
-
-  pthread_mutex_lock(&mapped_pid_mtx);
-  const bool inserted = mapped_publisher_pids.insert(pid).second;
-  pthread_mutex_unlock(&mapped_pid_mtx);
-
-  return !inserted;
-}
-
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
@@ -81,20 +69,11 @@ void * map_area(
 
 void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
-  if (already_mapped(pid)) {
-    RCLCPP_ERROR(logger, "map_writeable_area failed");
-    close(agnocast_fd);
-    return nullptr;
-  }
-
   return map_area(pid, shm_addr, shm_size, true);
 }
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
-  if (already_mapped(pid)) {
-    return;
-  }
   if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
     exit(EXIT_FAILURE);
   }
