@@ -40,7 +40,6 @@ The order does not matter.
 
 ```bash
 bash scripts/run_listener
-bash scripts/run_listen_talker
 bash scripts/run_talker
 ```
 
