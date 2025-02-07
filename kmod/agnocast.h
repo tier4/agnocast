@@ -68,7 +68,7 @@ union ioctl_receive_msg_args {
     uint32_t qos_depth;
   };
   struct
-  { 
+  {
     uint16_t ret_entry_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
