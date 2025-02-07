@@ -260,7 +260,7 @@ static struct publisher_info * insert_publisher_info(
 static bool is_subscriber_referencing(struct entry_node * en)
 {
   // The referencing_subscriber_ids array is always populated starting from the smallest index.
-  // Therefore, an empty element at index 0 is equivalent to a non-existent referencing subscriber.
+  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing subscriber.
   return (en->referencing_subscriber_ids[0] != -1);
 }
 
