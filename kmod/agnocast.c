@@ -1143,7 +1143,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   char topic_name_buf[256];
-  union ioctl_update_entry_args entry_args;
+  struct ioctl_update_entry_args entry_args;
 
   switch (cmd) {
     case AGNOCAST_SUBSCRIBER_ADD_CMD:
@@ -1172,7 +1172,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       break;
     case AGNOCAST_INCREMENT_RC_CMD:
       if (copy_from_user(
-            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
@@ -1182,7 +1182,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
-            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
