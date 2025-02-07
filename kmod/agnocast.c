@@ -182,7 +182,6 @@ static struct subscriber_info * insert_subscriber_info(
   new_info->is_take_sub = is_take_sub;
   new_info->new_publisher = false;
   INIT_HLIST_NODE(&new_info->node);
-
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
 
