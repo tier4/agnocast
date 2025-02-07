@@ -117,17 +117,6 @@ static void shutdown_agnocast()
     perror("[ERROR] [Agnocast] shm_unlink failed");
   }
 
-  if (mq_new_publisher != -1) {
-    if (mq_close(mq_new_publisher) == -1) {
-      perror("[ERROR] [Agnocast] mq_close failed");
-    }
-
-    const std::string mq_name = create_mq_name_new_publisher(pid);
-    if (mq_unlink(mq_name.c_str()) == -1) {
-      perror("[ERROR] [Agnocast] mq_unlink failed");
-    }
-  }
-
   printf("[INFO] [Agnocast]: shutdown_agnocast completed\n");
 }
 

@@ -43,10 +43,6 @@ union ioctl_publisher_args {
   struct
   {
     topic_local_id_t ret_id;
-    uint64_t ret_shm_addr;
-    uint64_t ret_shm_size;
-    uint32_t ret_subscriber_num;
-    pid_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
   };
 };
 

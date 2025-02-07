@@ -801,7 +801,7 @@ static int subscriber_add(
     }
   }
 
-  int publisher_num = 0;
+  uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
@@ -866,25 +866,6 @@ static int publisher_add(
   }
 
   ioctl_ret->ret_id = pub_info->id;
-
-  // set shm addr to ioctl_ret
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(publisher_pid, PROC_INFO_HASH_BITS);
-  bool proc_info_found = false;
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == publisher_pid) {
-      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
-      ioctl_ret->ret_shm_size = proc_info->shm_size;
-      proc_info_found = true;
-      break;
-    }
-  }
-
-  if (!proc_info_found) {
-    dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", publisher_pid);
-    return -1;
-  }
 
   // set true to subscriber_info.new_publisher to notify
   struct subscriber_info * sub_info;
@@ -1041,7 +1022,7 @@ static int receive_and_check_new_publisher(
     }
   }
 
-  int publisher_num = 0;
+  uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
