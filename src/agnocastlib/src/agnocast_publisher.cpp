@@ -101,7 +101,8 @@ union ioctl_publish_args publish_core(
     }
 
     struct MqMsgAgnocast mq_msg = {};
-    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+    // Although the size of the struct is 1, we deliberately send a zero-length message
+    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), 0 /*msg_len*/, 0) == -1) {
       // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
       // hasn't received it yet. Thus, there's no need to send it again since the notification has
       // already been sent.
