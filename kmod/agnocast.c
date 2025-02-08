@@ -1007,6 +1007,7 @@ static int receive_and_check_new_publisher(
 
   // Check for new publisher
   if (!sub_info->new_publisher) {
+    ioctl_ret->ret_publisher_num = 0;
     return 0;
   }
 
