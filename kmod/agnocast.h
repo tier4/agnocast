@@ -105,6 +105,10 @@ union ioctl_take_msg_args {
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
+    uint32_t ret_publisher_num;
+    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 

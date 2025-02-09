@@ -30,10 +30,6 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   }
 
   for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (subscriber_args.ret_publisher_pids[i] == subscriber_pid) {
-      continue;
-    }
-
     const pid_t pid = subscriber_args.ret_publisher_pids[i];
     const uint64_t addr = subscriber_args.ret_shm_addrs[i];
     const uint64_t size = subscriber_args.ret_shm_sizes[i];

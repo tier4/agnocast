@@ -812,7 +812,7 @@ static int subscriber_add(
 
     bool already_mapped = false;
     for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
+      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
         already_mapped = true;
         break;
       }
@@ -1034,7 +1034,7 @@ static int receive_and_check_new_publisher(
 
     int already_mapped = false;
     for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
+      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
         already_mapped = true;
         break;
       }
@@ -1144,16 +1144,75 @@ static int take_msg(
     node = rb_prev(node);
   }
 
-  if (!candidate_en) return 0;
+  if (candidate_en) {
+    if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
+      return -1;
+    }
 
-  if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
-    return -1;
+    ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
+    ioctl_ret->ret_entry_id = candidate_en->entry_id;
+
+    sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
   }
 
-  ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
-  ioctl_ret->ret_entry_id = candidate_en->entry_id;
 
-  sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
+  // Check for new publisher
+  if (!sub_info->new_publisher) {
+    ioctl_ret->ret_publisher_num = 0;
+    return 0;
+  }
+
+  // set publisher information for shared memory mapping
+  struct process_info * sub_proc_info;
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
+    if (proc_info->pid == sub_info->pid) {
+      sub_proc_info = proc_info;
+      break;
+    }
+  }
+
+  uint32_t publisher_num = 0;
+  struct publisher_info * pub_info;
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
+  {
+    if (pub_info->exited) {
+      continue;
+    }
+
+    int already_mapped = false;
+    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
+      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
+        already_mapped = true;
+        break;
+      }
+    }
+
+    if (already_mapped) {
+      continue;
+    }
+
+    struct process_info * proc_info;
+    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
+    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+    {
+      if (proc_info->pid == pub_info->pid) {
+        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
+        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
+        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+        publisher_num++;
+        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
+        sub_proc_info->mapped_num++;
+        break;
+      }
+    }
+  }
+  ioctl_ret->ret_publisher_num = publisher_num;
+
+  sub_info->new_publisher = false;
 
   return 0;
 }

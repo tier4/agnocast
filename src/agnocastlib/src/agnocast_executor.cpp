@@ -131,12 +131,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   }
 
   // Map the shared memory region with read permissions whenever a new publisher is discovered.
-  const pid_t subscriber_pid = getpid();
   for (uint32_t i = 0; i < receive_args.ret_publisher_num; i++) {
-    if (receive_args.ret_publisher_pids[i] == subscriber_pid) {
-      continue;
-    }
-
     const pid_t pid = receive_args.ret_publisher_pids[i];
     const uint64_t addr = receive_args.ret_shm_addrs[i];
     const uint64_t size = receive_args.ret_shm_sizes[i];
