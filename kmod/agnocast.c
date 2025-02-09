@@ -1155,7 +1155,6 @@ static int take_msg(
     sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
   }
 
-
   // Check for new publisher
   if (!sub_info->new_publisher) {
     ioctl_ret->ret_publisher_num = 0;
