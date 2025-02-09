@@ -810,9 +810,12 @@ static int subscriber_add(
       continue;
     }
 
+    if (sub_proc_info->pid == pub_info->pid) {
+      continue;
+    }
     bool already_mapped = false;
     for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
         already_mapped = true;
         break;
       }
@@ -1032,9 +1035,12 @@ static int receive_and_check_new_publisher(
       continue;
     }
 
+    if (sub_proc_info->pid == pub_info->pid) {
+      continue;
+    }
     int already_mapped = false;
     for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
         already_mapped = true;
         break;
       }
@@ -1182,9 +1188,12 @@ static int take_msg(
       continue;
     }
 
+    if (sub_proc_info->pid == pub_info->pid) {
+      continue;
+    }
     int already_mapped = false;
     for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->pid == pub_info->pid || sub_proc_info->mapped_pids[i] == pub_info->pid) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
         already_mapped = true;
         break;
       }
