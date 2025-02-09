@@ -6,7 +6,7 @@ namespace agnocast
 void decrement_rc(
   const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
 {
-  union ioctl_update_entry_args entry_args = {};
+  struct ioctl_update_entry_args entry_args = {};
   entry_args.topic_name = topic_name.c_str();
   entry_args.subscriber_id = subscriber_id;
   entry_args.entry_id = entry_id;
@@ -20,7 +20,7 @@ void decrement_rc(
 void increment_rc_core(
   const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
 {
-  union ioctl_update_entry_args entry_args = {};
+  struct ioctl_update_entry_args entry_args = {};
   entry_args.topic_name = topic_name.c_str();
   entry_args.subscriber_id = subscriber_id;
   entry_args.entry_id = entry_id;
