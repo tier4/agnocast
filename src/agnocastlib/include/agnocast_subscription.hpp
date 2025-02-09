@@ -81,7 +81,7 @@ public:
       callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ciid = (static_cast<uint64_t>(subscriber_pid_) << 32) | callback_info_id;
+    uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
     TRACEPOINT(
       agnocast_subscription_init, static_cast<const void *>(this),
       static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
