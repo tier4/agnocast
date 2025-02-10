@@ -34,6 +34,11 @@ void decrement_borrowed_publisher_num();
 extern int agnocast_fd;
 extern "C" uint32_t get_borrowed_publisher_num();
 
+struct PublisherOptions
+{
+  bool do_always_ros2_publish = true;  // For transient local.
+};
+
 template <typename MessageT>
 class Publisher
 {
@@ -44,7 +49,7 @@ class Publisher
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
-  bool do_always_ros2_publish_;  // For transient local.
+  PublisherOptions options_;
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
 
 public:
@@ -52,7 +57,7 @@ public:
 
   Publisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const bool do_always_ros2_publish)
+    const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     publisher_pid_(getpid()),
     qos_(qos),
@@ -67,9 +72,9 @@ public:
 #endif
 
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      do_always_ros2_publish_ = do_always_ros2_publish;
+      options_.do_always_ros2_publish = options.do_always_ros2_publish;
     } else {
-      do_always_ros2_publish_ = false;
+      options_.do_always_ros2_publish = false;
     }
 
     id_ = initialize_publisher(publisher_pid_, topic_name_);
@@ -107,7 +112,7 @@ public:
       delete release_ptr;
     }
 
-    if (do_always_ros2_publish_ || ros2_publisher_->get_subscription_count() > 0) {
+    if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
       const MessageT * raw = message.get();
       ros2_publisher_->publish(*raw);
     }
