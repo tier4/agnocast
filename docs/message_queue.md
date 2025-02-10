@@ -44,7 +44,7 @@ The definition of the message is an empty struct:
 struct MqMsgAgnocast {};
 ```
 
-According to C++ specification, the size of this struct cannot be zero. However, we deliberately send zero-length messages. Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
+According to the C++ [specification](https://timsong-cpp.github.io/cppwp/n4140/class#4), the size of this struct cannot be zero. However, we deliberately send zero-length messages. Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
 
 ### Naming rules and restrictions
 
