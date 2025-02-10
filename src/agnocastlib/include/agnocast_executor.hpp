@@ -8,6 +8,8 @@
 namespace agnocast
 {
 
+void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
+
 struct AgnocastExecutables
 {
   std::queue<std::shared_ptr<std::function<void()>>> callable_queue;

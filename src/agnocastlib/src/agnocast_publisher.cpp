@@ -41,31 +41,6 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
     exit(EXIT_FAILURE);
   }
 
-  // Send messages to subscribers to notify that a new publisher appears
-  for (uint32_t i = 0; i < pub_args.ret_subscriber_num; i++) {
-    if (pub_args.ret_subscriber_pids[i] == publisher_pid) {
-      continue;
-    }
-
-    const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
-    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
-    if (mq == -1) {
-      RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    MqMsgNewPublisher mq_msg = {};
-    mq_msg.publisher_pid = publisher_pid;
-    mq_msg.shm_addr = pub_args.ret_shm_addr;
-    mq_msg.shm_size = pub_args.ret_shm_size;
-    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-      RCLCPP_ERROR(logger, "mq_send for new publisher failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-  }
-
   return pub_args.ret_id;
 }
 

@@ -7,6 +7,7 @@
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 #define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
 #define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
+#define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
 
 typedef int32_t topic_local_id_t;
 
@@ -40,10 +41,6 @@ union ioctl_publisher_args {
   struct
   {
     topic_local_id_t ret_id;
-    uint64_t ret_shm_addr;
-    uint64_t ret_shm_size;
-    uint32_t ret_subscriber_num;
-    pid_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
   };
 };
 
@@ -66,6 +63,10 @@ union ioctl_receive_msg_args {
     uint16_t ret_entry_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
+    uint32_t ret_publisher_num;
+    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 
@@ -99,6 +100,10 @@ union ioctl_take_msg_args {
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
+    uint32_t ret_publisher_num;
+    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
   };
 };
 

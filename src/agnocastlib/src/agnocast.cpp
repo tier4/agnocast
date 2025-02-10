@@ -8,29 +8,13 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
-#include <set>
 
 namespace agnocast
 {
 
 int agnocast_fd = -1;
-std::vector<std::thread> threads;
-extern mqd_t mq_new_publisher;
-
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
-
-bool already_mapped(const pid_t pid)
-{
-  static pthread_mutex_t mapped_pid_mtx = PTHREAD_MUTEX_INITIALIZER;
-  static std::set<pid_t> mapped_publisher_pids;
-
-  pthread_mutex_lock(&mapped_pid_mtx);
-  const bool inserted = mapped_publisher_pids.insert(pid).second;
-  pthread_mutex_unlock(&mapped_pid_mtx);
-
-  return !inserted;
-}
 
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
@@ -75,20 +59,11 @@ void * map_area(
 
 void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
-  if (already_mapped(pid)) {
-    RCLCPP_ERROR(logger, "map_writeable_area failed");
-    close(agnocast_fd);
-    return nullptr;
-  }
-
   return map_area(pid, shm_addr, shm_size, true);
 }
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
 {
-  if (already_mapped(pid)) {
-    return;
-  }
   if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
     exit(EXIT_FAILURE);
   }
@@ -139,21 +114,6 @@ static void shutdown_agnocast()
   const std::string shm_name = create_shm_name(pid);
   if (shm_unlink(shm_name.c_str()) == -1) {
     perror("[ERROR] [Agnocast] shm_unlink failed");
-  }
-
-  if (mq_new_publisher != -1) {
-    if (mq_close(mq_new_publisher) == -1) {
-      perror("[ERROR] [Agnocast] mq_close failed");
-    }
-
-    const std::string mq_name = create_mq_name_new_publisher(pid);
-    if (mq_unlink(mq_name.c_str()) == -1) {
-      perror("[ERROR] [Agnocast] mq_unlink failed");
-    }
-  }
-
-  for (auto & th : threads) {
-    th.join();
   }
 
   printf("[INFO] [Agnocast]: shutdown_agnocast completed\n");
