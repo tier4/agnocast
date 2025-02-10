@@ -450,6 +450,20 @@ static int insert_message_entry(
   return 0;
 }
 
+static struct process_info * find_process_info(const pid_t pid)
+{
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
+    if (proc_info->pid == pid) {
+      return proc_info;
+    }
+  }
+
+  return NULL;
+}
+
 // =========================================
 // "/sys/module/agnocast/status/*"
 
@@ -738,15 +752,12 @@ static int set_publisher_shm_info(
   struct topic_wrapper * wrapper, pid_t subscriber_pid,
   struct ret_publisher_shm_info * pub_shm_info)
 {
-  struct process_info * sub_proc_info;
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(subscriber_pid, PROC_INFO_HASH_BITS);
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == subscriber_pid) {
-      sub_proc_info = proc_info;
-      break;
-    }
+  struct process_info * sub_proc_info = find_process_info(subscriber_pid);
+  if (!sub_proc_info) {
+    dev_warn(
+      agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+      subscriber_pid);
+    return -1;
   }
 
   uint32_t publisher_num = 0;
@@ -772,28 +783,28 @@ static int set_publisher_shm_info(
       continue;
     }
 
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == pub_info->pid) {
-        pub_shm_info->ret_publisher_pids[publisher_num] = pub_info->pid;
-        pub_shm_info->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-        pub_shm_info->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-        publisher_num++;
-        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
-          dev_warn(
-            agnocast_device,
-            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
-            "(set_publisher_shm_info)\n",
-            wrapper->key, sub_proc_info->pid);
-          return -1;
-        }
-        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-        sub_proc_info->mapped_num++;
-        break;
-      }
+    struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      dev_warn(
+        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+        pub_info->pid);
+      return -1;
     }
+
+    pub_shm_info->ret_publisher_pids[publisher_num] = pub_info->pid;
+    pub_shm_info->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
+    pub_shm_info->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+    publisher_num++;
+    if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+      dev_warn(
+        agnocast_device,
+        "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+        "(set_publisher_shm_info)\n",
+        wrapper->key, sub_proc_info->pid);
+      return -1;
+    }
+    sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
+    sub_proc_info->mapped_num++;
   }
 
   pub_shm_info->ret_publisher_num = publisher_num;
