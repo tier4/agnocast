@@ -833,6 +833,14 @@ static int subscriber_add(
         ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
         ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
         publisher_num++;
+        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+          dev_warn(
+            agnocast_device,
+            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+            "(subscriber_add)\n",
+            topic_name, sub_proc_info->pid);
+          return -1;
+        }
         sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
         sub_proc_info->mapped_num++;
         break;
@@ -1059,6 +1067,14 @@ static int receive_and_check_new_publisher(
         ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
         ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
         publisher_num++;
+        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+          dev_warn(
+            agnocast_device,
+            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+            "(receive_and_check_new_publisher)\n",
+            topic_name, sub_proc_info->pid);
+          return -1;
+        }
         sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
         sub_proc_info->mapped_num++;
         break;
@@ -1212,6 +1228,14 @@ static int take_msg(
         ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
         ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
         publisher_num++;
+        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+          dev_warn(
+            agnocast_device,
+            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+            "(take_msg)\n",
+            topic_name, sub_proc_info->pid);
+          return -1;
+        }
         sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
         sub_proc_info->mapped_num++;
         break;
