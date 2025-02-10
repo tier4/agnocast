@@ -734,6 +734,73 @@ static struct attribute_group attribute_group = {
 
 // =========================================
 // /dev/agnocast
+static int set_publisher_shm_info(
+  struct topic_wrapper * wrapper, pid_t subscriber_pid,
+  struct ret_publisher_shm_info * pub_shm_info)
+{
+  struct process_info * sub_proc_info;
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(subscriber_pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
+    if (proc_info->pid == subscriber_pid) {
+      sub_proc_info = proc_info;
+      break;
+    }
+  }
+
+  uint32_t publisher_num = 0;
+  struct publisher_info * pub_info;
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
+  {
+    if (pub_info->exited) {
+      continue;
+    }
+
+    if (sub_proc_info->pid == pub_info->pid) {
+      continue;
+    }
+    bool already_mapped = false;
+    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
+        already_mapped = true;
+        break;
+      }
+    }
+    if (already_mapped) {
+      continue;
+    }
+
+    struct process_info * proc_info;
+    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
+    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+    {
+      if (proc_info->pid == pub_info->pid) {
+        pub_shm_info->ret_publisher_pids[publisher_num] = pub_info->pid;
+        pub_shm_info->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
+        pub_shm_info->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+        publisher_num++;
+        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+          dev_warn(
+            agnocast_device,
+            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+            "(set_publisher_shm_info)\n",
+            wrapper->key, sub_proc_info->pid);
+          return -1;
+        }
+        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
+        sub_proc_info->mapped_num++;
+        break;
+      }
+    }
+  }
+
+  pub_shm_info->ret_publisher_num = publisher_num;
+
+  return 0;
+}
+
 static int subscriber_add(
   char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret)
@@ -789,66 +856,9 @@ static int subscriber_add(
     }
   }
 
-  // set publisher information for shared memory mapping
-  struct process_info * sub_proc_info;
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == sub_info->pid) {
-      sub_proc_info = proc_info;
-      break;
-    }
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+    return -1;
   }
-
-  uint32_t publisher_num = 0;
-  struct publisher_info * pub_info;
-  int bkt;
-  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
-  {
-    if (pub_info->exited) {
-      continue;
-    }
-
-    if (sub_proc_info->pid == pub_info->pid) {
-      continue;
-    }
-    bool already_mapped = false;
-    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
-        already_mapped = true;
-        break;
-      }
-    }
-    if (already_mapped) {
-      continue;
-    }
-
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == pub_info->pid) {
-        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
-        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-        publisher_num++;
-        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
-          dev_warn(
-            agnocast_device,
-            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
-            "(subscriber_add)\n",
-            topic_name, sub_proc_info->pid);
-          return -1;
-        }
-        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-        sub_proc_info->mapped_num++;
-        break;
-      }
-    }
-  }
-
-  ioctl_ret->ret_publisher_num = publisher_num;
 
   return 0;
 }
@@ -1018,70 +1028,13 @@ static int receive_and_check_new_publisher(
 
   // Check for new publisher
   if (!sub_info->new_publisher) {
-    ioctl_ret->ret_publisher_num = 0;
+    ioctl_ret->pub_shm_info.ret_publisher_num = 0;
     return 0;
   }
 
-  // set publisher information for shared memory mapping
-  struct process_info * sub_proc_info;
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == sub_info->pid) {
-      sub_proc_info = proc_info;
-      break;
-    }
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+    return -1;
   }
-
-  uint32_t publisher_num = 0;
-  struct publisher_info * pub_info;
-  int bkt;
-  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
-  {
-    if (pub_info->exited) {
-      continue;
-    }
-
-    if (sub_proc_info->pid == pub_info->pid) {
-      continue;
-    }
-    int already_mapped = false;
-    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
-        already_mapped = true;
-        break;
-      }
-    }
-
-    if (already_mapped) {
-      continue;
-    }
-
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == pub_info->pid) {
-        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
-        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-        publisher_num++;
-        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
-          dev_warn(
-            agnocast_device,
-            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
-            "(receive_and_check_new_publisher)\n",
-            topic_name, sub_proc_info->pid);
-          return -1;
-        }
-        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-        sub_proc_info->mapped_num++;
-        break;
-      }
-    }
-  }
-  ioctl_ret->ret_publisher_num = publisher_num;
 
   sub_info->new_publisher = false;
 
@@ -1179,70 +1132,13 @@ static int take_msg(
 
   // Check for new publisher
   if (!sub_info->new_publisher) {
-    ioctl_ret->ret_publisher_num = 0;
+    ioctl_ret->pub_shm_info.ret_publisher_num = 0;
     return 0;
   }
 
-  // set publisher information for shared memory mapping
-  struct process_info * sub_proc_info;
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(sub_info->pid, PROC_INFO_HASH_BITS);
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == sub_info->pid) {
-      sub_proc_info = proc_info;
-      break;
-    }
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+    return -1;
   }
-
-  uint32_t publisher_num = 0;
-  struct publisher_info * pub_info;
-  int bkt;
-  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
-  {
-    if (pub_info->exited) {
-      continue;
-    }
-
-    if (sub_proc_info->pid == pub_info->pid) {
-      continue;
-    }
-    int already_mapped = false;
-    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
-        already_mapped = true;
-        break;
-      }
-    }
-
-    if (already_mapped) {
-      continue;
-    }
-
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == pub_info->pid) {
-        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
-        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-        publisher_num++;
-        if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
-          dev_warn(
-            agnocast_device,
-            "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
-            "(take_msg)\n",
-            topic_name, sub_proc_info->pid);
-          return -1;
-        }
-        sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-        sub_proc_info->mapped_num++;
-        break;
-      }
-    }
-  }
-  ioctl_ret->ret_publisher_num = publisher_num;
 
   sub_info->new_publisher = false;
 

@@ -10,6 +10,13 @@
 #define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
 
 typedef int32_t topic_local_id_t;
+struct ret_publisher_shm_info
+{
+  uint32_t ret_publisher_num;
+  pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
+  uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
+  uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
+};
 
 union ioctl_subscriber_args {
   struct
@@ -25,10 +32,7 @@ union ioctl_subscriber_args {
     uint32_t ret_transient_local_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
-    uint32_t ret_publisher_num;
-    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
+    struct ret_publisher_shm_info pub_shm_info;
   };
 };
 
@@ -63,10 +67,7 @@ union ioctl_receive_msg_args {
     uint16_t ret_entry_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
-    uint32_t ret_publisher_num;
-    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
+    struct ret_publisher_shm_info pub_shm_info;
   };
 };
 
@@ -100,10 +101,7 @@ union ioctl_take_msg_args {
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
-    uint32_t ret_publisher_num;
-    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
+    struct ret_publisher_shm_info pub_shm_info;
   };
 };
 
