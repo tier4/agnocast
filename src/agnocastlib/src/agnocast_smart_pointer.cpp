@@ -17,7 +17,7 @@ void decrement_rc(
   }
 }
 
-void increment_rc_core(
+void increment_rc(
   const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
 {
   struct ioctl_update_entry_args entry_args = {};
