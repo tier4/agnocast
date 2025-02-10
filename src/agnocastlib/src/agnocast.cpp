@@ -8,7 +8,6 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
-#include <set>
 
 namespace agnocast
 {
