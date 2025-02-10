@@ -4,35 +4,7 @@ See official man page: <https://man7.org/linux/man-pages/man7/mq_overview.7.html
 
 ## How message queue is used in Agnocast?
 
-### Basic usage
-
-There are two different usages of message queue in Agnocast.
-
-- To notify to subscriber processes that a new publisher is created.
-- To notify to subscriber processes that a publisher has published a new topic message.
-
-### Detailed usage
-
-#### Notification of a new publisher
-
-The message queue is used in the following way:
-
-- When Agnocast is initialized, a new message queue is opened as a receiver.
-- When a publisher process calls `create_publisher` for a topic `T`, it gets information about subscribers for `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl, and opens an existing message queue to notify to the subscribers that a new publisher is created.
-- When a subscriber process receives the notification, then it maps the sender's shared memory with a read-only privilege.
-
-Thus, the definition of the message is as follows.
-
-```c
-struct MqMsgNewPublisher {
-  uint32_t publisher_pid; // The process id of the sender
-  uint64_t shm_addr;      // The shared memory address which the sender has a writable privilege
-};
-```
-
-#### Notification of a topic publish
-
-The message queue is used in the following way:
+The message queue is used to notify to subscriber processes that a publisher has published a new topic message. It is done in the following way:
 
 - When a subscriber process calls `create_subscription` for a topic `T`, it opens a new message queue as a receiver.
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic message has been published.
@@ -48,10 +20,10 @@ We deliberately send it as a zero-length message although the size of this struc
 
 ### Naming rules and restrictions
 
-Suppose that `pid` is the process id of the process who opens the message queue as a receiver and `topic_name` is the topic name corresponding to the message queue.
+The message_queue is named using topic_local_id. As implied by its name, topic_local_id exists in a topic-local namespace and represents IDs that are incrementally assigned from 0 to publishers/subscribers. This was introduced to distinguish between different publishers/subscribers that exist within the same process and participate in the same topic, and we use it here as well.
+Suppose that `topic_local_id` is the topic_local_id of the subscriber who opens the message queue and `topic_name` is the topic name corresponding to the message queue.
 
-- The message queue name for the new publisher notification is `/new_publisher@pid`.
-- The message queue name for the topic publish notification is `topic_name@pid`.
+- The message queue name for the topic publish notification is `topic_name@topic_local_id`.
 
 The restrictions of the naming are
 
