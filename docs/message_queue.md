@@ -22,9 +22,10 @@ This message only contains a boolean value, but the value itself is not relevant
 
 ### Naming rules and restrictions
 
-Suppose that `pid` is the process id of the process who opens the message queue as a receiver and `topic_name` is the topic name corresponding to the message queue.
+The message_queue is named using topic_local_id. As implied by its name, topic_local_id exists in a topic-local namespace and represents IDs that are incrementally assigned from 0 to publishers/subscribers. This was introduced to distinguish between different publishers/subscribers that exist within the same process and participate in the same topic, and we use it here as well.
+Suppose that `topic_local_id` is the topic_local_id of the subscriber who opens the message queue and `topic_name` is the topic name corresponding to the message queue.
 
-- The message queue name for the topic publish notification is `topic_name@pid`.
+- The message queue name for the topic publish notification is `topic_name@topic_local_id`.
 
 The restrictions of the naming are
 
