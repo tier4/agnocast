@@ -7,9 +7,7 @@
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 #define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
 #define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
-#define MAX_MAP_NUM \
-  8  // The maximum number of other processes' shared memory regions that can be mapped read-only by
-     // a single process.
+#define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
 
 typedef int32_t topic_local_id_t;
 
