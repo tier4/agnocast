@@ -38,15 +38,13 @@ The message queue is used in the following way:
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic message has been published.
 - When a subscriber process receives the notification, then it gets the topic content through `AGNOCAST_RECEIVE_MSG_CMD` ioctl and executes the corresponding callback.
 
-The definition of the message is as follows;
+The definition of the message is an empty struct:
 
 ```c
-struct MqMsgAgnocast {
-  bool dummy;
-};
+struct MqMsgAgnocast {};
 ```
 
-This message only contains a boolean value, but the value itself is not relevant to the operation. The important fact for the subscriber is that a message has been received. Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
+We deliberately send it as a zero-length message although the size of this struct cannot be zero according to the C++ specification. Upon receiving this message, the subscriber needs to use an ioctl call to query the kernel module to check if there is anything that should be received.
 
 ### Naming rules and restrictions
 
@@ -62,7 +60,3 @@ The restrictions of the naming are
 
 The first rule is satisfied because all topic names start with `/`.
 To satisfy the second rule, all the occurrence of `/` in topic names are replaced for `_`.
-
-## Known issues
-
-- According to the man page for mq_send, it should be possible to send an empty message as an mq message. However, at the current time, attempts to do so have not been successful. As a workaround, we are using a dummy message instead. It's worth noting that this approach does not cause any issues in terms of functionality or performance.
