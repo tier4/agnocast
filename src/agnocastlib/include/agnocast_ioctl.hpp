@@ -61,14 +61,11 @@ union ioctl_publisher_args {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_update_entry_args {
-  struct
-  {
-    const char * topic_name;
-    topic_local_id_t subscriber_id;
-    int64_t entry_id;
-  };
-  uint64_t ret;
+struct ioctl_update_entry_args
+{
+  const char * topic_name;
+  topic_local_id_t subscriber_id;
+  int64_t entry_id;
 };
 #pragma GCC diagnostic pop
 
@@ -148,8 +145,8 @@ union ioctl_get_subscriber_num_args {
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-#define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
-#define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
+#define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, struct ioctl_update_entry_args)
+#define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
