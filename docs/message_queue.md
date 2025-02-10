@@ -4,7 +4,7 @@ See official man page: <https://man7.org/linux/man-pages/man7/mq_overview.7.html
 
 ## How message queue is used in Agnocast?
 
-The message queue is used to notify to subscriber processes that a publisher has published a new topic message. It is done in a following way:
+The message queue is used to notify to subscriber processes that a publisher has published a new topic message. It is done in the following way:
 
 - When a subscriber process calls `create_subscription` for a topic `T`, it opens a new message queue as a receiver.
 - When a publisher process calls `publish` for `T`, it opens an existing message queue and sends a message to notify to the subscribers that a new topic message has been published.
