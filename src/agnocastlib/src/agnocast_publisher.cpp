@@ -45,7 +45,7 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
 }
 
 union ioctl_publish_args publish_core(
-  [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
+  [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
