@@ -778,14 +778,6 @@ static int set_publisher_shm_info(
       continue;
     }
 
-    struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
-      dev_warn(
-        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-        pub_info->pid);
-      return -1;
-    }
-
     if (publisher_num == MAX_PUBLISHER_NUM) {
       dev_warn(
         agnocast_device,
@@ -796,10 +788,6 @@ static int set_publisher_shm_info(
       return -1;
     }
 
-    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
-    pub_shm_info->shm_addrs[publisher_num] = proc_info->shm_addr;
-    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
-    publisher_num++;
     if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
       dev_warn(
         agnocast_device,
@@ -809,6 +797,19 @@ static int set_publisher_shm_info(
         wrapper->key, sub_proc_info->pid);
       return -1;
     }
+
+    struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      dev_warn(
+        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+        pub_info->pid);
+      return -1;
+    }
+
+    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+    pub_shm_info->shm_addrs[publisher_num] = proc_info->shm_addr;
+    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
+    publisher_num++;
     sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
     sub_proc_info->mapped_num++;
   }
