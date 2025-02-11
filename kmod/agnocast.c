@@ -791,14 +791,25 @@ static int set_publisher_shm_info(
       return -1;
     }
 
-    pub_shm_info->ret_publisher_pids[publisher_num] = pub_info->pid;
-    pub_shm_info->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-    pub_shm_info->ret_shm_sizes[publisher_num] = proc_info->shm_size;
+    if (publisher_num == MAX_PUBLISHER_NUM) {
+      dev_warn(
+        agnocast_device,
+        "The number of publisher processes to be mapped exceeds the maximum number that can be "
+        "returned at once in a call from this subscriber process (topic_name=%s, "
+        "subscriber_pid=%d). (set_publisher_shm_info)\n" wrapper->key,
+        sub_proc_info->pid);
+      return -1;
+    }
+
+    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+    pub_shm_info->shm_addrs[publisher_num] = proc_info->shm_addr;
+    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
     publisher_num++;
     if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
       dev_warn(
         agnocast_device,
-        "Failed to add a new pid in mapped_pids (topic_name=%s, subscriber_pid=%d). "
+        "This process (topic_name=%s, subscriber_pid=%d) has reached the upper bound of the number "
+        "of memory regions of other processes that it can map, so no new mapping can be created. "
         "(set_publisher_shm_info)\n",
         wrapper->key, sub_proc_info->pid);
       return -1;
@@ -807,7 +818,7 @@ static int set_publisher_shm_info(
     sub_proc_info->mapped_num++;
   }
 
-  pub_shm_info->ret_publisher_num = publisher_num;
+  pub_shm_info->publisher_num = publisher_num;
 
   return 0;
 }
@@ -867,7 +878,7 @@ static int subscriber_add(
     }
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
     return -1;
   }
 
@@ -1039,11 +1050,11 @@ static int receive_and_check_new_publisher(
 
   // Check for new publisher
   if (!sub_info->new_publisher) {
-    ioctl_ret->pub_shm_info.ret_publisher_num = 0;
+    ioctl_ret->ret_pub_shm_info.publisher_num = 0;
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
     return -1;
   }
 
@@ -1143,11 +1154,11 @@ static int take_msg(
 
   // Check for new publisher
   if (!sub_info->new_publisher) {
-    ioctl_ret->pub_shm_info.ret_publisher_num = 0;
+    ioctl_ret->ret_pub_shm_info.publisher_num = 0;
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->pub_shm_info) == -1) {
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
     return -1;
   }
 
