@@ -764,11 +764,7 @@ static int set_publisher_shm_info(
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
-    if (pub_info->exited) {
-      continue;
-    }
-
-    if (sub_proc_info->pid == pub_info->pid) {
+    if (pub_info->exited || sub_proc_info->pid == pub_info->pid) {
       continue;
     }
     bool already_mapped = false;
