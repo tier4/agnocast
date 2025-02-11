@@ -796,8 +796,8 @@ static int set_publisher_shm_info(
         agnocast_device,
         "The number of publisher processes to be mapped exceeds the maximum number that can be "
         "returned at once in a call from this subscriber process (topic_name=%s, "
-        "subscriber_pid=%d). (set_publisher_shm_info)\n" wrapper->key,
-        sub_proc_info->pid);
+        "subscriber_pid=%d). (set_publisher_shm_info)\n",
+        wrapper->key, sub_proc_info->pid);
       return -1;
     }
 
