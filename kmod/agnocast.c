@@ -749,8 +749,7 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 static int set_publisher_shm_info(
-  struct topic_wrapper * wrapper, pid_t subscriber_pid,
-  struct ret_publisher_shm_info * pub_shm_info)
+  struct topic_wrapper * wrapper, pid_t subscriber_pid, struct publisher_shm_info * pub_shm_info)
 {
   struct process_info * sub_proc_info = find_process_info(subscriber_pid);
   if (!sub_proc_info) {
