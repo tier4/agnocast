@@ -16,6 +16,7 @@ KERNEL_MINOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 2)
 # Therefore, add -std=gnu11 to suppress this error.
 ifeq ($(shell expr $(KERNEL_MAJOR) \< 5 \| $(KERNEL_MAJOR) = 5 \& $(KERNEL_MINOR) \<= 17), 1)
   CFLAGS_agnocast.o += -std=gnu11
+  CFLAGS_agnocast_tmp_copied.o += -std=gnu11
   CFLAGS_agnocast_kunit.o += -std=gnu11
 endif
 
@@ -26,6 +27,7 @@ endif
 # this, we should add -Wno-declaration-after-statement.
 ifeq ($(shell expr $(KERNEL_MAJOR) \< 6 \| $(KERNEL_MAJOR) = 6 \& $(KERNEL_MINOR) \<= 4), 1)
   CFLAGS_agnocast.o += -Wno-declaration-after-statement
+  CFLAGS_agnocast_tmp_copied.o += -Wno-declaration-after-statement
   CFLAGS_agnocast_kunit.o += -Wno-declaration-after-statement
 endif
 
@@ -38,6 +40,7 @@ endif
 
 ifeq ($(CONFIG_GCOV_KERNEL),y)
   CFLAGS_agnocast.o += -fprofile-arcs -ftest-coverage
+  CFLAGS_agnocast_tmp_copied.o += -fprofile-arcs -ftest-coverage
   CFLAGS_agnocast_kunit.o += -fprofile-arcs -ftest-coverage
 endif
 
