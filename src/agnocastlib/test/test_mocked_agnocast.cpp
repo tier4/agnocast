@@ -323,7 +323,7 @@ TEST_F(AgnocastCallbackInfoTest, get_erased_callback_normal)
   bool callback_called = false;
   int data = 0;
   agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, "dummy", dummy_pubsub_id)};
+    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id)};
   auto int_callback = [&](const agnocast::ipc_shared_ptr<int> & /*unused_arg*/) {
     callback_called = true;
   };
@@ -339,7 +339,7 @@ TEST_F(AgnocastCallbackInfoTest, get_erased_callback_invalid_type)
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, dummy_pubsub_id, _)).Times(1);
   int data = 0;
   agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, "dummy", dummy_pubsub_id)};
+    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id)};
   auto float_callback = [&](agnocast::ipc_shared_ptr<float> /*unused_arg*/) {};
 
   agnocast::TypeErasedCallback erased_callback =
