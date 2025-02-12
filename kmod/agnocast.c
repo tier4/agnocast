@@ -283,7 +283,7 @@ static void remove_reference_by_index(struct entry_node * en, int index)
   return;
 }
 
-static int increment_rc(struct entry_node * en, const topic_local_id_t id)
+static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
 {
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
     if (en->referencing_ids[i] == id) {
@@ -300,8 +300,8 @@ static int increment_rc(struct entry_node * en, const topic_local_id_t id)
 
   dev_warn(
     agnocast_device,
-    "The number of referencing_id reached the upper bound (MAX_REFERENCING_PUBSUB_NUM=%d), "
-    "so no new referencing can be added. (increment_rc)\n",
+    "The number of reference reached the upper bound (MAX_REFERENCING_PUBSUB_NUM=%d), "
+    "so no new subscriber can reference. (increment_sub_rc)\n",
     MAX_REFERENCING_PUBSUB_NUM);
 
   return -1;
@@ -357,7 +357,7 @@ static int increment_message_entry_rc(
       wrapper->key, entry_id, pubsub_id);
     return -1;
   } else {
-    if (increment_rc(en, pubsub_id) == -1) {
+    if (increment_sub_rc(en, pubsub_id) == -1) {
       return -1;
     }
   }
@@ -868,7 +868,7 @@ static int subscriber_add(
 
     struct entry_node * en = container_of(node, struct entry_node, node);
 
-    if (increment_rc(en, sub_info->id) == -1) {
+    if (increment_sub_rc(en, sub_info->id) == -1) {
       return -1;
     }
 
@@ -1038,7 +1038,7 @@ static int receive_and_check_new_publisher(
       break;
     }
 
-    if (increment_rc(en, subscriber_id) == -1) {
+    if (increment_sub_rc(en, subscriber_id) == -1) {
       return -1;
     }
 
@@ -1146,7 +1146,7 @@ static int take_msg(
   }
 
   if (candidate_en) {
-    if (increment_rc(candidate_en, subscriber_id) == -1) {
+    if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
       return -1;
     }
 
