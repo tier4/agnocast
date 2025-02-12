@@ -97,6 +97,7 @@ public:
       this, topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
       reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
 
+    message.set_pubsub_id(id_);
     message.set_entry_id(publish_args.ret_entry_id);
 
     for (uint32_t i = 0; i < publish_args.ret_released_num; i++) {

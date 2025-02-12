@@ -43,6 +43,7 @@ public:
   using element_type = T;
 
   const std::string get_topic_name() const { return topic_name_; }
+  void set_pubsub_id(const topic_local_id_t pubsub_id) { pubsub_id_ = pubsub_id; }
   int64_t get_entry_id() const { return entry_id_; }
   void set_entry_id(const int64_t entry_id) { entry_id_ = entry_id; }
 
