@@ -69,28 +69,28 @@ install(
   DESTINATION include
 )
 
-# if(BUILD_TESTING)
-#   # For gmock-global
-#   include(FetchContent)
-#   FetchContent_Declare(
-#     gmock-global
-#     GIT_REPOSITORY https://github.com/apriorit/gmock-global.git
-#     GIT_TAG        master
-#   )
-#   FetchContent_MakeAvailable(gmock-global)
-#   include_directories(${gmock-global_SOURCE_DIR}/include)
+if(BUILD_TESTING)
+  # For gmock-global
+  include(FetchContent)
+  FetchContent_Declare(
+    gmock-global
+    GIT_REPOSITORY https://github.com/apriorit/gmock-global.git
+    GIT_TAG        master
+  )
+  FetchContent_MakeAvailable(gmock-global)
+  include_directories(${gmock-global_SOURCE_DIR}/include)
 
-#   find_package(ament_cmake_gmock REQUIRED)
-#   ament_add_gmock(test_${PROJECT_NAME}
-#     test/test_agnocast_utils.cpp
-#     test/test_agnocast_subscription.cpp
-#     test/test_mocked_agnocast.cpp)
-#   target_include_directories(test_${PROJECT_NAME} PRIVATE include)
-#   target_link_libraries(test_${PROJECT_NAME} gmock-global agnocast)
-#   set_tests_properties(test_${PROJECT_NAME} PROPERTIES
-#     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
-#   )
-# endif()
+  find_package(ament_cmake_gmock REQUIRED)
+  ament_add_gmock(test_${PROJECT_NAME}
+    test/test_agnocast_utils.cpp
+    test/test_agnocast_subscription.cpp
+    test/test_mocked_agnocast.cpp)
+  target_include_directories(test_${PROJECT_NAME} PRIVATE include)
+  target_link_libraries(test_${PROJECT_NAME} gmock-global agnocast)
+  set_tests_properties(test_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+  )
+endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
