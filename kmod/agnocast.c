@@ -300,8 +300,9 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
 
   dev_warn(
     agnocast_device,
-    "The number of reference reached the upper bound (MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), "
-    "so no new subscriber can reference. (increment_sub_rc)\n",
+    "Unreachable. The number of referencing publisher and subscribers reached the upper bound "
+    "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
+    "(increment_sub_rc)\n",
     MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
   return -1;
