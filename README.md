@@ -142,7 +142,7 @@ If you want to disable pre-commit, please execute `pre-commit uninstall`.
 - [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
 - [How to set environment variables](./docs/how_to_set_environment_variables.md)
 
-## Trouble Shooting
+## Troubleshooting
 
 Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to follow these steps to remove the leftover resources.
 
