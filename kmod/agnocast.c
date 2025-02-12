@@ -839,7 +839,7 @@ static int get_shm(char * topic_name, union ioctl_subscriber_args * ioctl_ret)
   return 0;
 }
 
-static int subscriber_add(
+int subscriber_add(
   char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
   bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
@@ -906,6 +906,8 @@ static int subscriber_add(
 
   return get_shm(topic_name, ioctl_ret);
 }
+
+EXPORT_SYMBOL(subscriber_add);
 
 static int publisher_add(
   const char * topic_name, uint32_t pid, union ioctl_publisher_args * ioctl_ret)
@@ -1250,7 +1252,7 @@ static int new_shm_addr(uint32_t pid, uint64_t shm_size, union ioctl_new_shm_arg
   return 0;
 }
 
-static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1263,6 +1265,8 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
 
   return 0;
 }
+
+EXPORT_SYMBOL(get_subscriber_num);
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {

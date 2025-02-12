@@ -146,6 +146,12 @@ union ioctl_get_subscriber_num_args {
 
 void tmp_func(void);
 
+int subscriber_add(
+  char * topic_name, uint32_t qos_depth, uint32_t subscriber_pid, uint64_t init_timestamp,
+  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
+
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
+
 void agnocast_init_mutexes(void);
 void agnocast_init_device(void);
 int agnocast_init_kthread(void);
