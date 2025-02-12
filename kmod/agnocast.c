@@ -1405,12 +1405,6 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       }
     }
   }
-
-  dev_info(
-    agnocast_device,
-    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_subscriber)\n",
-    pid, wrapper->key);
 }
 
 static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid_t pid)
@@ -1441,12 +1435,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
       kfree(pub_info);
     }
   }
-
-  dev_info(
-    agnocast_device,
-    "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_publisher)\n",
-    pid, wrapper->key);
 }
 
 // =========================================
@@ -1502,6 +1490,8 @@ static void process_exit_cleanup(const pid_t pid)
       kfree(wrapper);
     }
   }
+
+  dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
 }
 
 static int exit_worker_thread(void * data)
