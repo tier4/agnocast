@@ -23,6 +23,9 @@ static DEFINE_MUTEX(global_mutex);
 #define SUB_INFO_HASH_BITS 3
 #define PROC_INFO_HASH_BITS 10
 
+// Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
+#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
+
 struct process_info
 {
   pid_t pid;
@@ -76,8 +79,8 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  topic_local_id_t referencing_ids[MAX_REFERENCING_ID_NUM];
-  uint8_t reference_count[MAX_REFERENCING_ID_NUM];
+  topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM];
+  uint8_t reference_count[MAX_REFERENCING_PUBSUB_NUM];
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -270,19 +273,19 @@ static bool is_referenced(struct entry_node * en)
 
 static void remove_reference_by_index(struct entry_node * en, int index)
 {
-  for (int i = index; i < MAX_REFERENCING_ID_NUM - 1; i++) {
+  for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM - 1; i++) {
     en->referencing_ids[i] = en->referencing_ids[i + 1];
     en->reference_count[i] = en->reference_count[i + 1];
   }
 
-  en->referencing_ids[MAX_REFERENCING_ID_NUM - 1] = -1;
-  en->reference_count[MAX_REFERENCING_ID_NUM - 1] = 0;
+  en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM - 1] = -1;
+  en->reference_count[MAX_REFERENCING_PUBSUB_NUM - 1] = 0;
   return;
 }
 
 static int increment_rc(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_REFERENCING_ID_NUM; i++) {
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
     if (en->referencing_ids[i] == id) {
       en->reference_count[i]++;
       return 0;
@@ -297,9 +300,9 @@ static int increment_rc(struct entry_node * en, const topic_local_id_t id)
 
   dev_warn(
     agnocast_device,
-    "The number of referencing_id reached the upper bound (MAX_REFERENCING_ID_NUM=%d), "
+    "The number of referencing_id reached the upper bound (MAX_REFERENCING_PUBSUB_NUM=%d), "
     "so no new referencing can be added. (increment_rc)\n",
-    MAX_REFERENCING_ID_NUM);
+    MAX_REFERENCING_PUBSUB_NUM);
 
   return -1;
 }
@@ -326,7 +329,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -346,22 +349,24 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  int id;
-  if (subscriber_id == -1) {
-    id = en->publisher_id;
-  } else {
-    id = subscriber_id;
-  }
-
-  if (increment_rc(en, id) == -1) {
+  if (en->publisher_id == pubsub_id) {
+    dev_warn(
+      agnocast_device,
+      "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
+      "(increment_message_entry_rc)\n",
+      wrapper->key, entry_id, pubsub_id);
     return -1;
+  } else {
+    if (increment_rc(en, pubsub_id) == -1) {
+      return -1;
+    }
   }
 
   return 0;
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -381,16 +386,9 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  int id;
-  if (subscriber_id == -1) {
-    id = en->publisher_id;
-  } else {
-    id = subscriber_id;
-  }
-
   // decrement reference_count
-  for (int i = 0; i < MAX_REFERENCING_ID_NUM; i++) {
-    if (en->referencing_ids[i] == id) {
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
+    if (en->referencing_ids[i] == pubsub_id) {
       en->reference_count[i]--;
       if (en->reference_count[i] == 0) {
         remove_reference_by_index(en, i);
@@ -402,8 +400,9 @@ static int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "id=%d is not referencing (topic_name=%s entry_id=%lld). (decrement_message_entry_rc)\n", id,
-    topic_name, entry_id);
+    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    pubsub_id, topic_name, entry_id);
 
   return -1;
 }
@@ -423,7 +422,7 @@ static int insert_message_entry(
   new_node->msg_virtual_address = msg_virtual_address;
   new_node->referencing_ids[0] = pub_info->id;
   new_node->reference_count[0] = 1;
-  for (int i = 1; i < MAX_REFERENCING_ID_NUM; i++) {
+  for (int i = 1; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
     new_node->referencing_ids[i] = -1;
     new_node->reference_count[i] = 0;
   }
@@ -722,7 +721,7 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
         en->publisher_id, en->msg_virtual_address);
       used_size += ret;
 
-      for (int i = 0; i < MAX_REFERENCING_ID_NUM; i++) {
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
         if (en->referencing_ids[i] == -1) break;
 
         ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_ids[i]);
@@ -1249,8 +1248,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        increment_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
@@ -1259,8 +1257,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        decrement_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       union ioctl_receive_msg_args receive_msg_args;
@@ -1385,7 +1382,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_REFERENCING_ID_NUM; i++) {
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM; i++) {
         if (en->referencing_ids[i] == subscriber_id) {
           remove_reference_by_index(en, i);
         }

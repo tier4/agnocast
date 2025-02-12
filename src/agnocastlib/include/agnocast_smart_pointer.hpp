@@ -20,9 +20,9 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 void decrement_rc(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 void increment_rc(
-  const std::string & topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 
 extern int agnocast_fd;
 
@@ -31,7 +31,7 @@ class ipc_shared_ptr
 {
   T * ptr_ = nullptr;
   std::string topic_name_;
-  topic_local_id_t subscriber_id_ = -1;
+  topic_local_id_t pubsub_id_ = -1;
   int64_t entry_id_ = -1;
 
   // Unimplemented operators. If these are called, a compile error is raised.
@@ -54,36 +54,22 @@ public:
   }
 
   explicit ipc_shared_ptr(
-    T * ptr, const std::string & topic_name, const topic_local_id_t subscriber_id,
+    T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
     const int64_t entry_id)
-  : ptr_(ptr), topic_name_(topic_name), subscriber_id_(subscriber_id), entry_id_(entry_id)
+  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id), entry_id_(entry_id)
   {
   }
 
   ~ipc_shared_ptr() { reset(); }
 
   ipc_shared_ptr(const ipc_shared_ptr & r)
-  : ptr_(r.ptr_),
-    topic_name_(r.topic_name_),
-    subscriber_id_(r.subscriber_id_),
-    entry_id_(r.entry_id_)
+  : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
-    if (ptr_ != nullptr && subscriber_id_ == -1) {
-      RCLCPP_ERROR(
-        logger,
-        "Copying an ipc_shared_ptr is not allowed if it was created by borrow_loaned_message().");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    increment_rc(topic_name_, subscriber_id_, entry_id_);
+    increment_rc(topic_name_, pubsub_id_, entry_id_);
   }
 
   ipc_shared_ptr(ipc_shared_ptr && r)
-  : ptr_(r.ptr_),
-    topic_name_(r.topic_name_),
-    subscriber_id_(r.subscriber_id_),
-    entry_id_(r.entry_id_)
+  : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
     r.ptr_ = nullptr;
   }
@@ -94,7 +80,7 @@ public:
       reset();
       ptr_ = r.ptr_;
       topic_name_ = r.topic_name_;
-      subscriber_id_ = r.subscriber_id_;
+      pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
 
       r.ptr_ = nullptr;
@@ -114,7 +100,7 @@ public:
   {
     if (ptr_ == nullptr) return;
 
-    decrement_rc(topic_name_, subscriber_id_, entry_id_);
+    decrement_rc(topic_name_, pubsub_id_, entry_id_);
 
     ptr_ = nullptr;
   }

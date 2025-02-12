@@ -8,8 +8,6 @@
 #define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
 #define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
 #define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
-#define MAX_REFERENCING_ID_NUM \
-  MAX_SUBSCRIBER_NUM + 1  // Maximum number of referencing ids per entry: +1 for the publisher
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -53,7 +51,7 @@ union ioctl_publisher_args {
 struct ioctl_update_entry_args
 {
   const char * topic_name;
-  topic_local_id_t subscriber_id;
+  topic_local_id_t pubsub_id;
   int64_t entry_id;
 };
 
