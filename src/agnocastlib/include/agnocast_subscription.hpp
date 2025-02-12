@@ -150,10 +150,10 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    for (uint32_t i = 0; i < take_args.ret_publisher_num; i++) {
-      const pid_t pid = take_args.ret_publisher_pids[i];
-      const uint64_t addr = take_args.ret_shm_addrs[i];
-      const uint64_t size = take_args.ret_shm_sizes[i];
+    for (uint32_t i = 0; i < take_args.ret_pub_shm_info.publisher_num; i++) {
+      const pid_t pid = take_args.ret_pub_shm_info.publisher_pids[i];
+      const uint64_t addr = take_args.ret_pub_shm_info.shm_addrs[i];
+      const uint64_t size = take_args.ret_pub_shm_info.shm_sizes[i];
       map_read_only_area(pid, addr, size);
     }
 

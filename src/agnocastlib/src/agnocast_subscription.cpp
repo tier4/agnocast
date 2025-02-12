@@ -29,10 +29,10 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
     exit(EXIT_FAILURE);
   }
 
-  for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    const pid_t pid = subscriber_args.ret_publisher_pids[i];
-    const uint64_t addr = subscriber_args.ret_shm_addrs[i];
-    const uint64_t size = subscriber_args.ret_shm_sizes[i];
+  for (uint32_t i = 0; i < subscriber_args.ret_pub_shm_info.publisher_num; i++) {
+    const pid_t pid = subscriber_args.ret_pub_shm_info.publisher_pids[i];
+    const uint64_t addr = subscriber_args.ret_pub_shm_info.shm_addrs[i];
+    const uint64_t size = subscriber_args.ret_pub_shm_info.shm_sizes[i];
     map_read_only_area(pid, addr, size);
   }
 

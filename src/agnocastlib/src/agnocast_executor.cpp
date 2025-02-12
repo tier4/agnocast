@@ -131,10 +131,10 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   }
 
   // Map the shared memory region with read permissions whenever a new publisher is discovered.
-  for (uint32_t i = 0; i < receive_args.ret_publisher_num; i++) {
-    const pid_t pid = receive_args.ret_publisher_pids[i];
-    const uint64_t addr = receive_args.ret_shm_addrs[i];
-    const uint64_t size = receive_args.ret_shm_sizes[i];
+  for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
+    const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
+    const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
+    const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
     map_read_only_area(pid, addr, size);
   }
 
