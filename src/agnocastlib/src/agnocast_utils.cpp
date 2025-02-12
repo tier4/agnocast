@@ -22,7 +22,7 @@ void validate_ld_preload()
 
 std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
 {
-  if (topic_name.length() > 0 && topic_name[0] != '/') {
+  if (topic_name.length() == 0 || (topic_name.length() > 0 && topic_name[0] != '/')) {
     RCLCPP_ERROR(logger, "create_mq_name failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
