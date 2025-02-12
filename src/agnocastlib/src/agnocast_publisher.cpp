@@ -45,8 +45,9 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
 }
 
 union ioctl_publish_args publish_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs)
+  [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
+  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
@@ -58,6 +59,12 @@ union ioctl_publish_args publish_core(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(
+    agnocast_publish, publisher_handle, reinterpret_cast<const void *>(msg_virtual_address),
+    publish_args.ret_entry_id);
+#endif
 
   for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
     const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
