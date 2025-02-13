@@ -34,7 +34,7 @@ endif
 # For KUnit
 ifeq ($(CONFIG_KUNIT),y)
   obj-m += agnocast_kunit.o
-	agnocast_kunit-m := agnocast_kunit_main.o agnocast_tmp_copied.o
+	agnocast_kunit-m := agnocast_kunit_main.o agnocast_kunit/agnocast_kunit_subscriber_add.o agnocast_tmp_copied.o
 	CFLAGS_agnocast_tmp_copied.o += -DKUNIT_BUILD
 endif
 

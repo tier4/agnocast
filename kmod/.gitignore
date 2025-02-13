@@ -9,3 +9,4 @@ Module.symvers
 agnocast.mod.c
 agnocast_kunit.mod.c
 agnocast_tmp_copied.c
+agnocast_kunit/*.o
