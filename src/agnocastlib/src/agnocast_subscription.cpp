@@ -3,10 +3,6 @@
 namespace agnocast
 {
 
-mqd_t mq_new_publisher = -1;
-
-extern std::vector<std::thread> threads;
-
 SubscriptionBase::SubscriptionBase(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 : id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)), qos_(qos)
@@ -14,66 +10,9 @@ SubscriptionBase::SubscriptionBase(
   validate_ld_preload();
 }
 
-static void wait_for_new_publisher(const pid_t subscriber_pid)
-{
-  static pthread_mutex_t wait_newpub_mtx = PTHREAD_MUTEX_INITIALIZER;
-
-  pthread_mutex_lock(&wait_newpub_mtx);
-
-  static bool is_initialized = false;
-  if (is_initialized) {
-    pthread_mutex_unlock(&wait_newpub_mtx);
-    return;
-  }
-  is_initialized = true;
-
-  pthread_mutex_unlock(&wait_newpub_mtx);
-
-  const std::string mq_name = create_mq_name_new_publisher(subscriber_pid);
-
-  struct mq_attr attr = {};
-  attr.mq_flags = 0;         // Blocking queue
-  const int mq_maxmsg = 10;  // Maximum number of messages in the queue
-  attr.mq_maxmsg = mq_maxmsg;
-  attr.mq_msgsize = sizeof(MqMsgNewPublisher);  // Maximum message size
-  attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
-
-  const int mq_mode = 0666;
-  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY, mq_mode, &attr);
-  if (mq == -1) {
-    RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-  mq_new_publisher = mq;
-
-  // Create a thread that maps the areas for publishers afterwards
-  auto th = std::thread([=]() {
-    while (agnocast::ok()) {
-      MqMsgNewPublisher mq_msg = {};
-      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
-      if (ret == -1) {
-        RCLCPP_ERROR(logger, "mq_receive for new publisher failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      const pid_t publisher_pid = mq_msg.publisher_pid;
-      const uint64_t publisher_shm_addr = mq_msg.shm_addr;
-      const uint64_t publisher_shm_size = mq_msg.shm_size;
-      map_read_only_area(publisher_pid, publisher_shm_addr, publisher_shm_size);
-    }
-  });
-
-  threads.push_back(std::move(th));
-}
-
 union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
 {
   const pid_t subscriber_pid = getpid();
-
-  // Open a mq for new publisher appearences.
-  wait_for_new_publisher(subscriber_pid);
 
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.
@@ -90,14 +29,10 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
     exit(EXIT_FAILURE);
   }
 
-  for (uint32_t i = 0; i < subscriber_args.ret_publisher_num; i++) {
-    if (subscriber_args.ret_publisher_pids[i] == subscriber_pid) {
-      continue;
-    }
-
-    const pid_t pid = subscriber_args.ret_publisher_pids[i];
-    const uint64_t addr = subscriber_args.ret_shm_addrs[i];
-    const uint64_t size = subscriber_args.ret_shm_sizes[i];
+  for (uint32_t i = 0; i < subscriber_args.ret_pub_shm_info.publisher_num; i++) {
+    const pid_t pid = subscriber_args.ret_pub_shm_info.publisher_pids[i];
+    const uint64_t addr = subscriber_args.ret_pub_shm_info.shm_addrs[i];
+    const uint64_t size = subscriber_args.ret_pub_shm_info.shm_sizes[i];
     map_read_only_area(pid, addr, size);
   }
 

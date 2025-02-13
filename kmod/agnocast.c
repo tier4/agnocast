@@ -23,12 +23,17 @@ static DEFINE_MUTEX(global_mutex);
 #define SUB_INFO_HASH_BITS 3
 #define PROC_INFO_HASH_BITS 10
 
+// Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
+#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
+
 struct process_info
 {
   pid_t pid;
   uint64_t shm_addr;
   uint64_t shm_size;
   struct hlist_node node;
+  uint32_t mapped_num;
+  pid_t mapped_pids[MAX_MAP_NUM];
 };
 
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
@@ -48,6 +53,7 @@ struct subscriber_info
   pid_t pid;
   int64_t latest_received_entry_id;
   bool is_take_sub;
+  bool new_publisher;
   struct hlist_node node;
 };
 
@@ -73,8 +79,8 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  topic_local_id_t referencing_subscriber_ids[MAX_SUBSCRIBER_NUM];
-  uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
+  topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
+  uint8_t reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -177,6 +183,7 @@ static struct subscriber_info * insert_subscriber_info(
   new_info->pid = subscriber_pid;
   new_info->latest_received_entry_id = wrapper->current_entry_id++;
   new_info->is_take_sub = is_take_sub;
+  new_info->new_publisher = false;
   INIT_HLIST_NODE(&new_info->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
@@ -257,45 +264,46 @@ static struct publisher_info * insert_publisher_info(
   return new_info;
 }
 
-static bool is_subscriber_referencing(struct entry_node * en)
+static bool is_referenced(struct entry_node * en)
 {
-  // Since referencing_subscriber_ids always stores entries in order from the lowest index,
-  // if there's nothing at index 0, it means it doesn't exist.
-  return (en->referencing_subscriber_ids[0] > 0);
+  // The referencing_ids array is always populated starting from the smallest index.
+  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing.
+  return (en->referencing_ids[0] != -1);
 }
 
-static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
+static void remove_reference_by_index(struct entry_node * en, int index)
 {
-  for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
-    en->referencing_subscriber_ids[i] = en->referencing_subscriber_ids[i + 1];
-    en->subscriber_reference_count[i] = en->subscriber_reference_count[i + 1];
+  for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1; i++) {
+    en->referencing_ids[i] = en->referencing_ids[i + 1];
+    en->reference_count[i] = en->reference_count[i + 1];
   }
 
-  en->referencing_subscriber_ids[MAX_SUBSCRIBER_NUM - 1] = -1;
-  en->subscriber_reference_count[MAX_SUBSCRIBER_NUM - 1] = 0;
+  en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = -1;
+  en->reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = 0;
   return;
 }
 
-static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subscriber_id)
+static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_ids[i] == subscriber_id) {
-      en->subscriber_reference_count[i]++;
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    if (en->referencing_ids[i] == id) {
+      en->reference_count[i]++;
       return 0;
     }
 
-    if (en->subscriber_reference_count[i] == 0) {
-      en->referencing_subscriber_ids[i] = subscriber_id;
-      en->subscriber_reference_count[i] = 1;
+    if (en->reference_count[i] == 0) {
+      en->referencing_ids[i] = id;
+      en->reference_count[i] = 1;
       return 0;
     }
   }
 
   dev_warn(
     agnocast_device,
-    "The number of subscribers reached the upper bound (MAX_SUBSCRIBER_NUM=%d), "
-    "so no new subscriber can reference. (increment_sub_rc)\n",
-    MAX_SUBSCRIBER_NUM);
+    "Unreachable. The number of referencing publisher and subscribers reached the upper bound "
+    "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
+    "(increment_sub_rc)\n",
+    MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
   return -1;
 }
@@ -322,7 +330,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -342,15 +350,24 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  if (increment_sub_rc(en, subscriber_id) == -1) {
+  if (en->publisher_id == pubsub_id) {
+    dev_warn(
+      agnocast_device,
+      "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
+      "(increment_message_entry_rc)\n",
+      wrapper->key, entry_id, pubsub_id);
     return -1;
+  } else {
+    if (increment_sub_rc(en, pubsub_id) == -1) {
+      return -1;
+    }
   }
 
   return 0;
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -370,12 +387,12 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  // decrement subscriber_reference_count
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_ids[i] == subscriber_id) {
-      en->subscriber_reference_count[i]--;
-      if (en->subscriber_reference_count[i] == 0) {
-        remove_referencing_subscriber_by_index(en, i);
+  // decrement reference_count
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    if (en->referencing_ids[i] == pubsub_id) {
+      en->reference_count[i]--;
+      if (en->reference_count[i] == 0) {
+        remove_reference_by_index(en, i);
       }
 
       return 0;
@@ -384,8 +401,9 @@ static int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "Subscriber is not referencing (topic_name=%s entry_id=%lld). (decrement_message_entry_rc)\n",
-    topic_name, entry_id);
+    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    pubsub_id, topic_name, entry_id);
 
   return -1;
 }
@@ -403,9 +421,11 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    new_node->referencing_subscriber_ids[i] = -1;
-    new_node->subscriber_reference_count[i] = 0;
+  new_node->referencing_ids[0] = pub_info->id;
+  new_node->reference_count[0] = 1;
+  for (int i = 1; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    new_node->referencing_ids[i] = -1;
+    new_node->reference_count[i] = 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
@@ -444,6 +464,20 @@ static int insert_message_entry(
   ioctl_ret->ret_entry_id = new_node->entry_id;
 
   return 0;
+}
+
+static struct process_info * find_process_info(const pid_t pid)
+{
+  struct process_info * proc_info;
+  uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
+  {
+    if (proc_info->pid == pid) {
+      return proc_info;
+    }
+  }
+
+  return NULL;
 }
 
 // =========================================
@@ -688,11 +722,10 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
         en->publisher_id, en->msg_virtual_address);
       used_size += ret;
 
-      for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-        if (en->referencing_subscriber_ids[i] == -1) break;
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+        if (en->referencing_ids[i] == -1) break;
 
-        ret = scnprintf(
-          buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_subscriber_ids[i]);
+        ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_ids[i]);
         used_size += ret;
       }
 
@@ -730,6 +763,77 @@ static struct attribute_group attribute_group = {
 
 // =========================================
 // /dev/agnocast
+static int set_publisher_shm_info(
+  struct topic_wrapper * wrapper, pid_t subscriber_pid, struct publisher_shm_info * pub_shm_info)
+{
+  struct process_info * sub_proc_info = find_process_info(subscriber_pid);
+  if (!sub_proc_info) {
+    dev_warn(
+      agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+      subscriber_pid);
+    return -1;
+  }
+
+  uint32_t publisher_num = 0;
+  struct publisher_info * pub_info;
+  int bkt;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
+  {
+    if (pub_info->exited || sub_proc_info->pid == pub_info->pid) {
+      continue;
+    }
+    bool already_mapped = false;
+    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
+      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
+        already_mapped = true;
+        break;
+      }
+    }
+    if (already_mapped) {
+      continue;
+    }
+
+    if (publisher_num == MAX_PUBLISHER_NUM) {
+      dev_warn(
+        agnocast_device,
+        "The number of publisher processes to be mapped exceeds the maximum number that can be "
+        "returned at once in a call from this subscriber process (topic_name=%s, "
+        "subscriber_pid=%d). (set_publisher_shm_info)\n",
+        wrapper->key, sub_proc_info->pid);
+      return -1;
+    }
+
+    if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
+      dev_warn(
+        agnocast_device,
+        "This process (topic_name=%s, subscriber_pid=%d) has reached the upper bound of the number "
+        "of memory regions of other processes that it can map, so no new mapping can be created. "
+        "(set_publisher_shm_info)\n",
+        wrapper->key, sub_proc_info->pid);
+      return -1;
+    }
+
+    struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      dev_warn(
+        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+        pub_info->pid);
+      return -1;
+    }
+
+    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+    pub_shm_info->shm_addrs[publisher_num] = proc_info->shm_addr;
+    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
+    publisher_num++;
+    sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
+    sub_proc_info->mapped_num++;
+  }
+
+  pub_shm_info->publisher_num = publisher_num;
+
+  return 0;
+}
+
 static int subscriber_add(
   char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret)
@@ -766,12 +870,6 @@ static int subscriber_add(
     struct entry_node * en = container_of(node, struct entry_node, node);
 
     if (increment_sub_rc(en, sub_info->id) == -1) {
-      dev_warn(
-        agnocast_device,
-        "The number of subscribers for the entry_node (entry_id=%lld) reached the upper "
-        "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-        " (subscriber_add)\n",
-        en->entry_id, MAX_SUBSCRIBER_NUM);
       return -1;
     }
 
@@ -785,42 +883,9 @@ static int subscriber_add(
     }
   }
 
-  // set publisher information for shared memory mapping
-  int publisher_num = 0;
-  struct publisher_info * pub_info;
-  int bkt;
-  hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
-  {
-    if (pub_info->exited) {
-      continue;
-    }
-
-    bool already_added = false;
-    for (int i = 0; i < publisher_num; i++) {
-      if (ioctl_ret->ret_publisher_pids[i] == pub_info->pid) {
-        already_added = true;
-        break;
-      }
-    }
-    if (already_added) {
-      continue;
-    }
-
-    struct process_info * proc_info;
-    uint32_t hash_val = hash_min(pub_info->pid, PROC_INFO_HASH_BITS);
-    hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-    {
-      if (proc_info->pid == pub_info->pid) {
-        ioctl_ret->ret_publisher_pids[publisher_num] = pub_info->pid;
-        ioctl_ret->ret_shm_addrs[publisher_num] = proc_info->shm_addr;
-        ioctl_ret->ret_shm_sizes[publisher_num] = proc_info->shm_size;
-        publisher_num++;
-        break;
-      }
-    }
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
+    return -1;
   }
-
-  ioctl_ret->ret_publisher_num = publisher_num;
 
   return 0;
 }
@@ -850,35 +915,13 @@ static int publisher_add(
 
   ioctl_ret->ret_id = pub_info->id;
 
-  // set shm addr to ioctl_ret
-  struct process_info * proc_info;
-  uint32_t hash_val = hash_min(publisher_pid, PROC_INFO_HASH_BITS);
-  bool proc_info_found = false;
-  hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
-  {
-    if (proc_info->pid == publisher_pid) {
-      ioctl_ret->ret_shm_addr = proc_info->shm_addr;
-      ioctl_ret->ret_shm_size = proc_info->shm_size;
-      proc_info_found = true;
-      break;
-    }
-  }
-
-  if (!proc_info_found) {
-    dev_warn(agnocast_device, "Process (pid=%d) not found. (publisher_add)\n", publisher_pid);
-    return -1;
-  }
-
-  // set subscriber info to ioctl_ret
-  int subscriber_num = 0;
+  // set true to subscriber_info.new_publisher to notify
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    ioctl_ret->ret_subscriber_pids[subscriber_num] = sub_info->pid;
-    subscriber_num++;
+    sub_info->new_publisher = true;
   }
-  ioctl_ret->ret_subscriber_num = subscriber_num;
 
   return 0;
 }
@@ -925,7 +968,7 @@ static int release_msgs_to_meet_depth(
   // HACK:
   //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
   //   if there are more messages to release, qos_depth is temporarily not met.
-  //   However, it is rare for the subscriber_reference_count of more than MAX_RELEASE_NUM messages
+  //   However, it is rare for the reference_count of more than MAX_RELEASE_NUM messages
   //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
   //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
   //   system behavior.
@@ -945,7 +988,7 @@ static int release_msgs_to_meet_depth(
     num_search_entries--;
 
     // This is not counted in a Queue size of QoS.
-    if (is_subscriber_referencing(en)) continue;
+    if (is_referenced(en)) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_released_num] = en->msg_virtual_address;
     ioctl_ret->ret_released_num++;
@@ -965,7 +1008,7 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
-static int receive_and_update(
+static int receive_and_check_new_publisher(
   const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
   union ioctl_receive_msg_args * ioctl_ret)
 {
@@ -986,6 +1029,7 @@ static int receive_and_update(
     return -1;
   }
 
+  // Receive msg
   ioctl_ret->ret_entry_num = 0;
   bool sub_info_updated = false;
   int64_t latest_received_entry_id = sub_info->latest_received_entry_id;
@@ -1008,6 +1052,18 @@ static int receive_and_update(
       sub_info_updated = true;
     }
   }
+
+  // Check for new publisher
+  if (!sub_info->new_publisher) {
+    ioctl_ret->ret_pub_shm_info.publisher_num = 0;
+    return 0;
+  }
+
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
+    return -1;
+  }
+
+  sub_info->new_publisher = false;
 
   return 0;
 }
@@ -1090,16 +1146,28 @@ static int take_msg(
     node = rb_prev(node);
   }
 
-  if (!candidate_en) return 0;
+  if (candidate_en) {
+    if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
+      return -1;
+    }
 
-  if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
+    ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
+    ioctl_ret->ret_entry_id = candidate_en->entry_id;
+
+    sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
+  }
+
+  // Check for new publisher
+  if (!sub_info->new_publisher) {
+    ioctl_ret->ret_pub_shm_info.publisher_num = 0;
+    return 0;
+  }
+
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
     return -1;
   }
 
-  ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
-  ioctl_ret->ret_entry_id = candidate_en->entry_id;
-
-  sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
+  sub_info->new_publisher = false;
 
   return 0;
 }
@@ -1113,6 +1181,10 @@ static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_
   new_proc_info->pid = pid;
   new_proc_info->shm_addr = allocatable_addr;
   new_proc_info->shm_size = shm_size;
+  new_proc_info->mapped_num = 0;
+  for (int i = 0; i < MAX_MAP_NUM; i++) {
+    new_proc_info->mapped_pids[i] = -1;
+  }
 
   INIT_HLIST_NODE(&new_proc_info->node);
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
@@ -1143,7 +1215,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   char topic_name_buf[256];
-  union ioctl_update_entry_args entry_args;
+  struct ioctl_update_entry_args entry_args;
 
   switch (cmd) {
     case AGNOCAST_SUBSCRIBER_ADD_CMD:
@@ -1172,23 +1244,21 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       break;
     case AGNOCAST_INCREMENT_RC_CMD:
       if (copy_from_user(
-            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        increment_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
-            &entry_args, (union ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
         goto unlock_mutex_and_return;
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        decrement_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       union ioctl_receive_msg_args receive_msg_args;
@@ -1199,7 +1269,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = receive_and_update(
+      ret = receive_and_check_new_publisher(
         topic_name_buf, receive_msg_args.subscriber_id, receive_msg_args.qos_depth,
         &receive_msg_args);
       if (copy_to_user(
@@ -1313,13 +1383,13 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-        if (en->referencing_subscriber_ids[i] == subscriber_id) {
-          remove_referencing_subscriber_by_index(en, i);
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+        if (en->referencing_ids[i] == subscriber_id) {
+          remove_reference_by_index(en, i);
         }
       }
 
-      if (is_subscriber_referencing(en)) continue;
+      if (is_referenced(en)) continue;
 
       bool publisher_exited = false;
       struct publisher_info * pub_info;
@@ -1342,12 +1412,6 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       }
     }
   }
-
-  dev_info(
-    agnocast_device,
-    "Subscriber exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_subscriber)\n",
-    pid, wrapper->key);
 }
 
 static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid_t pid)
@@ -1367,7 +1431,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     while (node) {
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
-      if (en->publisher_id == publisher_id && !is_subscriber_referencing(en)) {
+      if (en->publisher_id == publisher_id && !is_referenced(en)) {
         pub_info->entries_num--;
         remove_entry_node(wrapper, en);
       }
@@ -1378,12 +1442,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
       kfree(pub_info);
     }
   }
-
-  dev_info(
-    agnocast_device,
-    "Publisher exit handler (pid=%d) on topic (topic_name=%s) has finished executing. "
-    "(pre_handler_publisher)\n",
-    pid, wrapper->key);
 }
 
 // =========================================
@@ -1439,6 +1497,8 @@ static void process_exit_cleanup(const pid_t pid)
       kfree(wrapper);
     }
   }
+
+  dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
 }
 
 static int exit_worker_thread(void * data)

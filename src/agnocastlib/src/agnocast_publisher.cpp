@@ -41,37 +41,13 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
     exit(EXIT_FAILURE);
   }
 
-  // Send messages to subscribers to notify that a new publisher appears
-  for (uint32_t i = 0; i < pub_args.ret_subscriber_num; i++) {
-    if (pub_args.ret_subscriber_pids[i] == publisher_pid) {
-      continue;
-    }
-
-    const std::string mq_name = create_mq_name_new_publisher(pub_args.ret_subscriber_pids[i]);
-    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
-    if (mq == -1) {
-      RCLCPP_ERROR(logger, "mq_open for new publisher failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    MqMsgNewPublisher mq_msg = {};
-    mq_msg.publisher_pid = publisher_pid;
-    mq_msg.shm_addr = pub_args.ret_shm_addr;
-    mq_msg.shm_size = pub_args.ret_shm_size;
-    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-      RCLCPP_ERROR(logger, "mq_send for new publisher failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-  }
-
   return pub_args.ret_id;
 }
 
 union ioctl_publish_args publish_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs)
+  [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
+  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
@@ -83,6 +59,12 @@ union ioctl_publish_args publish_core(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(
+    agnocast_publish, publisher_handle, reinterpret_cast<const void *>(msg_virtual_address),
+    publish_args.ret_entry_id);
+#endif
 
   for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
     const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
@@ -101,7 +83,8 @@ union ioctl_publish_args publish_core(
     }
 
     struct MqMsgAgnocast mq_msg = {};
-    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+    // Although the size of the struct is 1, we deliberately send a zero-length message
+    if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), 0 /*msg_len*/, 0) == -1) {
       // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
       // hasn't received it yet. Thus, there's no need to send it again since the notification has
       // already been sent.

@@ -24,8 +24,6 @@ namespace agnocast
 
 extern "C" void * initialize_agnocast(const uint64_t shm_size);
 
-bool ok();
-
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)

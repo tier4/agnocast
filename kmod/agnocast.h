@@ -7,8 +7,16 @@
 #define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
 #define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
 #define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
+#define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
 
 typedef int32_t topic_local_id_t;
+struct publisher_shm_info
+{
+  uint32_t publisher_num;
+  pid_t publisher_pids[MAX_PUBLISHER_NUM];
+  uint64_t shm_addrs[MAX_PUBLISHER_NUM];
+  uint64_t shm_sizes[MAX_PUBLISHER_NUM];
+};
 
 union ioctl_subscriber_args {
   struct
@@ -24,10 +32,7 @@ union ioctl_subscriber_args {
     uint32_t ret_transient_local_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
-    uint32_t ret_publisher_num;
-    pid_t ret_publisher_pids[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_addrs[MAX_PUBLISHER_NUM];
-    uint64_t ret_shm_sizes[MAX_PUBLISHER_NUM];
+    struct publisher_shm_info ret_pub_shm_info;
   };
 };
 
@@ -40,21 +45,14 @@ union ioctl_publisher_args {
   struct
   {
     topic_local_id_t ret_id;
-    uint64_t ret_shm_addr;
-    uint64_t ret_shm_size;
-    uint32_t ret_subscriber_num;
-    pid_t ret_subscriber_pids[MAX_SUBSCRIBER_NUM];
   };
 };
 
-union ioctl_update_entry_args {
-  struct
-  {
-    const char * topic_name;
-    topic_local_id_t subscriber_id;
-    int64_t entry_id;
-  };
-  uint64_t ret;
+struct ioctl_update_entry_args
+{
+  const char * topic_name;
+  topic_local_id_t pubsub_id;
+  int64_t entry_id;
 };
 
 union ioctl_receive_msg_args {
@@ -69,6 +67,7 @@ union ioctl_receive_msg_args {
     uint16_t ret_entry_num;
     int64_t ret_entry_ids[MAX_QOS_DEPTH];
     uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
+    struct publisher_shm_info ret_pub_shm_info;
   };
 };
 
@@ -102,6 +101,7 @@ union ioctl_take_msg_args {
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
+    struct publisher_shm_info ret_pub_shm_info;
   };
 };
 
@@ -121,8 +121,8 @@ union ioctl_get_subscriber_num_args {
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-#define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, union ioctl_update_entry_args)
-#define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, union ioctl_update_entry_args)
+#define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, struct ioctl_update_entry_args)
+#define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)

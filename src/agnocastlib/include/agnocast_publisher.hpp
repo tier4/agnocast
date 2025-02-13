@@ -28,8 +28,9 @@ namespace agnocast
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name);
 union ioctl_publish_args publish_core(
-  const std::string & topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, std::unordered_map<std::string, mqd_t> & opened_mqs);
+  [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
+  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
@@ -73,7 +74,7 @@ public:
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-      topic_name.c_str(), qos.depth());
+      topic_name_.c_str(), qos.depth());
 #endif
 
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
@@ -171,7 +172,7 @@ public:
   {
     increment_borrowed_publisher_num();
     MessageT * ptr = new MessageT();
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str());
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
   }
 
   void publish(ipc_shared_ptr<MessageT> && message)
@@ -182,21 +183,13 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    decrement_borrowed_publisher_num();
+
     const union ioctl_publish_args publish_args = publish_core(
-      topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
+      this, topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
       reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
 
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    TRACEPOINT(
-      agnocast_publish, static_cast<const void *>(this), static_cast<const void *>(message.get()),
-      publish_args.ret_entry_id);
-#endif
-
-    // We need to decrement borrowed_publisher_num before ros2_publish, otherwise the buffers used
-    // for ROS2 serialization will also use shared memory. Since we don't need to store any
-    // additional data in shared memory after the agnocast publish operation, here is the ideal
-    // point to decrement.
-    decrement_borrowed_publisher_num();
+    message.set_entry_id(publish_args.ret_entry_id);
 
     for (uint32_t i = 0; i < publish_args.ret_released_num; i++) {
       MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_args.ret_released_addrs[i]);

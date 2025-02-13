@@ -81,12 +81,12 @@ public:
       callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ciid = (static_cast<uint64_t>(subscriber_pid_) << 32) | callback_info_id;
+    uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
     TRACEPOINT(
       agnocast_subscription_init, static_cast<const void *>(this),
       static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
       static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
-      tracetools::get_symbol(callback), topic_name.c_str(), qos.depth(), pid_ciid);
+      tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
 #endif
 
     // If there are messages available and the transient local is enabled, immediately call the
@@ -124,7 +124,7 @@ public:
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       static_cast<const void *>(&dummy_cb), static_cast<const void *>(dummy_cbg.get()),
-      dummy_cb_symbols.c_str(), topic_name.c_str(), qos.depth(), 0);
+      dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
 #endif
 
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
@@ -148,6 +148,13 @@ public:
       RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
+    }
+
+    for (uint32_t i = 0; i < take_args.ret_pub_shm_info.publisher_num; i++) {
+      const pid_t pid = take_args.ret_pub_shm_info.publisher_pids[i];
+      const uint64_t addr = take_args.ret_pub_shm_info.shm_addrs[i];
+      const uint64_t size = take_args.ret_pub_shm_info.shm_sizes[i];
+      map_read_only_area(pid, addr, size);
     }
 
     if (take_args.ret_addr == 0) {
