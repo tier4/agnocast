@@ -138,17 +138,27 @@ public:
           break;
         }
 
-        ros2_publish_mtx_.lock();
-        while (!ros2_message_queue_.empty()) {
-          auto message = std::move(ros2_message_queue_.front());
-          ros2_message_queue_.pop();
-          ros2_publish_mtx_.unlock();
+        while (true) {
+          ipc_shared_ptr<MessageT> message;
+          bool should_break = false;
+
+          {
+            std::scoped_lock lock(ros2_publish_mtx_);
+            if (ros2_message_queue_.empty()) {
+              should_break = true;
+              break;
+            }
+
+            message = std::move(ros2_message_queue_.front());
+            ros2_message_queue_.pop();
+          }
+
+          if (should_break) {
+            break;
+          }
 
           ros2_publisher_->publish(*message.get());
-
-          ros2_publish_mtx_.lock();
         }
-        ros2_publish_mtx_.unlock();
       }
 
       if (mq_close(mq) == -1) {
