@@ -85,13 +85,13 @@ public:
 
     id_ = initialize_publisher(publisher_pid_, topic_name_);
 
-    ros2_publish_mq_name_ = create_mq_name_for_agnocast_publish(topic_name_, id_);
+    ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
     create_ros2_publish_thread();
 
     ros2_publish_mq_ = mq_open(ros2_publish_mq_name_.c_str(), O_WRONLY | O_NONBLOCK);
     if (ros2_publish_mq_ == -1) {
-      RCLCPP_ERROR(logger, "mq_open for ROS 2 publish notification failed: %s", strerror(errno));
+      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -102,9 +102,7 @@ public:
     MqMsgPublishNotification mq_msg = {};
     mq_msg.should_terminate = true;
     if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-      RCLCPP_ERROR(logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
+      RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
     }
 
     ros2_publish_thread_.join();
@@ -112,14 +110,15 @@ public:
 
   void create_ros2_publish_thread()
   {
+    const int mq_mode = 0666;
     struct mq_attr attr = {};
     attr.mq_flags = 0;
     attr.mq_maxmsg = 1;
     attr.mq_msgsize = sizeof(MqMsgPublishNotification);
     attr.mq_curmsgs = 0;
-    mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_CREAT | O_RDONLY, 0666, &attr);
+    mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_CREAT | O_RDONLY, mq_mode, &attr);
     if (mq == -1) {
-      RCLCPP_ERROR(logger, "mq_open for ROS 2 publish notification failed: %s", strerror(errno));
+      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
@@ -153,16 +152,11 @@ public:
       }
 
       if (mq_close(mq) == -1) {
-        RCLCPP_ERROR(logger, "mq_close for ROS 2 publish notification failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
       }
 
       if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
-        RCLCPP_ERROR(
-          logger, "mq_unlink for ROS 2 publish notification failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+        RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
       }
     });
   }
@@ -204,14 +198,11 @@ public:
       MqMsgPublishNotification mq_msg = {};
       mq_msg.should_terminate = false;
       if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        // If it returns EAGAIN, it means mq_send has already been executed, but the subscriber
-        // hasn't received it yet. Thus, there's no need to send it again since the notification has
-        // already been sent.
+        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
+        // thread hasn't received it yet. Thus, there's no need to send it again since the
+        // notification has already been sent.
         if (errno != EAGAIN) {
-          RCLCPP_ERROR(
-            logger, "mq_send for ROS 2 publish notification failed: %s", strerror(errno));
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
+          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
         }
       }
     } else {
