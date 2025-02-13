@@ -83,8 +83,9 @@ public:
       do_always_ros2_publish_ = false;
     }
 
-    const std::thread::id tid = std::this_thread::get_id();
-    ros2_publish_mq_name_ = create_mq_name(topic_name_, tid);
+    id_ = initialize_publisher(publisher_pid_, topic_name_);
+
+    ros2_publish_mq_name_ = create_mq_name_for_agnocast_publish(topic_name_, id_);
 
     create_ros2_publish_thread();
 
@@ -94,8 +95,6 @@ public:
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
-
-    id_ = initialize_publisher(publisher_pid_, topic_name_);
   }
 
   ~Publisher()
