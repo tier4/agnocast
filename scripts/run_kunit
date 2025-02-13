@@ -16,7 +16,14 @@ if ! grep -q "CONFIG_KUNIT=y" $CONFIG_FILE; then
     exit 0
 fi
 
-### Run KUnit tests
+### Check if agnocast.ko is not already loaded.
+### Since agnocast_kunit.ko contains symbols from agnocast.ko,
+### symbol conflicts will ocurr if it is already loaded.
+if lsmod | grep -q "agnocast"; then
+  echo "Kernel module 'agnocast' is already loaded. Unloaded it before kunit test."
+  exit 1
+fi
+
 AGNOCAST_DIR=$(realpath "$(dirname $(readlink -f $0))/..")
 
 AGNOCAST_KMOD_PATH=$AGNOCAST_DIR/kmod
