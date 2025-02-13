@@ -22,13 +22,15 @@ void validate_ld_preload()
 
 std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
 {
-  std::string mq_name = topic_name + "@" + std::to_string(id);
-
-  if (mq_name[0] != '/') {
+  if (topic_name.length() == 0 || topic_name[0] != '/') {
     RCLCPP_ERROR(logger, "create_mq_name failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  std::string mq_name = topic_name;
+  mq_name[0] = '@';
+  mq_name = "/agnocast" + mq_name + "@" + std::to_string(id);
 
   // As a mq_name, '/' cannot be used
   for (size_t i = 1; i < mq_name.size(); i++) {
