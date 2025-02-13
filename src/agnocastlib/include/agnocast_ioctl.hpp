@@ -64,7 +64,7 @@ union ioctl_publisher_args {
 struct ioctl_update_entry_args
 {
   const char * topic_name;
-  topic_local_id_t subscriber_id;
+  topic_local_id_t pubsub_id;
   int64_t entry_id;
 };
 #pragma GCC diagnostic pop

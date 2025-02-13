@@ -23,6 +23,9 @@ static DEFINE_MUTEX(global_mutex);
 #define SUB_INFO_HASH_BITS 3
 #define PROC_INFO_HASH_BITS 10
 
+// Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
+#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
+
 struct process_info
 {
   pid_t pid;
@@ -76,8 +79,8 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  topic_local_id_t referencing_subscriber_ids[MAX_SUBSCRIBER_NUM];
-  uint8_t subscriber_reference_count[MAX_SUBSCRIBER_NUM];
+  topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
+  uint8_t reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -261,45 +264,46 @@ static struct publisher_info * insert_publisher_info(
   return new_info;
 }
 
-static bool is_subscriber_referencing(struct entry_node * en)
+static bool is_referenced(struct entry_node * en)
 {
-  // The referencing_subscriber_ids array is always populated starting from the smallest index.
-  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing subscriber.
-  return (en->referencing_subscriber_ids[0] != -1);
+  // The referencing_ids array is always populated starting from the smallest index.
+  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing.
+  return (en->referencing_ids[0] != -1);
 }
 
-static void remove_referencing_subscriber_by_index(struct entry_node * en, int index)
+static void remove_reference_by_index(struct entry_node * en, int index)
 {
-  for (int i = index; i < MAX_SUBSCRIBER_NUM - 1; i++) {
-    en->referencing_subscriber_ids[i] = en->referencing_subscriber_ids[i + 1];
-    en->subscriber_reference_count[i] = en->subscriber_reference_count[i + 1];
+  for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1; i++) {
+    en->referencing_ids[i] = en->referencing_ids[i + 1];
+    en->reference_count[i] = en->reference_count[i + 1];
   }
 
-  en->referencing_subscriber_ids[MAX_SUBSCRIBER_NUM - 1] = -1;
-  en->subscriber_reference_count[MAX_SUBSCRIBER_NUM - 1] = 0;
+  en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = -1;
+  en->reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = 0;
   return;
 }
 
-static int increment_sub_rc(struct entry_node * en, const topic_local_id_t subscriber_id)
+static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_ids[i] == subscriber_id) {
-      en->subscriber_reference_count[i]++;
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    if (en->referencing_ids[i] == id) {
+      en->reference_count[i]++;
       return 0;
     }
 
-    if (en->subscriber_reference_count[i] == 0) {
-      en->referencing_subscriber_ids[i] = subscriber_id;
-      en->subscriber_reference_count[i] = 1;
+    if (en->reference_count[i] == 0) {
+      en->referencing_ids[i] = id;
+      en->reference_count[i] = 1;
       return 0;
     }
   }
 
   dev_warn(
     agnocast_device,
-    "The number of subscribers reached the upper bound (MAX_SUBSCRIBER_NUM=%d), "
-    "so no new subscriber can reference. (increment_sub_rc)\n",
-    MAX_SUBSCRIBER_NUM);
+    "Unreachable. The number of referencing publisher and subscribers reached the upper bound "
+    "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
+    "(increment_sub_rc)\n",
+    MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
   return -1;
 }
@@ -326,7 +330,7 @@ static struct entry_node * find_message_entry(
 }
 
 static int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -346,15 +350,24 @@ static int increment_message_entry_rc(
     return -1;
   }
 
-  if (increment_sub_rc(en, subscriber_id) == -1) {
+  if (en->publisher_id == pubsub_id) {
+    dev_warn(
+      agnocast_device,
+      "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
+      "(increment_message_entry_rc)\n",
+      wrapper->key, entry_id, pubsub_id);
     return -1;
+  } else {
+    if (increment_sub_rc(en, pubsub_id) == -1) {
+      return -1;
+    }
   }
 
   return 0;
 }
 
 static int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t subscriber_id, const int64_t entry_id)
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -374,12 +387,12 @@ static int decrement_message_entry_rc(
     return -1;
   }
 
-  // decrement subscriber_reference_count
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    if (en->referencing_subscriber_ids[i] == subscriber_id) {
-      en->subscriber_reference_count[i]--;
-      if (en->subscriber_reference_count[i] == 0) {
-        remove_referencing_subscriber_by_index(en, i);
+  // decrement reference_count
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    if (en->referencing_ids[i] == pubsub_id) {
+      en->reference_count[i]--;
+      if (en->reference_count[i] == 0) {
+        remove_reference_by_index(en, i);
       }
 
       return 0;
@@ -388,8 +401,9 @@ static int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "Subscriber is not referencing (topic_name=%s entry_id=%lld). (decrement_message_entry_rc)\n",
-    topic_name, entry_id);
+    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    pubsub_id, topic_name, entry_id);
 
   return -1;
 }
@@ -407,9 +421,11 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    new_node->referencing_subscriber_ids[i] = -1;
-    new_node->subscriber_reference_count[i] = 0;
+  new_node->referencing_ids[0] = pub_info->id;
+  new_node->reference_count[0] = 1;
+  for (int i = 1; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    new_node->referencing_ids[i] = -1;
+    new_node->reference_count[i] = 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
@@ -706,11 +722,10 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
         en->publisher_id, en->msg_virtual_address);
       used_size += ret;
 
-      for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-        if (en->referencing_subscriber_ids[i] == -1) break;
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+        if (en->referencing_ids[i] == -1) break;
 
-        ret = scnprintf(
-          buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_subscriber_ids[i]);
+        ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_ids[i]);
         used_size += ret;
       }
 
@@ -855,12 +870,6 @@ static int subscriber_add(
     struct entry_node * en = container_of(node, struct entry_node, node);
 
     if (increment_sub_rc(en, sub_info->id) == -1) {
-      dev_warn(
-        agnocast_device,
-        "The number of subscribers for the entry_node (entry_id=%lld) reached the upper "
-        "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can reference."
-        " (subscriber_add)\n",
-        en->entry_id, MAX_SUBSCRIBER_NUM);
       return -1;
     }
 
@@ -959,7 +968,7 @@ static int release_msgs_to_meet_depth(
   // HACK:
   //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
   //   if there are more messages to release, qos_depth is temporarily not met.
-  //   However, it is rare for the subscriber_reference_count of more than MAX_RELEASE_NUM messages
+  //   However, it is rare for the reference_count of more than MAX_RELEASE_NUM messages
   //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
   //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
   //   system behavior.
@@ -979,7 +988,7 @@ static int release_msgs_to_meet_depth(
     num_search_entries--;
 
     // This is not counted in a Queue size of QoS.
-    if (is_subscriber_referencing(en)) continue;
+    if (is_referenced(en)) continue;
 
     ioctl_ret->ret_released_addrs[ioctl_ret->ret_released_num] = en->msg_virtual_address;
     ioctl_ret->ret_released_num++;
@@ -1240,8 +1249,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        increment_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_DECREMENT_RC_CMD:
       if (copy_from_user(
@@ -1250,8 +1258,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret =
-        decrement_message_entry_rc(topic_name_buf, entry_args.subscriber_id, entry_args.entry_id);
+      ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
       break;
     case AGNOCAST_RECEIVE_MSG_CMD:
       union ioctl_receive_msg_args receive_msg_args;
@@ -1376,13 +1383,13 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-        if (en->referencing_subscriber_ids[i] == subscriber_id) {
-          remove_referencing_subscriber_by_index(en, i);
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+        if (en->referencing_ids[i] == subscriber_id) {
+          remove_reference_by_index(en, i);
         }
       }
 
-      if (is_subscriber_referencing(en)) continue;
+      if (is_referenced(en)) continue;
 
       bool publisher_exited = false;
       struct publisher_info * pub_info;
@@ -1424,7 +1431,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     while (node) {
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
-      if (en->publisher_id == publisher_id && !is_subscriber_referencing(en)) {
+      if (en->publisher_id == publisher_id && !is_referenced(en)) {
         pub_info->entries_num--;
         remove_entry_node(wrapper, en);
       }
