@@ -20,7 +20,7 @@ fi
 ### Since agnocast_kunit.ko contains symbols from agnocast.ko,
 ### symbol conflicts will ocurr if it is already loaded.
 if lsmod | grep -q "agnocast"; then
-  echo "Kernel module 'agnocast' is already loaded. Unloaded it before kunit test."
+  echo "Kernel module 'agnocast' is already loaded. Unload it before kunit test."
   exit 1
 fi
 
