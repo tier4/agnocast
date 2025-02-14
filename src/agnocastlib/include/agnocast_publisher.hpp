@@ -37,7 +37,9 @@ extern "C" uint32_t get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
-  bool do_always_ros2_publish = true;  // For transient local.
+  // For transient local. If true, publish() does both Agnocast publish and ROS 2 publish,
+  // regardless of the existence of ROS 2 subscriptions.
+  bool do_always_ros2_publish = true;
 };
 
 template <typename MessageT>
