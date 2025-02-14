@@ -28,32 +28,34 @@ template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return std::make_shared<Publisher<MessageT>>(node, topic_name, qos, true);
+  PublisherOptions options;
+  return std::make_shared<Publisher<MessageT>>(node, topic_name, qos, options);
 }
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
 {
+  PublisherOptions options;
   return std::make_shared<Publisher<MessageT>>(
-    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), true);
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), options);
 }
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-  const bool do_always_ros2_publish)
+  const PublisherOptions & options)
 {
-  return std::make_shared<Publisher<MessageT>>(node, topic_name, qos, do_always_ros2_publish);
+  return std::make_shared<Publisher<MessageT>>(node, topic_name, qos, options);
 }
 
 template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth,
-  const bool do_always_ros2_publish)
+  const PublisherOptions & options)
 {
   return std::make_shared<Publisher<MessageT>>(
-    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), do_always_ros2_publish);
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), options);
 }
 
 template <typename MessageT>
