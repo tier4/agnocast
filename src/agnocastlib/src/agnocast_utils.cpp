@@ -20,7 +20,8 @@ void validate_ld_preload()
   }
 }
 
-std::string create_mq_name(const std::string & topic_name, const topic_local_id_t id)
+static std::string create_mq_name(
+  const std::string & header, const std::string & topic_name, const topic_local_id_t id)
 {
   if (topic_name.length() == 0 || topic_name[0] != '/') {
     RCLCPP_ERROR(logger, "create_mq_name failed");
@@ -30,7 +31,7 @@ std::string create_mq_name(const std::string & topic_name, const topic_local_id_
 
   std::string mq_name = topic_name;
   mq_name[0] = '@';
-  mq_name = "/agnocast" + mq_name + "@" + std::to_string(id);
+  mq_name = header + mq_name + "@" + std::to_string(id);
 
   // As a mq_name, '/' cannot be used
   for (size_t i = 1; i < mq_name.size(); i++) {
@@ -40,6 +41,18 @@ std::string create_mq_name(const std::string & topic_name, const topic_local_id_
   }
 
   return mq_name;
+}
+
+std::string create_mq_name_for_agnocast_publish(
+  const std::string & topic_name, const topic_local_id_t id)
+{
+  return create_mq_name("/agnocast", topic_name, id);
+}
+
+std::string create_mq_name_for_ros2_publish(
+  const std::string & topic_name, const topic_local_id_t id)
+{
+  return create_mq_name("/agnocast_to_ros2", topic_name, id);
 }
 
 std::string create_shm_name(const pid_t pid)

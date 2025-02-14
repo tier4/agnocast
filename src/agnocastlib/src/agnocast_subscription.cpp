@@ -43,7 +43,7 @@ mqd_t open_mq_for_subscription(
   const std::string & topic_name, const topic_local_id_t subscriber_id,
   std::pair<mqd_t, std::string> & mq_subscription)
 {
-  std::string mq_name = create_mq_name(topic_name, subscriber_id);
+  std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
   struct mq_attr attr = {};
   attr.mq_flags = 0;                        // Blocking queue
   attr.mq_msgsize = sizeof(MqMsgAgnocast);  // Maximum message size

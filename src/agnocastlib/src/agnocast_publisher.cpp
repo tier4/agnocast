@@ -69,7 +69,7 @@ union ioctl_publish_args publish_core(
   for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
     const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
 
-    const std::string mq_name = create_mq_name(topic_name, subscriber_id);
+    const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
     mqd_t mq = 0;
     if (opened_mqs.find(mq_name) != opened_mqs.end()) {
       mq = opened_mqs[mq_name];

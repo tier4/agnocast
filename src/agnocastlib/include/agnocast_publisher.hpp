@@ -18,6 +18,9 @@
 
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <queue>
+#include <thread>
 
 namespace agnocast
 {
@@ -53,7 +56,14 @@ class Publisher
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   PublisherOptions options_;
+
+  // ROS2 publish related variables
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
+  mqd_t ros2_publish_mq_;
+  std::string ros2_publish_mq_name_;
+  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
+  std::thread ros2_publish_thread_;
+  std::mutex ros2_publish_mtx_;
 
 public:
   using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
@@ -81,6 +91,87 @@ public:
     }
 
     id_ = initialize_publisher(publisher_pid_, topic_name_);
+
+    ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
+
+    const int mq_mode = 0666;
+    struct mq_attr attr = {};
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = 1;
+    attr.mq_msgsize = sizeof(MqMsgROS2Publish);
+    attr.mq_curmsgs = 0;
+    ros2_publish_mq_ =
+      mq_open(ros2_publish_mq_name_.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK, mq_mode, &attr);
+    if (ros2_publish_mq_ == -1) {
+      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
+  }
+
+  ~Publisher()
+  {
+    MqMsgROS2Publish mq_msg = {};
+    mq_msg.should_terminate = true;
+    if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+      RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+    }
+
+    ros2_publish_thread_.join();
+
+    if (mq_close(ros2_publish_mq_) == -1) {
+      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+    }
+
+    if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
+      RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+    }
+  }
+
+  void do_ros2_publish()
+  {
+    mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_RDONLY);
+    if (mq == -1) {
+      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    while (true) {
+      MqMsgROS2Publish mq_msg = {};
+      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+      if (ret == -1) {
+        RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      if (mq_msg.should_terminate) {
+        break;
+      }
+
+      while (true) {
+        ipc_shared_ptr<MessageT> message;
+
+        {
+          std::scoped_lock lock(ros2_publish_mtx_);
+          if (ros2_message_queue_.empty()) {
+            break;
+          }
+
+          message = std::move(ros2_message_queue_.front());
+          ros2_message_queue_.pop();
+        }
+
+        ros2_publisher_->publish(*message.get());
+      }
+    }
+
+    if (mq_close(mq) == -1) {
+      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+    }
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
@@ -112,11 +203,24 @@ public:
     }
 
     if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
-      const MessageT * raw = message.get();
-      ros2_publisher_->publish(*raw);
-    }
+      {
+        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+        ros2_message_queue_.push(std::move(message));
+      }
 
-    message.reset();
+      MqMsgROS2Publish mq_msg = {};
+      mq_msg.should_terminate = false;
+      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
+        // thread hasn't received it yet. Thus, there's no need to send it again since the
+        // notification has already been sent.
+        if (errno != EAGAIN) {
+          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+        }
+      }
+    } else {
+      message.reset();
+    }
   }
 
   uint32_t get_subscription_count() const
