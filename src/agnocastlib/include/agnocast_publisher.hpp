@@ -43,6 +43,8 @@ struct PublisherOptions
   // For transient local. If true, publish() does both Agnocast publish and ROS 2 publish,
   // regardless of the existence of ROS 2 subscriptions.
   bool do_always_ros2_publish = true;
+  // No overrides allowed by default.
+  rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
 template <typename MessageT>
@@ -51,7 +53,7 @@ class Publisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   pid_t publisher_pid_;
-  rclcpp::QoS qos_;
+  rclcpp::QoS qos_{0};
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
@@ -72,9 +74,7 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-    publisher_pid_(getpid()),
-    qos_(qos),
-    ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
+    publisher_pid_(getpid())
   {
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
@@ -83,6 +83,12 @@ public:
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       topic_name_.c_str(), qos.depth());
 #endif
+
+    rclcpp::PublisherOptions pub_options;
+    pub_options.qos_overriding_options = options.qos_overriding_options;
+    ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
+
+    qos_ = ros2_publisher_->get_actual_qos();
 
     if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       options_.do_always_ros2_publish = options.do_always_ros2_publish;
