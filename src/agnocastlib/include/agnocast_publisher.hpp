@@ -106,7 +106,7 @@ public:
 
   ~Publisher()
   {
-    MqMsgPublishNotification mq_msg = {};
+    MqMsgROS2Publish mq_msg = {};
     mq_msg.should_terminate = true;
     if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
       RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
@@ -121,7 +121,7 @@ public:
     struct mq_attr attr = {};
     attr.mq_flags = 0;
     attr.mq_maxmsg = 1;
-    attr.mq_msgsize = sizeof(MqMsgPublishNotification);
+    attr.mq_msgsize = sizeof(MqMsgROS2Publish);
     attr.mq_curmsgs = 0;
     mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_CREAT | O_RDONLY, mq_mode, &attr);
     if (mq == -1) {
@@ -132,7 +132,7 @@ public:
 
     ros2_publish_thread_ = std::thread([this, mq]() {
       while (true) {
-        MqMsgPublishNotification mq_msg = {};
+        MqMsgROS2Publish mq_msg = {};
         auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
         if (ret == -1) {
           RCLCPP_ERROR(
@@ -206,7 +206,7 @@ public:
         ros2_message_queue_.push(std::move(message));
       }
 
-      MqMsgPublishNotification mq_msg = {};
+      MqMsgROS2Publish mq_msg = {};
       mq_msg.should_terminate = false;
       if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
         // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish

@@ -7,7 +7,7 @@ struct MqMsgAgnocast
 {
 };
 
-struct MqMsgPublishNotification
+struct MqMsgROS2Publish
 {
   bool should_terminate;
 };
