@@ -50,6 +50,10 @@ This is a bit excessive, such as
         ^
 ```
 
+## readability-avoid-const-params-in-decls
+
+We think it is better for a function declaration to convey the function's exact signature.
+
 ## TODO
 
 - [ ] cert-err58-cpp

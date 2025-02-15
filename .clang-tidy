@@ -38,7 +38,8 @@ Checks: "
 
   readability-*,
   -readability-function-cognitive-complexity,
-  -readability-identifier-length"
+  -readability-identifier-length,
+  -readability-avoid-const-params-in-decls"
 
 WarningsAsErrors: "
   bugprone-*,
