@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ros2agnocast</name>
+  <version>0.0.0</version>
+  <description>
+    The ROS 2 command line tool extension for Agnocast.
+  </description>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <license>TODO: License declaration</license>
+
+  <depend>ros2cli</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
