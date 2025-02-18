@@ -1,8 +1,11 @@
-
+import ctypes
 from ros2topic.verb import VerbExtension
 
 class ListAgnocastVerb(VerbExtension):
     "Output a list of available Agnocast topics"
 
     def main(self, *, args):
-        print("TODO: list Agnocast topics")
+        lib = ctypes.CDLL("libros2agnocast_wrapper.so")
+        lib.topic_list.argtypes = []
+        lib.topic_list.restype = ctypes.c_int
+        lib.topic_list()
