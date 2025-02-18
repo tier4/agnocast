@@ -5,7 +5,7 @@ class ListAgnocastVerb(VerbExtension):
     "Output a list of available Agnocast topics"
 
     def main(self, *, args):
-        lib = ctypes.CDLL("libros2agnocast_wrapper.so")
+        lib = ctypes.CDLL("libagnocast_ioctl_wrapper.so")
         lib.topic_list.argtypes = []
         lib.topic_list.restype = ctypes.c_int
         lib.topic_list()

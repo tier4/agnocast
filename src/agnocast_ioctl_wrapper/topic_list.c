@@ -1,15 +1,21 @@
-#include "ros2agnocast_wrapper.h"
-
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <stdint.h>
+
+struct ioctl_topic_list_args
+{
+  uint32_t dummy;
+};
+
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, struct ioctl_topic_list_args)
 
 int topic_list()
 {
   int fd = open("/dev/agnocast", O_RDWR);
   if (fd < 0) {
-    perror("Failed to open the device");
+    perror("Failed to open /dev/agnocast");
     return -1;
   }
 
