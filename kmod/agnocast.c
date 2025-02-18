@@ -168,13 +168,13 @@ static int insert_subscriber_info(
       "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
       "added. (insert_subscriber_info)\n",
       wrapper->key, MAX_SUBSCRIBER_NUM);
-    return NULL;
+    return -ENOBUFS;
   }
 
   new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
   if (!new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
-    return NULL;
+    return -ENOMEM;
   }
 
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
