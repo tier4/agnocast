@@ -1329,6 +1329,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             sizeof(get_subscriber_num_args)))
         goto unlock_mutex_and_return;
       break;
+    case AGNOCAST_GET_TOPIC_LIST_CMD:
+      // TODO(Ryuta Kambe): implement
+      break;
     default:
       mutex_unlock(&global_mutex);
       return -EINVAL;
