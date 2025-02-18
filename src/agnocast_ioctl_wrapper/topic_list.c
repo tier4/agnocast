@@ -1,8 +1,8 @@
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <stdint.h>
 
 struct ioctl_topic_list_args
 {
