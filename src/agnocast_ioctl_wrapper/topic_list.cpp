@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 // ================================================
 // ioctl definition: copy from kmod/agnocast.h
