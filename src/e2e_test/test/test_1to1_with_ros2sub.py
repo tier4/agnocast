@@ -43,7 +43,7 @@ def calc_action_delays(config: dict) -> tuple:
     unit_delay = 1.0
     pub_delay = 0.0 if config['launch_pub_before_sub'] else unit_delay
     sub_delay = 0.01 * EXPECT_INIT_PUB_NUM + unit_delay if config['launch_pub_before_sub'] else 0.0
-    ready_delay = pub_delay + sub_delay + 5.0
+    ready_delay = pub_delay + sub_delay + 7.0
     return pub_delay, sub_delay, ready_delay
 
 
