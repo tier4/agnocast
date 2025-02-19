@@ -133,7 +133,6 @@ union ioctl_get_subscriber_num_args {
 // ros2cli ioctls
 
 #define MAX_TOPIC_NUM 1024
-#define TOPIC_NAME_BUFFER_SIZE 256
 
 union ioctl_topic_list_args {
   uint64_t topic_name_buffer_addr;

@@ -26,6 +26,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
 
+// Maximum length of topic name: 256 characters
+#define TOPIC_NAME_BUFFER_SIZE 256
+
 struct process_info
 {
   pid_t pid;
