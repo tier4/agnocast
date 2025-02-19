@@ -25,7 +25,7 @@ struct ioctl_topic_list_args
 
 int topic_list()
 {
-  int fd = open("/dev/agnocast", O_RDWR);
+  int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
     return -1;
