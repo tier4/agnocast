@@ -3,7 +3,7 @@ project(agnocast_ioctl_wrapper)
 
 find_package(ament_cmake REQUIRED)
 
-add_library(agnocast_ioctl_wrapper SHARED topic_list.c)
+add_library(agnocast_ioctl_wrapper SHARED topic_list.cpp)
 
 install(TARGETS agnocast_ioctl_wrapper LIBRARY DESTINATION lib)
 
