@@ -1210,38 +1210,30 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
   return 0;
 }
 
-static int get_topic_list(unsigned long arg)
+static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
-  struct ioctl_topic_list_args topic_list_args;
-  if (copy_from_user(
-        &topic_list_args, (struct ioctl_topic_list_args __user *)arg, sizeof(topic_list_args))) {
-    return -EFAULT;
-  }
-
-  topic_list_args.ret_topic_num = 0;
+  uint32_t topic_num = 0;
 
   struct topic_wrapper * wrapper;
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
-    if (topic_list_args.ret_topic_num >= MAX_TOPIC_NUM) {
+    if (topic_num >= MAX_TOPIC_NUM) {
       dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
-      return -EFAULT;
+      return -ENOBUFS;
     }
 
     if (copy_to_user(
-          (char __user *)topic_list_args.ret_topic_name[topic_list_args.ret_topic_num],
+          (char __user *)(topic_list_args->topic_name_buffer_addr +
+                          topic_num * TOPIC_NAME_BUFFER_SIZE),
           wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
-    topic_list_args.ret_topic_num++;
+    topic_num++;
   }
 
-  if (copy_to_user(
-        (struct ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args))) {
-    return -EFAULT;
-  }
+  topic_list_args->ret_topic_num = topic_num;
 
   return 0;
 }
@@ -1250,7 +1242,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 {
   mutex_lock(&global_mutex);
   int ret = 0;
-  char topic_name_buf[256];
+  char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
   struct ioctl_update_entry_args entry_args;
 
   switch (cmd) {
@@ -1366,7 +1358,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_GET_TOPIC_LIST_CMD:
-      ret = get_topic_list(arg);
+      union ioctl_topic_list_args topic_list_args;
+      if (copy_from_user(
+            &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
+        goto unlock_mutex_and_return;
+      ret = get_topic_list(&topic_list_args);
+      if (copy_to_user(
+            (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
+        goto unlock_mutex_and_return;
       break;
     default:
       mutex_unlock(&global_mutex);

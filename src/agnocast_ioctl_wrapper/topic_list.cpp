@@ -3,23 +3,25 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cstring>
 #include <iostream>
-#include <memory>
+#include <string>
 #include <vector>
 
 // ================================================
 // ioctl definition: copy from kmod/agnocast.h
 
-#define MAX_TOPIC_NUM 64
+#define MAX_TOPIC_NUM 1024
+#define TOPIC_NAME_BUFFER_SIZE 256
 
-struct ioctl_topic_list_args
-{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_topic_list_args {
+  uint64_t topic_name_buffer_addr;
   uint32_t ret_topic_num;
-  char * ret_topic_name[MAX_TOPIC_NUM];
 };
+#pragma GCC diagnostic pop
 
-#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, struct ioctl_topic_list_args)
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
 
 // ================================================
 
@@ -31,31 +33,29 @@ extern "C" int topic_list()
     return -1;
   }
 
-  struct ioctl_topic_list_args topic_list_args = {};
-  std::vector<std::unique_ptr<char[]>> buffers;
-  buffers.reserve(MAX_TOPIC_NUM);
-  constexpr size_t MAX_TOPIC_NAME_LEN = 256;
-  for (auto & topic_name : topic_list_args.ret_topic_name) {
-    buffers.push_back(std::make_unique<char[]>(MAX_TOPIC_NAME_LEN));
-    topic_name = buffers.back().get();
-  }
+  char * topic_name_buffer = static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
 
+  union ioctl_topic_list_args topic_list_args = {};
+  topic_list_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(topic_name_buffer);
   if (ioctl(fd, AGNOCAST_GET_TOPIC_LIST_CMD, &topic_list_args) < 0) {
     perror("AGNOCAST_GET_TOPIC_LIST_CMD failed");
+    free(topic_name_buffer);
     close(fd);
     return -1;
   }
 
-  std::sort(
-    buffers.begin(), buffers.begin() + topic_list_args.ret_topic_num,
-    [](const std::unique_ptr<char[]> & a, const std::unique_ptr<char[]> & b) {
-      return std::strcmp(a.get(), b.get()) < 0;
-    });
-
+  std::vector<std::string> topic_names;
   for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
-    std::cout << buffers[i].get() << std::endl;
+    topic_names.push_back(topic_name_buffer + i * TOPIC_NAME_BUFFER_SIZE);
   }
 
+  std::sort(topic_names.begin(), topic_names.end());
+
+  for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
+    std::cout << topic_names[i] << std::endl;
+  }
+
+  free(topic_name_buffer);
   close(fd);
 
   return 0;
