@@ -17,8 +17,8 @@ extern "C" int topic_list()
     return -1;
   }
 
-  char * topic_name_buffer =
-    static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));  // NOLINT
+  // NOLINTNEXTLINE
+  char * topic_name_buffer = static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
 
   union ioctl_topic_list_args topic_list_args = {};
   topic_list_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(topic_name_buffer);
