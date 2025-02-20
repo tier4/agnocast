@@ -231,7 +231,8 @@ static struct publisher_info * find_publisher_info(
 }
 
 static int insert_publisher_info(
-  struct topic_wrapper * wrapper, const pid_t publisher_pid, struct publisher_info ** new_info)
+  struct topic_wrapper * wrapper, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
   int count = get_size_pub_info_htable(wrapper);
   if (count == MAX_PUBLISHER_NUM) {
@@ -255,6 +256,8 @@ static int insert_publisher_info(
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
+  (*new_info)->qos_depth = qos_depth;
+  (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
   (*new_info)->exited = false;
   INIT_HLIST_NODE(&(*new_info)->node);
@@ -919,14 +922,12 @@ static int publisher_add(
   }
 
   struct publisher_info * pub_info;
-  ret = insert_publisher_info(wrapper, publisher_pid, &pub_info);
+  ret = insert_publisher_info(wrapper, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
   if (ret < 0) {
     return ret;
   }
 
   ioctl_ret->ret_id = pub_info->id;
-  pub_info->qos_depth = qos_depth;
-  pub_info->qos_is_transient_local = qos_is_transient_local;
 
   // set true to subscriber_info.new_publisher to notify
   struct subscriber_info * sub_info;
