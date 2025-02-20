@@ -48,11 +48,10 @@ class SubscriptionBase
 protected:
   topic_local_id_t id_;
   const std::string topic_name_;
-  const rclcpp::QoS qos_;
-  union ioctl_subscriber_args initialize(bool is_take_sub);
+  union ioctl_subscriber_args initialize(const rclcpp::QoS & qos, const bool is_take_sub);
 
 public:
-  SubscriptionBase(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos);
+  SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
 template <typename MessageT>
@@ -67,9 +66,9 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(node, topic_name, qos)
+  : SubscriptionBase(node, topic_name)
   {
-    union ioctl_subscriber_args subscriber_args = initialize(false);
+    union ioctl_subscriber_args subscriber_args = initialize(qos, false);
 
     id_ = subscriber_args.ret_id;
 
@@ -77,8 +76,8 @@ public:
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
-      callback, topic_name_, id_, static_cast<uint32_t>(qos.depth()), mq, callback_group);
+    [[maybe_unused]] uint32_t callback_info_id =
+      agnocast::register_callback(callback, topic_name_, id_, mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -91,7 +90,7 @@ public:
 
     // If there are messages available and the transient local is enabled, immediately call the
     // callback.
-    if (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       // old messages first
       for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
         MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_entry_addrs[i]);
@@ -112,7 +111,7 @@ public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
   TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-  : SubscriptionBase(node, topic_name, qos)
+  : SubscriptionBase(node, topic_name)
   {
 #ifdef TRACETOOLS_LTTNG_ENABLED
     auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
@@ -132,7 +131,7 @@ public:
         logger, "The transient local is not supported by TakeSubscription, so it is ignored.");
     }
 
-    union ioctl_subscriber_args subscriber_args = initialize(true);
+    union ioctl_subscriber_args subscriber_args = initialize(qos, true);
 
     id_ = subscriber_args.ret_id;
   }
@@ -142,7 +141,6 @@ public:
     union ioctl_take_msg_args take_args;
     take_args.topic_name = topic_name_.c_str();
     take_args.subscriber_id = id_;
-    take_args.qos_depth = static_cast<uint32_t>(qos_.depth());
     take_args.allow_same_message = allow_same_message;
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
       RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
