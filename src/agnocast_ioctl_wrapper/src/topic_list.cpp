@@ -70,6 +70,20 @@ extern "C" int topic_list()
   int ros2_topic_index = 0;
   while (agnocast_topic_index < topic_list_args.ret_topic_num ||
          ros2_topic_index < ros2_topics.size()) {
+    if (agnocast_topic_index == topic_list_args.ret_topic_num) {
+      for (int i = ros2_topic_index; i < ros2_topics.size(); i++) {
+        std::cout << ros2_topics[i] << std::endl;
+      }
+      break;
+    }
+
+    if (ros2_topic_index == ros2_topics.size()) {
+      for (int i = agnocast_topic_index; i < topic_list_args.ret_topic_num; i++) {
+        std::cout << agnocast_topics[i] << " (Agnocast enabled)" << std::endl;
+      }
+      break;
+    }
+
     int ret = agnocast_topics[agnocast_topic_index].compare(ros2_topics[ros2_topic_index]);
     if (ret == 0) {
       std::cout << agnocast_topics[agnocast_topic_index] << " (Agnocast enabled)" << std::endl;
@@ -82,14 +96,6 @@ extern "C" int topic_list()
       std::cout << ros2_topics[ros2_topic_index] << std::endl;
       ros2_topic_index++;
     }
-  }
-
-  for (int i = ros2_topic_index; i < ros2_topics.size(); i++) {
-    std::cout << ros2_topics[i] << std::endl;
-  }
-
-  for (int i = agnocast_topic_index; i < topic_list_args.ret_topic_num; i++) {
-    std::cout << agnocast_topics[i] << " (Agnocast enabled)" << std::endl;
   }
 
   return 0;
