@@ -6,3 +6,4 @@ coverage_report_agnocastlib
 .vscode
 agnocast_kmod_coverage_report
 *.pyc
+__pycache__

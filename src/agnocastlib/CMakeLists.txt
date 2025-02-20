@@ -81,13 +81,13 @@ if(BUILD_TESTING)
   include_directories(${gmock-global_SOURCE_DIR}/include)
 
   find_package(ament_cmake_gmock REQUIRED)
-  ament_add_gmock(test_${PROJECT_NAME}
-    test/test_agnocast_utils.cpp
-    test/test_agnocast_subscription.cpp
-    test/test_mocked_agnocast.cpp)
-  target_include_directories(test_${PROJECT_NAME} PRIVATE include)
-  target_link_libraries(test_${PROJECT_NAME} gmock-global agnocast)
-  set_tests_properties(test_${PROJECT_NAME} PROPERTIES
+  ament_add_gmock(test_unit_${PROJECT_NAME}
+    test/unit/test_agnocast_utils.cpp
+    test/unit/test_agnocast_subscription.cpp
+    test/unit/test_mocked_agnocast.cpp)
+  target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
+  target_link_libraries(test_unit_${PROJECT_NAME} gmock-global agnocast)
+  set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )
 endif()

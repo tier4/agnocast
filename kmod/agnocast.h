@@ -128,3 +128,15 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
+
+// ================================================
+// ros2cli ioctls
+
+#define MAX_TOPIC_NUM 1024
+
+union ioctl_topic_list_args {
+  uint64_t topic_name_buffer_addr;
+  uint32_t ret_topic_num;
+};
+
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
