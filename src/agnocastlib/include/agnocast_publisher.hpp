@@ -26,10 +26,11 @@ namespace agnocast
 {
 
 // These are cut out of the class for information hiding.
-topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name);
+topic_local_id_t initialize_publisher(
+  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos);
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
-  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 void increment_borrowed_publisher_num();
@@ -51,7 +52,6 @@ class Publisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   pid_t publisher_pid_;
-  rclcpp::QoS qos_;
   // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
   // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
@@ -73,7 +73,6 @@ public:
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     publisher_pid_(getpid()),
-    qos_(qos),
     ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
   {
 #ifdef TRACETOOLS_LTTNG_ENABLED
@@ -90,7 +89,7 @@ public:
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(publisher_pid_, topic_name_);
+    id_ = initialize_publisher(publisher_pid_, topic_name_, qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
@@ -191,9 +190,8 @@ public:
 
     decrement_borrowed_publisher_num();
 
-    const union ioctl_publish_args publish_args = publish_core(
-      this, topic_name_, id_, static_cast<uint32_t>(qos_.depth()),
-      reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+    const union ioctl_publish_args publish_args =
+      publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
 
     message.set_entry_id(publish_args.ret_entry_id);
 
