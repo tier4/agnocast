@@ -155,3 +155,11 @@ void agnocast_exit_sysfs(void);
 void agnocast_exit_kthread(void);
 void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
+
+int subscriber_add(
+  char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
+  union ioctl_subscriber_args * ioctl_ret);
+
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
+
+int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);

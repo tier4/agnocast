@@ -843,7 +843,7 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-static int subscriber_add(
+int subscriber_add(
   char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret)
 {
@@ -900,6 +900,8 @@ static int subscriber_add(
 
   return 0;
 }
+
+EXPORT_SYMBOL(subscriber_add);
 
 static int publisher_add(
   const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
@@ -1187,7 +1189,7 @@ static int take_msg(
   return 0;
 }
 
-static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
   static uint64_t allocatable_addr = 0x40000000000;
@@ -1211,7 +1213,9 @@ static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_
   return 0;
 }
 
-static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
+EXPORT_SYMBOL(new_shm_addr);
+
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1224,6 +1228,8 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
 
   return 0;
 }
+
+EXPORT_SYMBOL(get_subscriber_num);
 
 static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
