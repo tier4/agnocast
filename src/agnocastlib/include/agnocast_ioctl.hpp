@@ -30,6 +30,7 @@ union ioctl_subscriber_args {
   {
     const char * topic_name;
     uint32_t qos_depth;
+    bool qos_is_transient_local;
     pid_t subscriber_pid;
     bool is_take_sub;
   };
@@ -78,7 +79,6 @@ union ioctl_receive_msg_args {
   {
     const char * topic_name;
     topic_local_id_t subscriber_id;
-    uint32_t qos_depth;
   };
   struct
   {
@@ -117,7 +117,6 @@ union ioctl_take_msg_args {
   {
     const char * topic_name;
     topic_local_id_t subscriber_id;
-    uint32_t qos_depth;
     bool allow_same_message;
   };
   struct
