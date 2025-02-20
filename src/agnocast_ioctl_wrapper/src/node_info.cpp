@@ -13,7 +13,6 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
   // In a real implementation, you should get the list of topics from agnocast
   // TODO(TetsuKawa): Implement the real implementation
   ///////////////////////////////////////
-  (void *)node_name;
   std::vector<std::string> topics = {
     "/chatter",
     "/another_topic_sub",
@@ -22,7 +21,7 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 
   *topic_count = topics.size();
 
-  char ** topic_array = (char **)malloc(topics.size() * sizeof(char *));
+  char ** topic_array = new char *[topics.size()];
   for (size_t i = 0; i < topics.size(); i++) {
     topic_array[i] = strdup(topics[i].c_str());
   }
@@ -36,7 +35,6 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
   // In a real implementation, you should get the list of topics from agnocast
   // TODO(TetsuKawa): Implement the real implementation
   ///////////////////////////////////////
-  (void *)node_name;
   std::vector<std::string> topics = {
     "/chatter",
     "/another_topic_pub",
@@ -45,7 +43,7 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 
   *topic_count = topics.size();
 
-  char ** topic_array = (char **)malloc(topics.size() * sizeof(char *));
+  char ** topic_array = new char *[topics.size()];
   for (size_t i = 0; i < topics.size(); i++) {
     topic_array[i] = strdup(topics[i].c_str());
   }
