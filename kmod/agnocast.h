@@ -132,9 +132,11 @@ union ioctl_get_subscriber_num_args {
 // ================================================
 // ros2cli ioctls
 
-struct ioctl_topic_list_args
-{
-  uint32_t dummy;
+#define MAX_TOPIC_NUM 1024
+
+union ioctl_topic_list_args {
+  uint64_t topic_name_buffer_addr;
+  uint32_t ret_topic_num;
 };
 
-#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, struct ioctl_topic_list_args)
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
