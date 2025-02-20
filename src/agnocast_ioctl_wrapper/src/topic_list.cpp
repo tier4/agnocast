@@ -12,6 +12,8 @@
 
 extern "C" int topic_list()
 {
+  // ======== Get Agnocast topics ========
+
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
@@ -40,7 +42,11 @@ extern "C" int topic_list()
 
   std::sort(agnocast_topics.begin(), agnocast_topics.end());
 
-  // get ROS 2 topic names
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
+
+  // ======== Get ROS 2 topics ========
+
   rclcpp::init(0, nullptr);
   auto node = rclcpp::Node::make_shared("agnocast_topic_list_all");
 
@@ -56,7 +62,10 @@ extern "C" int topic_list()
 
   std::sort(ros2_topics.begin(), ros2_topics.end());
 
-  // combine Agnocast and ROS 2 topics
+  rclcpp::shutdown();
+
+  // ======== Print topics ========
+
   int agnocast_topic_index = 0;
   int ros2_topic_index = 0;
   while (true) {
@@ -93,11 +102,6 @@ extern "C" int topic_list()
       ros2_topic_index++;
     }
   }
-
-  free(agnocast_topic_buffer);  // NOLINT
-  close(fd);
-
-  rclcpp::shutdown();
 
   return 0;
 }
