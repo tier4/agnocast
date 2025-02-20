@@ -875,6 +875,11 @@ static int subscriber_add(
   }
 
   ioctl_ret->ret_id = sub_info->id;
+
+  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
+    return -1;
+  }
+
   ioctl_ret->ret_transient_local_num = 0;
   if (!qos_is_transient_local) {
     return 0;
@@ -900,10 +905,6 @@ static int subscriber_add(
       sub_info->latest_received_entry_id = en->entry_id;
       sub_info_updated = true;
     }
-  }
-
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
   }
 
   return 0;
