@@ -21,8 +21,8 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 
   *topic_count = topics.size();
 
-  char ** topic_array = new char *[topics.size()];
-  for (size_t i = 0; i < topics.size(); i++) {
+  char ** topic_array = new char *[*topic_count];
+  for (size_t i = 0; i < *topic_count; i++) {
     topic_array[i] = strdup(topics[i].c_str());
   }
   return topic_array;
@@ -43,8 +43,8 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 
   *topic_count = topics.size();
 
-  char ** topic_array = new char *[topics.size()];
-  for (size_t i = 0; i < topics.size(); i++) {
+  char ** topic_array = new char *[*topic_count];
+  for (size_t i = 0; i < *topic_count; i++) {
     topic_array[i] = strdup(topics[i].c_str());
   }
   return topic_array;
@@ -53,8 +53,8 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 void free_agnocast_topics(char ** topic_array, int topic_count)
 {
   for (int i = 0; i < topic_count; i++) {
-    free(topic_array[i]);
+    delete[] topic_array[i];
   }
-  free(topic_array);
+  delete[] topic_array;
 }
 }
