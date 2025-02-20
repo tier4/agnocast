@@ -204,6 +204,23 @@ static int insert_subscriber_info(
     "(insert_subscriber_info)\n",
     new_id, subscriber_pid, wrapper->key);
 
+  // Check if the topic has any volatile publishers.
+  if (qos_is_transient_local) {
+    struct publisher_info * pub_info;
+    int bkt_pub_info;
+    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+    {
+      if (!pub_info->qos_is_transient_local) {
+        dev_warn(
+          agnocast_device,
+          "Imcompatible QoS is set for the topic (topic_name=%s): subscriber is transient local "
+          "but publisher is volatile. (insert_subscriber_info)\n",
+          wrapper->key);
+        break;
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -273,6 +290,23 @@ static int insert_publisher_info(
     "Publisher (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
     "(insert_publisher_info)\n",
     new_id, publisher_pid, wrapper->key);
+
+  // Check if the topic has any transient local subscribers.
+  if (!qos_is_transient_local) {
+    struct subscriber_info * sub_info;
+    int bkt_sub_info;
+    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+    {
+      if (sub_info->qos_is_transient_local) {
+        dev_warn(
+          agnocast_device,
+          "Imcompatible QoS is set for the topic (topic_name=%s): publisher is volatile "
+          "but subscriber is transient local. (insert_publisher_info)\n",
+          wrapper->key);
+        break;
+      }
+    }
+  }
 
   return 0;
 }
