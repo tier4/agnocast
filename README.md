@@ -141,6 +141,7 @@ If you want to disable pre-commit, please execute `pre-commit uninstall`.
 - [Memory format in heaphook](./docs/heaphook_alignment.md)
 - [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
 - [How to set environment variables](./docs/how_to_set_environment_variables.md)
+- [ros2 command extension](./docs/ros2_command_extension.md)
 
 ## Troubleshooting
 
