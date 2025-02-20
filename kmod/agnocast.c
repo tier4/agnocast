@@ -1762,26 +1762,47 @@ static void remove_all_process_info(void)
   }
 }
 
-static void agnocast_exit(void)
+static void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
   mutex_unlock(&global_mutex);
+}
 
-  dev_info(agnocast_device, "Agnocast removed!\n");
-
+static void agnocast_exit_sysfs(void)
+{
   // Decrement reference count
   kobject_put(status_kobj);
+}
 
+static void agnocast_exit_kthread(void)
+{
+  wake_up_interruptible(&worker_wait);
+  kthread_stop(worker_task);
+}
+
+static void agnocast_exit_kprobe(void)
+{
+  unregister_kprobe(&kp);
+}
+
+static void agnocast_exit_device(void)
+{
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
+}
 
-  wake_up_interruptible(&worker_wait);
-  kthread_stop(worker_task);
+static void agnocast_exit(void)
+{
+  agnocast_exit_sysfs();
+  agnocast_exit_kthread();
+  agnocast_exit_kprobe();
 
-  unregister_kprobe(&kp);
+  agnocast_exit_free_data();
+  dev_info(agnocast_device, "Agnocast removed!\n");
+  agnocast_exit_device();
 }
 
 module_init(agnocast_init) module_exit(agnocast_exit)
