@@ -45,6 +45,8 @@ struct publisher_info
 {
   topic_local_id_t id;
   pid_t pid;
+  uint32_t qos_depth;
+  bool qos_is_transient_local;
   uint32_t entries_num;
   bool exited;
   struct hlist_node node;
@@ -229,7 +231,8 @@ static struct publisher_info * find_publisher_info(
 }
 
 static int insert_publisher_info(
-  struct topic_wrapper * wrapper, const pid_t publisher_pid, struct publisher_info ** new_info)
+  struct topic_wrapper * wrapper, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
   int count = get_size_pub_info_htable(wrapper);
   if (count == MAX_PUBLISHER_NUM) {
@@ -253,6 +256,8 @@ static int insert_publisher_info(
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
+  (*new_info)->qos_depth = qos_depth;
+  (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
   (*new_info)->exited = false;
   INIT_HLIST_NODE(&(*new_info)->node);
@@ -897,7 +902,8 @@ static int subscriber_add(
 }
 
 static int publisher_add(
-  const char * topic_name, const pid_t publisher_pid, union ioctl_publisher_args * ioctl_ret)
+  const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -916,7 +922,7 @@ static int publisher_add(
   }
 
   struct publisher_info * pub_info;
-  ret = insert_publisher_info(wrapper, publisher_pid, &pub_info);
+  ret = insert_publisher_info(wrapper, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
   if (ret < 0) {
     return ret;
   }
@@ -935,17 +941,18 @@ static int publisher_add(
 }
 
 static int release_msgs_to_meet_depth(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, const uint32_t qos_depth,
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info,
   union ioctl_publish_args * ioctl_ret)
 {
   ioctl_ret->ret_released_num = 0;
 
-  if (pub_info->entries_num <= qos_depth) {
+  if (pub_info->entries_num <= pub_info->qos_depth) {
     return 0;
   }
 
-  const uint32_t leak_warn_threshold =
-    (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
+  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= 100)
+                                         ? 100 + pub_info->qos_depth
+                                         : pub_info->qos_depth * 2;  // This is rough value.
   if (pub_info->entries_num > leak_warn_threshold) {
     dev_warn(
       agnocast_device,
@@ -966,7 +973,7 @@ static int release_msgs_to_meet_depth(
   }
 
   // Number of entries exceeding qos_depth
-  uint32_t num_search_entries = pub_info->entries_num - qos_depth;
+  uint32_t num_search_entries = pub_info->entries_num - pub_info->qos_depth;
 
   // NOTE:
   //   The searched message is either deleted or, if a reference count remains, is not deleted.
@@ -1010,7 +1017,7 @@ static int release_msgs_to_meet_depth(
       agnocast_device,
       "Release oldest message in the publisher_info (id=$%d) of the topic "
       "(topic_name=%s) with qos_depth=%d. (release_msgs_to_meet_depth)\n",
-      pub_info->id, wrapper->key, qos_depth);
+      pub_info->id, wrapper->key, pub_info->qos_depth);
   }
 
   return 0;
@@ -1077,8 +1084,8 @@ static int receive_and_check_new_publisher(
 }
 
 static int publish_msg(
-  const char * topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
+  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
+  union ioctl_publish_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1098,7 +1105,7 @@ static int publish_msg(
     return -1;
   }
 
-  if (release_msgs_to_meet_depth(wrapper, pub_info, qos_depth, ioctl_ret) == -1) {
+  if (release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret) == -1) {
     return -1;
   }
 
@@ -1274,7 +1281,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = publisher_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
+      ret = publisher_add(
+        topic_name_buf, pub_args.publisher_pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
+        &pub_args);
       if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1322,8 +1331,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = publish_msg(
-        topic_name_buf, publish_args.publisher_id, publish_args.qos_depth,
-        publish_args.msg_virtual_address, &publish_args);
+        topic_name_buf, publish_args.publisher_id, publish_args.msg_virtual_address, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
       break;
