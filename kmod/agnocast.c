@@ -26,6 +26,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
 
+// Maximum length of topic name: 256 characters
+#define TOPIC_NAME_BUFFER_SIZE 256
+
 struct process_info
 {
   pid_t pid;
@@ -42,6 +45,8 @@ struct publisher_info
 {
   topic_local_id_t id;
   pid_t pid;
+  uint32_t qos_depth;
+  bool qos_is_transient_local;
   uint32_t entries_num;
   bool exited;
   struct hlist_node node;
@@ -91,29 +96,29 @@ static unsigned long get_topic_hash(const char * str)
   return hash_min(hash, TOPIC_HASH_BITS);
 }
 
-static struct topic_wrapper * insert_topic(const char * topic_name)
+static int insert_topic(const char * topic_name, struct topic_wrapper ** wrapper)
 {
-  struct topic_wrapper * wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
-  if (!wrapper) {
+  *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
+  if (!*wrapper) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
-    return NULL;
+    return -ENOMEM;
   }
 
-  wrapper->key = kstrdup(topic_name, GFP_KERNEL);
-  if (!wrapper->key) {
+  (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
+  if (!(*wrapper)->key) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_topic)\n");
-    kfree(wrapper);
-    return NULL;
+    kfree(*wrapper);
+    return -ENOMEM;
   }
 
-  wrapper->current_pubsub_id = 0;
-  wrapper->current_entry_id = 0;
-  wrapper->topic.entries = RB_ROOT;
-  hash_init(wrapper->topic.pub_info_htable);
-  hash_init(wrapper->topic.sub_info_htable);
+  (*wrapper)->current_pubsub_id = 0;
+  (*wrapper)->current_entry_id = 0;
+  (*wrapper)->topic.entries = RB_ROOT;
+  hash_init((*wrapper)->topic.pub_info_htable);
+  hash_init((*wrapper)->topic.sub_info_htable);
 
-  hash_add(topic_hashtable, &wrapper->node, get_topic_hash(topic_name));
-  return wrapper;
+  hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
+  return 0;
 }
 
 static struct topic_wrapper * find_topic(const char * topic_name)
@@ -156,8 +161,9 @@ static struct subscriber_info * find_subscriber_info(
   return NULL;
 }
 
-static struct subscriber_info * insert_subscriber_info(
-  struct topic_wrapper * wrapper, const pid_t subscriber_pid, bool is_take_sub)
+static int insert_subscriber_info(
+  struct topic_wrapper * wrapper, const pid_t subscriber_pid, bool is_take_sub,
+  struct subscriber_info ** new_info)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -167,26 +173,26 @@ static struct subscriber_info * insert_subscriber_info(
       "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
       "added. (insert_subscriber_info)\n",
       wrapper->key, MAX_SUBSCRIBER_NUM);
-    return NULL;
+    return -ENOBUFS;
   }
 
-  struct subscriber_info * new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
-  if (!new_info) {
+  *new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
+  if (!*new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
-    return NULL;
+    return -ENOMEM;
   }
 
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
   wrapper->current_pubsub_id++;
 
-  new_info->id = new_id;
-  new_info->pid = subscriber_pid;
-  new_info->latest_received_entry_id = wrapper->current_entry_id++;
-  new_info->is_take_sub = is_take_sub;
-  new_info->new_publisher = false;
-  INIT_HLIST_NODE(&new_info->node);
+  (*new_info)->id = new_id;
+  (*new_info)->pid = subscriber_pid;
+  (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+  (*new_info)->is_take_sub = is_take_sub;
+  (*new_info)->new_publisher = false;
+  INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
-  hash_add(wrapper->topic.sub_info_htable, &new_info->node, hash_val);
+  hash_add(wrapper->topic.sub_info_htable, &(*new_info)->node, hash_val);
 
   dev_info(
     agnocast_device,
@@ -194,7 +200,7 @@ static struct subscriber_info * insert_subscriber_info(
     "(insert_subscriber_info)\n",
     new_id, subscriber_pid, wrapper->key);
 
-  return new_info;
+  return 0;
 }
 
 static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
@@ -224,8 +230,9 @@ static struct publisher_info * find_publisher_info(
   return NULL;
 }
 
-static struct publisher_info * insert_publisher_info(
-  struct topic_wrapper * wrapper, const pid_t publisher_pid)
+static int insert_publisher_info(
+  struct topic_wrapper * wrapper, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
   int count = get_size_pub_info_htable(wrapper);
   if (count == MAX_PUBLISHER_NUM) {
@@ -235,25 +242,27 @@ static struct publisher_info * insert_publisher_info(
       "bound (MAX_PUBLISHER_NUM=%d), so no new publisher can be "
       "added. (insert_publisher_info)\n",
       wrapper->key, MAX_PUBLISHER_NUM);
-    return NULL;
+    return -ENOBUFS;
   }
 
-  struct publisher_info * new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
-  if (!new_info) {
+  *new_info = kmalloc(sizeof(struct publisher_info), GFP_KERNEL);
+  if (!*new_info) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_publisher_info)\n");
-    return NULL;
+    return -ENOMEM;
   }
 
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
   wrapper->current_pubsub_id++;
 
-  new_info->id = new_id;
-  new_info->pid = publisher_pid;
-  new_info->entries_num = 0;
-  new_info->exited = false;
-  INIT_HLIST_NODE(&new_info->node);
+  (*new_info)->id = new_id;
+  (*new_info)->pid = publisher_pid;
+  (*new_info)->qos_depth = qos_depth;
+  (*new_info)->qos_is_transient_local = qos_is_transient_local;
+  (*new_info)->entries_num = 0;
+  (*new_info)->exited = false;
+  INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, PUB_INFO_HASH_BITS);
-  hash_add(wrapper->topic.pub_info_htable, &new_info->node, hash_val);
+  hash_add(wrapper->topic.pub_info_htable, &(*new_info)->node, hash_val);
 
   dev_info(
     agnocast_device,
@@ -261,7 +270,7 @@ static struct publisher_info * insert_publisher_info(
     "(insert_publisher_info)\n",
     new_id, publisher_pid, wrapper->key);
 
-  return new_info;
+  return 0;
 }
 
 static bool is_referenced(struct entry_node * en)
@@ -838,14 +847,15 @@ static int subscriber_add(
   char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret)
 {
+  int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    wrapper = insert_topic(topic_name);
-    if (!wrapper) {
+    ret = insert_topic(topic_name, &wrapper);
+    if (ret < 0) {
       dev_warn(
         agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n",
         topic_name);
-      return -1;
+      return ret;
     }
     dev_info(agnocast_device, "Topic (topic_name=%s) added. (subscriber_add)\n", topic_name);
   } else {
@@ -853,9 +863,10 @@ static int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  struct subscriber_info * sub_info = insert_subscriber_info(wrapper, subscriber_pid, is_take_sub);
-  if (!sub_info) {
-    return -1;
+  struct subscriber_info * sub_info;
+  ret = insert_subscriber_info(wrapper, subscriber_pid, is_take_sub, &sub_info);
+  if (ret < 0) {
+    return ret;
   }
 
   ioctl_ret->ret_id = sub_info->id;
@@ -891,16 +902,18 @@ static int subscriber_add(
 }
 
 static int publisher_add(
-  const char * topic_name, const pid_t publisher_pid, union ioctl_publisher_args * ioctl_ret)
+  const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
 {
+  int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    wrapper = insert_topic(topic_name);
-    if (!wrapper) {
+    ret = insert_topic(topic_name, &wrapper);
+    if (ret < 0) {
       dev_warn(
         agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n",
         topic_name);
-      return -1;
+      return ret;
     }
     dev_info(agnocast_device, "Topic (topic_name=%s) added. (publisher_add)\n", topic_name);
   } else {
@@ -908,9 +921,10 @@ static int publisher_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
-  struct publisher_info * pub_info = insert_publisher_info(wrapper, publisher_pid);
-  if (!pub_info) {
-    return -1;
+  struct publisher_info * pub_info;
+  ret = insert_publisher_info(wrapper, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
+  if (ret < 0) {
+    return ret;
   }
 
   ioctl_ret->ret_id = pub_info->id;
@@ -927,17 +941,18 @@ static int publisher_add(
 }
 
 static int release_msgs_to_meet_depth(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, const uint32_t qos_depth,
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info,
   union ioctl_publish_args * ioctl_ret)
 {
   ioctl_ret->ret_released_num = 0;
 
-  if (pub_info->entries_num <= qos_depth) {
+  if (pub_info->entries_num <= pub_info->qos_depth) {
     return 0;
   }
 
-  const uint32_t leak_warn_threshold =
-    (qos_depth <= 100) ? 100 + qos_depth : qos_depth * 2;  // This is rough value.
+  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= 100)
+                                         ? 100 + pub_info->qos_depth
+                                         : pub_info->qos_depth * 2;  // This is rough value.
   if (pub_info->entries_num > leak_warn_threshold) {
     dev_warn(
       agnocast_device,
@@ -958,7 +973,7 @@ static int release_msgs_to_meet_depth(
   }
 
   // Number of entries exceeding qos_depth
-  uint32_t num_search_entries = pub_info->entries_num - qos_depth;
+  uint32_t num_search_entries = pub_info->entries_num - pub_info->qos_depth;
 
   // NOTE:
   //   The searched message is either deleted or, if a reference count remains, is not deleted.
@@ -1002,7 +1017,7 @@ static int release_msgs_to_meet_depth(
       agnocast_device,
       "Release oldest message in the publisher_info (id=$%d) of the topic "
       "(topic_name=%s) with qos_depth=%d. (release_msgs_to_meet_depth)\n",
-      pub_info->id, wrapper->key, qos_depth);
+      pub_info->id, wrapper->key, pub_info->qos_depth);
   }
 
   return 0;
@@ -1069,8 +1084,8 @@ static int receive_and_check_new_publisher(
 }
 
 static int publish_msg(
-  const char * topic_name, const topic_local_id_t publisher_id, const uint32_t qos_depth,
-  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
+  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
+  union ioctl_publish_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1090,7 +1105,7 @@ static int publish_msg(
     return -1;
   }
 
-  if (release_msgs_to_meet_depth(wrapper, pub_info, qos_depth, ioctl_ret) == -1) {
+  if (release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret) == -1) {
     return -1;
   }
 
@@ -1210,11 +1225,39 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
   return 0;
 }
 
+static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
+{
+  uint32_t topic_num = 0;
+
+  struct topic_wrapper * wrapper;
+  int bkt_topic;
+  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
+  {
+    if (topic_num >= MAX_TOPIC_NUM) {
+      dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
+      return -ENOBUFS;
+    }
+
+    if (copy_to_user(
+          (char __user *)(topic_list_args->topic_name_buffer_addr +
+                          topic_num * TOPIC_NAME_BUFFER_SIZE),
+          wrapper->key, strlen(wrapper->key) + 1)) {
+      return -EFAULT;
+    }
+
+    topic_num++;
+  }
+
+  topic_list_args->ret_topic_num = topic_num;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
   int ret = 0;
-  char topic_name_buf[256];
+  char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
   struct ioctl_update_entry_args entry_args;
 
   switch (cmd) {
@@ -1238,7 +1281,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = publisher_add(topic_name_buf, pub_args.publisher_pid, &pub_args);
+      ret = publisher_add(
+        topic_name_buf, pub_args.publisher_pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
+        &pub_args);
       if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1286,8 +1331,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = publish_msg(
-        topic_name_buf, publish_args.publisher_id, publish_args.qos_depth,
-        publish_args.msg_virtual_address, &publish_args);
+        topic_name_buf, publish_args.publisher_id, publish_args.msg_virtual_address, &publish_args);
       if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1330,7 +1374,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
         goto unlock_mutex_and_return;
       break;
     case AGNOCAST_GET_TOPIC_LIST_CMD:
-      // TODO(Ryuta Kambe): implement
+      union ioctl_topic_list_args topic_list_args;
+      if (copy_from_user(
+            &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
+        goto unlock_mutex_and_return;
+      ret = get_topic_list(&topic_list_args);
+      if (copy_to_user(
+            (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
+        goto unlock_mutex_and_return;
       break;
     default:
       mutex_unlock(&global_mutex);
@@ -1569,10 +1620,13 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
-static int agnocast_init(void)
+static void agnocast_init_mutexes(void)
 {
   mutex_init(&global_mutex);
+}
 
+static int agnocast_init_sysfs(void)
+{
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
   if (!status_kobj) {
     return -ENOMEM;
@@ -1584,6 +1638,11 @@ static int agnocast_init(void)
     kobject_put(status_kobj);
   }
 
+  return 0;
+}
+
+static void agnocast_init_device(void)
+{
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
@@ -1595,19 +1654,48 @@ static int agnocast_init(void)
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+}
 
+static int agnocast_init_kthread(void)
+{
   queue_head = queue_tail = 0;
+
   worker_task = kthread_run(exit_worker_thread, NULL, "agnocast_exit_worker");
   if (IS_ERR(worker_task)) {
     dev_warn(agnocast_device, "failed to create kernel thread\n");
     return PTR_ERR(worker_task);
   }
 
-  ret = register_kprobe(&kp);
+  return 0;
+}
+
+static int agnocast_init_kprobe(void)
+{
+  int ret = register_kprobe(&kp);
   if (ret < 0) {
     dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
+
+  return 0;
+}
+
+static int agnocast_init(void)
+{
+  int ret;
+
+  agnocast_init_mutexes();
+
+  ret = agnocast_init_sysfs();
+  if (ret < 0) return ret;
+
+  agnocast_init_device();
+
+  ret = agnocast_init_kthread();
+  if (ret < 0) return ret;
+
+  ret = agnocast_init_kprobe();
+  if (ret < 0) return ret;
 
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;

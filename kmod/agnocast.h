@@ -41,6 +41,8 @@ union ioctl_publisher_args {
   {
     const char * topic_name;
     pid_t publisher_pid;
+    uint32_t qos_depth;
+    bool qos_is_transient_local;
   };
   struct
   {
@@ -76,7 +78,6 @@ union ioctl_publish_args {
   {
     const char * topic_name;
     topic_local_id_t publisher_id;
-    uint32_t qos_depth;
     uint64_t msg_virtual_address;
   };
   struct
@@ -132,9 +133,11 @@ union ioctl_get_subscriber_num_args {
 // ================================================
 // ros2cli ioctls
 
-struct ioctl_topic_list_args
-{
-  uint32_t dummy;
+#define MAX_TOPIC_NUM 1024
+
+union ioctl_topic_list_args {
+  uint64_t topic_name_buffer_addr;
+  uint32_t ret_topic_num;
 };
 
-#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, struct ioctl_topic_list_args)
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)

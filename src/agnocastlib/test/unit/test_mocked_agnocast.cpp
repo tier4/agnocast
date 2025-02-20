@@ -2,6 +2,7 @@
 #include "agnocast_callback_info.hpp"
 #include "agnocast_publisher.hpp"
 #include "agnocast_smart_pointer.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "std_msgs/msg/int32.hpp"
 
@@ -15,11 +16,13 @@ MOCK_GLOBAL_FUNC3(
   decrement_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 MOCK_GLOBAL_FUNC3(
   increment_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
-MOCK_GLOBAL_FUNC2(initialize_publisher_mock, topic_local_id_t(const pid_t, const std::string &));
-MOCK_GLOBAL_FUNC6(
+MOCK_GLOBAL_FUNC3(
+  initialize_publisher_mock,
+  topic_local_id_t(const pid_t, const std::string &, const rclcpp::QoS &));
+MOCK_GLOBAL_FUNC5(
   publish_core_mock, union ioctl_publish_args(
-                       const void *, const std::string &, const topic_local_id_t, const uint32_t,
-                       const uint64_t, std::unordered_map<std::string, mqd_t> &));
+                       const void *, const std::string &, const topic_local_id_t, const uint64_t,
+                       std::unordered_map<std::string, mqd_t> &));
 
 namespace agnocast
 {
@@ -31,17 +34,18 @@ void increment_rc(const std::string & tn, const topic_local_id_t sub_id, const i
 {
   increment_rc_mock(tn, sub_id, entry_id);
 }
-topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name)
+topic_local_id_t initialize_publisher(
+  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return initialize_publisher_mock(publisher_pid, topic_name);
+  return initialize_publisher_mock(publisher_pid, topic_name, qos);
 }
 union ioctl_publish_args publish_core(
   const void * publisher_handle, const std::string & topic_name,
-  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   return publish_core_mock(
-    publisher_handle, topic_name, publisher_id, qos_depth, msg_virtual_address, opened_mqs);
+    publisher_handle, topic_name, publisher_id, msg_virtual_address, opened_mqs);
 }
 }  // namespace agnocast
 
@@ -58,11 +62,11 @@ protected:
     dummy_tn = "/dummy";
     pid = getpid();
     node = std::make_shared<rclcpp::Node>("dummy_node");
-    dummy_qd = 10;
-    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn))
+    EXPECT_GLOBAL_CALL(
+      initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn, dummy_qos))
       .Times(1);
     dummy_publisher =
-      agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qd);
+      agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qos);
   }
 
   void TearDown() override { rclcpp::shutdown(); }
@@ -71,13 +75,13 @@ protected:
   agnocast::Publisher<std_msgs::msg::Int32>::SharedPtr dummy_publisher;
   std::string dummy_tn;
   pid_t pid;
-  uint32_t dummy_qd;
+  rclcpp::QoS dummy_qos{10};
 };
 
 TEST_F(AgnocastPublisherTest, test_publish_normal)
 {
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, _)).Times(1);
-  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, dummy_qd, _, _)).Times(1);
+  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, _, _)).Times(1);
   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
   dummy_publisher->publish(std::move(message));
 }
@@ -94,7 +98,7 @@ TEST_F(AgnocastPublisherTest, test_publish_null_message)
 TEST_F(AgnocastPublisherTest, test_publish_already_published_message)
 {
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, _)).Times(1);
-  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, dummy_qd, _, _)).Times(1);
+  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, _, _)).Times(1);
 
   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
 
@@ -110,12 +114,13 @@ TEST_F(AgnocastPublisherTest, test_publish_different_message)
   std::string diff_dummy_tn = "/dummy2";
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, _)).Times(1);
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(diff_dummy_tn, _, _)).Times(1);
-  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn))
+  EXPECT_GLOBAL_CALL(
+    initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn, dummy_qos))
     .Times(1);
-  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, dummy_qd, _, _)).Times(0);
+  EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, _, _)).Times(0);
 
   agnocast::Publisher<std_msgs::msg::Int32>::SharedPtr diff_publisher =
-    agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), diff_dummy_tn, dummy_qd);
+    agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), diff_dummy_tn, dummy_qos);
   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> diff_message =
     diff_publisher->borrow_loaned_message();
   agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
