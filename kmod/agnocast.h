@@ -141,3 +141,17 @@ union ioctl_topic_list_args {
 };
 
 #define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
+
+// ================================================
+
+void agnocast_init_mutexes(void);
+int agnocast_init_sysfs(void);
+void agnocast_init_device(void);
+int agnocast_init_kthread(void);
+int agnocast_init_kprobe(void);
+
+void agnocast_exit_free_data(void);
+void agnocast_exit_sysfs(void);
+void agnocast_exit_kthread(void);
+void agnocast_exit_kprobe(void);
+void agnocast_exit_device(void);

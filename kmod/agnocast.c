@@ -1620,12 +1620,14 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
-static void agnocast_init_mutexes(void)
+void agnocast_init_mutexes(void)
 {
   mutex_init(&global_mutex);
 }
 
-static int agnocast_init_sysfs(void)
+EXPORT_SYMBOL(agnocast_init_mutexes);
+
+int agnocast_init_sysfs(void)
 {
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
   if (!status_kobj) {
@@ -1641,7 +1643,9 @@ static int agnocast_init_sysfs(void)
   return 0;
 }
 
-static void agnocast_init_device(void)
+EXPORT_SYMBOL(agnocast_init_sysfs);
+
+void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
 
@@ -1656,7 +1660,9 @@ static void agnocast_init_device(void)
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 }
 
-static int agnocast_init_kthread(void)
+EXPORT_SYMBOL(agnocast_init_device);
+
+int agnocast_init_kthread(void)
 {
   queue_head = queue_tail = 0;
 
@@ -1669,7 +1675,9 @@ static int agnocast_init_kthread(void)
   return 0;
 }
 
-static int agnocast_init_kprobe(void)
+EXPORT_SYMBOL(agnocast_init_kthread);
+
+int agnocast_init_kprobe(void)
 {
   int ret = register_kprobe(&kp);
   if (ret < 0) {
@@ -1680,6 +1688,9 @@ static int agnocast_init_kprobe(void)
   return 0;
 }
 
+EXPORT_SYMBOL(agnocast_init_kprobe);
+
+#ifndef KUNIT_BUILD
 static int agnocast_init(void)
 {
   int ret;
@@ -1700,6 +1711,7 @@ static int agnocast_init(void)
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
 }
+#endif
 
 static void remove_all_topics(void)
 {
@@ -1753,7 +1765,7 @@ static void remove_all_process_info(void)
   }
 }
 
-static void agnocast_exit_free_data(void)
+void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
@@ -1761,30 +1773,41 @@ static void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-static void agnocast_exit_sysfs(void)
+EXPORT_SYMBOL(agnocast_exit_free_data);
+
+void agnocast_exit_sysfs(void)
 {
   // Decrement reference count
   kobject_put(status_kobj);
 }
 
-static void agnocast_exit_kthread(void)
+EXPORT_SYMBOL(agnocast_exit_sysfs);
+
+void agnocast_exit_kthread(void)
 {
   wake_up_interruptible(&worker_wait);
   kthread_stop(worker_task);
 }
 
-static void agnocast_exit_kprobe(void)
+EXPORT_SYMBOL(agnocast_exit_kthread);
+
+void agnocast_exit_kprobe(void)
 {
   unregister_kprobe(&kp);
 }
 
-static void agnocast_exit_device(void)
+EXPORT_SYMBOL(agnocast_exit_kprobe);
+
+void agnocast_exit_device(void)
 {
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
 }
 
+EXPORT_SYMBOL(agnocast_exit_device);
+
+#ifndef KUNIT_BUILD
 static void agnocast_exit(void)
 {
   agnocast_exit_sysfs();
@@ -1795,5 +1818,8 @@ static void agnocast_exit(void)
   dev_info(agnocast_device, "Agnocast removed!\n");
   agnocast_exit_device();
 }
+#endif
 
+#ifndef KUNIT_BUILD
 module_init(agnocast_init) module_exit(agnocast_exit)
+#endif
