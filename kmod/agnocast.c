@@ -338,7 +338,7 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
-static int increment_message_entry_rc(
+int increment_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -375,7 +375,9 @@ static int increment_message_entry_rc(
   return 0;
 }
 
-static int decrement_message_entry_rc(
+EXPORT_SYMBOL(increment_message_entry_rc);
+
+int decrement_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -416,6 +418,8 @@ static int decrement_message_entry_rc(
 
   return -1;
 }
+
+EXPORT_SYMBOL(decrement_message_entry_rc);
 
 static int insert_message_entry(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
@@ -903,7 +907,7 @@ int subscriber_add(
 
 EXPORT_SYMBOL(subscriber_add);
 
-static int publisher_add(
+int publisher_add(
   const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
   const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
 {
@@ -941,6 +945,8 @@ static int publisher_add(
 
   return 0;
 }
+
+EXPORT_SYMBOL(publisher_add);
 
 static int release_msgs_to_meet_depth(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info,
@@ -1025,7 +1031,7 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
-static int receive_and_check_new_publisher(
+int receive_and_check_new_publisher(
   const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
   union ioctl_receive_msg_args * ioctl_ret)
 {
@@ -1085,7 +1091,9 @@ static int receive_and_check_new_publisher(
   return 0;
 }
 
-static int publish_msg(
+EXPORT_SYMBOL(receive_and_check_new_publisher);
+
+int publish_msg(
   const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   union ioctl_publish_args * ioctl_ret)
 {
@@ -1125,7 +1133,9 @@ static int publish_msg(
   return 0;
 }
 
-static int take_msg(
+EXPORT_SYMBOL(publish_msg);
+
+int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
   bool allow_same_message, union ioctl_take_msg_args * ioctl_ret)
 {
@@ -1189,6 +1199,8 @@ static int take_msg(
   return 0;
 }
 
+EXPORT_SYMBOL(take_msg);
+
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
@@ -1231,7 +1243,7 @@ int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * 
 
 EXPORT_SYMBOL(get_subscriber_num);
 
-static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
+int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
   uint32_t topic_num = 0;
 
@@ -1258,6 +1270,8 @@ static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 
   return 0;
 }
+
+EXPORT_SYMBOL(get_topic_list);
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
