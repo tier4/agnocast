@@ -10,7 +10,7 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
 }
 
 union ioctl_subscriber_args SubscriptionBase::initialize(
-  const rclcpp::QoS & qos, const bool is_take_sub)
+  const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
   const pid_t subscriber_pid = getpid();
 
@@ -18,6 +18,7 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
   // memory information along with messages needed to achieve transient local, if neccessary.
   union ioctl_subscriber_args subscriber_args = {};
   subscriber_args.topic_name = topic_name_.c_str();
+  subscriber_args.node_name = node_name.c_str();
   subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
