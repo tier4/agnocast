@@ -74,13 +74,13 @@ void * initialize_agnocast(const uint64_t shm_size)
 {
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
-    return nullptr;
+    exit(EXIT_FAILURE);
   }
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
-    return nullptr;
+    exit(EXIT_FAILURE);
   }
 
   const pid_t pid = getpid();
@@ -91,15 +91,14 @@ void * initialize_agnocast(const uint64_t shm_size)
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed");
     close(agnocast_fd);
-    return nullptr;
+    exit(EXIT_FAILURE);
   }
+
   return map_writable_area(pid, new_shm_args.ret_addr, shm_size);
 }
 
 static void shutdown_agnocast()
 {
-  printf("[INFO] [Agnocast]: shutdown_agnocast started\n");
-
   const pid_t pid = getpid();
 
   {
@@ -115,8 +114,6 @@ static void shutdown_agnocast()
   if (shm_unlink(shm_name.c_str()) == -1) {
     perror("[ERROR] [Agnocast] shm_unlink failed");
   }
-
-  printf("[INFO] [Agnocast]: shutdown_agnocast completed\n");
 }
 
 class Cleanup
