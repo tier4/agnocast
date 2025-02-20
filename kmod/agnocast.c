@@ -1301,133 +1301,127 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 {
   mutex_lock(&global_mutex);
   int ret = 0;
-  char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-  struct ioctl_update_entry_args entry_args;
 
-  switch (cmd) {
-    case AGNOCAST_SUBSCRIBER_ADD_CMD:
-      union ioctl_subscriber_args sub_args;
-      if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = subscriber_add(
-        topic_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local,
-        sub_args.subscriber_pid, sub_args.is_take_sub, &sub_args);
-      if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_PUBLISHER_ADD_CMD:
-      union ioctl_publisher_args pub_args;
-      if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = publisher_add(
-        topic_name_buf, pub_args.publisher_pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
-        &pub_args);
-      if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_INCREMENT_RC_CMD:
-      if (copy_from_user(
-            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-      break;
-    case AGNOCAST_DECREMENT_RC_CMD:
-      if (copy_from_user(
-            &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-      break;
-    case AGNOCAST_RECEIVE_MSG_CMD:
-      union ioctl_receive_msg_args receive_msg_args;
-      if (copy_from_user(
-            &receive_msg_args, (union ioctl_receive_msg_args __user *)arg,
-            sizeof(receive_msg_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = receive_and_check_new_publisher(
-        topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
-      if (copy_to_user(
-            (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
-            sizeof(receive_msg_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_PUBLISH_MSG_CMD:
-      union ioctl_publish_args publish_args;
-      if (copy_from_user(
-            &publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = publish_msg(
-        topic_name_buf, publish_args.publisher_id, publish_args.msg_virtual_address, &publish_args);
-      if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_TAKE_MSG_CMD:
-      union ioctl_take_msg_args take_args;
-      if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret =
-        take_msg(topic_name_buf, take_args.subscriber_id, take_args.allow_same_message, &take_args);
-      if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_NEW_SHM_CMD:
-      union ioctl_new_shm_args new_shm_args;
-      if (copy_from_user(
-            &new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
-        goto unlock_mutex_and_return;
-      ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
-      if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_GET_SUBSCRIBER_NUM_CMD:
-      union ioctl_get_subscriber_num_args get_subscriber_num_args;
-      if (copy_from_user(
-            &get_subscriber_num_args, (union ioctl_get_subscriber_num_args __user *)arg,
-            sizeof(get_subscriber_num_args)))
-        goto unlock_mutex_and_return;
-      if (copy_from_user(
-            topic_name_buf, (char __user *)get_subscriber_num_args.topic_name,
-            sizeof(topic_name_buf)))
-        goto unlock_mutex_and_return;
-      ret = get_subscriber_num(topic_name_buf, &get_subscriber_num_args);
-      if (copy_to_user(
-            (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
-            sizeof(get_subscriber_num_args)))
-        goto unlock_mutex_and_return;
-      break;
-    case AGNOCAST_GET_TOPIC_LIST_CMD:
-      union ioctl_topic_list_args topic_list_args;
-      if (copy_from_user(
-            &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
-        goto unlock_mutex_and_return;
-      ret = get_topic_list(&topic_list_args);
-      if (copy_to_user(
-            (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
-        goto unlock_mutex_and_return;
-      break;
-    default:
-      mutex_unlock(&global_mutex);
-      return -EINVAL;
+  if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
+    union ioctl_subscriber_args sub_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = subscriber_add(
+      topic_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local, sub_args.subscriber_pid,
+      sub_args.is_take_sub, &sub_args);
+    if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
+    union ioctl_publisher_args pub_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = publisher_add(
+      topic_name_buf, pub_args.publisher_pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
+      &pub_args);
+    if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
+    struct ioctl_update_entry_args entry_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(
+          &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
+    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
+    struct ioctl_update_entry_args entry_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(
+          &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)entry_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
+    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
+    union ioctl_receive_msg_args receive_msg_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(
+          &receive_msg_args, (union ioctl_receive_msg_args __user *)arg, sizeof(receive_msg_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = receive_and_check_new_publisher(
+      topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
+    if (copy_to_user(
+          (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
+    union ioctl_publish_args publish_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)publish_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = publish_msg(
+      topic_name_buf, publish_args.publisher_id, publish_args.msg_virtual_address, &publish_args);
+    if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
+    union ioctl_take_msg_args take_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret =
+      take_msg(topic_name_buf, take_args.subscriber_id, take_args.allow_same_message, &take_args);
+    if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_NEW_SHM_CMD) {
+    union ioctl_new_shm_args new_shm_args;
+    if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
+      goto unlock_mutex_and_return;
+    ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
+    if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
+    union ioctl_get_subscriber_num_args get_subscriber_num_args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(
+          &get_subscriber_num_args, (union ioctl_get_subscriber_num_args __user *)arg,
+          sizeof(get_subscriber_num_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)get_subscriber_num_args.topic_name,
+          sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = get_subscriber_num(topic_name_buf, &get_subscriber_num_args);
+    if (copy_to_user(
+          (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
+          sizeof(get_subscriber_num_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_TOPIC_LIST_CMD) {
+    union ioctl_topic_list_args topic_list_args;
+    if (copy_from_user(
+          &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
+      goto unlock_mutex_and_return;
+    ret = get_topic_list(&topic_list_args);
+    if (copy_to_user(
+          (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
+      goto unlock_mutex_and_return;
+  } else {
+    mutex_unlock(&global_mutex);
+    return -EINVAL;
   }
 
   mutex_unlock(&global_mutex);
