@@ -3,14 +3,14 @@
 namespace agnocast
 {
 
-SubscriptionBase::SubscriptionBase(
-  rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)), qos_(qos)
+SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topic_name)
+: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
 {
   validate_ld_preload();
 }
 
-union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
+union ioctl_subscriber_args SubscriptionBase::initialize(
+  const rclcpp::QoS & qos, const bool is_take_sub)
 {
   const pid_t subscriber_pid = getpid();
 
@@ -18,9 +18,9 @@ union ioctl_subscriber_args SubscriptionBase::initialize(bool is_take_sub)
   // memory information along with messages needed to achieve transient local, if neccessary.
   union ioctl_subscriber_args subscriber_args = {};
   subscriber_args.topic_name = topic_name_.c_str();
-  subscriber_args.qos_depth = (qos_.durability() == rclcpp::DurabilityPolicy::TransientLocal)
-                                ? static_cast<uint32_t>(qos_.depth())
-                                : 0;
+  subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
+  subscriber_args.qos_is_transient_local =
+    (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal);
   subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.is_take_sub = is_take_sub;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {

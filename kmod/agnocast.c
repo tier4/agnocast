@@ -56,6 +56,8 @@ struct subscriber_info
 {
   topic_local_id_t id;
   pid_t pid;
+  uint32_t qos_depth;
+  bool qos_is_transient_local;
   int64_t latest_received_entry_id;
   bool is_take_sub;
   bool new_publisher;
@@ -162,8 +164,8 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static int insert_subscriber_info(
-  struct topic_wrapper * wrapper, const pid_t subscriber_pid, bool is_take_sub,
-  struct subscriber_info ** new_info)
+  struct topic_wrapper * wrapper, const pid_t subscriber_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, const bool is_take_sub, struct subscriber_info ** new_info)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -187,6 +189,8 @@ static int insert_subscriber_info(
 
   (*new_info)->id = new_id;
   (*new_info)->pid = subscriber_pid;
+  (*new_info)->qos_depth = qos_depth;
+  (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
   (*new_info)->is_take_sub = is_take_sub;
   (*new_info)->new_publisher = false;
@@ -844,8 +848,8 @@ static int set_publisher_shm_info(
 }
 
 static int subscriber_add(
-  char * topic_name, uint32_t qos_depth, const pid_t subscriber_pid, bool is_take_sub,
-  union ioctl_subscriber_args * ioctl_ret)
+  char * topic_name, uint32_t qos_depth, bool qos_is_transient_local, const pid_t subscriber_pid,
+  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -864,15 +868,19 @@ static int subscriber_add(
   }
 
   struct subscriber_info * sub_info;
-  ret = insert_subscriber_info(wrapper, subscriber_pid, is_take_sub, &sub_info);
+  ret = insert_subscriber_info(
+    wrapper, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
   if (ret < 0) {
     return ret;
   }
 
   ioctl_ret->ret_id = sub_info->id;
+  ioctl_ret->ret_transient_local_num = 0;
+  if (!qos_is_transient_local) {
+    return 0;
+  }
 
   // Return qos_depth messages in order from newest to oldest for transient local
-  ioctl_ret->ret_transient_local_num = 0;
   bool sub_info_updated = false;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     // A qos_depth of 0 indicates that transient_local is disabled.
@@ -1024,7 +1032,7 @@ static int release_msgs_to_meet_depth(
 }
 
 static int receive_and_check_new_publisher(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
+  const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -1050,7 +1058,9 @@ static int receive_and_check_new_publisher(
   int64_t latest_received_entry_id = sub_info->latest_received_entry_id;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if ((en->entry_id <= latest_received_entry_id) || (qos_depth == ioctl_ret->ret_entry_num)) {
+    if (
+      (en->entry_id <= latest_received_entry_id) ||
+      (sub_info->qos_depth == ioctl_ret->ret_entry_num)) {
       break;
     }
 
@@ -1124,8 +1134,8 @@ static int publish_msg(
 }
 
 static int take_msg(
-  const char * topic_name, const topic_local_id_t subscriber_id, const uint32_t qos_depth,
-  bool allow_same_message, union ioctl_take_msg_args * ioctl_ret)
+  const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
+  union ioctl_take_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1148,7 +1158,7 @@ static int take_msg(
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
   struct rb_node * node = rb_last(&wrapper->topic.entries);
-  while (node && searched_count < qos_depth) {
+  while (node && searched_count < sub_info->qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     if (!allow_same_message && en->entry_id == sub_info->latest_received_entry_id) {
       break;  // Don't take the same message if it's not allowed
@@ -1269,8 +1279,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = subscriber_add(
-        topic_name_buf, sub_args.qos_depth, sub_args.subscriber_pid, sub_args.is_take_sub,
-        &sub_args);
+        topic_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local,
+        sub_args.subscriber_pid, sub_args.is_take_sub, &sub_args);
       if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
         goto unlock_mutex_and_return;
       break;
@@ -1315,8 +1325,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
       ret = receive_and_check_new_publisher(
-        topic_name_buf, receive_msg_args.subscriber_id, receive_msg_args.qos_depth,
-        &receive_msg_args);
+        topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
       if (copy_to_user(
             (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
             sizeof(receive_msg_args)))
@@ -1342,9 +1351,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_from_user(
             topic_name_buf, (char __user *)take_args.topic_name, sizeof(topic_name_buf)))
         goto unlock_mutex_and_return;
-      ret = take_msg(
-        topic_name_buf, take_args.subscriber_id, take_args.qos_depth, take_args.allow_same_message,
-        &take_args);
+      ret =
+        take_msg(topic_name_buf, take_args.subscriber_id, take_args.allow_same_message, &take_args);
       if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
         goto unlock_mutex_and_return;
       break;

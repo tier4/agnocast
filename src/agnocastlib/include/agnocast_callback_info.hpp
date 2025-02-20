@@ -66,7 +66,6 @@ struct CallbackInfo
 {
   std::string topic_name;
   topic_local_id_t subscriber_id;
-  uint32_t qos_depth;
   mqd_t mqdes;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
@@ -100,8 +99,7 @@ TypeErasedCallback get_erased_callback(const Func callback)
 template <typename Func>
 uint32_t register_callback(
   const Func callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
-  const uint32_t qos_depth, const mqd_t mqdes,
-  const rclcpp::CallbackGroup::SharedPtr callback_group)
+  mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   using MessagePtrType = typename callback_first_arg<Func>::type;
   using MessageType = typename MessagePtrType::element_type;
@@ -120,9 +118,8 @@ uint32_t register_callback(
 
   {
     std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    id2_callback_info[callback_info_id] =
-      CallbackInfo{topic_name,     subscriber_id,   qos_depth,      mqdes,
-                   callback_group, erased_callback, message_creator};
+    id2_callback_info[callback_info_id] = CallbackInfo{
+      topic_name, subscriber_id, mqdes, callback_group, erased_callback, message_creator};
   }
 
   need_epoll_updates.store(true);
