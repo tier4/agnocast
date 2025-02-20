@@ -41,6 +41,7 @@ union ioctl_publisher_args {
   struct
   {
     const char * topic_name;
+    const char * node_name;
     pid_t publisher_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
@@ -139,4 +140,14 @@ union ioctl_topic_list_args {
   uint32_t ret_topic_num;
 };
 
+union ioctl_node_info_args {
+  struct
+  {
+    const char * node_name;
+    uint64_t topic_name_buffer_addr;
+  };
+  uint32_t ret_topic_num;
+};
+
 #define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 3, union ioctl_node_info_args)

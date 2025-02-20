@@ -29,13 +29,15 @@ void decrement_borrowed_publisher_num()
 }
 
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos)
+  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
+  const rclcpp::QoS & qos)
 {
   validate_ld_preload();
 
   union ioctl_publisher_args pub_args = {};
   pub_args.publisher_pid = publisher_pid;
   pub_args.topic_name = topic_name.c_str();
+  pub_args.node_name = node_name.c_str();
   pub_args.qos_depth = qos.depth();
   pub_args.qos_is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {

@@ -27,7 +27,8 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos);
+  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
+  const rclcpp::QoS & qos);
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -89,7 +90,7 @@ public:
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(publisher_pid_, topic_name_, qos);
+    id_ = initialize_publisher(publisher_pid_, topic_name_, node->get_fully_qualified_name(), qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
