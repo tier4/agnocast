@@ -28,13 +28,16 @@ void decrement_borrowed_publisher_num()
   borrowed_publisher_num--;
 }
 
-topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::string & topic_name)
+topic_local_id_t initialize_publisher(
+  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos)
 {
   validate_ld_preload();
 
   union ioctl_publisher_args pub_args = {};
   pub_args.publisher_pid = publisher_pid;
   pub_args.topic_name = topic_name.c_str();
+  pub_args.qos_depth = qos.depth();
+  pub_args.qos_is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISHER_ADD_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -46,13 +49,12 @@ topic_local_id_t initialize_publisher(const pid_t publisher_pid, const std::stri
 
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
-  const topic_local_id_t publisher_id, const uint32_t qos_depth, const uint64_t msg_virtual_address,
+  const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
   publish_args.publisher_id = publisher_id;
-  publish_args.qos_depth = qos_depth;
   publish_args.msg_virtual_address = msg_virtual_address;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
