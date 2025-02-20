@@ -51,6 +51,8 @@ union ioctl_publisher_args {
   {
     const char * topic_name;
     pid_t publisher_pid;
+    uint32_t qos_depth;
+    bool qos_is_transient_local;
   };
   struct
   {
