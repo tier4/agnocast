@@ -90,6 +90,7 @@ extern "C" int topic_list()
       agnocast_topic_index++;
       ros2_topic_index++;
     } else if (ret < 0) {
+      // This branch is executed when only Agnocast Subscription exists.
       std::cout << agnocast_topics[agnocast_topic_index] << " (Agnocast enabled)" << std::endl;
       agnocast_topic_index++;
     } else {
