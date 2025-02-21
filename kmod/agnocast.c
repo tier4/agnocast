@@ -885,7 +885,7 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-static int subscriber_add(
+int subscriber_add(
   char * topic_name, char * node_name, uint32_t qos_depth, bool qos_is_transient_local,
   const pid_t subscriber_pid, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
