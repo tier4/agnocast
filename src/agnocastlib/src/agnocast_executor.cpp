@@ -122,8 +122,6 @@ bool AgnocastExecutor::get_next_agnocast_executables(
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = callback_info.topic_name.c_str();
   receive_args.subscriber_id = callback_info.subscriber_id;
-  receive_args.qos_depth = callback_info.qos_depth;
-
   if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
