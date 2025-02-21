@@ -12,14 +12,10 @@ class NodeInfoAgnocastVerb(VerbExtension):
 
     def add_arguments(self, parser, cli_name):
         parser.add_argument(
-            'node_name', nargs='?', default=None,
-            help='Name of the node to get info about')
+            'node_name',
+            help='Fully qualified node name to request information with Agnocast topics')
 
     def main(self, *, args):
-        if args.node_name is None:
-            print("Error: No node name provided. Please specify a node name.")
-            return
-        
         node_name = args.node_name
 
         with NodeStrategy(None) as node:
