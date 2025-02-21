@@ -28,6 +28,7 @@ static DEFINE_MUTEX(global_mutex);
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
+#define NODE_NAME_BUFFER_SIZE 256
 
 struct process_info
 {
@@ -45,6 +46,7 @@ struct publisher_info
 {
   topic_local_id_t id;
   pid_t pid;
+  char * node_name;
   uint32_t qos_depth;
   bool qos_is_transient_local;
   uint32_t entries_num;
@@ -252,8 +254,8 @@ static struct publisher_info * find_publisher_info(
 }
 
 static int insert_publisher_info(
-  struct topic_wrapper * wrapper, const pid_t publisher_pid, const uint32_t qos_depth,
-  const bool qos_is_transient_local, struct publisher_info ** new_info)
+  struct topic_wrapper * wrapper, char * node_name, const pid_t publisher_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
   int count = get_size_pub_info_htable(wrapper);
   if (count == MAX_PUBLISHER_NUM) {
@@ -277,6 +279,7 @@ static int insert_publisher_info(
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
+  (*new_info)->node_name = node_name;
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
@@ -944,7 +947,7 @@ int subscriber_add(
 }
 
 int publisher_add(
-  const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
+  const char * topic_name, char * node_name, const pid_t publisher_pid, const uint32_t qos_depth,
   const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
@@ -963,8 +966,15 @@ int publisher_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
+  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
+  if (!node_name_copy) {
+    dev_warn(agnocast_device, "kstrdup failed. (publisher_add)\n");
+    return -1;
+  }
+
   struct publisher_info * pub_info;
-  ret = insert_publisher_info(wrapper, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
+  ret = insert_publisher_info(
+    wrapper, node_name_copy, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
   if (ret < 0) {
     return ret;
   }
@@ -1317,13 +1327,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
     union ioctl_publisher_args pub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
       goto unlock_mutex_and_return;
     if (copy_from_user(topic_name_buf, (char __user *)pub_args.topic_name, sizeof(topic_name_buf)))
       goto unlock_mutex_and_return;
+    if (copy_from_user(node_name_buf, (char __user *)pub_args.node_name, sizeof(node_name_buf)))
+      goto unlock_mutex_and_return;
     ret = publisher_add(
-      topic_name_buf, pub_args.publisher_pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
-      &pub_args);
+      topic_name_buf, node_name_buf, pub_args.publisher_pid, pub_args.qos_depth,
+      pub_args.qos_is_transient_local, &pub_args);
     if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto unlock_mutex_and_return;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
@@ -1837,5 +1850,6 @@ static void agnocast_exit(void)
 #endif
 
 #ifndef KUNIT_BUILD
+
 module_init(agnocast_init) module_exit(agnocast_exit)
 #endif
