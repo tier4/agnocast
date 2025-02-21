@@ -947,8 +947,9 @@ int subscriber_add(
 }
 
 int publisher_add(
-  const char * topic_name, char * node_name, const pid_t publisher_pid, const uint32_t qos_depth,
-  const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
+  const char * topic_name, const char * node_name, const pid_t publisher_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local,
+  union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
