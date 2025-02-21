@@ -413,8 +413,6 @@ int increment_message_entry_rc(
   return 0;
 }
 
-EXPORT_SYMBOL(increment_message_entry_rc);
-
 int decrement_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
@@ -456,8 +454,6 @@ int decrement_message_entry_rc(
 
   return -1;
 }
-
-EXPORT_SYMBOL(decrement_message_entry_rc);
 
 static int insert_message_entry(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
@@ -947,8 +943,6 @@ int subscriber_add(
   return 0;
 }
 
-EXPORT_SYMBOL(subscriber_add);
-
 int publisher_add(
   const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
   const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
@@ -987,8 +981,6 @@ int publisher_add(
 
   return 0;
 }
-
-EXPORT_SYMBOL(publisher_add);
 
 static int release_msgs_to_meet_depth(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info,
@@ -1135,8 +1127,6 @@ int receive_and_check_new_publisher(
   return 0;
 }
 
-EXPORT_SYMBOL(receive_and_check_new_publisher);
-
 int publish_msg(
   const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   union ioctl_publish_args * ioctl_ret)
@@ -1176,8 +1166,6 @@ int publish_msg(
 
   return 0;
 }
-
-EXPORT_SYMBOL(publish_msg);
 
 int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
@@ -1243,8 +1231,6 @@ int take_msg(
   return 0;
 }
 
-EXPORT_SYMBOL(take_msg);
-
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
@@ -1269,8 +1255,6 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   return 0;
 }
 
-EXPORT_SYMBOL(new_shm_addr);
-
 int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -1284,8 +1268,6 @@ int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * 
 
   return 0;
 }
-
-EXPORT_SYMBOL(get_subscriber_num);
 
 int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
@@ -1314,8 +1296,6 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 
   return 0;
 }
-
-EXPORT_SYMBOL(get_topic_list);
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
@@ -1681,8 +1661,6 @@ void agnocast_init_mutexes(void)
   mutex_init(&global_mutex);
 }
 
-EXPORT_SYMBOL(agnocast_init_mutexes);
-
 int agnocast_init_sysfs(void)
 {
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
@@ -1699,8 +1677,6 @@ int agnocast_init_sysfs(void)
   return 0;
 }
 
-EXPORT_SYMBOL(agnocast_init_sysfs);
-
 void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
@@ -1716,8 +1692,6 @@ void agnocast_init_device(void)
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 }
 
-EXPORT_SYMBOL(agnocast_init_device);
-
 int agnocast_init_kthread(void)
 {
   queue_head = queue_tail = 0;
@@ -1731,8 +1705,6 @@ int agnocast_init_kthread(void)
   return 0;
 }
 
-EXPORT_SYMBOL(agnocast_init_kthread);
-
 int agnocast_init_kprobe(void)
 {
   int ret = register_kprobe(&kp);
@@ -1743,8 +1715,6 @@ int agnocast_init_kprobe(void)
 
   return 0;
 }
-
-EXPORT_SYMBOL(agnocast_init_kprobe);
 
 #ifndef KUNIT_BUILD
 static int agnocast_init(void)
@@ -1829,15 +1799,11 @@ void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-EXPORT_SYMBOL(agnocast_exit_free_data);
-
 void agnocast_exit_sysfs(void)
 {
   // Decrement reference count
   kobject_put(status_kobj);
 }
-
-EXPORT_SYMBOL(agnocast_exit_sysfs);
 
 void agnocast_exit_kthread(void)
 {
@@ -1845,14 +1811,10 @@ void agnocast_exit_kthread(void)
   kthread_stop(worker_task);
 }
 
-EXPORT_SYMBOL(agnocast_exit_kthread);
-
 void agnocast_exit_kprobe(void)
 {
   unregister_kprobe(&kp);
 }
-
-EXPORT_SYMBOL(agnocast_exit_kprobe);
 
 void agnocast_exit_device(void)
 {
@@ -1860,8 +1822,6 @@ void agnocast_exit_device(void)
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
 }
-
-EXPORT_SYMBOL(agnocast_exit_device);
 
 #ifndef KUNIT_BUILD
 static void agnocast_exit(void)
