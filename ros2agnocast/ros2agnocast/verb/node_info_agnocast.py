@@ -8,7 +8,7 @@ from ros2node.api import (
 from ros2node.verb import VerbExtension
 
 class NodeInfoAgnocastVerb(VerbExtension):
-    "Output a node info of topics, services, and parameters"
+    "Output information about a node including Agnocast"
 
     def add_arguments(self, parser, cli_name):
         parser.add_argument(
