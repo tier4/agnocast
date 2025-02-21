@@ -35,7 +35,6 @@ class ipc_shared_ptr
   int64_t entry_id_ = -1;
 
   // Unimplemented operators. If these are called, a compile error is raised.
-  ipc_shared_ptr & operator=(const ipc_shared_ptr & r) = delete;
   bool operator==(const ipc_shared_ptr & r) const = delete;
   bool operator!=(const ipc_shared_ptr & r) const = delete;
 
@@ -43,6 +42,7 @@ public:
   using element_type = T;
 
   const std::string get_topic_name() const { return topic_name_; }
+  topic_local_id_t get_pubsub_id() const { return pubsub_id_; }
   int64_t get_entry_id() const { return entry_id_; }
   void set_entry_id(const int64_t entry_id) { entry_id_ = entry_id; }
 
@@ -66,6 +66,19 @@ public:
   : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
     increment_rc(topic_name_, pubsub_id_, entry_id_);
+  }
+
+  ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
+  {
+    if (this != &r) {
+      reset();
+      ptr_ = r.ptr_;
+      topic_name_ = r.topic_name_;
+      pubsub_id_ = r.pubsub_id_;
+      entry_id_ = r.entry_id_;
+      increment_rc(topic_name_, pubsub_id_, entry_id_);
+    }
+    return *this;
   }
 
   ipc_shared_ptr(ipc_shared_ptr && r)
