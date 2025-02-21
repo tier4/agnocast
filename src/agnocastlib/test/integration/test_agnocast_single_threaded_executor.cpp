@@ -30,10 +30,10 @@ protected:
 };
 
 INSTANTIATE_TEST_SUITE_P(
-  MyParametrizedTests, SingleThreadedAgnocastExecutorNoStarvationTest,
+  SingleThreadedAgnocastExecutorNoStarvationTests, SingleThreadedAgnocastExecutorNoStarvationTest,
   ::testing::Values(25, 50, 100, 200, 400, 800, 1600));  // next_exec_timeout_ms
 
-TEST_P(SingleThreadedAgnocastExecutorNoStarvationTest, test_normal)
+TEST_P(SingleThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
 {
   // Act
   std::thread spin_thread([this]() { this->executor->spin(); });
