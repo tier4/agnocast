@@ -140,3 +140,50 @@ union ioctl_topic_list_args {
 };
 
 #define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
+
+// ================================================
+// public functions in agnocast.c
+
+void agnocast_init_mutexes(void);
+int agnocast_init_sysfs(void);
+void agnocast_init_device(void);
+int agnocast_init_kthread(void);
+int agnocast_init_kprobe(void);
+
+void agnocast_exit_free_data(void);
+void agnocast_exit_sysfs(void);
+void agnocast_exit_kthread(void);
+void agnocast_exit_kprobe(void);
+void agnocast_exit_device(void);
+
+int subscriber_add(
+  char * topic_name, uint32_t qos_depth, bool qos_is_transient_local, const pid_t subscriber_pid,
+  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
+
+int publisher_add(
+  const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
+  const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret);
+
+int increment_message_entry_rc(
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+
+int decrement_message_entry_rc(
+  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+
+int receive_and_check_new_publisher(
+  const char * topic_name, const topic_local_id_t subscriber_id,
+  union ioctl_receive_msg_args * ioctl_ret);
+
+int publish_msg(
+  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
+  union ioctl_publish_args * ioctl_ret);
+
+int take_msg(
+  const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
+  union ioctl_take_msg_args * ioctl_ret);
+
+int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
+
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
+
+int get_topic_list(union ioctl_topic_list_args * topic_list_args);

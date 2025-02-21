@@ -376,7 +376,7 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
-static int increment_message_entry_rc(
+int increment_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -413,7 +413,7 @@ static int increment_message_entry_rc(
   return 0;
 }
 
-static int decrement_message_entry_rc(
+int decrement_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -881,7 +881,7 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-static int subscriber_add(
+int subscriber_add(
   char * topic_name, uint32_t qos_depth, bool qos_is_transient_local, const pid_t subscriber_pid,
   bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
@@ -943,7 +943,7 @@ static int subscriber_add(
   return 0;
 }
 
-static int publisher_add(
+int publisher_add(
   const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
   const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret)
 {
@@ -1065,7 +1065,7 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
-static int receive_and_check_new_publisher(
+int receive_and_check_new_publisher(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
@@ -1127,7 +1127,7 @@ static int receive_and_check_new_publisher(
   return 0;
 }
 
-static int publish_msg(
+int publish_msg(
   const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   union ioctl_publish_args * ioctl_ret)
 {
@@ -1167,7 +1167,7 @@ static int publish_msg(
   return 0;
 }
 
-static int take_msg(
+int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret)
 {
@@ -1231,7 +1231,7 @@ static int take_msg(
   return 0;
 }
 
-static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
   static uint64_t allocatable_addr = 0x40000000000;
@@ -1255,7 +1255,7 @@ static int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_
   return 0;
 }
 
-static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
+int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1269,7 +1269,7 @@ static int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_
   return 0;
 }
 
-static int get_topic_list(union ioctl_topic_list_args * topic_list_args)
+int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
   uint32_t topic_num = 0;
 
@@ -1656,12 +1656,12 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
-static void agnocast_init_mutexes(void)
+void agnocast_init_mutexes(void)
 {
   mutex_init(&global_mutex);
 }
 
-static int agnocast_init_sysfs(void)
+int agnocast_init_sysfs(void)
 {
   status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
   if (!status_kobj) {
@@ -1677,7 +1677,7 @@ static int agnocast_init_sysfs(void)
   return 0;
 }
 
-static void agnocast_init_device(void)
+void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
 
@@ -1692,7 +1692,7 @@ static void agnocast_init_device(void)
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
 }
 
-static int agnocast_init_kthread(void)
+int agnocast_init_kthread(void)
 {
   queue_head = queue_tail = 0;
 
@@ -1705,7 +1705,7 @@ static int agnocast_init_kthread(void)
   return 0;
 }
 
-static int agnocast_init_kprobe(void)
+int agnocast_init_kprobe(void)
 {
   int ret = register_kprobe(&kp);
   if (ret < 0) {
@@ -1716,6 +1716,7 @@ static int agnocast_init_kprobe(void)
   return 0;
 }
 
+#ifndef KUNIT_BUILD
 static int agnocast_init(void)
 {
   int ret;
@@ -1736,6 +1737,7 @@ static int agnocast_init(void)
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
 }
+#endif
 
 static void remove_all_topics(void)
 {
@@ -1789,7 +1791,7 @@ static void remove_all_process_info(void)
   }
 }
 
-static void agnocast_exit_free_data(void)
+void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
@@ -1797,30 +1799,31 @@ static void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-static void agnocast_exit_sysfs(void)
+void agnocast_exit_sysfs(void)
 {
   // Decrement reference count
   kobject_put(status_kobj);
 }
 
-static void agnocast_exit_kthread(void)
+void agnocast_exit_kthread(void)
 {
   wake_up_interruptible(&worker_wait);
   kthread_stop(worker_task);
 }
 
-static void agnocast_exit_kprobe(void)
+void agnocast_exit_kprobe(void)
 {
   unregister_kprobe(&kp);
 }
 
-static void agnocast_exit_device(void)
+void agnocast_exit_device(void)
 {
   device_destroy(agnocast_class, MKDEV(major, 0));
   class_destroy(agnocast_class);
   unregister_chrdev(major, "agnocast");
 }
 
+#ifndef KUNIT_BUILD
 static void agnocast_exit(void)
 {
   agnocast_exit_sysfs();
@@ -1831,5 +1834,8 @@ static void agnocast_exit(void)
   dev_info(agnocast_device, "Agnocast removed!\n");
   agnocast_exit_device();
 }
+#endif
 
+#ifndef KUNIT_BUILD
 module_init(agnocast_init) module_exit(agnocast_exit)
+#endif

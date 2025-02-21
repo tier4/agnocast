@@ -12,3 +12,4 @@ agnocast.mod.o
 agnocast.o
 modules.order
 main
+agnocast_tmp_copied.c
