@@ -64,13 +64,16 @@ class NodeInfoAgnocastVerb(VerbExtension):
             print("  Subscribers :")
             for sub in subscribers:
                 if sub in sub_topics:
-                    print(f"    {sub.name}: {', '.join(sub.types)} (Agnocast enabled)")
-                else:
                     print(f"    {sub.name}: {', '.join(sub.types)}")
             
+            topic_names_and_types = node.get_topic_names_and_types()
             for agnocast_sub in sub_topics:
-                if agnocast_sub not in [pub.name for pub in publishers]:
-                    print(f"    {agnocast_sub}: <UNKOWN> (Agnocast enabled)(Agnocast Publisher not found)")
+                matching_topics = [types for topic, types in topic_names_and_types if topic == agnocast_sub]
+                if matching_topics:
+                    types_str = ', '.join(matching_topics[0])
+                    print(f"    {agnocast_sub}: {types_str} (Agnocast enabled)")
+                else:
+                    print(f"    {agnocast_sub}: <UNKNOWN> (Agnocast enabled)(Agnocast Publisher not found)")
 
             print("  Publishers :")
             for pub in publishers:
@@ -98,4 +101,3 @@ class NodeInfoAgnocastVerb(VerbExtension):
             action_clients = get_action_client_info(node=node, remote_node_name=node_name)
             for action in action_clients:
                 print(f"    {action.name}: {', '.join(action.types)}")
-            ########################################################################
