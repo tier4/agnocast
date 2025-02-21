@@ -13,7 +13,7 @@ protected:
     executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, GetParam());
     test_node =
-      std::make_shared<NodeForNoStarvation>(NUM_ROS2_SUB_CBS, NUM_AGNOCAST_SUB_CBS, PUB_PERIOD);
+      std::make_shared<NodeForNoStarvation>(NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, PUB_PERIOD);
     executor->add_node(test_node);
   }
 
