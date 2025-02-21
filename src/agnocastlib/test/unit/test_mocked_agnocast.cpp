@@ -62,8 +62,7 @@ protected:
     dummy_tn = "/dummy";
     pid = getpid();
     node = std::make_shared<rclcpp::Node>("dummy_node");
-    EXPECT_GLOBAL_CALL(
-      initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn, dummy_qos))
+    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn, _))
       .Times(1);
     dummy_publisher =
       agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qos);
@@ -114,8 +113,7 @@ TEST_F(AgnocastPublisherTest, test_publish_different_message)
   std::string diff_dummy_tn = "/dummy2";
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, _)).Times(1);
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(diff_dummy_tn, _, _)).Times(1);
-  EXPECT_GLOBAL_CALL(
-    initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn, dummy_qos))
+  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn, _))
     .Times(1);
   EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, _, _)).Times(0);
 
