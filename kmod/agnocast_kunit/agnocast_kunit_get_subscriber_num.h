@@ -1,3 +1,4 @@
+#pragma once
 #include <kunit/test.h>
 
 #define TEST_CASES_GET_SUBSCRIBER_NUM \

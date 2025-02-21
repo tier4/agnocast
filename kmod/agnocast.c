@@ -1177,6 +1177,8 @@ int publish_msg(
   return 0;
 }
 
+EXPORT_SYMBOL(publish_msg);
+
 int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret)

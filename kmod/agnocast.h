@@ -142,6 +142,7 @@ union ioctl_topic_list_args {
 #define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
 
 // ================================================
+// exported functions in agnocast.c
 
 void agnocast_init_mutexes(void);
 int agnocast_init_sysfs(void);
