@@ -90,6 +90,8 @@ public:
 
     auto actual_qos = ros2_publisher_->get_actual_qos();
 
+    RCLCPP_INFO(logger, "qos depth: %ld", actual_qos.depth());
+
     if (actual_qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       options_.do_always_ros2_publish = options.do_always_ros2_publish;
     } else {

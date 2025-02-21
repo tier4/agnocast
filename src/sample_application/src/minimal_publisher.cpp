@@ -31,8 +31,11 @@ public:
   {
     count_ = 0;
 
-    publisher_dynamic_ =
-      agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(this, "/my_topic", 1);
+    agnocast::PublisherOptions pub_options;
+    pub_options.qos_overriding_options = {rclcpp::QosPolicyKind::Depth};
+
+    publisher_dynamic_ = agnocast::create_publisher<sample_interfaces::msg::DynamicSizeArray>(
+      this, "/my_topic", 1, pub_options);
 
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
   }

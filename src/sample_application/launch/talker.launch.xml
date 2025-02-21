@@ -2,5 +2,6 @@
     <node pkg="sample_application" exec="talker" name="talker_node" output="screen">
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
         <env name="MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
+        <param name="qos_overrides./my_topic.publisher.depth" value="10" />
     </node>
 </launch>
