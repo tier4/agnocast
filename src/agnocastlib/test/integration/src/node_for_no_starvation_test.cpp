@@ -12,7 +12,6 @@ NodeForNoStarvation::NodeForNoStarvation(
     auto cbg = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions options;
     options.callback_group = cbg;
-    agnocast_sub_cbgs_.push_back(cbg);
     std::pair<mqd_t, std::string> mq_subscription;
     auto mq = agnocast::open_mq_for_subscription(agnocast_topic_name_, i, mq_subscription);
     mq_subscriptions_.push_back(mq_subscription);
@@ -31,7 +30,6 @@ NodeForNoStarvation::NodeForNoStarvation(
     auto cbg = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions options;
     options.callback_group = cbg;
-    ros2_sub_cbgs_.push_back(cbg);
     ros2_subs_.push_back(create_subscription<std_msgs::msg::Bool>(
       ros2_topic_name_, 1,
       [this, i](const std::shared_ptr<const std_msgs::msg::Bool> msg) { ros2_sub_cb(msg, i); },

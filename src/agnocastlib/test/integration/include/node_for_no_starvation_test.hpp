@@ -12,7 +12,6 @@ private:
   std::vector<std::pair<mqd_t, std::string>> mq_subscriptions_;
   std::unordered_map<std::string, mqd_t> mq_publishers_;
   rclcpp::TimerBase::SharedPtr agnocast_timer_;
-  std::vector<rclcpp::CallbackGroup::SharedPtr> agnocast_sub_cbgs_;
   std::vector<bool> agnocast_sub_cbs_called_;
   std::string agnocast_topic_name_ = "/dummy_agnocast_topic";
 
@@ -23,7 +22,6 @@ private:
   rclcpp::TimerBase::SharedPtr ros2_timer_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ros2_pub_;
   std::vector<rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr> ros2_subs_;
-  std::vector<rclcpp::CallbackGroup::SharedPtr> ros2_sub_cbgs_;
   std::vector<bool> ros2_sub_cbs_called_;
   std::string ros2_topic_name_ = "/dummy_ros2_topic";
 
