@@ -29,7 +29,7 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 
   for (size_t i = 0; i < *topic_count; i++) {
     topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
-    if (!topic_array[i]) {
+    if (!topic_array[i]) {                                                                // NOLINT
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);  // NOLINT
       }
@@ -64,7 +64,7 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 
   for (size_t i = 0; i < *topic_count; i++) {
     topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
-    if (!topic_array[i]) {
+    if (!topic_array[i]) {                                                                // NOLINT
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);  // NOLINT
       }
