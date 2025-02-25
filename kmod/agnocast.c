@@ -189,6 +189,14 @@ static int insert_subscriber_info(
 
   (*new_info)->id = new_id;
   (*new_info)->pid = subscriber_pid;
+  if (qos_depth > MAX_QOS_DEPTH) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber's (topic_local_id=%s, pid=%d, qos_depth=%d) qos_depth can't be larger than "
+      "MAX_QOS_DEPTH(=%d). (insert_subscriber_info)\n",
+      wrapper->key, subscriber_pid, qos_depth, MAX_QOS_DEPTH);
+    return -EINVAL;
+  }
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
