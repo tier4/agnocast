@@ -1307,6 +1307,82 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   return 0;
 }
 
+static int get_node_subscriber_topics(char * node_name, union ioctl_node_info_args * node_info_args)
+{
+  uint32_t topic_num = 0;
+
+  struct topic_wrapper * wrapper;
+  int bkt_topic;
+
+  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
+  {
+    struct subscriber_info * sub_info;
+    int bkt_sub_info;
+    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+    {
+      if (strncmp(sub_info->node_name, node_name, strlen(node_name)) == 0) {
+        if (topic_num >= MAX_TOPIC_NUM) {
+          dev_warn(
+            agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
+          return -ENOBUFS;
+        }
+
+        if (copy_to_user(
+              (char __user *)(node_info_args->topic_name_buffer_addr +
+                              topic_num * TOPIC_NAME_BUFFER_SIZE),
+              wrapper->key, strlen(wrapper->key) + 1)) {
+          return -EFAULT;
+        }
+
+        topic_num++;
+        break;
+      }
+    }
+  }
+
+  node_info_args->ret_topic_num = topic_num;
+
+  return 0;
+}
+
+static int get_node_publisher_topics(char * node_name, union ioctl_node_info_args * node_info_args)
+{
+  uint32_t topic_num = 0;
+
+  struct topic_wrapper * wrapper;
+  int bkt_topic;
+
+  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
+  {
+    struct publisher_info * pub_info;
+    int bkt_pub_info;
+    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+    {
+      if (strncmp(pub_info->node_name, node_name, strlen(node_name)) == 0) {
+        if (topic_num >= MAX_TOPIC_NUM) {
+          dev_warn(
+            agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
+          return -ENOBUFS;
+        }
+
+        if (copy_to_user(
+              (char __user *)(node_info_args->topic_name_buffer_addr +
+                              topic_num * TOPIC_NAME_BUFFER_SIZE),
+              wrapper->key, strlen(wrapper->key) + 1)) {
+          return -EFAULT;
+        }
+
+        topic_num++;
+        break;
+      }
+    }
+  }
+
+  node_info_args->ret_topic_num = topic_num;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1431,6 +1507,36 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = get_topic_list(&topic_list_args);
     if (copy_to_user(
           (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD) {
+    char node_name_buf[NODE_NAME_BUFFER_SIZE];
+    union ioctl_node_info_args node_info_sub_args;
+    if (copy_from_user(
+          &node_info_sub_args, (union ioctl_node_info_args __user *)arg,
+          sizeof(node_info_sub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          node_name_buf, (char __user *)node_info_sub_args.node_name, sizeof(node_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = get_node_subscriber_topics(node_name_buf, &node_info_sub_args);
+    if (copy_to_user(
+          (union ioctl_node_info_args __user *)arg, &node_info_sub_args,
+          sizeof(node_info_sub_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD) {
+    char node_name_buf[NODE_NAME_BUFFER_SIZE];
+    union ioctl_node_info_args node_info_pub_args;
+    if (copy_from_user(
+          &node_info_pub_args, (union ioctl_node_info_args __user *)arg,
+          sizeof(node_info_pub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          node_name_buf, (char __user *)node_info_pub_args.node_name, sizeof(node_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = get_node_publisher_topics(node_name_buf, &node_info_pub_args);
+    if (copy_to_user(
+          (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
+          sizeof(node_info_pub_args)))
       goto unlock_mutex_and_return;
   } else {
     mutex_unlock(&global_mutex);
