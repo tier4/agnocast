@@ -15,6 +15,7 @@ private:
   std::vector<bool> agnocast_sub_cbs_called_;
   std::string agnocast_topic_name_ = "/dummy_agnocast_topic";
 
+  void add_agnocast_sub_cb();
   void agnocast_timer_cb();
   void agnocast_sub_cb(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg, int64_t cb_i);
 
@@ -31,7 +32,7 @@ private:
 public:
   explicit NodeForNoStarvation(
     const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
-    const std::chrono::milliseconds pub_period);
+    const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period);
 
   ~NodeForNoStarvation();
 

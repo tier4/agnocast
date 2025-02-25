@@ -2,26 +2,16 @@
 
 NodeForNoStarvation::NodeForNoStarvation(
   const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
-  const std::chrono::milliseconds pub_period)
+  const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period)
 : Node("node_for_no_starvation")
 {
   // For Agnocast
   agnocast_timer_ =
     create_wall_timer(pub_period, std::bind(&NodeForNoStarvation::agnocast_timer_cb, this));
   for (int64_t i = 0; i < num_agnocast_sub_cbs; i++) {
-    auto cbg = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    rclcpp::SubscriptionOptions options;
-    options.callback_group = cbg;
-    std::pair<mqd_t, std::string> mq_subscription;
-    auto mq = agnocast::open_mq_for_subscription(agnocast_topic_name_, i, mq_subscription);
-    mq_subscriptions_.push_back(mq_subscription);
-    std::function<void(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> &)> callback =
-      [this, i](const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg) {
-        agnocast_sub_cb(msg, i);
-      };
-    agnocast::register_callback(callback, agnocast_topic_name_, i, mq, cbg);
+    add_agnocast_sub_cb();
   }
-  agnocast_sub_cbs_called_.assign(num_agnocast_sub_cbs, false);
+  agnocast_sub_cbs_called_.assign(num_agnocast_sub_cbs + num_agnocast_cbs_to_be_added, false);
 
   // For ROS 2
   ros2_pub_ = create_publisher<std_msgs::msg::Bool>(ros2_topic_name_, 1);
@@ -45,8 +35,25 @@ NodeForNoStarvation::~NodeForNoStarvation()
   }
 }
 
+void NodeForNoStarvation::add_agnocast_sub_cb()
+{
+  int64_t cb_i = mq_subscriptions_.size();
+  auto cbg = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  rclcpp::SubscriptionOptions options;
+  options.callback_group = cbg;
+  std::pair<mqd_t, std::string> mq_subscription;
+  auto mq = agnocast::open_mq_for_subscription(agnocast_topic_name_, cb_i, mq_subscription);
+  mq_subscriptions_.push_back(mq_subscription);
+  std::function<void(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> &)> callback =
+    [this, cb_i](const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg) {
+      agnocast_sub_cb(msg, cb_i);
+    };
+  agnocast::register_callback(callback, agnocast_topic_name_, cb_i, mq, cbg);
+}
+
 void NodeForNoStarvation::agnocast_timer_cb()
 {
+  // mq_send()
   for (auto & mq_subscription : mq_subscriptions_) {
     mqd_t mq = 0;
     if (mq_publishers_.find(mq_subscription.second) != mq_publishers_.end()) {
@@ -67,6 +74,11 @@ void NodeForNoStarvation::agnocast_timer_cb()
         continue;
       }
     }
+  }
+
+  // Add new agnocast sub callbacks
+  if (mq_subscriptions_.size() < agnocast_sub_cbs_called_.size()) {
+    add_agnocast_sub_cb();
   }
 }
 
