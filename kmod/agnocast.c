@@ -277,7 +277,7 @@ static int insert_publisher_info(
   char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
   if (!node_name_copy) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_publisher_info)\n");
-    return -1;
+    return -ENOMEM;
   }
 
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
