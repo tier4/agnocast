@@ -45,7 +45,7 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
     return nullptr;
   }
 
-  *topic_count = node_info_args.ret_topic_num;
+  *topic_count = static_cast<int>(node_info_args.ret_topic_num);
 
   std::vector<std::string> agnocast_sub_topics(*topic_count);
   for (uint32_t i = 0; i < *topic_count; i++) {
@@ -53,13 +53,16 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
       agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
   }
 
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
+
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
     return nullptr;
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] =
+    topic_array[i] =                                                                    // NOLINT
       static_cast<char *>(malloc((agnocast_sub_topics[i].size() + 1) * sizeof(char)));  // NOLINT
     if (!topic_array[i]) {                                                              // NOLINT
       for (size_t j = 0; j < i; j++) {
@@ -106,7 +109,7 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
     return nullptr;
   }
 
-  *topic_count = node_info_args.ret_topic_num;
+  *topic_count = static_cast<int>(node_info_args.ret_topic_num);
 
   std::vector<std::string> agnocast_pub_topics(*topic_count);
   for (uint32_t i = 0; i < *topic_count; i++) {
@@ -114,13 +117,16 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
       agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
   }
 
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
+
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
     return nullptr;
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] =
+    topic_array[i] =                                                                    // NOLINT
       static_cast<char *>(malloc((agnocast_pub_topics[i].size() + 1) * sizeof(char)));  // NOLINT
     if (!topic_array[i]) {                                                              // NOLINT
       for (size_t j = 0; j < i; j++) {
