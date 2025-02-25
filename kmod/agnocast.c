@@ -254,7 +254,7 @@ static struct publisher_info * find_publisher_info(
 }
 
 static int insert_publisher_info(
-  struct topic_wrapper * wrapper, char * node_name, const pid_t publisher_pid,
+  struct topic_wrapper * wrapper, const char * node_name, const pid_t publisher_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
   int count = get_size_pub_info_htable(wrapper);
@@ -274,12 +274,18 @@ static int insert_publisher_info(
     return -ENOMEM;
   }
 
+  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
+  if (!node_name_copy) {
+    dev_warn(agnocast_device, "kstrdup failed. (insert_publisher_info)\n");
+    return -1;
+  }
+
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
   wrapper->current_pubsub_id++;
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
-  (*new_info)->node_name = node_name;
+  (*new_info)->node_name = node_name_copy;
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
@@ -967,15 +973,9 @@ int publisher_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
   }
 
-  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
-  if (!node_name_copy) {
-    dev_warn(agnocast_device, "kstrdup failed. (publisher_add)\n");
-    return -1;
-  }
-
   struct publisher_info * pub_info;
   ret = insert_publisher_info(
-    wrapper, node_name_copy, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
+    wrapper, node_name, publisher_pid, qos_depth, qos_is_transient_local, &pub_info);
   if (ret < 0) {
     return ret;
   }
