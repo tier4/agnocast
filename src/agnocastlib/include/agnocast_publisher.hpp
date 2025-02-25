@@ -44,6 +44,8 @@ struct PublisherOptions
   // For transient local. If true, publish() does both Agnocast publish and ROS 2 publish,
   // regardless of the existence of ROS 2 subscriptions.
   bool do_always_ros2_publish = true;
+  // No overrides allowed by default.
+  rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
 template <typename MessageT>
@@ -72,24 +74,29 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-    publisher_pid_(getpid()),
-    ros2_publisher_(node->create_publisher<MessageT>(topic_name_, qos))
+    publisher_pid_(getpid())
   {
+    rclcpp::PublisherOptions pub_options;
+    pub_options.qos_overriding_options = options.qos_overriding_options;
+    ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
+
+    auto actual_qos = ros2_publisher_->get_actual_qos();
+
 #ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-      topic_name_.c_str(), qos.depth());
+      topic_name_.c_str(), actual_qos.depth());
 #endif
 
-    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+    if (actual_qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       options_.do_always_ros2_publish = options.do_always_ros2_publish;
     } else {
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(publisher_pid_, topic_name_, qos);
+    id_ = initialize_publisher(publisher_pid_, topic_name_, actual_qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 

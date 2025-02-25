@@ -29,6 +29,9 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
+  // For added callback groups after calling spin().
+  add_callback_groups_from_nodes_associated_to_executor();
+
   std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
   std::lock_guard<std::mutex> lock2(rclcpp::Executor::mutex_);  // weak_groups_to_nodes_
 
