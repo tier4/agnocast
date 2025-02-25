@@ -41,14 +41,6 @@ class NodeInfoAgnocastVerb(VerbExtension):
             for i in range(sub_topic_count.value):
                 topic_ptr = ctypes.cast(sub_topic_array[i], ctypes.c_char_p)
                 sub_topics.append(topic_ptr.value.decode('utf-8'))
-            
-            ########################################################################
-            # Temp Code: to print sub Agnocast topics
-            ########################################################################
-            print("Agnocast Subscription topics:")
-            for topic in sub_topics:
-                print(topic)
-            ########################################################################
             lib.free_agnocast_topics(sub_topic_array, sub_topic_count)
 
             pub_topic_count = ctypes.c_int()
@@ -57,29 +49,31 @@ class NodeInfoAgnocastVerb(VerbExtension):
             for i in range(pub_topic_count.value):
                 topic_ptr = ctypes.cast(pub_topic_array[i], ctypes.c_char_p)
                 pub_topics.append(topic_ptr.value.decode('utf-8'))
-            
-            ########################################################################
-            # Temp Code: print sub Agnocast topics
-            ########################################################################
-            print("Agnocast Publisher topics:")
-            for topic in pub_topics:
-                print(topic)
-            ########################################################################
             lib.free_agnocast_topics(pub_topic_array, pub_topic_count)
 
 
             ########################################################################
-            # Temp Code: existing ros2 node info functionality
+            # Print node info
             ########################################################################
-            print("  Subscribers :")
             subscribers = get_subscriber_info(node=node, remote_node_name=node_name)
+            publishers = get_publisher_info(node=node, remote_node_name=node_name)
+            print("  Subscribers :")
             for sub in subscribers:
-                print(f"    {sub.name}: {', '.join(sub.types)}")
+                if sub in sub_topics:
+                    print(f"    {sub.name}: {', '.join(sub.types)} (Agnocast enabled)")
+                else:
+                    print(f"    {sub.name}: {', '.join(sub.types)}")
+            
+            for agnocast_sub in sub_topics:
+                if agnocast_sub not in [pub.name for pub in publishers]:
+                    print(f"    {agnocast_sub}: <UNKOWN> (Agnocast enabled)(Agnocast Publisher not found)")
 
             print("  Publishers :")
-            publishers = get_publisher_info(node=node, remote_node_name=node_name)
             for pub in publishers:
-                print(f"    {pub.name}: {', '.join(pub.types)}")
+                if pub.name in pub_topics:
+                    print(f"    {pub.name}: {', '.join(pub.types)} (Agnocast enabled)")
+                else:
+                    print(f"    {pub.name}: {', '.join(pub.types)}")
 
             print("  Service Servers :")
             service_servers = get_service_server_info(node=node, remote_node_name=node_name)
