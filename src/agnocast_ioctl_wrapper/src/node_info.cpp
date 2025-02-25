@@ -14,12 +14,14 @@ extern "C" {
 
 char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 {
+  *topic_count = 0;
+
   // ======== Get Agnocast topics ========
 
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
-    return NULL;
+    return nullptr;
   }
 
   // NOLINTBEGIN
@@ -34,13 +36,13 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
     perror("AGNOCAST_TAKE_NODE_SUBSCRIBER_TOPICS_CMD failed");
     free(agnocast_topic_buffer);  // NOLINT
     close(fd);
-    return NULL;
+    return nullptr;
   }
 
   if (node_info_args.ret_topic_num == 0) {
     free(agnocast_topic_buffer);  // NOLINT
     close(fd);
-    return NULL;
+    return nullptr;
   }
 
   *topic_count = node_info_args.ret_topic_num;
@@ -73,12 +75,14 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 
 char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 {
+  *topic_count = 0;
+
   // ======== Get Agnocast topics ========
 
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
-    return NULL;
+    return nullptr;
   }
 
   // NOLINTBEGIN
@@ -93,13 +97,13 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
     perror("AGNOCAST_TAKE_NODE_PUBLISHER_TOPICS_CMD failed");
     free(agnocast_topic_buffer);  // NOLINT
     close(fd);
-    return NULL;
+    return nullptr;
   }
 
   if (node_info_args.ret_topic_num == 0) {
     free(agnocast_topic_buffer);  // NOLINT
     close(fd);
-    return NULL;
+    return nullptr;
   }
 
   *topic_count = node_info_args.ret_topic_num;

@@ -42,7 +42,8 @@ class NodeInfoAgnocastVerb(VerbExtension):
             for i in range(sub_topic_count.value):
                 topic_ptr = ctypes.cast(sub_topic_array[i], ctypes.c_char_p)
                 sub_topics.append(topic_ptr.value.decode('utf-8'))
-            lib.free_agnocast_topics(sub_topic_array, sub_topic_count)
+            if sub_topic_count.value != 0:
+                lib.free_agnocast_topics(sub_topic_array, sub_topic_count)
 
             pub_topic_count = ctypes.c_int()
             pub_topic_array = lib.get_agnocast_pub_topics(node_name_bytes, ctypes.byref(pub_topic_count))
@@ -50,7 +51,8 @@ class NodeInfoAgnocastVerb(VerbExtension):
             for i in range(pub_topic_count.value):
                 topic_ptr = ctypes.cast(pub_topic_array[i], ctypes.c_char_p)
                 pub_topics.append(topic_ptr.value.decode('utf-8'))
-            lib.free_agnocast_topics(pub_topic_array, pub_topic_count)
+            if sub_topic_count.value != 0:
+                lib.free_agnocast_topics(pub_topic_array, pub_topic_count)
 
 
             ########################################################################
