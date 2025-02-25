@@ -53,6 +53,9 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
       agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
   }
 
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
+
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
     return nullptr;
@@ -113,6 +116,9 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
     agnocast_pub_topics[i] =
       agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
   }
+
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
