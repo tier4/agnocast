@@ -5,6 +5,7 @@ from ros2node.api import (
     get_action_client_info, get_action_server_info, get_node_names,
     get_publisher_info, get_service_client_info, get_service_server_info, get_subscriber_info
 )
+from ros2topic.api import get_topic_names_and_types
 from ros2node.verb import VerbExtension
 
 class NodeInfoAgnocastVerb(VerbExtension):
@@ -57,6 +58,9 @@ class NodeInfoAgnocastVerb(VerbExtension):
             ########################################################################
             subscribers = get_subscriber_info(node=node, remote_node_name=node_name)
             publishers = get_publisher_info(node=node, remote_node_name=node_name)
+            all_topics_raw = get_topic_names_and_types(node=node)
+            all_topics = [{'name': topic_name, 'types': topic_types} for topic_name, topic_types in all_topics_raw]
+
             print("  Subscribers :")
             for sub in subscribers:
                 if sub in sub_topics:
@@ -65,8 +69,12 @@ class NodeInfoAgnocastVerb(VerbExtension):
                     print(f"    {sub.name}: {', '.join(sub.types)}")
             
             for agnocast_sub in sub_topics:
-                if agnocast_sub not in [pub.name for pub in publishers]:
-                    print(f"    {agnocast_sub}: <UNKOWN> (Agnocast enabled)(Agnocast Publisher not found)")
+                matching_topics = [topic for topic in all_topics if topic['name'] == agnocast_sub]
+                if matching_topics:
+                    topic_types = '; '.join([', '.join(topic['types']) for topic in matching_topics])
+                    print(f"    {agnocast_sub}: {topic_types} (Agnocast enabled)")
+                else:
+                    print(f"    {agnocast_sub}: <UNKNOWN> (No publisher)(Agnocast enabled)")
 
             print("  Publishers :")
             for pub in publishers:
