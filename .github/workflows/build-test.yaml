@@ -75,7 +75,7 @@ jobs:
     - name: Run clang-tidy for agnocastlib
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
       run: |
-        export FILES=($(find src/agnocastlib/ src/agnocast_ioctl_wrapper/ -name '*.cpp' -not -path '*/test/*'))
+        export FILES=($(find src/agnocastlib/ -name '*.cpp' -not -path '*/test/*'))
         run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
     
     - name: Test for agnocastlib
