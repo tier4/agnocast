@@ -28,6 +28,7 @@ static DEFINE_MUTEX(global_mutex);
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
+#define NODE_NAME_BUFFER_SIZE 256
 
 struct process_info
 {
@@ -59,6 +60,7 @@ struct subscriber_info
   uint32_t qos_depth;
   bool qos_is_transient_local;
   int64_t latest_received_entry_id;
+  char * node_name;
   bool is_take_sub;
   bool new_publisher;
   struct hlist_node node;
@@ -164,8 +166,9 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static int insert_subscriber_info(
-  struct topic_wrapper * wrapper, const pid_t subscriber_pid, const uint32_t qos_depth,
-  const bool qos_is_transient_local, const bool is_take_sub, struct subscriber_info ** new_info)
+  struct topic_wrapper * wrapper, char * node_name, const pid_t subscriber_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
+  struct subscriber_info ** new_info)
 {
   int count = get_size_sub_info_htable(wrapper);
   if (count == MAX_SUBSCRIBER_NUM) {
@@ -184,6 +187,12 @@ static int insert_subscriber_info(
     return -ENOMEM;
   }
 
+  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
+  if (!node_name_copy) {
+    dev_warn(agnocast_device, "kstrdup failed. (insert_subscriber_info)\n");
+    return -ENOMEM;
+  }
+
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
   wrapper->current_pubsub_id++;
 
@@ -192,6 +201,7 @@ static int insert_subscriber_info(
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+  (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
   (*new_info)->new_publisher = false;
   INIT_HLIST_NODE(&(*new_info)->node);
@@ -882,8 +892,8 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  char * topic_name, uint32_t qos_depth, bool qos_is_transient_local, const pid_t subscriber_pid,
-  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  char * topic_name, char * node_name, uint32_t qos_depth, bool qos_is_transient_local,
+  const pid_t subscriber_pid, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -903,7 +913,7 @@ int subscriber_add(
 
   struct subscriber_info * sub_info;
   ret = insert_subscriber_info(
-    wrapper, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
+    wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
   if (ret < 0) {
     return ret;
   }
@@ -1305,13 +1315,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
       goto unlock_mutex_and_return;
     if (copy_from_user(topic_name_buf, (char __user *)sub_args.topic_name, sizeof(topic_name_buf)))
       goto unlock_mutex_and_return;
+    if (copy_from_user(node_name_buf, (char __user *)sub_args.node_name, sizeof(node_name_buf)))
+      goto unlock_mutex_and_return;
     ret = subscriber_add(
-      topic_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local, sub_args.subscriber_pid,
-      sub_args.is_take_sub, &sub_args);
+      topic_name_buf, node_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local,
+      sub_args.subscriber_pid, sub_args.is_take_sub, &sub_args);
     if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto unlock_mutex_and_return;
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
