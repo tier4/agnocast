@@ -30,20 +30,23 @@ NodeForNoStarvation::NodeForNoStarvation(
 
 NodeForNoStarvation::~NodeForNoStarvation()
 {
-  for (auto & mq_subscription : mq_subscriptions_) {
-    agnocast::remove_mq(mq_subscription);
+  for (auto & mq_receiver : mq_receivers_) {
+    if (mq_close(mq_receiver.first) == -1) {
+      std::cerr << "mq_close failed: " << strerror(errno) << std::endl;
+    }
+    if (mq_unlink(mq_receiver.second.c_str()) == -1) {
+      std::cerr << "mq_unlink failed: " << strerror(errno) << std::endl;
+    }
   }
 }
 
 void NodeForNoStarvation::add_agnocast_sub_cb()
 {
-  int64_t cb_i = mq_subscriptions_.size();
+  int64_t cb_i = mq_receivers_.size();
   auto cbg = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   rclcpp::SubscriptionOptions options;
   options.callback_group = cbg;
-  std::pair<mqd_t, std::string> mq_subscription;
-  auto mq = agnocast::open_mq_for_subscription(agnocast_topic_name_, cb_i, mq_subscription);
-  mq_subscriptions_.push_back(mq_subscription);
+  auto mq = open_mq_for_receiver(cb_i);
   std::function<void(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> &)> callback =
     [this, cb_i](const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg) {
       agnocast_sub_cb(msg, cb_i);
@@ -51,33 +54,57 @@ void NodeForNoStarvation::add_agnocast_sub_cb()
   agnocast::register_callback(callback, agnocast_topic_name_, cb_i, mq, cbg);
 }
 
+// NOTE: If the implementation of agnocast is changed, this function does not
+// necessarily have to be changed as well, because this test is for the Executor.
+mqd_t NodeForNoStarvation::open_mq_for_receiver(const int64_t cb_i)
+{
+  std::string mq_name = agnocast_topic_name_ + "@" + std::to_string(cb_i);
+  struct mq_attr attr = {};
+  attr.mq_flags = 0;                                  // Blocking queue
+  attr.mq_msgsize = sizeof(agnocast::MqMsgAgnocast);  // Maximum message size
+  attr.mq_curmsgs = 0;  // Number of messages currently in the queue (not set by mq_open)
+  attr.mq_maxmsg = 1;
+
+  const int mq_mode = 0666;
+  mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, mq_mode, &attr);
+  if (mq == -1) {
+    std::cerr << "mq_open failed: " << strerror(errno) << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  mq_receivers_.push_back(std::make_pair(mq, mq_name));
+
+  return mq;
+}
+
+// NOTE: If the implementation of agnocast is changed, this function does not
+// necessarily have to be changed as well, because this test is for the Executor.
 void NodeForNoStarvation::agnocast_timer_cb()
 {
   // mq_send()
-  for (auto & mq_subscription : mq_subscriptions_) {
+  for (auto & mq_receiver : mq_receivers_) {
     mqd_t mq = 0;
-    if (mq_publishers_.find(mq_subscription.second) != mq_publishers_.end()) {
-      mq = mq_publishers_[mq_subscription.second];
+    if (mq_senders_.find(mq_receiver.second) != mq_senders_.end()) {
+      mq = mq_senders_[mq_receiver.second];
     } else {
-      mq = mq_open(mq_subscription.second.c_str(), O_WRONLY | O_NONBLOCK);
+      mq = mq_open(mq_receiver.second.c_str(), O_WRONLY | O_NONBLOCK);
       if (mq == -1) {
         std::cerr << "mq_open failed: " << strerror(errno) << std::endl;
-        continue;
+        exit(EXIT_FAILURE);
       }
-      mq_publishers_.insert({mq_subscription.second, mq});
+      mq_senders_.insert({mq_receiver.second, mq});
     }
 
     agnocast::MqMsgAgnocast mq_msg = {};
     if (mq_send(mq, reinterpret_cast<char *>(&mq_msg), 0 /*msg_len*/, 0) == -1) {
       if (errno != EAGAIN) {
         std::cerr << "mq_send failed: " << strerror(errno) << std::endl;
-        continue;
+        exit(EXIT_FAILURE);
       }
     }
   }
 
   // Add new agnocast sub callbacks
-  if (mq_subscriptions_.size() < agnocast_sub_cbs_called_.size()) {
+  if (mq_receivers_.size() < agnocast_sub_cbs_called_.size()) {
     add_agnocast_sub_cb();
   }
 }
