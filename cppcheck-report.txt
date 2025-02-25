@@ -1,0 +1,18 @@
+kmod/agnocast.c:1840:1: error: There is an unknown macro here somewhere. Configuration is required. If module_init is a macro then please configure it. [unknownMacro]
+module_init(agnocast_init) module_exit(agnocast_exit)
+^
+src/agnocast_ioctl_wrapper/src/topic_list.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/agnocastlib/src/agnocast_executor.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/agnocastlib/src/agnocast_multi_threaded_executor.cpp:44:3: error: There is an unknown macro here somewhere. Configuration is required. If RCPPUTILS_SCOPE_EXIT is a macro then please configure it. [unknownMacro]
+  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
+  ^
+src/agnocastlib/src/agnocast_publisher.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+src/agnocastlib/src/agnocast_single_threaded_executor.cpp:24:3: error: There is an unknown macro here somewhere. Configuration is required. If RCPPUTILS_SCOPE_EXIT is a macro then please configure it. [unknownMacro]
+  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
+  ^

@@ -34,8 +34,7 @@ extern "C" int topic_list()
 
   std::vector<std::string> agnocast_topics(topic_list_args.ret_topic_num);
   for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
-    agnocast_topics[i] =
-      agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;
+    agnocast_topics[i] = agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;
   }
 
   std::sort(agnocast_topics.begin(), agnocast_topics.end());
