@@ -1266,6 +1266,10 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   static uint64_t allocatable_addr = 0x40000000000;
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
+  if (!new_proc_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
+    return -ENOMEM;
+  }
   new_proc_info->pid = pid;
   new_proc_info->shm_addr = allocatable_addr;
   new_proc_info->shm_size = shm_size;
