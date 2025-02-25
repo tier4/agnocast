@@ -1851,6 +1851,5 @@ static void agnocast_exit(void)
 #endif
 
 #ifndef KUNIT_BUILD
-
 module_init(agnocast_init) module_exit(agnocast_exit)
 #endif
