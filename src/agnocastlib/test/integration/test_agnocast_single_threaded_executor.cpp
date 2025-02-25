@@ -6,24 +6,37 @@
 
 class SingleThreadedAgnocastExecutorNoStarvationTest : public ::testing::TestWithParam<int>
 {
+private:
+  void set_spin_duration_based_on_params(const int next_exec_timeout_ms)
+  {
+    std::chrono::seconds buffer = std::chrono::seconds(3);  // Rough value
+    spin_duration_ =
+      std::chrono::seconds(
+        next_exec_timeout_ms * (NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED) / 1000) +
+      buffer;
+  }
+
 protected:
   void SetUp() override
   {
+    int next_exec_timeout_ms = GetParam();
+    set_spin_duration_based_on_params(next_exec_timeout_ms);
+
     rclcpp::init(0, nullptr);
-    executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
+    executor_ = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, GetParam());
-    test_node = std::make_shared<NodeForNoStarvation>(
+    test_node_ = std::make_shared<NodeForNoStarvation>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD);
-    executor->add_node(test_node);
+    executor_->add_node(test_node_);
   }
 
   void TearDown() override { rclcpp::shutdown(); }
 
-  std::shared_ptr<NodeForNoStarvation> test_node;
-  std::shared_ptr<agnocast::SingleThreadedAgnocastExecutor> executor;
+  std::shared_ptr<NodeForNoStarvation> test_node_;
+  std::shared_ptr<agnocast::SingleThreadedAgnocastExecutor> executor_;
+  std::chrono::seconds spin_duration_;
 
   // Parameters
-  const std::chrono::seconds SPIN_DURATION = std::chrono::seconds(10);
   const uint64_t NUM_ROS2_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = 5;
@@ -37,12 +50,12 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(SingleThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
 {
   // Act
-  std::thread spin_thread([this]() { this->executor->spin(); });
-  std::this_thread::sleep_for(SPIN_DURATION);
-  executor->cancel();
+  std::thread spin_thread([this]() { this->executor_->spin(); });
+  std::this_thread::sleep_for(spin_duration_);
+  executor_->cancel();
   spin_thread.join();
 
   // Assert
-  EXPECT_TRUE(test_node->is_all_ros2_sub_cbs_called());
-  EXPECT_TRUE(test_node->is_all_agnocast_sub_cbs_called());
+  EXPECT_TRUE(test_node_->is_all_ros2_sub_cbs_called());
+  EXPECT_TRUE(test_node_->is_all_agnocast_sub_cbs_called());
 }
