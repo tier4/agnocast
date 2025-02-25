@@ -97,7 +97,8 @@ public:
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(publisher_pid_, topic_name_, node->get_fully_qualified_name(), actual_qos);
+    id_ = initialize_publisher(
+      publisher_pid_, topic_name_, node->get_fully_qualified_name(), actual_qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
