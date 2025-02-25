@@ -29,6 +29,7 @@ union ioctl_subscriber_args {
   struct
   {
     const char * topic_name;
+    const char * node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
     pid_t subscriber_pid;
@@ -51,6 +52,7 @@ union ioctl_publisher_args {
   struct
   {
     const char * topic_name;
+    const char * node_name;
     pid_t publisher_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;

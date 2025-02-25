@@ -11,6 +11,13 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, int next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options), next_exec_timeout_ms_(next_exec_timeout_ms)
 {
+  const int next_exec_timeout_ms_threshold = 500;  // Rough value
+  if (next_exec_timeout_ms_ > next_exec_timeout_ms_threshold) {
+    RCLCPP_WARN(
+      logger,
+      "Due to the large next_exec_timeout_ms value, the callbacks registered after spin and ROS 2 "
+      "callbacks may be extremely slow to execute.");
+  }
 }
 
 void SingleThreadedAgnocastExecutor::spin()

@@ -35,7 +35,8 @@ void increment_rc(const std::string & tn, const topic_local_id_t sub_id, const i
   increment_rc_mock(tn, sub_id, entry_id);
 }
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const rclcpp::QoS & qos)
+  const pid_t publisher_pid, const std::string & topic_name,
+  [[maybe_unused]] const std::string & node_name, const rclcpp::QoS & qos)
 {
   return initialize_publisher_mock(publisher_pid, topic_name, qos);
 }

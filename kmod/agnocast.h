@@ -22,6 +22,7 @@ union ioctl_subscriber_args {
   struct
   {
     const char * topic_name;
+    const char * node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
     pid_t subscriber_pid;
@@ -41,6 +42,7 @@ union ioctl_publisher_args {
   struct
   {
     const char * topic_name;
+    const char * node_name;
     pid_t publisher_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
@@ -157,12 +159,13 @@ void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
 int subscriber_add(
-  char * topic_name, uint32_t qos_depth, bool qos_is_transient_local, const pid_t subscriber_pid,
-  bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
+  char * topic_name, char * node_name, uint32_t qos_depth, bool qos_is_transient_local,
+  const pid_t subscriber_pid, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
 
 int publisher_add(
-  const char * topic_name, const pid_t publisher_pid, const uint32_t qos_depth,
-  const bool qos_is_transient_local, union ioctl_publisher_args * ioctl_ret);
+  const char * topic_name, const char * node_name, const pid_t publisher_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local,
+  union ioctl_publisher_args * ioctl_ret);
 
 int increment_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
