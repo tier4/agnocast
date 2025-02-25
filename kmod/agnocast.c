@@ -187,6 +187,12 @@ static int insert_subscriber_info(
     return -ENOMEM;
   }
 
+  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
+  if (!node_name_copy) {
+    dev_warn(agnocast_device, "kstrdup failed. (insert_subscriber_info)\n");
+    return -ENOMEM;
+  }
+
   const topic_local_id_t new_id = wrapper->current_pubsub_id;
   wrapper->current_pubsub_id++;
 
@@ -195,7 +201,7 @@ static int insert_subscriber_info(
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
-  (*new_info)->node_name = node_name;
+  (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
   (*new_info)->new_publisher = false;
   INIT_HLIST_NODE(&(*new_info)->node);
@@ -905,15 +911,9 @@ int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
-  if (!node_name_copy) {
-    dev_warn(agnocast_device, "kstrdup failed. (subscriber_add)\n");
-    return -1;
-  }
   struct subscriber_info * sub_info;
   ret = insert_subscriber_info(
-    wrapper, node_name_copy, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
-    &sub_info);
+    wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
   if (ret < 0) {
     return ret;
   }
