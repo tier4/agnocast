@@ -22,21 +22,21 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 
   *topic_count = 2;
 
-  char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));
-  if (!topic_array) {
+  char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
+  if (topic_array == nullptr) {
     return nullptr;
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));
-    if (!topic_array[i]) {
+    topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
+    if (topic_array[i] == nullptr) {
       for (size_t j = 0; j < i; j++) {
-        free(topic_array[j]);
+        free(topic_array[j]);  // NOLINT
       }
-      free(topic_array);
+      free(topic_array);  // NOLINK
       return nullptr;
     }
-    std::strcpy(topic_array[i], topics[i].c_str());
+    std::strcpy(topic_array[i], topics[i].c_str());  // NOLINT
   }
   return topic_array;
 }
@@ -58,13 +58,13 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
   *topic_count = 2;
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
-  if (!topic_array) {
+  if (topic_array == nullptr) {
     return nullptr;
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
     topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
-    if (!topic_array[i]) {
+    if (topic_array[i] == nullptr) {
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);  // NOLINT
       }
@@ -78,7 +78,7 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 
 void free_agnocast_topics(char ** topic_array, int topic_count)
 {
-  if (!topic_array) {
+  if (topic_array == nullptr) {
     return;
   }
 
