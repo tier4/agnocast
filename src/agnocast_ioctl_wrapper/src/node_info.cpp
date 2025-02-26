@@ -15,8 +15,6 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 {
   *topic_count = 0;
 
-  // ======== Get Agnocast topics ========
-
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
@@ -78,8 +76,6 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 {
   *topic_count = 0;
-
-  // ======== Get Agnocast topics ========
 
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
