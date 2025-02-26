@@ -10,7 +10,7 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
   char * node_name = "/my_node";
   uint32_t qos_depth = 10;
   bool qos_is_transient_local = false;
-  uint32_t subscriber_pid = 123;
+  pid_t subscriber_pid = 123;
   bool is_take_sub = false;
 
   union ioctl_new_shm_args new_shm_args;
@@ -41,13 +41,11 @@ void test_case_get_subscriber_num_many(struct kunit * test)
     char * node_name = node_name_buf;
     uint32_t qos_depth = (i % MAX_QOS_DEPTH) + 1;
     bool qos_is_transient_local = (i % 2) == 0;
-    uint32_t subscriber_pid = 123 + i;
+    pid_t subscriber_pid = 123 + i;
     bool is_take_sub = (i % 2) == 0;
 
-    uint64_t shm_size = 1024 * i;
-
     union ioctl_new_shm_args new_shm_args;
-    int ret1 = new_shm_addr(subscriber_pid, shm_size, &new_shm_args);
+    int ret1 = new_shm_addr(subscriber_pid, 1024, &new_shm_args);
 
     union ioctl_subscriber_args subscriber_args;
     int ret2 = subscriber_add(
@@ -71,7 +69,7 @@ void test_case_get_subscriber_num_different_topic(struct kunit * test)
   char * node_name = "/my_node";
   uint32_t qos_depth = 10;
   bool qos_is_transient_local = false;
-  uint32_t subscriber_pid = 123;
+  pid_t subscriber_pid = 123;
   bool is_take_sub = false;
 
   union ioctl_new_shm_args new_shm_args;
@@ -110,7 +108,7 @@ void test_case_get_subscriber_num_with_exit(struct kunit * test)
   bool qos_is_transient_local = false;
   bool is_take_sub = false;
 
-  uint32_t subscriber_pid1 = 123;
+  pid_t subscriber_pid1 = 123;
   union ioctl_new_shm_args new_shm_args;
   int ret1 = new_shm_addr(subscriber_pid1, 1024, &new_shm_args);
 
@@ -119,7 +117,7 @@ void test_case_get_subscriber_num_with_exit(struct kunit * test)
     topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid1, is_take_sub,
     &subscriber_args);
 
-  uint32_t subscriber_pid2 = 124;
+  pid_t subscriber_pid2 = 124;
   union ioctl_new_shm_args new_shm_args2;
   int ret3 = new_shm_addr(subscriber_pid2, 1024, &new_shm_args2);
 
