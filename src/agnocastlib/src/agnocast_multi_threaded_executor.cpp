@@ -8,11 +8,11 @@ namespace agnocast
 
 MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
-  size_t number_of_agnocast_threads, bool ros2_yield_before_execute,
+  size_t number_of_agnocast_threads, bool yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout,
   std::chrono::nanoseconds agnocast_callback_group_wait_time, int agnocast_next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options, agnocast_callback_group_wait_time),
-  ros2_yield_before_execute_(ros2_yield_before_execute),
+  yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
@@ -84,7 +84,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
       }
     }
 
-    if (ros2_yield_before_execute_) {
+    if (yield_before_execute_) {
       std::this_thread::yield();
     }
 
@@ -117,7 +117,7 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
     // a long timeout period instead of an infinite block.
     if (get_next_agnocast_executables(
           agnocast_executables, agnocast_next_exec_timeout_ms_ /* timed-blocking*/)) {
-      if (ros2_yield_before_execute_) {
+      if (yield_before_execute_) {
         std::this_thread::yield();
       }
 
