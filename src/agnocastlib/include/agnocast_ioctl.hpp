@@ -30,9 +30,9 @@ union ioctl_subscriber_args {
   {
     const char * topic_name;
     const char * node_name;
+    pid_t subscriber_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
-    pid_t subscriber_pid;
     bool is_take_sub;
   };
   struct

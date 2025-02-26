@@ -909,8 +909,8 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  char * topic_name, char * node_name, uint32_t qos_depth, bool qos_is_transient_local,
-  const pid_t subscriber_pid, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  char * topic_name, char * node_name, const pid_t subscriber_pid, uint32_t qos_depth,
+  bool qos_is_transient_local, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -1422,8 +1422,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(node_name_buf, (char __user *)sub_args.node_name, sizeof(node_name_buf)))
       goto unlock_mutex_and_return;
     ret = subscriber_add(
-      topic_name_buf, node_name_buf, sub_args.qos_depth, sub_args.qos_is_transient_local,
-      sub_args.subscriber_pid, sub_args.is_take_sub, &sub_args);
+      topic_name_buf, node_name_buf, sub_args.subscriber_pid, sub_args.qos_depth,
+      sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
     if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto unlock_mutex_and_return;
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {

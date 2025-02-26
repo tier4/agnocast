@@ -17,8 +17,7 @@ void test_case_subscriber_add_sample0(struct kunit * test)
   int ret1 = new_shm_addr(subscriber_pid, 1000, &args1);
 
   union ioctl_subscriber_args args2;
-  int ret2 = subscriber_add(
-    topic_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub, &args2);
+  int ret2 = subscriber_add(topic_name, qos_depth, qos_is_transient_local, is_take_sub, &args2);
 
   union ioctl_get_subscriber_num_args args3;
   int ret3 = get_subscriber_num(topic_name, &args3);
