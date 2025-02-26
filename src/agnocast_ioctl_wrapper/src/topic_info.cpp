@@ -66,15 +66,14 @@ char ** get_agnocast_sub_nodes(const char * topic_name, int * node_count)
 {
   *node_count = 0;
 
-  // NOLINTBEGIN
   char * agnocast_node_buffer = static_cast<char *>(malloc(MAX_NODE_NUM * NODE_NAME_BUFFER_SIZE));
-  // NOLINTEND
 
   if (agnocast_node_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
     return nullptr;
   }
 
+  ////FIXME: Replace this code to calling agnocast ////
   const char * nodes[] = {"/my_topic", "/tmp/node_B", "/tmp/temporary/node_C"};
   size_t num_nodes = sizeof(nodes) / sizeof(nodes[0]);
 
@@ -92,6 +91,7 @@ char ** get_agnocast_sub_nodes(const char * topic_name, int * node_count)
   }
 
   free(agnocast_node_buffer);
+  ////////////////////////////////////////////////////
 
   char ** node_array = static_cast<char **>(malloc(*node_count * sizeof(char *)));
   if (node_array == nullptr) {
@@ -116,15 +116,13 @@ char ** get_agnocast_pub_nodes(const char * topic_name, int * node_count)
 {
   *node_count = 0;
 
-  // NOLINTBEGIN
   char * agnocast_node_buffer = static_cast<char *>(malloc(MAX_NODE_NUM * NODE_NAME_BUFFER_SIZE));
-  // NOLINTEND
 
   if (agnocast_node_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
     return nullptr;
   }
-
+  ////FIXME: Replace this code to calling agnocast ////
   const char * nodes[] = {"/my_topic", "/tmp/node_B", "/tmp/temporary/node_C"};
   size_t num_nodes = sizeof(nodes) / sizeof(nodes[0]);
 
@@ -142,7 +140,7 @@ char ** get_agnocast_pub_nodes(const char * topic_name, int * node_count)
   }
 
   free(agnocast_node_buffer);
-
+  ////////////////////////////////////////////////////
   char ** node_array = static_cast<char **>(malloc(*node_count * sizeof(char *)));
   if (node_array == nullptr) {
     return nullptr;
