@@ -18,10 +18,9 @@ int main(int argc, char * argv[])
     (node->has_parameter("number_of_agnocast_threads"))
       ? node->get_parameter("number_of_agnocast_threads").as_int()
       : 0;
-  const bool ros2_yield_before_execute =
-    (node->has_parameter("ros2_yield_before_execute"))
-      ? node->get_parameter("ros2_yield_before_execute").as_bool()
-      : false;
+  const bool yield_before_execute = (node->has_parameter("yield_before_execute"))
+                                      ? node->get_parameter("yield_before_execute").as_bool()
+                                      : false;
   const nanoseconds ros2_next_exec_timeout =
     (node->has_parameter("ros2_next_exec_timeout_ms"))
       ? nanoseconds(node->get_parameter("ros2_next_exec_timeout_ms").as_int() * 1000 * 1000)
@@ -38,7 +37,7 @@ int main(int argc, char * argv[])
 
   auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
     rclcpp::ExecutorOptions{}, number_of_ros2_threads, number_of_agnocast_threads,
-    ros2_yield_before_execute, ros2_next_exec_timeout, agnocast_callback_group_wait_time,
+    yield_before_execute, ros2_next_exec_timeout, agnocast_callback_group_wait_time,
     agnocast_next_exec_timeout_ms);
 
   node->set_executor(executor);
