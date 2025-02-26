@@ -6,7 +6,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -15,8 +14,6 @@ extern "C" {
 char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 {
   *topic_count = 0;
-
-  // ======== Get Agnocast topics ========
 
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
@@ -79,8 +76,6 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 {
   *topic_count = 0;
-
-  // ======== Get Agnocast topics ========
 
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {

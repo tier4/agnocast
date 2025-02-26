@@ -63,7 +63,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
             all_topics_raw = get_topic_names_and_types(node=node)
             all_topics = [{'name': topic_name, 'types': topic_types} for topic_name, topic_types in all_topics_raw]
 
-            print("  Subscribers :")
+            print("  Subscribers:")
             for sub in subscribers:
                 if sub in sub_topics:
                     print(f"    {sub.name}: {', '.join(sub.types)} (Agnocast enabled)")
@@ -78,29 +78,29 @@ class NodeInfoAgnocastVerb(VerbExtension):
                 else:
                     print(f"    {agnocast_sub}: <UNKNOWN> (No publisher)(Agnocast enabled)")
 
-            print("  Publishers :")
+            print("  Publishers:")
             for pub in publishers:
                 if pub.name in pub_topics:
                     print(f"    {pub.name}: {', '.join(pub.types)} (Agnocast enabled)")
                 else:
                     print(f"    {pub.name}: {', '.join(pub.types)}")
 
-            print("  Service Servers :")
+            print("  Service Servers:")
             service_servers = get_service_server_info(node=node, remote_node_name=node_name)
             for service in service_servers:
                 print(f"    {service.name}: {', '.join(service.types)}")
 
-            print("  Service Clients :")
+            print("  Service Clients:")
             service_clients = get_service_client_info(node=node, remote_node_name=node_name)
             for client in service_clients:
                 print(f"    {client.name}: {', '.join(client.types)}")
 
-            print("  Action Servers :")
+            print("  Action Servers:")
             action_servers = get_action_server_info(node=node, remote_node_name=node_name)
             for action in action_servers:
                 print(f"    {action.name}: {', '.join(action.types)}")
 
-            print("  Action Clients :")
+            print("  Action Clients:")
             action_clients = get_action_client_info(node=node, remote_node_name=node_name)
             for action in action_clients:
                 print(f"    {action.name}: {', '.join(action.types)}")
