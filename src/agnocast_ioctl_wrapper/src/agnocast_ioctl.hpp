@@ -3,7 +3,10 @@
 #include <cstdint>
 
 #define MAX_TOPIC_NUM 1024
+#define MAX_NODE_NUM 1024
+
 #define TOPIC_NAME_BUFFER_SIZE 256
+#define NODE_NAME_BUFFER_SIZE 256
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"

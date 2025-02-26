@@ -14,9 +14,11 @@ setup(
     entry_points={
         'ros2topic.verb': [
             'list_agnocast = ros2agnocast.verb.list_agnocast:ListAgnocastVerb',
+            'info_agnocast = ros2agnocast.verb.topic_info_agnocast:TopicInfoAgnocastVerb',
         ],
         'ros2node.verb': [
             'info_agnocast = ros2agnocast.verb.node_info_agnocast:NodeInfoAgnocastVerb',
         ]
+
     }
 )
