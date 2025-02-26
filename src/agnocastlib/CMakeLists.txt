@@ -81,6 +81,8 @@ if(BUILD_TESTING)
   include_directories(${gmock-global_SOURCE_DIR}/include)
 
   find_package(ament_cmake_gmock REQUIRED)
+  
+  # Unit tests
   ament_add_gmock(test_unit_${PROJECT_NAME}
     test/unit/test_agnocast_utils.cpp
     test/unit/test_agnocast_subscription.cpp
@@ -89,6 +91,18 @@ if(BUILD_TESTING)
   target_link_libraries(test_unit_${PROJECT_NAME} gmock-global agnocast)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+  )
+
+  # Integration tests
+  ament_add_gmock(test_integration_${PROJECT_NAME}
+    test/integration/test_agnocast_single_threaded_executor.cpp
+    test/integration/src/ioctl_mock.cpp
+    test/integration/src/node_for_no_starvation_test.cpp)
+  target_include_directories(test_integration_${PROJECT_NAME} PRIVATE test/integration/include)
+  target_link_libraries(test_integration_${PROJECT_NAME} agnocast)
+  set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+    TIMEOUT 120
   )
 endif()
 
