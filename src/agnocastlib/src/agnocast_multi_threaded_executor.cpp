@@ -70,15 +70,12 @@ void MultiThreadedAgnocastExecutor::spin()
 
 void MultiThreadedAgnocastExecutor::ros2_spin()
 {
-  while (true) {
+  while (rclcpp::ok(this->context_) && spinning.load()) {
     rclcpp::AnyExecutable any_executable;
 
     {
       std::lock_guard wait_lock{wait_mutex_};
 
-      if (!rclcpp::ok(this->context_)) {
-        return;
-      }
       if (!get_next_executable(any_executable, ros2_next_exec_timeout_)) {
         continue;
       }
@@ -99,16 +96,12 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
 
 void MultiThreadedAgnocastExecutor::agnocast_spin()
 {
-  while (true) {
+  while (rclcpp::ok(this->context_) && spinning.load()) {
     if (need_epoll_updates.exchange(false)) {
       prepare_epoll();
     }
 
     agnocast::AgnocastExecutables agnocast_executables;
-
-    if (!rclcpp::ok(this->context_)) {
-      return;
-    }
 
     // Unlike a single-threaded executor, in a multi-threaded executor, each thread is dedicated to
     // handling either ROS 2 callbacks or Agnocast callbacks exclusively.
