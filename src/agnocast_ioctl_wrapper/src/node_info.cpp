@@ -1,3 +1,8 @@
+#include "agnocast_ioctl.hpp"
+
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -8,19 +13,45 @@ extern "C" {
 
 char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
 {
-  (void)node_name;
-  ///////////////////////////////////////
-  // This is a dummy implementation
-  // In a real implementation, you should get the list of topics from agnocast
-  // TODO(TetsuKawa): Implement the real implementation
-  ///////////////////////////////////////
-  std::vector<std::string> topics = {
-    "/chatter",
-    "/another_topic_sub",
-  };
-  ///////////////////////////////////////
+  *topic_count = 0;
 
-  *topic_count = 2;
+  int fd = open("/dev/agnocast", O_RDONLY);
+  if (fd < 0) {
+    perror("Failed to open /dev/agnocast");
+    return nullptr;
+  }
+
+  // NOLINTBEGIN
+  char * agnocast_topic_buffer =
+    static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
+  // NOLINTEND
+
+  union ioctl_node_info_args node_info_args = {};
+  node_info_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
+  node_info_args.node_name = node_name;
+  if (ioctl(fd, AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD, &node_info_args) < 0) {
+    perror("AGNOCAST_TAKE_NODE_SUBSCRIBER_TOPICS_CMD failed");
+    free(agnocast_topic_buffer);  // NOLINT
+    close(fd);
+    return nullptr;
+  }
+
+  if (node_info_args.ret_topic_num == 0) {
+    free(agnocast_topic_buffer);  // NOLINT
+    close(fd);
+    return nullptr;
+  }
+
+  *topic_count = static_cast<int>(node_info_args.ret_topic_num);
+
+  std::vector<std::string> agnocast_sub_topics(*topic_count);
+  for (uint32_t i = 0; i < *topic_count; i++) {
+    agnocast_sub_topics[i] =
+      agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
+  }
+
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
@@ -28,34 +59,61 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
-    if (!topic_array[i]) {                                                                // NOLINT
+    topic_array[i] =                                                                    // NOLINT
+      static_cast<char *>(malloc((agnocast_sub_topics[i].size() + 1) * sizeof(char)));  // NOLINT
+    if (!topic_array[i]) {                                                              // NOLINT
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);  // NOLINT
       }
       free(topic_array);  // NOLINT
       return nullptr;
     }
-    std::strcpy(topic_array[i], topics[i].c_str());  // NOLINT
+    std::strcpy(topic_array[i], agnocast_sub_topics[i].c_str());  // NOLINT
   }
   return topic_array;
 }
 
 char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
 {
-  (void)node_name;
-  ///////////////////////////////////////
-  // This is a dummy implementation
-  // In a real implementation, you should get the list of topics from agnocast
-  // TODO(TetsuKawa): Implement the real implementation
-  ///////////////////////////////////////
-  std::vector<std::string> topics = {
-    "/chatter",
-    "/another_topic_pub",
-  };
-  ///////////////////////////////////////
+  *topic_count = 0;
 
-  *topic_count = 2;
+  int fd = open("/dev/agnocast", O_RDONLY);
+  if (fd < 0) {
+    perror("Failed to open /dev/agnocast");
+    return nullptr;
+  }
+
+  // NOLINTBEGIN
+  char * agnocast_topic_buffer =
+    static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
+  // NOLINTEND
+
+  union ioctl_node_info_args node_info_args = {};
+  node_info_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
+  node_info_args.node_name = node_name;
+  if (ioctl(fd, AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD, &node_info_args) < 0) {
+    perror("AGNOCAST_TAKE_NODE_PUBLISHER_TOPICS_CMD failed");
+    free(agnocast_topic_buffer);  // NOLINT
+    close(fd);
+    return nullptr;
+  }
+
+  if (node_info_args.ret_topic_num == 0) {
+    free(agnocast_topic_buffer);  // NOLINT
+    close(fd);
+    return nullptr;
+  }
+
+  *topic_count = static_cast<int>(node_info_args.ret_topic_num);
+
+  std::vector<std::string> agnocast_pub_topics(*topic_count);
+  for (uint32_t i = 0; i < *topic_count; i++) {
+    agnocast_pub_topics[i] =
+      agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;  // NOLINT
+  }
+
+  free(agnocast_topic_buffer);  // NOLINT
+  close(fd);
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));  // NOLINT
   if (topic_array == nullptr) {
@@ -63,15 +121,16 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] = static_cast<char *>(malloc((topics[i].size() + 1) * sizeof(char)));  // NOLINT
-    if (!topic_array[i]) {                                                                // NOLINT
+    topic_array[i] =                                                                    // NOLINT
+      static_cast<char *>(malloc((agnocast_pub_topics[i].size() + 1) * sizeof(char)));  // NOLINT
+    if (!topic_array[i]) {                                                              // NOLINT
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);  // NOLINT
       }
       free(topic_array);  // NOLINT
       return nullptr;
     }
-    std::strcpy(topic_array[i], topics[i].c_str());  // NOLINT
+    std::strcpy(topic_array[i], agnocast_pub_topics[i].c_str());  // NOLINT
   }
   return topic_array;
 }
