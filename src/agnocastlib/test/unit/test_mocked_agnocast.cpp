@@ -186,7 +186,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_empty)
 {
-  EXPECT_GLOBAL_CALL(increment_rc_mock, increment_rc_mock(_, _, _)).Times(1);
+  EXPECT_GLOBAL_CALL(increment_rc_mock, increment_rc_mock(_, _, _)).Times(0);
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(_, _, _)).Times(0);
 
   agnocast::ipc_shared_ptr<int> sut;
@@ -244,6 +244,16 @@ TEST_F(AgnocastSmartPointerTest, copy_assignment_self)
   EXPECT_EQ(dummy_tn, sut.get_topic_name());
   EXPECT_EQ(dummy_pubsub_id, sut.get_pubsub_id());
   EXPECT_EQ(dummy_entry_id, sut.get_entry_id());
+}
+
+TEST_F(AgnocastSmartPointerTest, copy_assignment_empty)
+{
+  EXPECT_GLOBAL_CALL(increment_rc_mock, increment_rc_mock(_, _, _)).Times(0);
+  EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(_, _, _)).Times(0);
+
+  agnocast::ipc_shared_ptr<int> sut;
+  sut = agnocast::ipc_shared_ptr<int>();
+  EXPECT_NO_THROW();
 }
 
 TEST_F(AgnocastSmartPointerTest, move_constructor_normal)

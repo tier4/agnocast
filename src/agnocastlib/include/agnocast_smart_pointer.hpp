@@ -65,7 +65,9 @@ public:
   ipc_shared_ptr(const ipc_shared_ptr & r)
   : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
-    increment_rc(topic_name_, pubsub_id_, entry_id_);
+    if (ptr_ != nullptr) {
+      increment_rc(topic_name_, pubsub_id_, entry_id_);
+    }
   }
 
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
@@ -76,7 +78,9 @@ public:
       topic_name_ = r.topic_name_;
       pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
-      increment_rc(topic_name_, pubsub_id_, entry_id_);
+      if (ptr_ != nullptr) {
+        increment_rc(topic_name_, pubsub_id_, entry_id_);
+      }
     }
     return *this;
   }
