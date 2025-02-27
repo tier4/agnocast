@@ -30,7 +30,11 @@ protected:
     executor_->add_node(test_node_);
   }
 
-  void TearDown() override { rclcpp::shutdown(); }
+  void TearDown() override
+  {
+    test_node_->remove_mqueues();
+    rclcpp::shutdown();
+  }
 
   std::shared_ptr<NodeForNoStarvation> test_node_;
   std::shared_ptr<agnocast::SingleThreadedAgnocastExecutor> executor_;

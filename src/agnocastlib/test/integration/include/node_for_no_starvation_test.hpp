@@ -36,8 +36,7 @@ public:
     const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
     const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period);
 
-  ~NodeForNoStarvation();
-
   bool is_all_ros2_sub_cbs_called() const;
   bool is_all_agnocast_sub_cbs_called() const;
+  void remove_mqueues();
 };

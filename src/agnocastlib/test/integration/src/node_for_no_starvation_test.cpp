@@ -28,7 +28,7 @@ NodeForNoStarvation::NodeForNoStarvation(
   ros2_sub_cbs_called_.assign(num_ros2_sub_cbs, false);
 }
 
-NodeForNoStarvation::~NodeForNoStarvation()
+void NodeForNoStarvation::remove_mqueues()
 {
   for (auto & mq_receiver : mq_receivers_) {
     if (mq_close(mq_receiver.first) == -1) {
