@@ -29,8 +29,6 @@ void test_case_new_shm_normal(struct kunit * test)
   KUNIT_EXPECT_EQ(test, args.ret_addr, previously_allocated_shm_addr + PAGE_SIZE);
   KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid));
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
-
-  process_exit_cleanup(local_pid);
 }
 
 void test_case_new_shm_many(struct kunit * test)
@@ -62,10 +60,6 @@ void test_case_new_shm_many(struct kunit * test)
   for (int i = 0; i < process_num; i++) {
     KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid_start + i));
   }
-
-  for (int i = 0; i < process_num; i++) {
-    process_exit_cleanup(local_pid_start + i);
-  }
 }
 
 void test_case_new_shm_not_aligned(struct kunit * test)
@@ -90,6 +84,4 @@ void test_case_new_shm_twice(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret2, -EINVAL);
   KUNIT_EXPECT_EQ(test, is_in_proc_info_htable(local_pid), true);
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
-
-  process_exit_cleanup(local_pid);
 }
