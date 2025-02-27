@@ -150,3 +150,23 @@ void test_case_get_subscriber_num_with_exit(struct kunit * test)
   KUNIT_EXPECT_EQ(test, subscriber_num_args2.ret_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_num_args3.ret_subscriber_num, 0);
 }
+
+void test_case_get_subscriber_num_no_subscriber(struct kunit * test)
+{
+  char * topic_name = "/my_topic";
+  char * node_name = "/my_node";
+  pid_t publisher_pid = 123;
+  uint32_t qos_depth = 10;
+  bool qos_is_transient_local = false;
+
+  union ioctl_publisher_args publisher_args;
+  int ret1 = publisher_add(
+    topic_name, node_name, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+
+  union ioctl_get_subscriber_num_args subscriber_num_args;
+  int ret2 = get_subscriber_num(topic_name, &subscriber_num_args);
+
+  KUNIT_EXPECT_EQ(test, ret1, 0);
+  KUNIT_EXPECT_EQ(test, ret2, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
+}
