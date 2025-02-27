@@ -12,7 +12,7 @@ pid_t subscriber_pid = 1000;
 pid_t publisher_pid = 2000;
 bool is_take_sub = false;
 
-void setup_one_subscriber(void)
+static void setup_one_subscriber(void)
 {
   subscriber_pid++;
 
@@ -25,7 +25,7 @@ void setup_one_subscriber(void)
     &subscriber_args);
 }
 
-void setup_one_publisher(void)
+static void setup_one_publisher(void)
 {
   publisher_pid++;
 
@@ -37,7 +37,7 @@ void setup_one_publisher(void)
     topic_name, node_name, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
 }
 
-void setup_different_topic_subscriber(char * topic_name2)
+static void setup_different_topic_subscriber(char * topic_name2)
 {
   subscriber_pid++;
 
