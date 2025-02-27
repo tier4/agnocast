@@ -1306,13 +1306,11 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
 int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (get_subscription_num)\n", topic_name);
-    return -1;
+  if (wrapper) {
+    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+  } else {
+    ioctl_ret->ret_subscriber_num = 0;
   }
-
-  ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
 
   return 0;
 }
@@ -1710,7 +1708,7 @@ static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
 static atomic_t has_new_pid = ATOMIC_INIT(0);
 
-static void process_exit_cleanup(const pid_t pid)
+void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;

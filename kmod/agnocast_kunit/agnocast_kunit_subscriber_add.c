@@ -8,6 +8,7 @@
 void test_case_subscriber_add_sample0(struct kunit * test)
 {
   char * topic_name = "my_topic";
+  char * node_name = "my_node";
   uint32_t qos_depth = 5;
   bool qos_is_transient_local = false;
   uint32_t subscriber_pid = 123;
@@ -18,7 +19,7 @@ void test_case_subscriber_add_sample0(struct kunit * test)
 
   union ioctl_subscriber_args args2;
   int ret2 = subscriber_add(
-    topic_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub, &args2);
+    topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub, &args2);
 
   union ioctl_get_subscriber_num_args args3;
   int ret3 = get_subscriber_num(topic_name, &args3);
