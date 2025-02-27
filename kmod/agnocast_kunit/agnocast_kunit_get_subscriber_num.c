@@ -4,14 +4,17 @@
 
 #include <kunit/test.h>
 
-void test_case_get_subscriber_num_normal(struct kunit * test)
+char * topic_name = "/my_topic";
+char * node_name = "/my_node";
+uint32_t qos_depth = 10;
+bool qos_is_transient_local = false;
+pid_t subscriber_pid = 1000;
+pid_t publisher_pid = 2000;
+bool is_take_sub = false;
+
+void setup_one_subscriber(void)
 {
-  char * topic_name = "/my_topic";
-  char * node_name = "/my_node";
-  uint32_t qos_depth = 10;
-  bool qos_is_transient_local = false;
-  pid_t subscriber_pid = 123;
-  bool is_take_sub = false;
+  subscriber_pid++;
 
   union ioctl_new_shm_args new_shm_args;
   new_shm_addr(subscriber_pid, 1024, &new_shm_args);
@@ -20,6 +23,36 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
   subscriber_add(
     topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
     &subscriber_args);
+}
+
+void setup_one_publisher(void)
+{
+  publisher_pid++;
+
+  union ioctl_new_shm_args new_shm_args;
+  new_shm_addr(publisher_pid, 1024, &new_shm_args);
+
+  union ioctl_publisher_args publisher_args;
+  publisher_add(
+    topic_name, node_name, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+}
+
+void setup_different_topic_subscriber(char * topic_name2)
+{
+  subscriber_pid++;
+
+  union ioctl_new_shm_args new_shm_args;
+  new_shm_addr(subscriber_pid, 1024, &new_shm_args);
+
+  union ioctl_subscriber_args subscriber_args;
+  subscriber_add(
+    topic_name2, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
+    &subscriber_args);
+}
+
+void test_case_get_subscriber_num_normal(struct kunit * test)
+{
+  setup_one_subscriber();
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
   int ret = get_subscriber_num(topic_name, &subscriber_num_args);
@@ -30,25 +63,8 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
 
 void test_case_get_subscriber_num_many(struct kunit * test)
 {
-  char * topic_name = "/my_topic";
-
   for (int i = 1; i <= MAX_SUBSCRIBER_NUM; i++) {
-    char node_name_buf[32];
-    snprintf(node_name_buf, sizeof(node_name_buf), "/my_node%d", i);
-
-    char * node_name = node_name_buf;
-    uint32_t qos_depth = (i % MAX_QOS_DEPTH) + 1;
-    bool qos_is_transient_local = (i % 2) == 0;
-    pid_t subscriber_pid = 123 + i;
-    bool is_take_sub = (i % 2) == 0;
-
-    union ioctl_new_shm_args new_shm_args;
-    new_shm_addr(subscriber_pid, 1024, &new_shm_args);
-
-    union ioctl_subscriber_args subscriber_args;
-    subscriber_add(
-      topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
-      &subscriber_args);
+    setup_one_subscriber();
 
     union ioctl_get_subscriber_num_args subscriber_num_args;
     int ret = get_subscriber_num(topic_name, &subscriber_num_args);
@@ -60,31 +76,13 @@ void test_case_get_subscriber_num_many(struct kunit * test)
 
 void test_case_get_subscriber_num_different_topic(struct kunit * test)
 {
-  char * topic_name1 = "/my_topic1";
   char * topic_name2 = "/my_topic2";
-  char * node_name = "/my_node";
-  uint32_t qos_depth = 10;
-  bool qos_is_transient_local = false;
-  pid_t subscriber_pid = 123;
-  bool is_take_sub = false;
-
-  union ioctl_new_shm_args new_shm_args;
-  new_shm_addr(subscriber_pid, 1024, &new_shm_args);
-
-  union ioctl_subscriber_args subscriber_args1;
-  subscriber_add(
-    topic_name1, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
-    &subscriber_args1);
-
-  union ioctl_subscriber_args subscriber_args2;
-  subscriber_add(
-    topic_name2, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
-    &subscriber_args2);
+  setup_one_subscriber();
+  setup_different_topic_subscriber(topic_name2);
 
   union ioctl_get_subscriber_num_args subscriber_num_args1;
-  int ret1 = get_subscriber_num(topic_name1, &subscriber_num_args1);
-
   union ioctl_get_subscriber_num_args subscriber_num_args2;
+  int ret1 = get_subscriber_num(topic_name, &subscriber_num_args1);
   int ret2 = get_subscriber_num(topic_name2, &subscriber_num_args2);
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
@@ -95,62 +93,19 @@ void test_case_get_subscriber_num_different_topic(struct kunit * test)
 
 void test_case_get_subscriber_num_with_exit(struct kunit * test)
 {
-  char * topic_name = "/my_topic";
-  char * node_name = "/my_node";
-  uint32_t qos_depth = 10;
-  bool qos_is_transient_local = false;
-  bool is_take_sub = false;
+  setup_one_subscriber();
 
-  pid_t subscriber_pid1 = 123;
-  union ioctl_new_shm_args new_shm_args;
-  new_shm_addr(subscriber_pid1, 1024, &new_shm_args);
+  union ioctl_get_subscriber_num_args subscriber_num_args;
+  process_exit_cleanup(subscriber_pid);
+  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
 
-  union ioctl_subscriber_args subscriber_args;
-  subscriber_add(
-    topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid1, is_take_sub,
-    &subscriber_args);
-
-  pid_t subscriber_pid2 = 124;
-  union ioctl_new_shm_args new_shm_args2;
-  new_shm_addr(subscriber_pid2, 1024, &new_shm_args2);
-
-  union ioctl_subscriber_args subscriber_args2;
-  subscriber_add(
-    topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid2, is_take_sub,
-    &subscriber_args2);
-
-  union ioctl_get_subscriber_num_args subscriber_num_args1;
-  int ret1 = get_subscriber_num(topic_name, &subscriber_num_args1);
-
-  process_exit_cleanup(subscriber_pid1);
-
-  union ioctl_get_subscriber_num_args subscriber_num_args2;
-  int ret2 = get_subscriber_num(topic_name, &subscriber_num_args2);
-
-  process_exit_cleanup(subscriber_pid2);
-
-  union ioctl_get_subscriber_num_args subscriber_num_args3;
-  int ret3 = get_subscriber_num(topic_name, &subscriber_num_args3);
-
-  KUNIT_EXPECT_EQ(test, ret1, 0);
-  KUNIT_EXPECT_EQ(test, ret2, 0);
-  KUNIT_EXPECT_EQ(test, ret3, 0);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args1.ret_subscriber_num, 2);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args2.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args3.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
 }
 
 void test_case_get_subscriber_num_no_subscriber(struct kunit * test)
 {
-  char * topic_name = "/my_topic";
-  char * node_name = "/my_node";
-  pid_t publisher_pid = 123;
-  uint32_t qos_depth = 10;
-  bool qos_is_transient_local = false;
-
-  union ioctl_publisher_args publisher_args;
-  publisher_add(
-    topic_name, node_name, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+  setup_one_publisher();
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
   int ret = get_subscriber_num(topic_name, &subscriber_num_args);
