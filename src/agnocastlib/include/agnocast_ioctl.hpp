@@ -8,11 +8,11 @@
 namespace agnocast
 {
 
-// TODO: should be made larger when applied for Autoware
-#define MAX_PUBLISHER_NUM 4   // At least 4 is required for sample application
-#define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
-#define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
-#define MAX_RELEASE_NUM 3     // Max to keep union size equal to 32 bytes
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
+#define MAX_MAP_NUM 8  // Maximum number of read-only shared memory regions mappable per process
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
