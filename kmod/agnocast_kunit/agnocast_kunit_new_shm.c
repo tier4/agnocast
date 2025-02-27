@@ -27,8 +27,8 @@ void test_case_new_shm_normal(struct kunit * test)
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_addr, previously_allocated_shm_addr + PAGE_SIZE);
-  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid));
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid));
 }
 
 void test_case_new_shm_many(struct kunit * test)
@@ -82,6 +82,6 @@ void test_case_new_shm_twice(struct kunit * test)
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, ret2, -EINVAL);
-  KUNIT_EXPECT_EQ(test, is_in_proc_info_htable(local_pid), true);
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid));
 }
