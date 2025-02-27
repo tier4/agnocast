@@ -1265,6 +1265,18 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
   static uint64_t allocatable_addr = 0x40000000000;
 
+  if (shm_size % PAGE_SIZE != 0) {
+    dev_warn(
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
+      PAGE_SIZE);
+    return -EINVAL;
+  }
+
+  if (find_process_info(pid)) {
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
+    return -EINVAL;
+  }
+
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
     dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
