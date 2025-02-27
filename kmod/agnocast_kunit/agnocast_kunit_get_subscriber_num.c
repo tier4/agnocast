@@ -63,15 +63,15 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
 
 void test_case_get_subscriber_num_many(struct kunit * test)
 {
-  for (int i = 1; i <= MAX_SUBSCRIBER_NUM; i++) {
+  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     setup_one_subscriber();
-
-    union ioctl_get_subscriber_num_args subscriber_num_args;
-    int ret = get_subscriber_num(topic_name, &subscriber_num_args);
-
-    KUNIT_EXPECT_EQ(test, ret, 0);
-    KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, i);
   }
+
+  union ioctl_get_subscriber_num_args subscriber_num_args;
+  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
+
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, MAX_SUBSCRIBER_NUM);
 }
 
 void test_case_get_subscriber_num_different_topic(struct kunit * test)
