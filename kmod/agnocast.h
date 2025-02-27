@@ -6,7 +6,6 @@
 #define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
-#define MAX_MAP_NUM 8  // Maximum number of read-only shared memory regions mappable per process
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
