@@ -2,12 +2,10 @@
 
 #include <linux/types.h>
 
-// TODO: should be made larger when applied for Autoware
-#define MAX_PUBLISHER_NUM 4   // At least 4 is required for sample application
-#define MAX_SUBSCRIBER_NUM 8  // At least 6 is required for pointcloud topic in Autoware
-#define MAX_QOS_DEPTH 10      // Maximum depth of transient local usage part in Autoware
-#define MAX_RELEASE_NUM 3     // Maximum number of entry_nodes that can be released at once
-#define MAX_MAP_NUM 8         // Max number of read-only shared memory regions mappable per process
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -201,3 +199,5 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
 int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
 
 int get_topic_list(union ioctl_topic_list_args * topic_list_args);
+
+void process_exit_cleanup(const pid_t pid);

@@ -26,6 +26,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
 
+// Maximum number of read-only shared memory regions mappable per process
+#define MAX_MAP_NUM 8
+
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
@@ -1265,6 +1268,18 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   // TODO: assume 0x40000000000~ (4398046511104) is allocatable
   static uint64_t allocatable_addr = 0x40000000000;
 
+  if (shm_size % PAGE_SIZE != 0) {
+    dev_warn(
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
+      PAGE_SIZE);
+    return -EINVAL;
+  }
+
+  if (find_process_info(pid)) {
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
+    return -EINVAL;
+  }
+
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
     dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
@@ -1291,13 +1306,11 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
 int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (get_subscription_num)\n", topic_name);
-    return -1;
+  if (wrapper) {
+    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+  } else {
+    ioctl_ret->ret_subscriber_num = 0;
   }
-
-  ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
 
   return 0;
 }
@@ -1695,7 +1708,7 @@ static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
 static atomic_t has_new_pid = ATOMIC_INIT(0);
 
-static void process_exit_cleanup(const pid_t pid)
+void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;
