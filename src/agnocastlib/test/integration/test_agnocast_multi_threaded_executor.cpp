@@ -51,9 +51,9 @@ protected:
   const std::chrono::milliseconds PUB_PERIOD = std::chrono::milliseconds(50);
   const size_t NUMBER_OF_ROS2_THREADS = 3;
   const size_t NUMBER_OF_AGNOCAST_THREADS = 3;
-  const uint64_t NUM_ROS2_SUB_CBS = NUMBER_OF_ROS2_THREADS * 5;
-  const uint64_t NUM_AGNOCAST_SUB_CBS = NUMBER_OF_AGNOCAST_THREADS * 5;
-  const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = NUMBER_OF_AGNOCAST_THREADS * 3;
+  const uint64_t NUM_ROS2_SUB_CBS = NUMBER_OF_ROS2_THREADS * 3;
+  const uint64_t NUM_AGNOCAST_SUB_CBS = NUMBER_OF_AGNOCAST_THREADS * 3;
+  const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = NUMBER_OF_AGNOCAST_THREADS * 2;
   const std::chrono::nanoseconds AGNOCAST_CALLBACK_GROUP_WAIT_TIME =
     std::chrono::nanoseconds(10 * 1000 * 1000);
 };
