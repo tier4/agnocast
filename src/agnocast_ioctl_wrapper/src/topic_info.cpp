@@ -66,8 +66,8 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
 {
   *topic_info_ret_count = 0;
 
-  struct topic_info_ret * agnocast_topic_info_ret_buffer =
-    (struct topic_info_ret *)(malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
+  struct topic_info_ret * agnocast_topic_info_ret_buffer = static_cast<struct topic_info_ret *>(
+    malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
   if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
@@ -97,8 +97,8 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
 {
   *topic_info_ret_count = 0;
 
-  struct topic_info_ret * agnocast_topic_info_ret_buffer =
-    (struct topic_info_ret *)(malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
+  struct topic_info_ret * agnocast_topic_info_ret_buffer = static_cast<struct topic_info_ret *>(
+    malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
   if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
