@@ -62,113 +62,74 @@ char ** get_agnocast_topic_list(int * topic_count)
   return topic_array;
 }
 
-char ** get_agnocast_sub_nodes(const char * topic_name, int * node_count)
+struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * topic_info_ret_count)
 {
-  *node_count = 0;
+  *topic_info_ret_count = 0;
 
-  char * agnocast_node_buffer = static_cast<char *>(malloc(MAX_NODE_NUM * NODE_NAME_BUFFER_SIZE));
+  struct topic_info_ret * agnocast_topic_info_ret_buffer =
+    (struct topic_info_ret *)(malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
-  if (agnocast_node_buffer == nullptr) {
+  if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
     return nullptr;
   }
 
   ////FIXME: Replace this code to calling agnocast ////
-  const char * nodes[] = {"/my_topic", "/tmp/node_B", "/tmp/temporary/node_C"};
-  size_t num_nodes = sizeof(nodes) / sizeof(nodes[0]);
+  const char * nodes[] = {"/listener_node", "/tmp/node_B", "/tmp/temporary/node_C"};
+  size_t num_nodes = 3;
 
   for (size_t i = 0; i < num_nodes; i++) {
     strncpy(
-      agnocast_node_buffer + (i * NODE_NAME_BUFFER_SIZE), nodes[i], NODE_NAME_BUFFER_SIZE - 1);
-    agnocast_node_buffer[(i + 1) * NODE_NAME_BUFFER_SIZE - 1] = '\0';
+      agnocast_topic_info_ret_buffer[i].node_name, nodes[i],
+      sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1);
+    agnocast_topic_info_ret_buffer[i]
+      .node_name[sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1] = '\0';
+    agnocast_topic_info_ret_buffer[i].qos_depth = 3;
+    agnocast_topic_info_ret_buffer[i].qos_is_transient_local = true;
   }
-
-  *node_count = static_cast<int>(num_nodes);
-
-  std::vector<std::string> agnocast_sub_nodes(*node_count);
-  for (uint32_t i = 0; i < *node_count; i++) {
-    agnocast_sub_nodes[i] = agnocast_node_buffer + static_cast<size_t>(i) * NODE_NAME_BUFFER_SIZE;
-  }
-
-  free(agnocast_node_buffer);
   ////////////////////////////////////////////////////
 
-  char ** node_array = static_cast<char **>(malloc(*node_count * sizeof(char *)));
-  if (node_array == nullptr) {
-    return nullptr;
-  }
-
-  for (size_t i = 0; i < *node_count; i++) {
-    node_array[i] = static_cast<char *>(malloc((agnocast_sub_nodes[i].size() + 1) * sizeof(char)));
-    if (!node_array[i]) {
-      for (size_t j = 0; j < i; j++) {
-        free(node_array[j]);
-      }
-      free(node_array);
-      return nullptr;
-    }
-    std::strcpy(node_array[i], agnocast_sub_nodes[i].c_str());
-  }
-  return node_array;
+  *topic_info_ret_count = static_cast<int>(num_nodes);
+  return agnocast_topic_info_ret_buffer;
 }
 
-char ** get_agnocast_pub_nodes(const char * topic_name, int * node_count)
+struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * topic_info_ret_count)
 {
-  *node_count = 0;
+  *topic_info_ret_count = 0;
 
-  char * agnocast_node_buffer = static_cast<char *>(malloc(MAX_NODE_NUM * NODE_NAME_BUFFER_SIZE));
+  struct topic_info_ret * agnocast_topic_info_ret_buffer =
+    (struct topic_info_ret *)(malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
-  if (agnocast_node_buffer == nullptr) {
+  if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
     return nullptr;
   }
+
   ////FIXME: Replace this code to calling agnocast ////
-  const char * nodes[] = {"/my_topic", "/tmp/node_B", "/tmp/temporary/node_C"};
-  size_t num_nodes = sizeof(nodes) / sizeof(nodes[0]);
+  const char * nodes[] = {"/talker_node", "/tmp/node_B", "/tmp/temporary/node_C"};
+  size_t num_nodes = 3;
 
   for (size_t i = 0; i < num_nodes; i++) {
     strncpy(
-      agnocast_node_buffer + (i * NODE_NAME_BUFFER_SIZE), nodes[i], NODE_NAME_BUFFER_SIZE - 1);
-    agnocast_node_buffer[(i + 1) * NODE_NAME_BUFFER_SIZE - 1] = '\0';
+      agnocast_topic_info_ret_buffer[i].node_name, nodes[i],
+      sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1);
+    agnocast_topic_info_ret_buffer[i]
+      .node_name[sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1] = '\0';
+    agnocast_topic_info_ret_buffer[i].qos_depth = 3;
+    agnocast_topic_info_ret_buffer[i].qos_is_transient_local = true;
   }
-
-  *node_count = static_cast<int>(num_nodes);
-
-  std::vector<std::string> agnocast_pub_nodes(*node_count);
-  for (uint32_t i = 0; i < *node_count; i++) {
-    agnocast_pub_nodes[i] = agnocast_node_buffer + static_cast<size_t>(i) * NODE_NAME_BUFFER_SIZE;
-  }
-
-  free(agnocast_node_buffer);
   ////////////////////////////////////////////////////
-  char ** node_array = static_cast<char **>(malloc(*node_count * sizeof(char *)));
-  if (node_array == nullptr) {
-    return nullptr;
-  }
 
-  for (size_t i = 0; i < *node_count; i++) {
-    node_array[i] = static_cast<char *>(malloc((agnocast_pub_nodes[i].size() + 1) * sizeof(char)));
-    if (!node_array[i]) {
-      for (size_t j = 0; j < i; j++) {
-        free(node_array[j]);
-      }
-      free(node_array);
-      return nullptr;
-    }
-    std::strcpy(node_array[i], agnocast_pub_nodes[i].c_str());
-  }
-  return node_array;
+  *topic_info_ret_count = static_cast<int>(num_nodes);
+  return agnocast_topic_info_ret_buffer;
 }
 
-void free_agnocast_nodes_and_topics(char ** array, int count)
+void free_agnocast_topic_info_ret(struct topic_info_ret * array, int count)
 {
   if (array == nullptr) {
     return;
   }
 
-  for (int i = 0; i < count; i++) {
-    free(array[i]);
-  }
   free(array);
 }
 }

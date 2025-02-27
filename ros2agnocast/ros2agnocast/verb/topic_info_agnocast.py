@@ -6,6 +6,13 @@ from ros2topic.api import get_topic_names_and_types
 from ros2topic.api import TopicNameCompleter
 from ros2node.verb import VerbExtension
 
+class TopicInfoRet(ctypes.Structure):
+    _fields_ = [
+        ("node_name", ctypes.c_char * 256),
+        ("qos_depth", ctypes.c_uint32),
+        ("qos_is_transient_local", ctypes.c_bool),
+    ]
+
 class TopicInfoAgnocastVerb(VerbExtension):
     """Print information about a topic including Agnocast."""
 
@@ -37,11 +44,14 @@ class TopicInfoAgnocastVerb(VerbExtension):
             lib.get_agnocast_topic_list.argtype = [ctypes.POINTER(ctypes.c_int)]
             lib.get_agnocast_topic_list.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
             lib.get_agnocast_sub_nodes.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int)]
-            lib.get_agnocast_sub_nodes.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
+            lib.get_agnocast_sub_nodes.restype = ctypes.POINTER(TopicInfoRet)
             lib.get_agnocast_pub_nodes.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int)]
-            lib.get_agnocast_pub_nodes.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char))           
-            lib.free_agnocast_nodes_and_topics.argtypes = [ctypes.POINTER(ctypes.POINTER(ctypes.c_char)), ctypes.c_int]
-            lib.free_agnocast_nodes_and_topics.restype = None
+            lib.get_agnocast_pub_nodes.restype = ctypes.POINTER(TopicInfoRet)          
+            lib.free_agnocast_topics.argtypes = [ctypes.POINTER(ctypes.POINTER(ctypes.c_char)), ctypes.c_int]
+            lib.free_agnocast_topics.restype = None
+            lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet), ctypes.c_int]
+            lib.free_agnocast_topic_info_ret.restype = None
+
 
             # get agnocast topic list
             agnocast_topic_count = ctypes.c_int()
@@ -51,7 +61,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 topic_ptr = ctypes.cast(agnocast_topic_names_array[i], ctypes.c_char_p)
                 agnocast_topic_names.append(topic_ptr.value.decode('utf-8'))
             if agnocast_topic_count.value != 0:
-                lib.free_agnocast_nodes_and_topics(agnocast_topic_names_array, agnocast_topic_count)
+                lib.free_agnocast_topics(agnocast_topic_names_array, agnocast_topic_count)
 
             # get ros2 topic list
             topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
@@ -73,25 +83,30 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 line_end = '\n\n'
 
             # get agnocast sub node list
-            sub_node_count = ctypes.c_int()
-            sub_node_array = lib.get_agnocast_sub_nodes(topic_name_byte, ctypes.byref(sub_node_count))
-            sub_nodes = []
-            for i in range(sub_node_count.value):
-                node_ptr = ctypes.cast(sub_node_array[i], ctypes.c_char_p)
-                sub_nodes.append(node_ptr.value.decode('utf-8'))
-            if sub_node_count.value != 0:
-                lib.free_agnocast_topics(sub_node_array, sub_node_count)
+            sub_topic_info_ret_count = ctypes.c_int()
+            sub_topic_info_ret_array = lib.get_agnocast_sub_nodes(topic_name_byte, ctypes.byref(sub_topic_info_ret_count))
+            sub_topic_info_rets = []
+            for i in range(sub_topic_info_ret_count.value):
+                sub_topic_info_rets.append({
+                    "node_name": sub_topic_info_ret_array[i].node_name.decode('utf-8'),
+                    "qos_depth": sub_topic_info_ret_array[i].qos_depth,
+                    "qos_is_transient_local": sub_topic_info_ret_array[i].qos_is_transient_local,
+                })
+            if sub_topic_info_ret_count.value != 0:
+                lib.free_agnocast_topic_info_ret(sub_topic_info_ret_array, sub_topic_info_ret_count)
 
             # get agnocast pub node list
-            pub_node_count = ctypes.c_int()
-            pub_node_array = lib.get_agnocast_pub_nodes(topic_name_byte, ctypes.byref(pub_node_count))
-            pub_nodes = []
-            for i in range(pub_node_count.value):
-                node_ptr = ctypes.cast(pub_node_array[i], ctypes.c_char_p)
-                pub_nodes.append(node_ptr.value.decode('utf-8'))
-            if pub_node_count.value != 0:
-                lib.free_agnocast_topics(pub_node_array, pub_node_count)
-
+            pub_topic_info_ret_count = ctypes.c_int()
+            pub_topic_info_ret_array = lib.get_agnocast_pub_nodes(topic_name_byte, ctypes.byref(pub_topic_info_ret_count))
+            pub_topic_info_rets = []
+            for i in range(pub_topic_info_ret_count.value):
+                pub_topic_info_rets.append({
+                    "node_name": pub_topic_info_ret_array[i].node_name.decode('utf-8'),
+                    "qos_depth": pub_topic_info_ret_array[i].qos_depth,
+                    "qos_is_transient_local": pub_topic_info_ret_array[i].qos_is_transient_local,
+                })
+            if pub_topic_info_ret_count.value != 0:
+                lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array, pub_topic_info_ret_count)
 
             ########################################################################
             # Temp Code: existing ros2 topic info functionality
@@ -99,7 +114,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
             type_str = topic_types[0] if len(topic_types) == 1 else topic_types
             print('Type: %s' % type_str, end=line_end)
 
-            agnocast_pub_count = len(pub_nodes)
+            agnocast_pub_count = len(pub_topic_info_rets)
             print('Publisher count: %d' %
                   node.count_publishers(topic_name))
             print('(Include Agnocast Publisher count: %d)' %
@@ -111,8 +126,8 @@ class TopicInfoAgnocastVerb(VerbExtension):
                         print('Node name: %s' % info.node_name)
                         print('Node namespace: %s' % info.node_namespace)
                         print('Topic type: %s' % info.topic_type)
-                        if full_node_name in pub_nodes:
-                            print('Endpoint type: %s (Agnocast enabled))' % info.endpoint_type.name)
+                        if full_node_name in [info['node_name'] for info in pub_topic_info_rets]:
+                            print('Endpoint type: %s (Agnocast enabled)' % info.endpoint_type.name)
                         else:
                             print('Endpoint type: %s' % info.endpoint_type.name)
                         print('GID: %s' % '.'.join(format(b, '02x') for b in info.endpoint_gid))
@@ -127,7 +142,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 except NotImplementedError as e:
                     return str(e)
 
-            agnocast_sub_count = len(sub_nodes)
+            agnocast_sub_count = len(sub_topic_info_rets)
             print('Subscription count: %d' %
                   (int(node.count_subscribers(topic_name)) + agnocast_sub_count))
             print('(Include Agnocast Subscription count: %d)' %
@@ -136,13 +151,19 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 try:
                     for info in node.get_subscriptions_info_by_topic(topic_name):
                         print(info, end=line_end)
-                    for info in sub_nodes:
-                        nodespace, node_name = self.split_full_node_name(info)
+                    for info in sub_topic_info_rets:
+                        nodespace, node_name = self.split_full_node_name(info['node_name'])
                         print('Node name: %s' % node_name)
                         print('Node namespace: %s' % nodespace)
                         print('Topic type: %s' % type_str)
                         print('Endpoint type: SUBSCROPTION (Agnocast enabled)')
-                        print('QoS profile:', end=line_end)
+                        print('QoS profile:')
+                        print('  History (Depth): KEEP_LAST (%d)' % info['qos_depth'])
+                        if info['qos_is_transient_local']:
+                            print('  Durability: TRNSIENT_LOCAL', end=line_end)
+                        else:
+                            print('  Durability: VOLATILE', end=line_end)
+
                 except NotImplementedError as e:
                     return str(e)
             ########################################################################

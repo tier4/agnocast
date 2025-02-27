@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #define MAX_TOPIC_NUM 1024
-#define MAX_NODE_NUM 1024
+#define MAX_TOPIC_INFO_RET_NUM 1024
 
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
@@ -22,6 +22,22 @@ union ioctl_node_info_args {
     uint64_t topic_name_buffer_addr;
   };
   uint32_t ret_topic_num;
+};
+
+struct topic_info_ret
+{
+  char node_name[NODE_NAME_BUFFER_SIZE];
+  uint32_t qos_depth;
+  bool qos_is_transient_local;
+};
+
+union ioctl_topic_info_args {
+  struct
+  {
+    const char * topic_name;
+    uint64_t topic_info_ret_buffer_addr;
+  };
+  uint32_t ret_topic_info_ret_num;
 };
 #pragma GCC diagnostic pop
 
