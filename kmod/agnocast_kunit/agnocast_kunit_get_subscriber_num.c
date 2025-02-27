@@ -2,8 +2,8 @@
 
 #include "../agnocast.h"
 
-char * topic_name = "/my_topic";
-char * node_name = "/my_node";
+char * topic_name = "/kunit_test_topic";
+char * node_name = "/kunit_test_node";
 uint32_t qos_depth = 10;
 bool qos_is_transient_local = false;
 pid_t subscriber_pid = 1000;
@@ -83,7 +83,7 @@ void test_case_get_subscriber_num_many(struct kunit * test)
 
 void test_case_get_subscriber_num_different_topic(struct kunit * test)
 {
-  char * topic_name2 = "/my_topic2";
+  char * topic_name2 = "/kunit_test_topic2";
   setup_one_subscriber(test);
   setup_different_topic_subscriber(test, topic_name2);
 
