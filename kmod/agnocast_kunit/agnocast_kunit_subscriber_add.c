@@ -15,7 +15,7 @@ void test_case_subscriber_add_sample0(struct kunit * test)
   bool is_take_sub = false;
 
   union ioctl_new_shm_args args1;
-  int ret1 = new_shm_addr(subscriber_pid, 1000, &args1);
+  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &args1);
 
   union ioctl_subscriber_args args2;
   int ret2 = subscriber_add(
