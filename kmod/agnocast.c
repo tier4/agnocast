@@ -1608,8 +1608,7 @@ int get_proc_info_htable_size(void)
 bool is_in_proc_info_htable(const pid_t pid)
 {
   struct process_info * proc_info;
-  int bkt_proc_info;
-  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
   {
     if (proc_info->pid == pid) {
       return true;
