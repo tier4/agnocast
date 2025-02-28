@@ -1,5 +1,7 @@
 #include "agnocast.h"
 
+#include "memory_allocator.h"
+
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kprobes.h>
@@ -1246,9 +1248,6 @@ int take_msg(
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
-  // TODO: assume 0x40000000000~ (4398046511104) is allocatable
-  static uint64_t allocatable_addr = 0x40000000000;
-
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
       agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
@@ -1261,13 +1260,22 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     return -EINVAL;
   }
 
+  uint64_t shm_addr = agnocast_assign_memory(pid, shm_size);
+  if (shm_addr == 0) {
+    dev_warn(
+      agnocast_device,
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (new_shm_addr)\n", pid,
+      shm_size);
+    return -ENOMEM;
+  }
+
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
     dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
     return -ENOMEM;
   }
   new_proc_info->pid = pid;
-  new_proc_info->shm_addr = allocatable_addr;
+  new_proc_info->shm_addr = shm_addr;
   new_proc_info->shm_size = shm_size;
   new_proc_info->mapped_num = 0;
   for (int i = 0; i < MAX_MAP_NUM; i++) {
@@ -1278,9 +1286,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
-  allocatable_addr += shm_size;
-
-  ioctl_ret->ret_addr = new_proc_info->shm_addr;
+  ioctl_ret->ret_addr = shm_addr;
   return 0;
 }
 
@@ -1741,6 +1747,12 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
+  if (agnocast_free_memory(pid) < 0) {
+    dev_warn(
+      agnocast_device, "Unreachable: pid=%d doesn't have shared memory (process_exit_cleanup)\n",
+      pid);
+  }
+
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
   int bkt;
@@ -1905,6 +1917,8 @@ static int agnocast_init(void)
 
   ret = agnocast_init_kprobe();
   if (ret < 0) return ret;
+
+  agnocast_init_memory_allocator();
 
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
