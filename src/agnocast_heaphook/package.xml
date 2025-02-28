@@ -6,6 +6,9 @@
   <maintainer email="sykwer@gmail.com">sykwer</maintainer>
   <license>Apache-2.0</license>
 
+  find_package(agnocastlib REQUIRED)
+
+  <depend>agnocastlib</depend>
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <export>
