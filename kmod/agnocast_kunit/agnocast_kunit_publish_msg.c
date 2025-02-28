@@ -67,7 +67,7 @@ void test_case_no_publisher(struct kunit * test)
   topic_local_id_t subscriber_id;
   setup_one_subscriber(test, &subscriber_id);
 
-  // Main Test
+  // Act
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
   union ioctl_publish_args ioctl_publish_msg_ret;
