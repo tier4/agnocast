@@ -1602,13 +1602,13 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
-int is_in_topic_entries(char * topic_name, int64_t entry_id)
+bool is_in_topic_entries(char * topic_name, int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
-    return -1;
+    return false;
   }
   const struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
@@ -1617,10 +1617,10 @@ int is_in_topic_entries(char * topic_name, int64_t entry_id)
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(is_in_topic_entries)\n",
       topic_name, entry_id);
-    return -1;
+    return false;
   }
 
-  return 0;
+  return true;
 }
 
 #endif

@@ -209,4 +209,4 @@ void process_exit_cleanup(const pid_t pid);
 
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
-int is_in_topic_entries(char * topic_name, int64_t entry_id);
+bool is_in_topic_entries(char * topic_name, int64_t entry_id);
