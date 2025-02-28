@@ -7,13 +7,14 @@
 // static int publish_msg_test_init(void);
 // static int publish_msg_test_exit(void);
 static char * node_name = "/kunit_test_node";
+static uint32_t qos_depth = 1;
 static bool qos_is_transient_local = false;
 static pid_t subscriber_pid = 1000;
 static pid_t publisher_pid = 2000;
 static bool is_take_sub = false;
 
 static void setup_one_subscriber(
-  struct kunit * test, char * topic_name, uint32_t qos_depth, topic_local_id_t * subscriber_id)
+  struct kunit * test, char * topic_name, topic_local_id_t * subscriber_id)
 {
   subscriber_pid++;
 
@@ -31,8 +32,7 @@ static void setup_one_subscriber(
 }
 
 static void setup_one_publisher(
-  struct kunit * test, char * topic_name, uint32_t qos_depth, topic_local_id_t * publisher_id,
-  uint64_t * ret_addr)
+  struct kunit * test, char * topic_name, topic_local_id_t * publisher_id, uint64_t * ret_addr)
 {
   publisher_pid++;
 
@@ -66,9 +66,8 @@ void test_case_no_publisher(struct kunit * test)
 {
   // Setup
   char * topic_name = "/kunit_test_topic";
-  uint32_t qos_depth = 1;
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, topic_name, qos_depth, &subscriber_id);
+  setup_one_subscriber(test, topic_name, &subscriber_id);
 
   // Main Test
   topic_local_id_t publisher_id = 0;
@@ -83,10 +82,9 @@ void test_case_simple_publish_without_any_release(struct kunit * test)
 {
   // Setup
   char * topic_name = "/kunit_test_topic";
-  uint32_t qos_depth = 1;
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   // Main Test
   union ioctl_publish_args ioctl_publish_msg_ret;
@@ -102,10 +100,9 @@ void test_case_excessive_unreleased_entry_nodes(struct kunit * test)
 {
   // Setup
   char * topic_name = "/kunit_test_topic";
-  uint32_t qos_depth = 1;
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   for (int i = 0; i < LEAK_WARN_TH + qos_depth; i++) {
     union ioctl_publish_args ioctl_publish_msg_ret;
@@ -124,11 +121,10 @@ void test_case_different_publisher_no_release(struct kunit * test)
 {
   // Setup
   char * topic_name = "/kunit_test_topic";
-  uint32_t qos_depth = 1;
   topic_local_id_t publisher_id1, publisher_id2;
   uint64_t ret_addr1, ret_addr2;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id1, &ret_addr1);
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id2, &ret_addr2);
+  setup_one_publisher(test, topic_name, &publisher_id1, &ret_addr1);
+  setup_one_publisher(test, topic_name, &publisher_id2, &ret_addr2);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(topic_name, publisher_id1, ret_addr1, &ioctl_publish_msg_ret1);
@@ -154,8 +150,7 @@ void test_case_referenced_node_not_released(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  uint32_t qos_depth = 1;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
@@ -178,8 +173,7 @@ void test_case_single_release_return(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  uint32_t qos_depth = 1;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
@@ -206,8 +200,7 @@ void test_case_excessive_release_count(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  uint32_t qos_depth = 1;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   int64_t entry_ids[MAX_RELEASE_NUM + 1];
   for (int i = 0; i < MAX_RELEASE_NUM + 1; i++) {
@@ -238,9 +231,8 @@ void test_case_ret_one_subscriber(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   topic_local_id_t publisher_id, subscriber_id;
   uint64_t ret_addr;
-  uint32_t qos_depth = 1;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
-  setup_one_subscriber(test, topic_name, qos_depth, &subscriber_id);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
+  setup_one_subscriber(test, topic_name, &subscriber_id);
 
   // Main test
   union ioctl_publish_args ioctl_publish_msg_ret;
@@ -258,12 +250,11 @@ void test_case_ret_many_subscribers(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  uint32_t qos_depth = 1;
-  setup_one_publisher(test, topic_name, qos_depth, &publisher_id, &ret_addr);
+  setup_one_publisher(test, topic_name, &publisher_id, &ret_addr);
 
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     topic_local_id_t subscriber_id;
-    setup_one_subscriber(test, topic_name, qos_depth, &subscriber_id);
+    setup_one_subscriber(test, topic_name, &subscriber_id);
   }
 
   // Main test
