@@ -3,9 +3,15 @@
 <package format="3">
   <name>agnocastlib</name>
   <version>0.0.0</version>
-  <description>ROS 2 Compatible True Zero-Copy Middleware Supporting Dynamic Sized Messages</description>
-  <maintainer email="sykwer@gmail.com">sykwer</maintainer>
-  <license>TODO: License declaration</license>
+  <description>
+    True Zero Copy Communication Middleware for Unsized ROS 2 Message Types.
+  </description>
+  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <maintainer email="atsushi.yano.2@tier4.jp">Atsushi Yano</maintainer>
+  <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
+  <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
+  <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
