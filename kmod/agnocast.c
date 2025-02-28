@@ -510,7 +510,7 @@ static int insert_message_entry(
   struct rb_node * parent = NULL;
 
   while (*new) {
-    struct entry_node * this = container_of(*new, struct entry_node, node);
+    const struct entry_node * this = container_of(*new, struct entry_node, node);
     parent = *new;
 
     if (new_node->entry_id > this->entry_id) {
@@ -871,7 +871,7 @@ static int set_publisher_shm_info(
       return -1;
     }
 
-    struct process_info * proc_info = find_process_info(pub_info->pid);
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
     if (!proc_info) {
       dev_warn(
         agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
@@ -1284,7 +1284,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   return 0;
 }
 
-int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
+int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (wrapper) {
@@ -1324,7 +1324,8 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   return 0;
 }
 
-static int get_node_subscriber_topics(char * node_name, union ioctl_node_info_args * node_info_args)
+static int get_node_subscriber_topics(
+  const char * node_name, union ioctl_node_info_args * node_info_args)
 {
   uint32_t topic_num = 0;
 
@@ -1362,7 +1363,8 @@ static int get_node_subscriber_topics(char * node_name, union ioctl_node_info_ar
   return 0;
 }
 
-static int get_node_publisher_topics(char * node_name, union ioctl_node_info_args * node_info_args)
+static int get_node_publisher_topics(
+  const char * node_name, union ioctl_node_info_args * node_info_args)
 {
   uint32_t topic_num = 0;
 

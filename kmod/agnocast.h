@@ -196,7 +196,7 @@ int take_msg(
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
 
-int get_subscriber_num(char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
+int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
 
 int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
