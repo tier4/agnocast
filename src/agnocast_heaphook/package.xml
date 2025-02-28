@@ -1,12 +1,17 @@
 <?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agnocast_heaphook</name>
   <version>0.0.0</version>
-  <description>Agnocast Heaphook</description>
-  <maintainer email="sykwer@gmail.com">sykwer</maintainer>
-  <license>Apache-2.0</license>
-
-  find_package(agnocastlib REQUIRED)
+  <description>
+    Replace all the dynamic heap allocation functions for Agnocast.
+  </description>
+  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <maintainer email="atsushi.yano.2@tier4.jp">Atsushi Yano</maintainer>
+  <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
+  <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
+  <license>Apache License 2.0</license>
 
   <depend>agnocastlib</depend>
   <buildtool_depend>ament_cmake</buildtool_depend>
