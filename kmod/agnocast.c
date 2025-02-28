@@ -589,19 +589,15 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
   mutex_lock(&global_mutex);
 
   int used_size = 0;
-  int ret;
-
   struct process_info * proc_info;
   int bkt_proc_info;
   hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
   {
-    ret = scnprintf(
+    used_size += scnprintf(
       buf + used_size, PAGE_SIZE - used_size, "process: pid=%u, addr=%llu, size=%llu\n",
       proc_info->pid, proc_info->shm_addr, proc_info->shm_size);
-    used_size += ret;
 
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher\n");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher\n");
 
     struct topic_wrapper * wrapper;
     int bkt_topic;
@@ -612,14 +608,12 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
       hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
       {
         if (proc_info->pid == pub_info->pid) {
-          ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
-          used_size += ret;
+          used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
         }
       }
     }
 
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription\n");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription\n");
 
     hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
     {
@@ -628,14 +622,12 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
       hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
       {
         if (proc_info->pid == sub_info->pid) {
-          ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
-          used_size += ret;
+          used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
         }
       }
     }
 
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
   }
 
   if (used_size >= PAGE_SIZE) {
@@ -663,42 +655,31 @@ static ssize_t show_topics(struct kobject * kobj, struct kobj_attribute * attr, 
   mutex_lock(&global_mutex);
 
   int used_size = 0;
-  int ret;
-
   struct topic_wrapper * wrapper;
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "topic: %s\n", wrapper->key);
-    used_size += ret;
-
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "topic: %s\n", wrapper->key);
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
 
     struct publisher_info * pub_info;
     int bkt_pub_info;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
     {
-      ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", pub_info->pid);
-      used_size += ret;
+      used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", pub_info->pid);
     }
 
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
-    used_size += ret;
-
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription:");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription:");
 
     struct subscriber_info * sub_info;
     int bkt_sub_info;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
     {
-      ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", sub_info->pid);
-      used_size += ret;
+      used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", sub_info->pid);
     }
 
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n\n");
-    used_size += ret;
+    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n\n");
   }
 
   if (used_size >= PAGE_SIZE) {
