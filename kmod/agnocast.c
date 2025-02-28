@@ -1573,6 +1573,40 @@ unlock_mutex_and_return:
   return -EFAULT;
 }
 
+// =========================================
+// helper functions for KUnit test
+
+#ifdef KUNIT_BUILD
+
+int get_proc_info_htable_size(void)
+{
+  int count = 0;
+  struct process_info * proc_info;
+  int bkt_proc_info;
+  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
+  {
+    count++;
+  }
+  return count;
+}
+
+bool is_in_proc_info_htable(const pid_t pid)
+{
+  struct process_info * proc_info;
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
+  {
+    if (proc_info->pid == pid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+#endif
+
+// =========================================
+// Initialize and cleanup
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
 static char * agnocast_devnode(const struct device * dev, umode_t * mode)
 #else
@@ -1674,9 +1708,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     }
   }
 }
-
-// =========================================
-// Cleanup resources related to exited processes
 
 // Ring buffer to hold exited pids
 #define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size

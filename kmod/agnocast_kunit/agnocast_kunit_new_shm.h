@@ -1,8 +1,11 @@
 #pragma once
 #include <kunit/test.h>
 
-#define TEST_CASES_NEW_SHM \
-  KUNIT_CASE(test_case_new_shm_sample0), KUNIT_CASE(test_case_new_shm_sample1)
+#define TEST_CASES_NEW_SHM                                                  \
+  KUNIT_CASE(test_case_new_shm_normal), KUNIT_CASE(test_case_new_shm_many), \
+    KUNIT_CASE(test_case_new_shm_not_aligned), KUNIT_CASE(test_case_new_shm_twice)
 
-void test_case_new_shm_sample0(struct kunit * test);
-void test_case_new_shm_sample1(struct kunit * test);
+void test_case_new_shm_normal(struct kunit * test);
+void test_case_new_shm_many(struct kunit * test);
+void test_case_new_shm_not_aligned(struct kunit * test);
+void test_case_new_shm_twice(struct kunit * test);

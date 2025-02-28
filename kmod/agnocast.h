@@ -201,3 +201,9 @@ int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_a
 int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
+
+// ================================================
+// helper functions for KUnit test
+
+int get_proc_info_htable_size(void);
+bool is_in_proc_info_htable(const pid_t pid);
