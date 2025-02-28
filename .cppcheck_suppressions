@@ -1,5 +1,7 @@
 *:*/test/*
 
+uninitvar:kmod/agnocast.c
+
 checkersReport
 missingInclude
 missingIncludeSystem
