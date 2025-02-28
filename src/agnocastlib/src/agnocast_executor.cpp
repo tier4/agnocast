@@ -169,6 +169,10 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
     while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
       std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
     }
+  } else if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::Reentrant) {
+    while (!agnocast_executables.callback_group->can_be_taken_from().load()) {
+      std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+    }
   }
 
   while (!agnocast_executables.callable_queue.empty()) {
