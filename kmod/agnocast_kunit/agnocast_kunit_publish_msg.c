@@ -57,7 +57,7 @@ void test_case_no_topic(struct kunit * test)
   int ret = publish_msg(topic_name, publisher_id, msg_virtual_address, &ioctl_publish_ret);
 
   // Assert
-  KUNIT_EXPECT_EQ(test, -1, ret);
+  KUNIT_EXPECT_EQ(test, ret, -1);
 }
 
 // Expect to fail at find_publisher_info

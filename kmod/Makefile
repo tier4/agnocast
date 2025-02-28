@@ -44,7 +44,8 @@ ifeq ($(CONFIG_KUNIT),y)
 		agnocast_kunit/agnocast_kunit_new_shm.o \
 		agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
 		agnocast_kunit/agnocast_kunit_get_topic_list.o
-  CFLAGS_agnocast_tmp_copied.o := -DKUNIT_BUILD
+  #CFLAGS_agnocast_tmp_copied.o := -DKUNIT_BUILD
+  ccflags-y += -DKUNIT_BUILD
 endif
 
 ifeq ($(CONFIG_GCOV_KERNEL),y)
