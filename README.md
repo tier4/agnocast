@@ -15,14 +15,8 @@ bash scripts/setup
 Build.
 
 ```bash
-bash scripts/build_all
-```
-
-Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
-
-```bash
-$ ls /usr/lib | grep libagnocast_heaphook
-libagnocast_heaphook.so
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
 ## Run

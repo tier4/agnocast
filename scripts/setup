@@ -11,4 +11,3 @@ rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 rustup toolchain install nightly-2024-08-13
 rustup default nightly-2024-08-13
 rustup component add clippy rustfmt
-cargo install cargo-deb
