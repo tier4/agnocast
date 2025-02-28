@@ -110,7 +110,6 @@ void test_case_excessive_unreleased_entry_nodes(struct kunit * test)
 
   // Act
   union ioctl_publish_args ioctl_publish_msg_ret;
-  union ioctl_publish_args ioctl_publish_msg_ret;
   int ret = publish_msg(topic_name, publisher_id, ret_addr + LEAK_WARN_TH, &ioctl_publish_msg_ret);
 
   // Assert
@@ -120,7 +119,6 @@ void test_case_excessive_unreleased_entry_nodes(struct kunit * test)
 void test_case_different_publisher_no_release(struct kunit * test)
 {
   // Arrange
-  topic_local_id_t publisher_id;
   topic_local_id_t publisher_id1, publisher_id2;
   uint64_t ret_addr1, ret_addr2;
   setup_one_publisher(test, &publisher_id1, &ret_addr1);
