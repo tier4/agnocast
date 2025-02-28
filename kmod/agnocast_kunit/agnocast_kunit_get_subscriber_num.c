@@ -18,7 +18,7 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
-    topic_name, node_name, qos_depth, qos_is_transient_local, subscriber_pid, is_take_sub,
+    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
     &subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
