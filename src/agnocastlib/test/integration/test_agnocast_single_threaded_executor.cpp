@@ -9,10 +9,13 @@ class SingleThreadedAgnocastExecutorNoStarvationTest : public ::testing::TestWit
 private:
   void set_spin_duration_based_on_params(const int next_exec_timeout_ms)
   {
-    std::chrono::seconds buffer = std::chrono::seconds(3);  // Rough value
+    std::chrono::seconds buffer = std::chrono::seconds(1);  // Rough value
     spin_duration_ =
-      std::chrono::seconds(
-        next_exec_timeout_ms * (NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED) / 1000) +
+      std::max(
+        std::chrono::seconds(
+          next_exec_timeout_ms * (NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED) / 1000),
+        std::chrono::duration_cast<std::chrono::seconds>(
+          PUB_PERIOD * NUM_AGNOCAST_CBS_TO_BE_ADDED)) +
       buffer;
   }
 
