@@ -33,8 +33,7 @@ protected:
     rclcpp::init(0, nullptr);
     executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, NUMBER_OF_ROS2_THREADS, NUMBER_OF_AGNOCAST_THREADS,
-      yield_before_execute, ros2_next_exec_timeout, AGNOCAST_CALLBACK_GROUP_WAIT_TIME,
-      agnocast_next_exec_timeout_ms);
+      yield_before_execute, ros2_next_exec_timeout, agnocast_next_exec_timeout_ms);
     test_node_ = std::make_shared<NodeForNoStarvation>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD);
     executor_->add_node(test_node_);
@@ -53,8 +52,6 @@ protected:
   const uint64_t NUM_ROS2_SUB_CBS = NUMBER_OF_ROS2_THREADS * 3;
   const uint64_t NUM_AGNOCAST_SUB_CBS = NUMBER_OF_AGNOCAST_THREADS * 3;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = NUMBER_OF_AGNOCAST_THREADS * 2;
-  const std::chrono::nanoseconds AGNOCAST_CALLBACK_GROUP_WAIT_TIME =
-    std::chrono::nanoseconds(10 * 1000 * 1000);
 };
 
 INSTANTIATE_TEST_SUITE_P(
