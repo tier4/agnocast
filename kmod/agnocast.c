@@ -1610,7 +1610,7 @@ int is_in_topic_entries(char * topic_name, int64_t entry_id)
       agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
     return -1;
   }
-  struct entry_node * en = find_message_entry(wrapper, entry_id);
+  const struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
     dev_warn(
       agnocast_device,
