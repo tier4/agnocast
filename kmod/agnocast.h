@@ -6,6 +6,8 @@
 #define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
+#define LEAK_WARN_TH \
+  100  // Warning threshold used when a publisher has too many entry nodes beyond its qos_depth
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -207,3 +209,4 @@ void process_exit_cleanup(const pid_t pid);
 
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
+int is_in_topic_entries(char * topic_name, int64_t entry_id);

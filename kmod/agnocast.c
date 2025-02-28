@@ -1005,8 +1005,8 @@ static int release_msgs_to_meet_depth(
     return 0;
   }
 
-  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= 100)
-                                         ? 100 + pub_info->qos_depth
+  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= LEAK_WARN_TH)
+                                         ? LEAK_WARN_TH + pub_info->qos_depth
                                          : pub_info->qos_depth * 2;  // This is rough value.
   if (pub_info->entries_num > leak_warn_threshold) {
     dev_warn(
@@ -1600,6 +1600,27 @@ bool is_in_proc_info_htable(const pid_t pid)
     }
   }
   return false;
+}
+
+int is_in_topic_entries(char * topic_name, int64_t entry_id)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
+    return -1;
+  }
+  struct entry_node * en = find_message_entry(wrapper, entry_id);
+  if (!en) {
+    dev_warn(
+      agnocast_device,
+      "Message entry (topic_name=%s entry_id=%lld) not found. "
+      "(is_in_topic_entries)\n",
+      topic_name, entry_id);
+    return -1;
+  }
+
+  return 0;
 }
 
 #endif
