@@ -1602,6 +1602,25 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
+int get_topic_entries_num(char * topic_name)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(
+      agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
+    return -1;
+  }
+
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node ** new = &(root->rb_node);
+  int count = 0;
+  while (*new) {
+    new = &((*new)->rb_right);
+    count++;
+  }
+  return count;
+}
+
 bool is_in_topic_entries(char * topic_name, int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);

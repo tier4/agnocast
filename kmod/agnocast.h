@@ -210,5 +210,6 @@ void process_exit_cleanup(const pid_t pid);
 #ifdef KUNIT_BUILD
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
+int get_topic_entries_num(char * topic_name);
 bool is_in_topic_entries(char * topic_name, int64_t entry_id);
 #endif

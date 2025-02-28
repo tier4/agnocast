@@ -93,6 +93,7 @@ void test_case_simple_publish_without_any_release(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_released_num, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret.ret_entry_id), true);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
 }
 
 void test_case_excessive_unreleased_entry_nodes(struct kunit * test)
@@ -141,6 +142,7 @@ void test_case_different_publisher_no_release(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret2.ret_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret1.ret_entry_id), true);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret2.ret_entry_id), true);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
 void test_case_referenced_node_not_released(struct kunit * test)
@@ -164,6 +166,7 @@ void test_case_referenced_node_not_released(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret2.ret_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret1.ret_entry_id), true);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret2.ret_entry_id), true);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
 void test_case_single_release_return(struct kunit * test)
@@ -192,6 +195,7 @@ void test_case_single_release_return(struct kunit * test)
   KUNIT_EXPECT_EQ(
     test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret1.ret_entry_id), false);
   KUNIT_EXPECT_EQ(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret2.ret_entry_id), true);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
 }
 
 void test_case_excessive_release_count(struct kunit * test)
@@ -223,6 +227,7 @@ void test_case_excessive_release_count(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_released_num, MAX_RELEASE_NUM);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
 void test_case_ret_one_subscriber(struct kunit * test)
