@@ -8,8 +8,6 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>colcon-cmake</exec_depend>
-
   <export>
     <build_type>ament_cmake</build_type>
   </export>
