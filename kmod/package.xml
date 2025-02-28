@@ -13,5 +13,11 @@
   <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
   <license>Dual BSD/GPL</license>
 
+  <!-- Original authors -->
+  <author email="sykwer@gmail.com">Takahiro Ishikawa-Aso</author>
+  <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
+  <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
+  <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
+
   <buildtool_depend>ament_cmake</buildtool_depend>
 </package>
