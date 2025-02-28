@@ -1576,6 +1576,8 @@ unlock_mutex_and_return:
 // =========================================
 // helper functions for KUnit test
 
+#ifdef KUNIT_BUILD
+
 int get_proc_info_htable_size(void)
 {
   int count = 0;
@@ -1599,6 +1601,8 @@ bool is_in_proc_info_htable(const pid_t pid)
   }
   return false;
 }
+
+#endif
 
 // =========================================
 // Initialize and cleanup
