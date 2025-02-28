@@ -1,6 +1,6 @@
 *:*/test/*
 
-uninitvar:*/kmod/agnocast.c
+uninitvar:*/kmod/agnocast_main.c
 
 checkersReport
 missingInclude

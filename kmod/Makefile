@@ -1,4 +1,5 @@
 obj-m := agnocast.o
+agnocast-objs := agnocast_main.o
 CFLAGS_agnocast.o := -Wall -Werror
 CFLAGS_agnocast_kunit.o := -Wall -Werror -DKUNIT_BUILD
 
@@ -33,7 +34,7 @@ endif
 
 ifeq ($(CONFIG_KUNIT),y)
   obj-m += agnocast_kunit.o
-  agnocast_kunit-m := agnocast_kunit_main.o agnocast_tmp_copied.o \
+  agnocast_kunit-objs := agnocast_kunit_main.o agnocast_tmp_copied.o \
 		agnocast_kunit/agnocast_kunit_subscriber_add.o \
 		agnocast_kunit/agnocast_kunit_publisher_add.o \
 		agnocast_kunit/agnocast_kunit_increment_rc.o \
@@ -56,7 +57,7 @@ endif
 all:
 	# In order to build with different build options (KUNIT_BUILD),
 	# we need to temporarily copy the kernel module source.
-	cp agnocast.c agnocast_tmp_copied.c
+	cp agnocast_main.c agnocast_tmp_copied.c
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:

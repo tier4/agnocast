@@ -153,7 +153,7 @@ union ioctl_node_info_args {
 #define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 3, union ioctl_node_info_args)
 
 // ================================================
-// public functions in agnocast.c
+// public functions in agnocast_main.c
 
 void agnocast_init_mutexes(void);
 int agnocast_init_sysfs(void);
