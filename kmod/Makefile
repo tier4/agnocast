@@ -1,5 +1,7 @@
 obj-m := agnocast.o
+agnocast-objs := memory_allocator.o
 CFLAGS_agnocast.o := -Wall -Werror
+CFLAGS_memory_allocator.o := -Wall -Werror
 CFLAGS_agnocast_kunit.o := -Wall -Werror -DKUNIT_BUILD
 
 KERNEL_VERSION := $(shell uname -r)
@@ -33,7 +35,7 @@ endif
 
 ifeq ($(CONFIG_KUNIT),y)
   obj-m += agnocast_kunit.o
-  agnocast_kunit-m := agnocast_kunit_main.o agnocast_tmp_copied.o \
+  agnocast_kunit-m := agnocast_kunit_main.o agnocast_tmp_copied.o memory_allocator.o \
 		agnocast_kunit/agnocast_kunit_subscriber_add.o \
 		agnocast_kunit/agnocast_kunit_publisher_add.o \
 		agnocast_kunit/agnocast_kunit_increment_rc.o \
@@ -49,6 +51,7 @@ endif
 
 ifeq ($(CONFIG_GCOV_KERNEL),y)
   CFLAGS_agnocast.o += -fprofile-arcs -ftest-coverage
+  CFLAGS_memory_allocator.o += -fprofile-arcs -ftest-coverage
   CFLAGS_agnocast_tmp_copied.o += -fprofile-arcs -ftest-coverage
   CFLAGS_agnocast_kunit.o += -fprofile-arcs -ftest-coverage
 endif

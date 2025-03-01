@@ -77,7 +77,7 @@ jobs:
       - name: Add kmod to paths
         id: add-kmod
         run: |
-          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath kmod/agnocast.c)" >> $GITHUB_OUTPUT
+          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath kmod/agnocast.c) $(realpath kmod/memory_allocator.c)" >> $GITHUB_OUTPUT
 
       - name: Run Cppcheck on modified packages
         if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}
