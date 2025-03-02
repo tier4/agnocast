@@ -38,7 +38,7 @@ void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
-extern "C" uint32_t get_borrowed_publisher_num();
+extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {

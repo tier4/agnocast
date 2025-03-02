@@ -12,7 +12,7 @@ use std::{
 };
 
 extern "C" {
-    fn get_borrowed_publisher_num() -> u32;
+    fn agnocast_get_borrowed_publisher_num() -> u32;
 }
 
 static POINTER_SIZE: LazyLock<usize> = LazyLock::new(std::mem::size_of::<&usize>);
@@ -246,7 +246,7 @@ fn should_use_original_func() -> bool {
     }
 
     unsafe {
-        if get_borrowed_publisher_num() == 0 {
+        if agnocast_get_borrowed_publisher_num() == 0 {
             return true;
         }
     }

@@ -19,7 +19,6 @@
   <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
   <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
 
-  <depend>agnocastlib</depend>
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <export>

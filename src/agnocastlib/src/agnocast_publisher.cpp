@@ -7,7 +7,7 @@ namespace agnocast
 
 thread_local uint32_t borrowed_publisher_num = 0;
 
-extern "C" uint32_t get_borrowed_publisher_num()
+extern "C" uint32_t agnocast_get_borrowed_publisher_num()
 {
   return borrowed_publisher_num;
 }
