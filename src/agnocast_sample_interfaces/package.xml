@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>sample_interfaces</name>
+  <name>agnocast_sample_interfaces</name>
   <version>0.0.0</version>
   <description>
-    Sample interfaces for Agnocast.
+    Sample interfaces for the Agnocast sample application.
   </description>
   <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
   <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>

@@ -1,14 +1,15 @@
 #include "agnocast.hpp"
+#include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "sample_interfaces/msg/dynamic_size_array.hpp"
 
 using std::placeholders::_1;
 
 class MinimalSubscriber : public rclcpp::Node
 {
-  agnocast::Subscription<sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
+  agnocast::Subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
 
-  void callback(const agnocast::ipc_shared_ptr<sample_interfaces::msg::DynamicSizeArray> & message)
+  void callback(
+    const agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> & message)
   {
     RCLCPP_INFO(this->get_logger(), "subscribe message: id=%ld", message->id);
   }
@@ -22,7 +23,7 @@ public:
     agnocast::SubscriptionOptions agnocast_options;
     agnocast_options.callback_group = group;
 
-    sub_dynamic_ = agnocast::create_subscription<sample_interfaces::msg::DynamicSizeArray>(
+    sub_dynamic_ = agnocast::create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       this, "/my_topic", 1, std::bind(&MinimalSubscriber::callback, this, _1), agnocast_options);
   }
 };

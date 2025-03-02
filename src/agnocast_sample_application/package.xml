@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>sample_application</name>
+  <name>agnocast_sample_application</name>
   <version>0.0.0</version>
   <description>
     A sample application for Agnocast.
@@ -28,7 +28,7 @@
   <depend>rclcpp_components</depend>
 
   <depend>agnocastlib</depend>
-  <depend>sample_interfaces</depend>
+  <depend>agnocast_sample_interfaces</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
