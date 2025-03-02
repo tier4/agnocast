@@ -31,7 +31,6 @@ static DEFINE_MUTEX(global_mutex);
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
-#define NODE_NAME_BUFFER_SIZE 256
 
 struct process_info
 {
@@ -1402,6 +1401,114 @@ static int get_node_publisher_topics(
   return 0;
 }
 
+static int get_topic_subscriber_info(
+  char * topic_name, union ioctl_topic_info_args * topic_info_args)
+{
+  topic_info_args->ret_topic_info_ret_num = 0;
+
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return 0;
+  }
+
+  uint32_t subscriber_num = 0;
+  struct subscriber_info * sub_info;
+  int bkt_sub_info;
+
+  struct topic_info_ret __user * user_buffer =
+    (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
+
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+  {
+    if (subscriber_num >= MAX_SUBSCRIBER_NUM) {
+      dev_warn(
+        agnocast_device, "The number of subscribers is over MAX_SUBSCRIBER_NUM=%d\n",
+        MAX_SUBSCRIBER_NUM);
+      return -ENOBUFS;
+    }
+
+    struct topic_info_ret * temp_info = kmalloc(sizeof(struct topic_info_ret), GFP_KERNEL);
+    if (!temp_info) {
+      return -ENOMEM;
+    }
+
+    if (!sub_info->node_name) {
+      kfree(temp_info);
+      return -EFAULT;
+    }
+
+    strncpy(temp_info->node_name, sub_info->node_name, strlen(sub_info->node_name));
+    temp_info->qos_depth = sub_info->qos_depth;
+    temp_info->qos_is_transient_local = sub_info->qos_is_transient_local;
+
+    if (copy_to_user(&user_buffer[subscriber_num], temp_info, sizeof(struct topic_info_ret))) {
+      kfree(temp_info);
+      return -EFAULT;
+    }
+
+    kfree(temp_info);
+    subscriber_num++;
+  }
+
+  topic_info_args->ret_topic_info_ret_num = subscriber_num;
+
+  return 0;
+}
+
+static int get_topic_publisher_info(
+  char * topic_name, union ioctl_topic_info_args * topic_info_args)
+{
+  topic_info_args->ret_topic_info_ret_num = 0;
+
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return 0;
+  }
+
+  uint32_t publisher_num = 0;
+  struct publisher_info * pub_info;
+  int bkt_pub_info;
+
+  struct topic_info_ret __user * user_buffer =
+    (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
+
+  hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+  {
+    if (publisher_num >= MAX_PUBLISHER_NUM) {
+      dev_warn(
+        agnocast_device, "The number of publishers is over MAX_PUBLISHER_NUM=%d\n",
+        MAX_PUBLISHER_NUM);
+      return -ENOBUFS;
+    }
+
+    struct topic_info_ret * temp_info = kmalloc(sizeof(struct topic_info_ret), GFP_KERNEL);
+    if (!temp_info) {
+      return -ENOMEM;
+    }
+
+    if (!pub_info->node_name) {
+      kfree(temp_info);
+      return -EFAULT;
+    }
+
+    strncpy(temp_info->node_name, pub_info->node_name, strlen(pub_info->node_name));
+    temp_info->qos_depth = pub_info->qos_depth;
+    temp_info->qos_is_transient_local = pub_info->qos_is_transient_local;
+
+    if (copy_to_user(&user_buffer[publisher_num], temp_info, sizeof(struct topic_info_ret))) {
+      kfree(temp_info);
+      return -EFAULT;
+    }
+
+    kfree(temp_info);
+    publisher_num++;
+  }
+
+  topic_info_args->ret_topic_info_ret_num = publisher_num;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1559,6 +1666,36 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_to_user(
           (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
           sizeof(node_info_pub_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD) {
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    union ioctl_topic_info_args topic_info_sub_args;
+    if (copy_from_user(
+          &topic_info_sub_args, (union ioctl_topic_info_args __user *)arg,
+          sizeof(topic_info_sub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)topic_info_sub_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = get_topic_subscriber_info(topic_name_buf, &topic_info_sub_args);
+    if (copy_to_user(
+          (union ioctl_topic_info_args __user *)arg, &topic_info_sub_args,
+          sizeof(topic_info_sub_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD) {
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    union ioctl_topic_info_args topic_info_pub_args;
+    if (copy_from_user(
+          &topic_info_pub_args, (union ioctl_topic_info_args __user *)arg,
+          sizeof(topic_info_pub_args)))
+      goto unlock_mutex_and_return;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)topic_info_pub_args.topic_name, sizeof(topic_name_buf)))
+      goto unlock_mutex_and_return;
+    ret = get_topic_publisher_info(topic_name_buf, &topic_info_pub_args);
+    if (copy_to_user(
+          (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
+          sizeof(topic_info_pub_args)))
       goto unlock_mutex_and_return;
   } else {
     mutex_unlock(&global_mutex);
