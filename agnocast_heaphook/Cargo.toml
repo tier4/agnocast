@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apatch-2.0"
 authors = [
-    "Takahiro Ishikawa-Aso <takahiro.ishikawa@tier4.jp>",
+    "Takahiro Ishikawa-Aso <sykwer@gmail.com>",
     "Ryuta Kambe <ryuta.kambe@tier4.jp>",
     "Atsushi Yano <atsushi.yano.2@tier4.jp>",
     "Koichi Imai <koichi.imai.2@tier4.jp>"
