@@ -15,8 +15,14 @@ bash scripts/setup
 Build.
 
 ```bash
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+bash scripts/build_all
+```
+
+Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
+
+```bash
+$ ls /usr/lib | grep libagnocast_heaphook
+libagnocast_heaphook.so
 ```
 
 ## Run
@@ -24,7 +30,7 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 Insert kernel module.
 
 ```bash
-cd kmod
+cd agnocast_kmod
 sudo insmod agnocast.ko
 sudo lsmod
 ```
