@@ -26,7 +26,7 @@ fi
 
 AGNOCAST_DIR=$(realpath "$(dirname $(readlink -f $0))/..")
 
-AGNOCAST_KMOD_PATH=$AGNOCAST_DIR/kmod
+AGNOCAST_KMOD_PATH=$AGNOCAST_DIR/agnocast_kmod
 
 if [ -z "$AGNOCAST_KMOD_PATH" ]; then
     echo "Usage: create_coverage_report <agnocast_kmod_path>"
