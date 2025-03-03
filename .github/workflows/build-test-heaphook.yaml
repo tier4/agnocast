@@ -6,7 +6,7 @@ on:
       - labeled
 
 jobs:
-  build:
+  build-and-test-heaphook:
     if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-22.04
 
