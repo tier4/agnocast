@@ -18,13 +18,14 @@
   <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
   <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
   <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
+  <author email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
 
-  <!-- rosdep install will fail until agnocast_kmod is released from PPA -->
-  <exec_depend>agnocast_kmod</exec_depend>
+  <!-- Uncomment when agnocast_kmod is released from PPA -->
+  <!-- <exec_depend>agnocast_kmod</exec_depend> -->
 
   <export>
     <build_type>ament_cmake</build_type>
