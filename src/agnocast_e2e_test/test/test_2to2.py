@@ -29,7 +29,7 @@ def generate_test_description():
             if node == 'p':
                 composable_nodes.append(
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestPublisher',
                         name=f'test_talker_node_{pub_i}',
                         parameters=[
@@ -49,7 +49,7 @@ def generate_test_description():
                 composable_nodes.insert(
                     0,
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestSubscriber',
                         name=f'test_listener_node_{sub_i}',
                         parameters=[

@@ -64,7 +64,7 @@ def generate_test_description():
                 executable='agnocast_component_container',
                 composable_node_descriptions=[
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestPublisher',
                         name='test_talker_node',
                         parameters=[
@@ -94,7 +94,7 @@ def generate_test_description():
             executable='component_container',
             composable_node_descriptions=[
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestROS2Subscriber',
                         name='test_ros2_listener_node',
                         parameters=[
@@ -118,7 +118,7 @@ def generate_test_description():
                 executable='agnocast_component_container',
                 composable_node_descriptions=[
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestTakeSubscriber',
                         name='test_taker_node',
                         parameters=[
@@ -146,7 +146,7 @@ def generate_test_description():
                 executable='agnocast_component_container',
                 composable_node_descriptions=[
                     ComposableNode(
-                        package='e2e_test',
+                        package='agnocast_e2e_test',
                         plugin='TestSubscriber',
                         name='test_listener_node',
                         parameters=[

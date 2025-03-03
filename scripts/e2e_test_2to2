@@ -43,13 +43,13 @@ while true; do
 done
 
 # Setup
-rm -rf build/e2e_test install/e2e_test
+rm -rf build/agnocast_e2e_test install/e2e_test
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
+colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 
 # Run test
-CONFIG_FILE=src/e2e_test/test/config_test_2to2.yaml
+CONFIG_FILE=src/agnocast_e2e_test/test/config_test_2to2.yaml
 show_config() {
     echo "----------------------------------------------"
     cat $CONFIG_FILE
@@ -59,7 +59,7 @@ show_config() {
 FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
     show_config
-    launch_test src/e2e_test/test/test_2to2.py
+    launch_test src/agnocast_e2e_test/test/test_2to2.py
     if [ $? -ne 0 ]; then
         echo "Test failed"
         exit 1
@@ -83,7 +83,7 @@ else
 
         echo "====================== $COUNT / 8 ======================"
         show_config
-        launch_test src/e2e_test/test/test_2to2.py
+        launch_test src/agnocast_e2e_test/test/test_2to2.py
 
         if [ $? -ne 0 ]; then
             echo "Test failed"
