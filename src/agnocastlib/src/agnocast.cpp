@@ -49,7 +49,6 @@ void * map_area(
     0);
 
   if (ret == MAP_FAILED) {
-    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
     close(agnocast_fd);
     return nullptr;
   }

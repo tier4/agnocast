@@ -108,7 +108,6 @@ static int insert_topic(const char * topic_name, struct topic_wrapper ** wrapper
 {
   *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
   if (!*wrapper) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
     return -ENOMEM;
   }
 
