@@ -19,6 +19,5 @@ setup(
         'ros2node.verb': [
             'info_agnocast = ros2agnocast.verb.node_info_agnocast:NodeInfoAgnocastVerb',
         ]
-
     }
 )
