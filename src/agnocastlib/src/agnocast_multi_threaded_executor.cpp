@@ -1,6 +1,6 @@
-#include "agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_multi_threaded_executor.hpp"
 
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace agnocast
@@ -9,9 +9,9 @@ namespace agnocast
 MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
   size_t number_of_agnocast_threads, bool yield_before_execute,
-  std::chrono::nanoseconds ros2_next_exec_timeout,
-  std::chrono::nanoseconds agnocast_callback_group_wait_time, int agnocast_next_exec_timeout_ms)
-: agnocast::AgnocastExecutor(options, agnocast_callback_group_wait_time),
+  std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
+: agnocast::AgnocastExecutor(
+    options, ros2_next_exec_timeout /* agnocast_callback_group_wait_time = ros2_next_exec_timeout for fair scheduling */),
   yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
@@ -70,13 +70,13 @@ void MultiThreadedAgnocastExecutor::spin()
 
 void MultiThreadedAgnocastExecutor::ros2_spin()
 {
-  while (true) {
+  while (rclcpp::ok(this->context_) && spinning.load()) {
     rclcpp::AnyExecutable any_executable;
 
     {
       std::lock_guard wait_lock{wait_mutex_};
 
-      if (!rclcpp::ok(this->context_)) {
+      if (!rclcpp::ok(this->context_) || !spinning.load()) {
         return;
       }
       if (!get_next_executable(any_executable, ros2_next_exec_timeout_)) {
@@ -99,14 +99,14 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
 
 void MultiThreadedAgnocastExecutor::agnocast_spin()
 {
-  while (true) {
+  while (rclcpp::ok(this->context_) && spinning.load()) {
     if (need_epoll_updates.exchange(false)) {
       prepare_epoll();
     }
 
     agnocast::AgnocastExecutables agnocast_executables;
 
-    if (!rclcpp::ok(this->context_)) {
+    if (!rclcpp::ok(this->context_) || !spinning.load()) {
       return;
     }
 

@@ -73,11 +73,11 @@ jobs:
           done
           echo "target-paths=$target_paths" >> $GITHUB_OUTPUT
 
-      # TODO: Filter unmodified files in kmod
+      # TODO: Filter unmodified files in agnocast_kmod
       - name: Add kmod to paths
         id: add-kmod
         run: |
-          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath kmod)" >> $GITHUB_OUTPUT
+          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath agnocast_kmod/agnocast.c)" >> $GITHUB_OUTPUT
 
       - name: Run Cppcheck on modified packages
         if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}

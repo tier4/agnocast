@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ros2agnocast</name>
+  <version>1.0.0</version>
+  <description>
+    The ROS 2 command line tool extension for Agnocast.
+  </description>
+  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <maintainer email="atsushi.yano.2@tier4.jp">Atsushi Yano</maintainer>
+  <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
+  <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- Original authors -->
+  <author email="sykwer@gmail.com">Takahiro Ishikawa-Aso</author>
+  <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
+  <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
+  <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
+  <author email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</author>
+
+  <exec_depend>agnocast_ioctl_wrapper</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,10 @@
+*.cmd
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.o
+*.gcno
+Module.symvers
+modules.order
+agnocast_tmp_copied.c

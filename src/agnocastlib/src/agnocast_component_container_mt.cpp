@@ -1,4 +1,4 @@
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
@@ -25,11 +25,6 @@ int main(int argc, char * argv[])
     (node->has_parameter("ros2_next_exec_timeout_ms"))
       ? nanoseconds(node->get_parameter("ros2_next_exec_timeout_ms").as_int() * 1000 * 1000)
       : nanoseconds(10 * 1000 * 1000);
-  const nanoseconds agnocast_callback_group_wait_time =
-    (node->has_parameter("agnocast_callback_group_wait_time_ms"))
-      ? nanoseconds(
-          node->get_parameter("agnocast_callback_group_wait_time_ms").as_int() * 1000 * 1000)
-      : nanoseconds(10 * 1000 * 1000);
   const int agnocast_next_exec_timeout_ms =
     (node->has_parameter("agnocast_next_exec_timeout_ms"))
       ? static_cast<int>(node->get_parameter("agnocast_next_exec_timeout_ms").as_int())
@@ -37,8 +32,7 @@ int main(int argc, char * argv[])
 
   auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
     rclcpp::ExecutorOptions{}, number_of_ros2_threads, number_of_agnocast_threads,
-    yield_before_execute, ros2_next_exec_timeout, agnocast_callback_group_wait_time,
-    agnocast_next_exec_timeout_ms);
+    yield_before_execute, ros2_next_exec_timeout, agnocast_next_exec_timeout_ms);
 
   node->set_executor(executor);
   executor->add_node(node);

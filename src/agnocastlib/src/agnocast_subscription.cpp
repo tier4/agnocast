@@ -1,4 +1,4 @@
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 
 namespace agnocast
 {
@@ -19,10 +19,10 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
   union ioctl_subscriber_args subscriber_args = {};
   subscriber_args.topic_name = topic_name_.c_str();
   subscriber_args.node_name = node_name.c_str();
+  subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-  subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.is_take_sub = is_take_sub;
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
