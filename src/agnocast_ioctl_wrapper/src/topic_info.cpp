@@ -75,10 +75,6 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
 
 void free_agnocast_topic_info_ret(struct topic_info_ret * array, int count)
 {
-  if (array == nullptr) {
-    return;
-  }
-
   free(array);
 }
 }
