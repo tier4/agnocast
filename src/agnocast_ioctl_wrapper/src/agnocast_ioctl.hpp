@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #define MAX_TOPIC_NUM 1024
-#define MAX_TOPIC_INFO_RET_NUM 1024
+#define MAX_TOPIC_INFO_RET_NUM 128
 
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
