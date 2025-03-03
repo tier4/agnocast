@@ -38,6 +38,58 @@ class TopicInfoAgnocastVerb(VerbExtension):
         namespace = namespace if namespace else "/"
         return namespace, node_name
 
+    def print_publishers_info(self, node, topic_name, pub_topic_info_rets, args, line_end):
+        agnocast_pub_count = len(pub_topic_info_rets)
+        print('ROS 2 Publisher count: %d' % node.count_publishers(topic_name))
+        print('Agnocast Publisher count: %d' % agnocast_pub_count, end=line_end)
+
+        if args.verbose:
+            try:
+                for info in node.get_publishers_info_by_topic(topic_name):
+                    full_node_name = f"{info.node_namespace.rstrip('/')}/{info.node_name.lstrip('/')}"
+                    print('Node name: %s' % info.node_name)
+                    print('Node namespace: %s' % info.node_namespace)
+                    print('Topic type: %s' % info.topic_type)
+                    if full_node_name in [info['node_name'] for info in pub_topic_info_rets]:
+                        print('Endpoint type: %s (Agnocast enabled)' % info.endpoint_type.name)
+                    else:
+                        print('Endpoint type: %s' % info.endpoint_type.name)
+                    print('GID: %s' % '.'.join(format(b, '02x') for b in info.endpoint_gid))
+                    print('QoS profile:')
+                    print('  Reliability: %s' % info.qos_profile.reliability.name)
+                    print('  History (Depth): %s (%d)' % (info.qos_profile.history.name, info.qos_profile.depth))
+                    print('  Durability: %s' % info.qos_profile.durability.name)
+                    print('  Lifespan: %s' % info.qos_profile.lifespan)
+                    print('  Deadline: %s' % info.qos_profile.deadline)
+                    print('  Liveliness: %s' % info.qos_profile.liveliness.name)
+                    print('  Liveliness lease duration: %s' % info.qos_profile.liveliness_lease_duration, end=line_end)
+            except NotImplementedError as e:
+                return str(e)
+
+    def print_subscribers_info(self, node, topic_name, topic_types, sub_topic_info_rets, args, line_end):
+        agnocast_sub_count = len(sub_topic_info_rets)
+        print('ROS 2 Subscription count: %d' % node.count_subscribers(topic_name))
+        print('Agnocast Subscription count: %d' % agnocast_sub_count, end=line_end)
+
+        if args.verbose:
+            try:
+                for info in node.get_subscriptions_info_by_topic(topic_name):
+                    print(info, end=line_end)
+                for info in sub_topic_info_rets:
+                    nodespace, node_name = self.split_full_node_name(info['node_name'])
+                    print('Node name: %s' % node_name)
+                    print('Node namespace: %s' % nodespace)
+                    print('Topic type: %s' % topic_types)
+                    print('Endpoint type: SUBSCRIPTION (Agnocast enabled)')
+                    print('QoS profile:')
+                    print('  History (Depth): KEEP_LAST (%d)' % info['qos_depth'])
+                    if info['qos_is_transient_local']:
+                        print('  Durability: TRANSIENT_LOCAL', end=line_end)
+                    else:
+                        print('  Durability: VOLATILE', end=line_end)
+            except NotImplementedError as e:
+                return str(e)
+
     def main(self, *, args):
         with NodeStrategy(None) as node:
             lib = ctypes.CDLL("libagnocast_ioctl_wrapper.so")
@@ -94,7 +146,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     topic_types = '<UNKNOWN>'
 
             ########################################################################
-            # Temp Code: existing ros2 topic info functionality
+            # print topic info
             ########################################################################
             line_end = '\n'
             if args.verbose:
@@ -102,56 +154,10 @@ class TopicInfoAgnocastVerb(VerbExtension):
             type_str = topic_types[0] if len(topic_types) == 1 else topic_types
             print('Type: %s' % type_str, end=line_end)
 
-            agnocast_pub_count = len(pub_topic_info_rets)
-            print('ROS 2 Publisher count: %d' %
-                  node.count_publishers(topic_name))
-            print('Agnocast Publisher count: %d' %
-                  agnocast_pub_count, end=line_end)
-            if args.verbose:
-                try:
-                    for info in node.get_publishers_info_by_topic(topic_name):
-                        full_node_name = f"{info.node_namespace.rstrip('/')}/{info.node_name.lstrip('/')}"
-                        print('Node name: %s' % info.node_name)
-                        print('Node namespace: %s' % info.node_namespace)
-                        print('Topic type: %s' % info.topic_type)
-                        if full_node_name in [info['node_name'] for info in pub_topic_info_rets]:
-                            print('Endpoint type: %s (Agnocast enabled)' % info.endpoint_type.name)
-                        else:
-                            print('Endpoint type: %s' % info.endpoint_type.name)
-                        print('GID: %s' % '.'.join(format(b, '02x') for b in info.endpoint_gid))
-                        print('QoS profile:')
-                        print('  Reliability: %s' % info.qos_profile.reliability.name)
-                        print('  History (Depth): %s (%d)' % (info.qos_profile.history.name, info.qos_profile.depth))
-                        print('  Durability: %s' % info.qos_profile.durability.name)
-                        print('  Lifespan: %s' % info.qos_profile.lifespan)
-                        print('  Deadline: %s' % info.qos_profile.deadline)
-                        print('  Liveliness: %s' % info.qos_profile.liveliness.name)
-                        print('  Liveliness lease duration: %s' % info.qos_profile.liveliness_lease_duration, end=line_end)
-                except NotImplementedError as e:
-                    return str(e)
-
-            agnocast_sub_count = len(sub_topic_info_rets)
-            print('ROS 2 Subscription count: %d' %
-                  node.count_subscribers(topic_name))
-            print('Agnocast Subscription count: %d' %
-                  agnocast_sub_count, end=line_end)
-            if args.verbose:
-                try:
-                    for info in node.get_subscriptions_info_by_topic(topic_name):
-                        print(info, end=line_end)
-                    for info in sub_topic_info_rets:
-                        nodespace, node_name = self.split_full_node_name(info['node_name'])
-                        print('Node name: %s' % node_name)
-                        print('Node namespace: %s' % nodespace)
-                        print('Topic type: %s' % type_str)
-                        print('Endpoint type: SUBSCROPTION (Agnocast enabled)')
-                        print('QoS profile:')
-                        print('  History (Depth): KEEP_LAST (%d)' % info['qos_depth'])
-                        if info['qos_is_transient_local']:
-                            print('  Durability: TRNSIENT_LOCAL', end=line_end)
-                        else:
-                            print('  Durability: VOLATILE', end=line_end)
-
-                except NotImplementedError as e:
-                    return str(e)
+            print_publishers_info_ret = self.print_publishers_info(node, topic_name, pub_topic_info_rets, args, line_end)
+            if print_publishers_info_ret:
+                return print_publishers_info_ret
+            print_subscribers_info_ret = self.print_subscribers_info(node, topic_name, type_str, sub_topic_info_rets, args, line_end)
+            if print_subscribers_info_ret:
+                return print_subscribers_info_ret
             ########################################################################
