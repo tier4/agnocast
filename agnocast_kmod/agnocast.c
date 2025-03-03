@@ -1607,7 +1607,7 @@ int get_topic_entries_num(char * topic_name)
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
+      agnocast_device, "Topic (topic_name=%s) not found. (get_topic_entries_num)\n", topic_name);
     return -1;
   }
 
