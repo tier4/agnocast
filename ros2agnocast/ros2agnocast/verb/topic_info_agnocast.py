@@ -41,46 +41,23 @@ class TopicInfoAgnocastVerb(VerbExtension):
     def main(self, *, args):
         with NodeStrategy(None) as node:
             lib = ctypes.CDLL("libagnocast_ioctl_wrapper.so")
-            lib.get_agnocast_topic_list.argtype = [ctypes.POINTER(ctypes.c_int)]
-            lib.get_agnocast_topic_list.restype = ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
             lib.get_agnocast_sub_nodes.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int)]
             lib.get_agnocast_sub_nodes.restype = ctypes.POINTER(TopicInfoRet)
             lib.get_agnocast_pub_nodes.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int)]
             lib.get_agnocast_pub_nodes.restype = ctypes.POINTER(TopicInfoRet)          
-            lib.free_agnocast_topics.argtypes = [ctypes.POINTER(ctypes.POINTER(ctypes.c_char)), ctypes.c_int]
-            lib.free_agnocast_topics.restype = None
             lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet), ctypes.c_int]
             lib.free_agnocast_topic_info_ret.restype = None
-
-
-            # get agnocast topic list
-            agnocast_topic_count = ctypes.c_int()
-            agnocast_topic_names_array = lib.get_agnocast_topic_list(ctypes.byref(agnocast_topic_count))
-            agnocast_topic_names = []
-            for i in range(agnocast_topic_count.value):
-                topic_ptr = ctypes.cast(agnocast_topic_names_array[i], ctypes.c_char_p)
-                agnocast_topic_names.append(topic_ptr.value.decode('utf-8'))
-            if agnocast_topic_count.value != 0:
-                lib.free_agnocast_topics(agnocast_topic_names_array, agnocast_topic_count)
 
             # get ros2 topic list
             topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
 
             topic_name = args.topic_name
             topic_name_byte = topic_name.encode('utf-8')
+            topic_types = None
             for (t_name, t_types) in topic_names_and_types:
                 if t_name == topic_name:
                     topic_types = t_types
                     break
-            else:
-                if topic_name in agnocast_topic_names:
-                    topic_types = '<UNKOWN>'
-                else:
-                    return "Unknown topic '%s'" % topic_name
-
-            line_end = '\n'
-            if args.verbose:
-                line_end = '\n\n'
 
             # get agnocast sub node list
             sub_topic_info_ret_count = ctypes.c_int()
@@ -108,9 +85,19 @@ class TopicInfoAgnocastVerb(VerbExtension):
             if pub_topic_info_ret_count.value != 0:
                 lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array, pub_topic_info_ret_count)
 
+            # check if topic exists
+            if topic_types is None:
+                if sub_topic_info_ret_count.value == 0 and pub_topic_info_ret_count.value == 0:
+                    return 'Unkown topic: %s' % topic_name
+                else:
+                    topic_types = '<UNKNOWN>'
+
             ########################################################################
             # Temp Code: existing ros2 topic info functionality
             ########################################################################
+            line_end = '\n'
+            if args.verbose:
+                line_end = '\n\n'
             type_str = topic_types[0] if len(topic_types) == 1 else topic_types
             print('Type: %s' % type_str, end=line_end)
 
