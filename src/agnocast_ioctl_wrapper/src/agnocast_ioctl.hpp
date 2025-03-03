@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cstdint>
 
-#define MAX_PUBLISHER_NUM 4
-#define MAX_SUBSCRIBER_NUM 8
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 
 #define MAX_TOPIC_NUM 1024
 #define MAX_TOPIC_INFO_RET_NUM std::max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
