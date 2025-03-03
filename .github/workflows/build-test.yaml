@@ -21,7 +21,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-    
+
     - name: Check for .cpp or .hpp file changes
       id: check_changes_cpp
       run: |
@@ -32,7 +32,7 @@ jobs:
           echo "No .cpp or .hpp files changed"
           echo "cpp_changed=false" >> $GITHUB_OUTPUT
         fi
-    
+
     # TODO: Cache
 
     - name: Setup ROS 2 environment
@@ -66,7 +66,7 @@ jobs:
       run: |
         export FILES=($(find src/agnocastlib/ -name '*.cpp' -not -path '*/test/*'))
         run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
-    
+
     - name: Test for agnocastlib
       if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
       id: test
@@ -83,3 +83,4 @@ jobs:
         gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" --txt > coverage.txt
         coverage_text=$(<coverage.txt)
         gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '```\n'"$coverage_text"'\n```')"
+

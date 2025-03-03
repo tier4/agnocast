@@ -54,3 +54,4 @@ jobs:
       run: |
         cd agnocast_heaphook
         cargo build
+
