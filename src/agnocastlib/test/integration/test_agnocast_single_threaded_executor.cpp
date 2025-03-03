@@ -6,37 +6,33 @@
 
 class SingleThreadedAgnocastExecutorNoStarvationTest : public ::testing::TestWithParam<int>
 {
-private:
-  void set_complex_params(const int next_exec_timeout_ms)
+protected:
+  void SetUp() override
   {
+    int next_exec_timeout_ms = GetParam();
+
     // Set the execution time of each callback
     uint64_t num_cbs = NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED + NUM_ROS2_SUB_CBS;
-    cb_exec_time_ =
+    std::chrono::milliseconds cb_exec_time =
       std::chrono::duration_cast<std::chrono::milliseconds>(PUB_PERIOD * 0.8 / (num_cbs));
 
     // Set the spin duration
     std::chrono::seconds buffer = std::chrono::seconds(1);  // Rough value
     spin_duration_ = std::max(
                        std::chrono::seconds(
-                         (next_exec_timeout_ms + cb_exec_time_.count()) *
+                         (next_exec_timeout_ms + cb_exec_time.count()) *
                          (NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED) / 1000),
                        std::chrono::duration_cast<std::chrono::seconds>(
                          PUB_PERIOD * NUM_AGNOCAST_CBS_TO_BE_ADDED)) +
                      buffer;
-  }
 
-protected:
-  void SetUp() override
-  {
-    int next_exec_timeout_ms = GetParam();
-    set_complex_params(next_exec_timeout_ms);
-
+    // Initialize the executor and the test node
     rclcpp::init(0, nullptr);
     executor_ = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, GetParam());
     test_node_ = std::make_shared<NodeForNoStarvation>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD,
-      cb_exec_time_);
+      cb_exec_time);
     executor_->add_node(test_node_);
   }
 
@@ -45,9 +41,8 @@ protected:
   std::shared_ptr<NodeForNoStarvation> test_node_;
   std::shared_ptr<agnocast::SingleThreadedAgnocastExecutor> executor_;
   std::chrono::seconds spin_duration_;
-  std::chrono::milliseconds cb_exec_time_;
 
-  // Parameters
+  // Fixed Parameters
   const uint64_t NUM_ROS2_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = 5;
