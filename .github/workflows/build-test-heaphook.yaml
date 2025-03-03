@@ -1,0 +1,56 @@
+name: build test heaphook
+
+on:
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  build:
+    if: ${{ github.event.label.name == 'run-build-test' }}
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Set PR fetch depth
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+
+    - name: Check for .rs file changes
+      id: check_changes_rust
+      run: |
+        if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.rs$'; then
+          echo ".rs files changed"
+          echo "rust_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "No .rs files changed"
+          echo "rust_changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Rust environment
+      if: steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        rustup toolchain install nightly-2024-08-13
+        rustup default nightly-2024-08-13
+        rustup component add clippy rustfmt
+
+    - name: Run rustfmt on agnocast_heaphook
+      if: steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        cargo fmt && git diff --exit-code
+
+    - name: Run clippy on agnocast_heaphook
+      if: steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        cargo clippy -- --deny warnings
+
+    - name: Build agnocast_heaphook
+      if: steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        cargo build
