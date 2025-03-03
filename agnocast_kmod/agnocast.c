@@ -32,6 +32,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
 
+// Maximum number of topic info ret
+#define MAX_TOPIC_INFO_RET_NUM 128
+
 struct process_info
 {
   pid_t pid;
@@ -1420,10 +1423,10 @@ static int get_topic_subscriber_info(
 
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    if (subscriber_num >= MAX_SUBSCRIBER_NUM) {
+    if (subscriber_num >= MAX_TOPIC_INFO_RET_NUM) {
       dev_warn(
-        agnocast_device, "The number of subscribers is over MAX_SUBSCRIBER_NUM=%d\n",
-        MAX_SUBSCRIBER_NUM);
+        agnocast_device, "The number of subscribers is over MAX_TOPIC_INFO_RET_NUM=%d\n",
+        MAX_TOPIC_INFO_RET_NUM);
       return -ENOBUFS;
     }
 
@@ -1474,10 +1477,10 @@ static int get_topic_publisher_info(
 
   hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
   {
-    if (publisher_num >= MAX_PUBLISHER_NUM) {
+    if (publisher_num >= MAX_TOPIC_INFO_RET_NUM) {
       dev_warn(
-        agnocast_device, "The number of publishers is over MAX_PUBLISHER_NUM=%d\n",
-        MAX_PUBLISHER_NUM);
+        agnocast_device, "The number of publishers is over MAX_TOPIC_INFO_RET_NUM=%d\n",
+        MAX_TOPIC_INFO_RET_NUM);
       return -ENOBUFS;
     }
 
