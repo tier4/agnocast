@@ -1,6 +1,6 @@
-#include "agnocast_executor.hpp"
+#include "agnocast/agnocast_executor.hpp"
 
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
 #include "tracetools/tracetools.h"
@@ -163,10 +163,16 @@ bool AgnocastExecutor::get_next_agnocast_executables(
 
 void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnocast_executables)
 {
-  // In a single-threaded executor, it never sleeps here.
-  // For multi-threaded executor, it's workaround to preserve the callback group rule.
-  while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
-    std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+  if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
+    // In a single-threaded executor, it never sleeps here.
+    // For multi-threaded executor, it's workaround to preserve the callback group rule.
+    while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
+      std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+    }
+  } else if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::Reentrant) {
+    while (!agnocast_executables.callback_group->can_be_taken_from().load()) {
+      std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+    }
   }
 
   while (!agnocast_executables.callable_queue.empty()) {
@@ -181,7 +187,9 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
 #endif
   }
 
-  agnocast_executables.callback_group->can_be_taken_from().store(true);
+  if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
+    agnocast_executables.callback_group->can_be_taken_from().store(true);
+  }
 }
 
 void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
