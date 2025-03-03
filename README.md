@@ -15,8 +15,14 @@ bash scripts/setup
 Build.
 
 ```bash
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+bash scripts/build_all
+```
+
+Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
+
+```bash
+$ ls /usr/lib | grep libagnocast_heaphook
+libagnocast_heaphook.so
 ```
 
 ## Run
@@ -24,7 +30,7 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 Insert kernel module.
 
 ```bash
-cd kmod
+cd agnocast_kmod
 sudo insmod agnocast.ko
 sudo lsmod
 ```
@@ -81,8 +87,8 @@ Check if dynamic_debug is enabled by running the following command. If the right
 
 ```bash
 sudo cat /sys/kernel/debug/dynamic_debug/control | grep "agnocast.c"
-/.../agnocast/kmod/agnocast.c:810 [agnocast]release_msgs_to_meet_depth =p "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic (topic_name=%s) with qos_depth %d. (release_msgs_to_meet_depth)\012"
-/.../agnocast/kmod/agnocast.c:367 [agnocast]insert_message_entry =p "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). (insert_message_entry)"
+/.../agnocast/agnocast_kmod/agnocast.c:810 [agnocast]release_msgs_to_meet_depth =p "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic (topic_name=%s) with qos_depth %d. (release_msgs_to_meet_depth)\012"
+/.../agnocast/agnocast_kmod/agnocast.c:367 [agnocast]insert_message_entry =p "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). (insert_message_entry)"
 ```
 
 To use dynamic_debug, the Linux kernel configuration must have CONFIG_DYNAMIC_DEBUG set to `y`.
@@ -119,7 +125,7 @@ You can also use [pre-commit](#for-developer-setup-pre-commit).
 
 ## (For developer) Setup pre-commit
 
-The following command allows `clang-format`, `markdownlint`, and [KUNIT Test](./kmod/agnocast_kunit.c) to be run before each commit.
+The following command allows `clang-format`, `markdownlint`, and [KUNIT Test](./agnocast_kmod/agnocast_kunit.c) to be run before each commit.
 
 ```bash
 bash scripts/setup
