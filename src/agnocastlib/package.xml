@@ -2,10 +2,22 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agnocastlib</name>
-  <version>0.0.0</version>
-  <description>ROS 2 Compatible True Zero-Copy Middleware Supporting Dynamic Sized Messages</description>
-  <maintainer email="sykwer@gmail.com">sykwer</maintainer>
-  <license>TODO: License declaration</license>
+  <version>1.0.0</version>
+  <description>
+    True Zero Copy Communication Middleware for Unsized ROS 2 Message Types.
+  </description>
+  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <maintainer email="atsushi.yano.2@tier4.jp">Atsushi Yano</maintainer>
+  <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
+  <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- Original authors -->
+  <author email="sykwer@gmail.com">Takahiro Ishikawa-Aso</author>
+  <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
+  <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
+  <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -13,6 +25,12 @@
   <depend>rclcpp_components</depend>
   <depend>std_msgs</depend>
   <depend>tracetools</depend>
+
+  <!-- Uncomment when agnocast_kmod is released from PPA -->
+  <!-- <exec_depend>agnocast_kmod</exec_depend> -->
+
+  <!-- Uncomment when agnocast_heaphook is released from PPA -->
+  <!-- <exec_depend>agnocast_heaphook</exec_depend> -->
 
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>ament_lint_auto</test_depend>
