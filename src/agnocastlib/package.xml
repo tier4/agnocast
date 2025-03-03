@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agnocastlib</name>
-  <version>0.0.0</version>
+  <version>1.0.0</version>
   <description>
     True Zero Copy Communication Middleware for Unsized ROS 2 Message Types.
   </description>
@@ -25,6 +25,12 @@
   <depend>rclcpp_components</depend>
   <depend>std_msgs</depend>
   <depend>tracetools</depend>
+
+  <!-- Uncomment when agnocast_kmod is released from PPA -->
+  <!-- <exec_depend>agnocast_kmod</exec_depend> -->
+
+  <!-- Uncomment when agnocast_heaphook is released from PPA -->
+  <!-- <exec_depend>agnocast_heaphook</exec_depend> -->
 
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>ament_lint_auto</test_depend>

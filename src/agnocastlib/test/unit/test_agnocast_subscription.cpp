@@ -1,4 +1,4 @@
-#include "agnocast_subscription.hpp"
+#include "agnocast/agnocast_subscription.hpp"
 
 #include <gtest/gtest.h>
 

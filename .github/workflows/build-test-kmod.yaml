@@ -29,10 +29,10 @@ jobs:
           echo "No .c files changed"
           echo "c_changed=false" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Build kmod
       if: steps.check_changes.outputs.c_changed == 'true'
       run: |
-        cd kmod
+        cd agnocast_kmod
         make
 
