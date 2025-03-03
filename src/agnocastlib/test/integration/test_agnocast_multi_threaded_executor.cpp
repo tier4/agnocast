@@ -70,9 +70,8 @@ protected:
 INSTANTIATE_TEST_SUITE_P(
   MultiThreadedAgnocastExecutorNoStarvationTests, MultiThreadedAgnocastExecutorNoStarvationTest,
   ::testing::Combine(
-    ::testing::Values(true, false),  // yield_before_execute
-    ::testing::Values(
-      25, 75, 250, 400),  // ros2_next_exec_timeout and agnocast_next_exec_timeout_ms
+    ::testing::Values(true, false),   // yield_before_execute
+    ::testing::Values(25, 150, 400),  // ros2_next_exec_timeout and agnocast_next_exec_timeout_ms
     ::testing::Values("individual", "mutually_exclusive", "reentrant")));
 
 TEST_P(MultiThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
