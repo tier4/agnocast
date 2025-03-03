@@ -1,6 +1,6 @@
 [package]
 name = "agnocast_heaphook"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "Apatch-2.0"
 authors = [
@@ -9,7 +9,7 @@ authors = [
     "Atsushi Yano <atsushi.yano.2@tier4.jp>",
     "Koichi Imai <koichi.imai.2@tier4.jp>"
 ]
-description = "heaphook in Rust"
+description = "A heap runtime replacement for Agnocast"
 
 [lib]
 crate-type = ["cdylib"]
