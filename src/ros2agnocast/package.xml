@@ -20,8 +20,6 @@
   <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
   <author email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</author>
 
-  <depend>ros2cli</depend>
-
   <export>
     <build_type>ament_python</build_type>
   </export>

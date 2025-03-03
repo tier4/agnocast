@@ -26,11 +26,11 @@
   <depend>std_msgs</depend>
   <depend>tracetools</depend>
 
-  <!-- rosdep install will fail until agnocast_kmod is released from PPA -->
-  <exec_depend>agnocast_kmod</exec_depend>
+  <!-- Uncomment when agnocast_kmod is released from PPA -->
+  <!-- <exec_depend>agnocast_kmod</exec_depend> -->
 
-  <!-- rosdep install will fail until agnocast_heaphook is released from PPA -->
-  <exec_depend>agnocast_heaphook</exec_depend>
+  <!-- Uncomment when agnocast_heaphook is released from PPA -->
+  <!-- <exec_depend>agnocast_heaphook</exec_depend> -->
 
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>ament_lint_auto</test_depend>
