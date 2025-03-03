@@ -441,4 +441,3 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         }
     })
 }
-
