@@ -2,6 +2,7 @@
 
 #include <linux/device.h>
 #include <linux/hashtable.h>
+#include <linux/kernel.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>  // kmalloc, kfree
@@ -33,7 +34,7 @@ static DEFINE_MUTEX(global_mutex);
 #define TOPIC_NAME_BUFFER_SIZE 256
 
 // Maximum number of topic info ret
-#define MAX_TOPIC_INFO_RET_NUM 128
+#define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
 struct process_info
 {
