@@ -1,12 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 #define MAX_PUBLISHER_NUM 4
 #define MAX_SUBSCRIBER_NUM 8
 
 #define MAX_TOPIC_NUM 1024
-#define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
+#define MAX_TOPIC_INFO_RET_NUM std::max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
