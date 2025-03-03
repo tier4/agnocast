@@ -48,16 +48,8 @@ class TopicInfoAgnocastVerb(VerbExtension):
             lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet), ctypes.c_int]
             lib.free_agnocast_topic_info_ret.restype = None
 
-            # get ros2 topic list
-            topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
-
             topic_name = args.topic_name
             topic_name_byte = topic_name.encode('utf-8')
-            topic_types = None
-            for (t_name, t_types) in topic_names_and_types:
-                if t_name == topic_name:
-                    topic_types = t_types
-                    break
 
             # get agnocast sub node list
             sub_topic_info_ret_count = ctypes.c_int()
@@ -84,6 +76,15 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 })
             if pub_topic_info_ret_count.value != 0:
                 lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array, pub_topic_info_ret_count)
+
+            # get ros2 topic list
+            topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
+
+            topic_types = None
+            for (t_name, t_types) in topic_names_and_types:
+                if t_name == topic_name:
+                    topic_types = t_types
+                    break
 
             # check if topic exists
             if topic_types is None:
