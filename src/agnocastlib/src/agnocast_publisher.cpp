@@ -1,4 +1,4 @@
-#include "agnocast_publisher.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 
 #include <sys/types.h>
 

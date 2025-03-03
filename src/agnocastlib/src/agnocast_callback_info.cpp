@@ -1,4 +1,4 @@
-#include "agnocast_callback_info.hpp"
+#include "agnocast/agnocast_callback_info.hpp"
 
 namespace agnocast
 {

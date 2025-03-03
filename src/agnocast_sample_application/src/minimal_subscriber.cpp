@@ -1,4 +1,4 @@
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 #include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 #include "rclcpp/rclcpp.hpp"
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "agnocast_callback_info.hpp"
-#include "agnocast_multi_threaded_executor.hpp"
-#include "agnocast_publisher.hpp"
-#include "agnocast_single_threaded_executor.hpp"
-#include "agnocast_subscription.hpp"
+#include "agnocast/agnocast_callback_info.hpp"
+#include "agnocast/agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_publisher.hpp"
+#include "agnocast/agnocast_single_threaded_executor.hpp"
+#include "agnocast/agnocast_subscription.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>

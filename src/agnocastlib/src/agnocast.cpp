@@ -1,7 +1,7 @@
-#include "agnocast.hpp"
+#include "agnocast/agnocast.hpp"
 
-#include "agnocast_ioctl.hpp"
-#include "agnocast_mq.hpp"
+#include "agnocast/agnocast_ioctl.hpp"
+#include "agnocast/agnocast_mq.hpp"
 
 #include <sys/types.h>
 

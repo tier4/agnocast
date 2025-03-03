@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast_smart_pointer.hpp"
+#include "agnocast/agnocast_smart_pointer.hpp"
 
 #include <mutex>
 
