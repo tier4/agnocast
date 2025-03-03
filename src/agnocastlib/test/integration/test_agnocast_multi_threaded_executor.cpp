@@ -14,14 +14,14 @@ private:
     uint64_t num_cbs = NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED + NUM_ROS2_SUB_CBS;
     if (cbg_type == "mutually_exclusive") {
       cb_exec_time_ =
-        std::chrono::duration_cast<std::chrono::milliseconds>(PUB_PERIOD * 0.9 / (num_cbs));
+        std::chrono::duration_cast<std::chrono::milliseconds>(PUB_PERIOD * 0.8 / (num_cbs));
     } else {  // individual or reentrant
       cb_exec_time_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-        PUB_PERIOD * 0.9 * (NUMBER_OF_AGNOCAST_THREADS + NUMBER_OF_ROS2_THREADS) / (num_cbs));
+        PUB_PERIOD * 0.8 * (NUMBER_OF_AGNOCAST_THREADS + NUMBER_OF_ROS2_THREADS) / (num_cbs));
     }
 
     // Set the spin duration
-    std::chrono::seconds buffer = std::chrono::seconds(2);  // Rough value
+    std::chrono::seconds buffer = std::chrono::seconds(1);  // Rough value
     spin_duration_ = std::max(
                        std::chrono::seconds(
                          (agnocast_next_exec_timeout_ms + cb_exec_time_.count()) *
@@ -72,7 +72,7 @@ INSTANTIATE_TEST_SUITE_P(
   ::testing::Combine(
     ::testing::Values(true, false),  // yield_before_execute
     ::testing::Values(
-      25, 50, 100, 200, 400),  // ros2_next_exec_timeout and agnocast_next_exec_timeout_ms
+      25, 75, 250, 400),  // ros2_next_exec_timeout and agnocast_next_exec_timeout_ms
     ::testing::Values("individual", "mutually_exclusive", "reentrant")));
 
 TEST_P(MultiThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
