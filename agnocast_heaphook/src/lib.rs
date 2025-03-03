@@ -441,3 +441,13 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         }
     })
 }
+
+#[no_mangle]
+pub extern "C" fn valloc(_size: usize) -> *mut c_void {
+    panic!("[ERROR] [Agnocast] valloc is not supported");
+}
+
+#[no_mangle]
+pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
+    panic!("[ERROR] [Agnocast] pvalloc is not supported");
+}
