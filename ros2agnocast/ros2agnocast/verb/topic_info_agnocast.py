@@ -105,7 +105,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
             agnocast_pub_count = len(pub_topic_info_rets)
             print('ROS 2 Publisher count: %d' %
                   node.count_publishers(topic_name))
-            print('Agnocast Publisher count: %d)' %
+            print('Agnocast Publisher count: %d' %
                   agnocast_pub_count, end=line_end)
             if args.verbose:
                 try:
@@ -133,7 +133,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
             agnocast_sub_count = len(sub_topic_info_rets)
             print('ROS 2 Subscription count: %d' %
                   node.count_subscribers(topic_name))
-            print('Agnocast Subscription count: %d)' %
+            print('Agnocast Subscription count: %d' %
                   agnocast_sub_count, end=line_end)
             if args.verbose:
                 try:
