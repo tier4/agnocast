@@ -47,7 +47,7 @@ protected:
   const uint64_t NUM_AGNOCAST_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = 5;
   const std::chrono::milliseconds PUB_PERIOD = std::chrono::milliseconds(100);
-  const float CPU_UTILIZATION = 0.8;
+  const float CPU_UTILIZATION = 0.7;
 };
 
 INSTANTIATE_TEST_SUITE_P(

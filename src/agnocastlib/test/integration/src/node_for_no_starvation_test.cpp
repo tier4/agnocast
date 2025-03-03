@@ -41,6 +41,12 @@ NodeForNoStarvation::NodeForNoStarvation(
 
 NodeForNoStarvation::~NodeForNoStarvation()
 {
+  for (auto & mq_sender : mq_senders_) {
+    if (mq_close(mq_sender.second) == -1) {
+      std::cerr << "mq_close failed: " << strerror(errno) << std::endl;
+    }
+  }
+
   for (auto & mq_receiver : mq_receivers_) {
     if (mq_close(mq_receiver.first) == -1) {
       std::cerr << "mq_close failed: " << strerror(errno) << std::endl;
