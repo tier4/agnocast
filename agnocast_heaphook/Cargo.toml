@@ -1,0 +1,19 @@
+[package]
+name = "agnocast_heaphook"
+version = "1.0.0"
+edition = "2021"
+license = "Apatch-2.0"
+authors = [
+    "Takahiro Ishikawa-Aso <sykwer@gmail.com>",
+    "Ryuta Kambe <ryuta.kambe@tier4.jp>",
+    "Atsushi Yano <atsushi.yano.2@tier4.jp>",
+    "Koichi Imai <koichi.imai.2@tier4.jp>"
+]
+description = "A heap runtime replacement for Agnocast"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+libc = "0.2"
+rlsf = "0.2"

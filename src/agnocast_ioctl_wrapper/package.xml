@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agnocast_ioctl_wrapper</name>
-  <version>0.0.0</version>
+  <version>1.0.0</version>
   <description>
     The wrapper of ioctl for command line tool extension for Agnocast.
   </description>
@@ -18,10 +18,14 @@
   <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
   <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
   <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
+  <author email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+
+  <!-- Uncomment when agnocast_kmod is released from PPA -->
+  <!-- <exec_depend>agnocast_kmod</exec_depend> -->
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>agnocast_sample_interfaces</name>
+  <version>1.0.0</version>
+  <description>
+    Sample interfaces for the Agnocast sample application.
+  </description>
+  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
+  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
+  <maintainer email="atsushi.yano.2@tier4.jp">Atsushi Yano</maintainer>
+  <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
+  <maintainer email="kawaguchitnon@icloud.com">Tetsuhiro Kawaguchi</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- Original authors -->
+  <author email="sykwer@gmail.com">Takahiro Ishikawa-Aso</author>
+  <author email="ryuta.kambe@tier4.jp">Ryuta Kambe</author>
+  <author email="atsushi.yano.2@tier4.jp">Atsushi Yano</author>
+  <author email="koichi.imai.2@tier4.jp">Koichi Imai</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

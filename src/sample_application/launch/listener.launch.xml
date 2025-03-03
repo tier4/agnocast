@@ -1,9 +1,0 @@
-<launch>
-    <node_container pkg="agnocastlib" exec="agnocast_component_container" name="listener_container" namespace="" output="screen">
-      <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
-      <env name="MEMPOOL_SIZE" value="16777216" /> <!-- 16MB-->
-
-      <composable_node pkg="sample_application" plugin="MinimalSubscriber" name="listener_node" namespace="">
-      </composable_node>
-    </node_container>
-</launch>
