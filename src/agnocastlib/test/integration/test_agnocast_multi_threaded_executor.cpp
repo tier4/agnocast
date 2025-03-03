@@ -20,9 +20,11 @@ protected:
     uint64_t num_cbs = NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED + NUM_ROS2_SUB_CBS;
     std::chrono::milliseconds cb_exec_time =
       (cbg_type == "mutually_exclusive")
-        ? std::chrono::duration_cast<std::chrono::milliseconds>(PUB_PERIOD * 0.8 / (num_cbs))
+        ? std::chrono::duration_cast<std::chrono::milliseconds>(
+            PUB_PERIOD * CPU_UTILIZATION / (num_cbs))
         : std::chrono::duration_cast<std::chrono::milliseconds>(
-            PUB_PERIOD * 0.8 * (NUMBER_OF_AGNOCAST_THREADS + NUMBER_OF_ROS2_THREADS) / (num_cbs));
+            PUB_PERIOD * CPU_UTILIZATION * (NUMBER_OF_AGNOCAST_THREADS + NUMBER_OF_ROS2_THREADS) /
+            (num_cbs));
 
     // Set the spin duration
     std::chrono::seconds buffer = std::chrono::seconds(1);  // Rough value
@@ -58,6 +60,7 @@ protected:
   const uint64_t NUM_ROS2_SUB_CBS = NUMBER_OF_ROS2_THREADS * 2;
   const uint64_t NUM_AGNOCAST_SUB_CBS = NUMBER_OF_AGNOCAST_THREADS * 2;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = NUMBER_OF_AGNOCAST_THREADS * 2;
+  const float CPU_UTILIZATION = 0.8;
 };
 
 INSTANTIATE_TEST_SUITE_P(

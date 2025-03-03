@@ -13,8 +13,8 @@ protected:
 
     // Set the execution time of each callback
     uint64_t num_cbs = NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED + NUM_ROS2_SUB_CBS;
-    std::chrono::milliseconds cb_exec_time =
-      std::chrono::duration_cast<std::chrono::milliseconds>(PUB_PERIOD * 0.8 / (num_cbs));
+    std::chrono::milliseconds cb_exec_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      PUB_PERIOD * CPU_UTILIZATION / (num_cbs));
 
     // Set the spin duration
     std::chrono::seconds buffer = std::chrono::seconds(1);  // Rough value
@@ -47,6 +47,7 @@ protected:
   const uint64_t NUM_AGNOCAST_SUB_CBS = 10;
   const uint64_t NUM_AGNOCAST_CBS_TO_BE_ADDED = 5;
   const std::chrono::milliseconds PUB_PERIOD = std::chrono::milliseconds(100);
+  const float CPU_UTILIZATION = 0.8;
 };
 
 INSTANTIATE_TEST_SUITE_P(
