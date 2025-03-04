@@ -114,7 +114,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "qos_is_transient_local": sub_topic_info_ret_array[i].qos_is_transient_local,
                 })
             if sub_topic_info_ret_count.value != 0 and sub_topic_info_ret_array is not None:
-                lib.free_agnocast_topic_info_ret(sub_topic_info_ret_array)
+                lib.free_agnocast_topic_info_ret(sub_topic_info_ret_array, sub_topic_info_ret_count)
 
             # get agnocast pub node list
             pub_topic_info_ret_count = ctypes.c_int()
@@ -127,7 +127,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "qos_is_transient_local": pub_topic_info_ret_array[i].qos_is_transient_local,
                 })
             if pub_topic_info_ret_count.value != 0 and pub_topic_info_ret_array is not None:
-                lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array)
+                lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array, pub_topic_info_ret_count)
 
             # get ros2 topic list
             topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
