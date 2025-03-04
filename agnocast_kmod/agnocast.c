@@ -1406,7 +1406,7 @@ static int get_node_publisher_topics(
 }
 
 static int get_topic_subscriber_info(
-  char * topic_name, union ioctl_topic_info_args * topic_info_args)
+  const char * topic_name, union ioctl_topic_info_args * topic_info_args)
 {
   topic_info_args->ret_topic_info_ret_num = 0;
 
@@ -1462,7 +1462,7 @@ static int get_topic_subscriber_info(
 }
 
 static int get_topic_publisher_info(
-  char * topic_name, union ioctl_topic_info_args * topic_info_args)
+  const char * topic_name, union ioctl_topic_info_args * topic_info_args)
 {
   topic_info_args->ret_topic_info_ret_num = 0;
 
