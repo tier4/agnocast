@@ -1005,8 +1005,8 @@ static int release_msgs_to_meet_depth(
     return 0;
   }
 
-  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= LEAK_WARN_TH)
-                                         ? LEAK_WARN_TH + pub_info->qos_depth
+  const uint32_t leak_warn_threshold = (pub_info->qos_depth <= 100)
+                                         ? 100 + pub_info->qos_depth
                                          : pub_info->qos_depth * 2;  // This is rough value.
   if (pub_info->entries_num > leak_warn_threshold) {
     dev_warn(
@@ -1015,7 +1015,6 @@ static int release_msgs_to_meet_depth(
       "messages for this publisher to increase. (topic_name=%s, id=%d, entries_num=%d)."
       "(release_msgs_to_meet_depth)\n",
       wrapper->key, pub_info->id, pub_info->entries_num);
-    return -1;
   }
 
   struct rb_node * node = rb_first(&wrapper->topic.entries);

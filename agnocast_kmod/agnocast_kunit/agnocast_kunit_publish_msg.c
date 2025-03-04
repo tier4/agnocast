@@ -96,27 +96,6 @@ void test_case_simple_publish_without_any_release(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
 }
 
-void test_case_excessive_unreleased_entry_nodes(struct kunit * test)
-{
-  // Arrange
-  topic_local_id_t publisher_id;
-  uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
-
-  for (int i = 0; i < LEAK_WARN_TH + qos_depth; i++) {
-    union ioctl_publish_args ioctl_publish_msg_ret;
-    int ret = publish_msg(topic_name, publisher_id, ret_addr + i, &ioctl_publish_msg_ret);
-    KUNIT_ASSERT_EQ(test, ret, 0);
-  }
-
-  // Act
-  union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret = publish_msg(topic_name, publisher_id, ret_addr + LEAK_WARN_TH, &ioctl_publish_msg_ret);
-
-  // Assert
-  KUNIT_EXPECT_EQ(test, ret, -1);
-}
-
 void test_case_different_publisher_no_release(struct kunit * test)
 {
   // Arrange
