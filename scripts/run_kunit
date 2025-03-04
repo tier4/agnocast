@@ -18,7 +18,7 @@ fi
 
 ### Check if agnocast.ko is not already loaded.
 ### Since agnocast_kunit.ko contains symbols from agnocast.ko,
-### symbol conflicts will ocurr if it is already loaded.
+### symbol conflicts will occur if it is already loaded.
 if lsmod | grep -q "agnocast"; then
     echo "Kernel module 'agnocast' is already loaded. Unload it before kunit test."
     exit 1
@@ -35,7 +35,7 @@ fi
 
 cd $AGNOCAST_KMOD_PATH
 make clean
-make
+make test
 sudo insmod $AGNOCAST_KMOD_PATH/agnocast_kunit.ko
 sleep 3 # HACK
 TOTALS_LINE=$(sudo dmesg | tail -n 10 | grep -E "# Totals: pass:[0-9]+ fail:[0-9]+")
