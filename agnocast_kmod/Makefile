@@ -44,7 +44,7 @@ ifeq ($(CONFIG_KUNIT),y)
 		agnocast_kunit/agnocast_kunit_new_shm.o \
 		agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
 		agnocast_kunit/agnocast_kunit_get_topic_list.o
-  ccflags-y += -DKUNIT_BUILD
+  $(foreach obj,$(agnocast_kunit-m),$(eval CFLAGS_$(obj) += -DKUNIT_BUILD))
 endif
 
 ifeq ($(CONFIG_GCOV_KERNEL),y)
