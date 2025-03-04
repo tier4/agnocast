@@ -1422,6 +1422,11 @@ static int get_topic_subscriber_info(
   struct topic_info_ret __user * user_buffer =
     (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
 
+  struct topic_info_ret * topic_info_mem = kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
+  if (!topic_info_mem) {
+    return -ENOMEM;
+  }
+
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
     if (subscriber_num >= MAX_TOPIC_INFO_RET_NUM) {
@@ -1431,29 +1436,26 @@ static int get_topic_subscriber_info(
       return -ENOBUFS;
     }
 
-    struct topic_info_ret * temp_info = kmalloc(sizeof(struct topic_info_ret), GFP_KERNEL);
-    if (!temp_info) {
-      return -ENOMEM;
-    }
-
     if (!sub_info->node_name) {
-      kfree(temp_info);
+      kfree(topic_info_mem);
       return -EFAULT;
     }
+
+    struct topic_info_ret * temp_info = &topic_info_mem[subscriber_num];
 
     strncpy(temp_info->node_name, sub_info->node_name, strlen(sub_info->node_name));
     temp_info->qos_depth = sub_info->qos_depth;
     temp_info->qos_is_transient_local = sub_info->qos_is_transient_local;
 
-    if (copy_to_user(&user_buffer[subscriber_num], temp_info, sizeof(struct topic_info_ret))) {
-      kfree(temp_info);
-      return -EFAULT;
-    }
-
-    kfree(temp_info);
     subscriber_num++;
   }
 
+  if (copy_to_user(user_buffer, topic_info_mem, sizeof(struct topic_info_ret) * subscriber_num)) {
+    kfree(topic_info_mem);
+    return -EFAULT;
+  }
+
+  kfree(topic_info_mem);
   topic_info_args->ret_topic_info_ret_num = subscriber_num;
 
   return 0;
@@ -1476,6 +1478,11 @@ static int get_topic_publisher_info(
   struct topic_info_ret __user * user_buffer =
     (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
 
+  struct topic_info_ret * topic_info_mem = kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
+  if (!topic_info_mem) {
+    return -ENOMEM;
+  }
+
   hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
   {
     if (publisher_num >= MAX_TOPIC_INFO_RET_NUM) {
@@ -1485,29 +1492,26 @@ static int get_topic_publisher_info(
       return -ENOBUFS;
     }
 
-    struct topic_info_ret * temp_info = kmalloc(sizeof(struct topic_info_ret), GFP_KERNEL);
-    if (!temp_info) {
-      return -ENOMEM;
-    }
-
     if (!pub_info->node_name) {
-      kfree(temp_info);
+      kfree(topic_info_mem);
       return -EFAULT;
     }
+
+    struct topic_info_ret * temp_info = &topic_info_mem[publisher_num];
 
     strncpy(temp_info->node_name, pub_info->node_name, strlen(pub_info->node_name));
     temp_info->qos_depth = pub_info->qos_depth;
     temp_info->qos_is_transient_local = pub_info->qos_is_transient_local;
 
-    if (copy_to_user(&user_buffer[publisher_num], temp_info, sizeof(struct topic_info_ret))) {
-      kfree(temp_info);
-      return -EFAULT;
-    }
-
-    kfree(temp_info);
     publisher_num++;
   }
 
+  if (copy_to_user(user_buffer, topic_info_mem, sizeof(struct topic_info_ret) * publisher_num)) {
+    kfree(topic_info_mem);
+    return -EFAULT;
+  }
+
+  kfree(topic_info_mem);
   topic_info_args->ret_topic_info_ret_num = publisher_num;
 
   return 0;
