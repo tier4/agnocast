@@ -169,7 +169,7 @@ union ioctl_topic_info_args {
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR('R', 2, union ioctl_topic_info_args)
 #define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR('R', 3, union ioctl_topic_info_args)
 #define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR('R', 4, union ioctl_node_info_args)
-#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args) 
 
 // ================================================
 // public functions in agnocast.c

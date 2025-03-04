@@ -1367,7 +1367,7 @@ static int get_node_subscriber_topics(
 }
 
 static int get_node_publisher_topics(
-  const char * node_name, union ioctl_node_info_args * node_info_args)
+  const char * node_name, union ioctl_node_info_args * node_info_args) 
 {
   uint32_t topic_num = 0;
 
