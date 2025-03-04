@@ -26,6 +26,7 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
 
   if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
+    close(fd);
     return nullptr;
   }
 
@@ -65,6 +66,7 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
 
   if (agnocast_topic_info_ret_buffer == nullptr) {
     fprintf(stderr, "Memory allocation failed\n");
+    close(fd);
     return nullptr;
   }
 
