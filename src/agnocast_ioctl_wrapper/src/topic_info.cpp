@@ -73,7 +73,7 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
   return agnocast_topic_info_ret_buffer;
 }
 
-void free_agnocast_topic_info_ret(struct topic_info_ret * array, int count)
+void free_agnocast_topic_info_ret(struct topic_info_ret * array)
 {
   free(array);
 }

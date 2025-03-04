@@ -97,7 +97,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
             lib.get_agnocast_sub_nodes.restype = ctypes.POINTER(TopicInfoRet)
             lib.get_agnocast_pub_nodes.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int)]
             lib.get_agnocast_pub_nodes.restype = ctypes.POINTER(TopicInfoRet)          
-            lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet), ctypes.c_int]
+            lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet)]
             lib.free_agnocast_topic_info_ret.restype = None
 
             topic_name = args.topic_name
@@ -113,7 +113,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "qos_depth": sub_topic_info_ret_array[i].qos_depth,
                     "qos_is_transient_local": sub_topic_info_ret_array[i].qos_is_transient_local,
                 })
-            if sub_topic_info_ret_count.value != 0:
+            if sub_topic_info_ret_count.value != 0 and sub_topic_info_ret_array is not None:
                 lib.free_agnocast_topic_info_ret(sub_topic_info_ret_array, sub_topic_info_ret_count)
 
             # get agnocast pub node list
@@ -126,7 +126,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "qos_depth": pub_topic_info_ret_array[i].qos_depth,
                     "qos_is_transient_local": pub_topic_info_ret_array[i].qos_is_transient_local,
                 })
-            if pub_topic_info_ret_count.value != 0:
+            if pub_topic_info_ret_count.value != 0 and pub_topic_info_ret_array is not None:
                 lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array, pub_topic_info_ret_count)
 
             # get ros2 topic list
