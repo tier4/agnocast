@@ -1433,6 +1433,7 @@ static int get_topic_subscriber_info(
       dev_warn(
         agnocast_device, "The number of subscribers is over MAX_TOPIC_INFO_RET_NUM=%d\n",
         MAX_TOPIC_INFO_RET_NUM);
+      kfree(topic_info_mem);
       return -ENOBUFS;
     }
 
@@ -1489,6 +1490,7 @@ static int get_topic_publisher_info(
       dev_warn(
         agnocast_device, "The number of publishers is over MAX_TOPIC_INFO_RET_NUM=%d\n",
         MAX_TOPIC_INFO_RET_NUM);
+      kfree(topic_info_mem);
       return -ENOBUFS;
     }
 
