@@ -50,10 +50,12 @@ static void setup_one_publisher(
 // Expect to fail at find_topic()
 void test_case_no_topic(struct kunit * test)
 {
-  // Act
+  // Arrange
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
   union ioctl_publish_args ioctl_publish_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, msg_virtual_address, &ioctl_publish_ret);
 
   // Assert
@@ -67,10 +69,11 @@ void test_case_no_publisher(struct kunit * test)
   topic_local_id_t subscriber_id;
   setup_one_subscriber(test, &subscriber_id);
 
-  // Act
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
   union ioctl_publish_args ioctl_publish_msg_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, msg_virtual_address, &ioctl_publish_msg_ret);
 
   // Assert
@@ -84,8 +87,9 @@ void test_case_simple_publish_without_any_release(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
 
   // Assert
@@ -111,8 +115,9 @@ void test_case_different_publisher_no_release(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret2;
+
+  // Act
   int ret3 = publish_msg(topic_name, publisher_id2, ret_addr2, &ioctl_publish_msg_ret2);
 
   // Assert
@@ -135,8 +140,9 @@ void test_case_referenced_node_not_released(struct kunit * test)
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret2;
+
+  // Act
   int ret2 = publish_msg(topic_name, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
 
   // Assert
@@ -162,8 +168,9 @@ void test_case_single_release_return(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret2;
+
+  // Act
   int ret3 = publish_msg(topic_name, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
 
   // Assert
@@ -198,8 +205,9 @@ void test_case_excessive_release_count(struct kunit * test)
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
 
   // Assert
@@ -217,8 +225,9 @@ void test_case_ret_one_subscriber(struct kunit * test)
   setup_one_publisher(test, &publisher_id, &ret_addr);
   setup_one_subscriber(test, &subscriber_id);
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
 
   // Assert
@@ -240,8 +249,9 @@ void test_case_ret_many_subscribers(struct kunit * test)
     setup_one_subscriber(test, &subscriber_id);
   }
 
-  // Act
   union ioctl_publish_args ioctl_publish_msg_ret;
+
+  // Act
   int ret = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
 
   // Assert
