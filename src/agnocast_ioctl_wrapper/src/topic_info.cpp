@@ -15,6 +15,12 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
 {
   *topic_info_ret_count = 0;
 
+  int fd = open("/dev/agnocast", O_RDONLY);
+  if (fd < 0) {
+    perror("Failed to open /dev/agnocast");
+    return nullptr;
+  }
+
   struct topic_info_ret * agnocast_topic_info_ret_buffer = static_cast<struct topic_info_ret *>(
     malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
@@ -23,22 +29,24 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
     return nullptr;
   }
 
-  ////FIXME: Replace this code to calling agnocast ////
-  const char * nodes[] = {"/listener_node", "/tmp/node_B", "/tmp/temporary/node_C"};
-  size_t num_nodes = 3;
-
-  for (size_t i = 0; i < num_nodes; i++) {
-    strncpy(
-      agnocast_topic_info_ret_buffer[i].node_name, nodes[i],
-      sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1);
-    agnocast_topic_info_ret_buffer[i]
-      .node_name[sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1] = '\0';
-    agnocast_topic_info_ret_buffer[i].qos_depth = 3;
-    agnocast_topic_info_ret_buffer[i].qos_is_transient_local = true;
+  union ioctl_topic_info_args topic_info_args = {};
+  topic_info_args.topic_name = topic_name;
+  topic_info_args.topic_info_ret_buffer_addr =
+    reinterpret_cast<uint64_t>(agnocast_topic_info_ret_buffer);
+  if (ioctl(fd, AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD, &topic_info_args) < 0) {
+    perror("AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD failed");
+    free(agnocast_topic_info_ret_buffer);
+    close(fd);
+    return nullptr;
   }
-  ////////////////////////////////////////////////////
 
-  *topic_info_ret_count = static_cast<int>(num_nodes);
+  if (topic_info_args.ret_topic_info_ret_num == 0) {
+    free(agnocast_topic_info_ret_buffer);
+    close(fd);
+    return nullptr;
+  }
+
+  *topic_info_ret_count = static_cast<int>(topic_info_args.ret_topic_info_ret_num);
   return agnocast_topic_info_ret_buffer;
 }
 
@@ -46,6 +54,12 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
 {
   *topic_info_ret_count = 0;
 
+  int fd = open("/dev/agnocast", O_RDONLY);
+  if (fd < 0) {
+    perror("Failed to open /dev/agnocast");
+    return nullptr;
+  }
+
   struct topic_info_ret * agnocast_topic_info_ret_buffer = static_cast<struct topic_info_ret *>(
     malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
 
@@ -54,22 +68,24 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
     return nullptr;
   }
 
-  ////FIXME: Replace this code to calling agnocast ////
-  const char * nodes[] = {"/talker_node", "/tmp/node_B", "/tmp/temporary/node_C"};
-  size_t num_nodes = 3;
-
-  for (size_t i = 0; i < num_nodes; i++) {
-    strncpy(
-      agnocast_topic_info_ret_buffer[i].node_name, nodes[i],
-      sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1);
-    agnocast_topic_info_ret_buffer[i]
-      .node_name[sizeof(agnocast_topic_info_ret_buffer[i].node_name) - 1] = '\0';
-    agnocast_topic_info_ret_buffer[i].qos_depth = 3;
-    agnocast_topic_info_ret_buffer[i].qos_is_transient_local = true;
+  union ioctl_topic_info_args topic_info_args = {};
+  topic_info_args.topic_name = topic_name;
+  topic_info_args.topic_info_ret_buffer_addr =
+    reinterpret_cast<uint64_t>(agnocast_topic_info_ret_buffer);
+  if (ioctl(fd, AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD, &topic_info_args) < 0) {
+    perror("AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD failed");
+    free(agnocast_topic_info_ret_buffer);
+    close(fd);
+    return nullptr;
   }
-  ////////////////////////////////////////////////////
 
-  *topic_info_ret_count = static_cast<int>(num_nodes);
+  if (topic_info_args.ret_topic_info_ret_num == 0) {
+    free(agnocast_topic_info_ret_buffer);
+    close(fd);
+    return nullptr;
+  }
+
+  *topic_info_ret_count = static_cast<int>(topic_info_args.ret_topic_info_ret_num);
   return agnocast_topic_info_ret_buffer;
 }
 
