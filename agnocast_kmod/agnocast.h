@@ -6,7 +6,6 @@
 #define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
-#define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -149,27 +148,9 @@ union ioctl_node_info_args {
   uint32_t ret_topic_num;
 };
 
-struct topic_info_ret
-{
-  char node_name[NODE_NAME_BUFFER_SIZE];
-  uint32_t qos_depth;
-  bool qos_is_transient_local;
-};
-
-union ioctl_topic_info_args {
-  struct
-  {
-    const char * topic_name;
-    uint64_t topic_info_ret_buffer_addr;
-  };
-  uint32_t ret_topic_info_ret_num;
-};
-
 #define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
-#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR('R', 2, union ioctl_topic_info_args)
-#define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR('R', 3, union ioctl_topic_info_args)
-#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR('R', 4, union ioctl_node_info_args)
-#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
+#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR('R', 2, union ioctl_node_info_args)
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 3, union ioctl_node_info_args)
 
 // ================================================
 // public functions in agnocast.c
