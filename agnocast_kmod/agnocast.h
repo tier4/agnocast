@@ -2,10 +2,10 @@
 
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
-#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
+#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 
 typedef int32_t topic_local_id_t;
@@ -169,7 +169,7 @@ union ioctl_topic_info_args {
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR('R', 2, union ioctl_topic_info_args)
 #define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR('R', 3, union ioctl_topic_info_args)
 #define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR('R', 4, union ioctl_node_info_args)
-#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args) 
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
 
 // ================================================
 // public functions in agnocast.c

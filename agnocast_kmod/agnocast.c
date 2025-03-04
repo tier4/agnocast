@@ -1367,7 +1367,7 @@ static int get_node_subscriber_topics(
 }
 
 static int get_node_publisher_topics(
-  const char * node_name, union ioctl_node_info_args * node_info_args) 
+  const char * node_name, union ioctl_node_info_args * node_info_args)
 {
   uint32_t topic_num = 0;
 
@@ -1422,7 +1422,8 @@ static int get_topic_subscriber_info(
   struct topic_info_ret __user * user_buffer =
     (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
 
-  struct topic_info_ret * topic_info_mem = kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
+  struct topic_info_ret * topic_info_mem =
+    kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
   if (!topic_info_mem) {
     return -ENOMEM;
   }
@@ -1479,7 +1480,8 @@ static int get_topic_publisher_info(
   struct topic_info_ret __user * user_buffer =
     (struct topic_info_ret *)topic_info_args->topic_info_ret_buffer_addr;
 
-  struct topic_info_ret * topic_info_mem = kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
+  struct topic_info_ret * topic_info_mem =
+    kmalloc(sizeof(struct topic_info_ret) * MAX_TOPIC_INFO_RET_NUM, GFP_KERNEL);
   if (!topic_info_mem) {
     return -ENOMEM;
   }
