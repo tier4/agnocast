@@ -98,26 +98,24 @@ class Test2To2(unittest.TestCase):
         if not nodes:
             return
 
-        for node in nodes:
-            if node == 'p':
-                with launch_testing.asserts.assertSequentialStdout(proc_output, process=container_proc) as cm:
+        with launch_testing.asserts.assertSequentialStdout(proc_output, process=container_proc) as cm:
+            proc_output = "".join(cm._output)
+
+            # The display order is not guaranteed, so the message order is not checked.
+            for node in nodes:
+                if node == 'p':
                     prefix = f"[test_talker_node_{self.pub_i_}]: "
                     for i in range(PUB_NUM):
-                        cm.assertInStdout(f"{prefix}Publishing {i}.")
-                    cm.assertInStdout(f"{prefix}All messages published. Shutting down.")
+                        self.assertEqual(proc_output.count(f"{prefix}Publishing {i}."), 1)
+                    self.assertEqual(proc_output.count(
+                        f"{prefix}All messages published. Shutting down."), 1)
                     self.pub_i_ += 1
-            else:  # s
-                with launch_testing.asserts.assertSequentialStdout(proc_output, process=container_proc) as cm:
+                else:  # s
                     prefix = f"[test_listener_node_{self.sub_i_}]: "
-                    # Not checking the order of the messages from the different publishers
                     for i in range(PUB_NUM):
-                        cm.assertInStdout(f"{prefix}Receiving {i}.")
-                    cm.assertInStdout(f"{prefix}All messages received. Shutting down.")
-
-                    # Check the number of messages received
-                    sub_count = "".join(cm._output).count(f"{prefix}Receiving ")
-                    self.assertEqual(sub_count, PUB_NUM*2)
-
+                        self.assertEqual(proc_output.count(f"{prefix}Receiving {i}."), 2)
+                    self.assertEqual(proc_output.count(
+                        f"{prefix}All messages received. Shutting down."), 1)
                     self.sub_i_ += 1
 
     def test_all_container(self, proc_output, container0, container1, container2, container3):
