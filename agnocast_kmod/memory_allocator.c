@@ -9,9 +9,9 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define MEMPOOL_8GB_NUM 10
 #define MEMPOOL_TOTAL_NUM (MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM + MEMPOOL_8GB_NUM)
 
-#define mempool_size_128mb 134217728  // 128 * 1024 * 1024
-#define mempool_size_1gb 1073741824   // 1 * 1024 * 1024 * 1024
-#define mempool_size_8gb 8589934592   // 8 * 1024 * 1024 * 1024
+const uint64_t MEMPOOL_128MB_SIZE = 134217728;  // 128 * 1024 * 1024
+const uint64_t MEMPOOL_1GB_SIZE = 1073741824;   // 1 * 1024 * 1024 * 1024
+const uint64_t MEMPOOL_8GB_SIZE = 8589934592;   // 8 * 1024 * 1024 * 1024
 
 static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
@@ -22,38 +22,38 @@ void agnocast_init_memory_allocator(void)
 
   for (int i = 0; i < MEMPOOL_128MB_NUM; i++) {
     mempool_entries[i].addr = addr;
-    mempool_entries[i].pool_size = mempool_size_128mb;
+    mempool_entries[i].pool_size = MEMPOOL_128MB_SIZE;
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_MAP_NUM; j++) {
       mempool_entries[i].mapped_pids[j] = 0;
     }
-    addr += mempool_size_128mb;
+    addr += MEMPOOL_128MB_SIZE;
   }
 
   for (int i = 0; i < MEMPOOL_1GB_NUM; i++) {
     mempool_entries[i + MEMPOOL_128MB_NUM].addr = addr;
-    mempool_entries[i + MEMPOOL_128MB_NUM].pool_size = mempool_size_1gb;
+    mempool_entries[i + MEMPOOL_128MB_NUM].pool_size = MEMPOOL_1GB_SIZE;
     mempool_entries[i + MEMPOOL_128MB_NUM].mapped_num = 0;
     for (int j = 0; j < MAX_MAP_NUM; j++) {
       mempool_entries[i + MEMPOOL_128MB_NUM].mapped_pids[j] = 0;
     }
-    addr += mempool_size_1gb;
+    addr += MEMPOOL_1GB_SIZE;
   }
 
   for (int i = 0; i < MEMPOOL_8GB_NUM; i++) {
     mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].addr = addr;
-    mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].pool_size = mempool_size_8gb;
+    mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].pool_size = MEMPOOL_8GB_SIZE;
     mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].mapped_num = 0;
     for (int j = 0; j < MAX_MAP_NUM; j++) {
       mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].mapped_pids[j] = 0;
     }
-    addr += mempool_size_8gb;
+    addr += MEMPOOL_8GB_SIZE;
   }
 }
 
 struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t size)
 {
-  if (size <= mempool_size_128mb) {
+  if (size <= MEMPOOL_128MB_SIZE) {
     for (int i = 0; i < MEMPOOL_128MB_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
         mempool_entries[i].mapped_num = 1;
@@ -63,7 +63,7 @@ struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t si
     }
   }
 
-  if (size <= mempool_size_1gb) {
+  if (size <= MEMPOOL_1GB_SIZE) {
     for (int i = MEMPOOL_128MB_NUM; i < MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
         mempool_entries[i].mapped_num = 1;
@@ -73,7 +73,7 @@ struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t si
     }
   }
 
-  if (size <= mempool_size_8gb) {
+  if (size <= MEMPOOL_8GB_SIZE) {
     for (int i = MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM;
          i < MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM + MEMPOOL_8GB_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
