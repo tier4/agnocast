@@ -12,6 +12,7 @@ use std::{
 };
 
 extern "C" {
+    fn initialize_agnocast(size: usize) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
 
@@ -101,10 +102,6 @@ static ORIGINAL_MEMALIGN: LazyLock<MemalignType> = LazyLock::new(|| {
 static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
-
-extern "C" {
-    fn initialize_agnocast(size: usize) -> *mut c_void;
-}
 
 extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
