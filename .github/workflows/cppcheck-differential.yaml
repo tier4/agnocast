@@ -69,7 +69,7 @@ jobs:
         id: add-kmod
         run: |
           target_paths="${{ steps.filter-paths-no-cpp-files.outputs.filtered-full-paths }}"
-          target_paths="$target_paths $(realpath agnocast_kmod/agnocast.c)"
+          target_paths="$target_paths $(realpath agnocast_kmod/agnocast_main.c)"
           target_paths="$target_paths $(realpath agnocast_kmod/memory_allocator.c)"
           echo "target_paths=$target_paths" >> $GITHUB_OUTPUT
 
