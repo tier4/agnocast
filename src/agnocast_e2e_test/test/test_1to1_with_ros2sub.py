@@ -193,30 +193,27 @@ class Test1To1(unittest.TestCase):
 
     def test_pub(self, proc_output, test_pub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_pub) as cm:
+            proc_output = "".join(cm._output)
+
+            # The display order is not guaranteed, so the message order is not checked.
             for i in range(EXPECT_INIT_PUB_NUM + EXPECT_PUB_NUM):
-                cm.assertInStdout(f"Publishing {i}.")
-            cm.assertInStdout("All messages published. Shutting down.")
+                self.assertEqual(proc_output.count(f"Publishing {i}."), 1)
+            self.assertEqual(proc_output.count("All messages published. Shutting down."), 1)
 
     def test_sub(self, proc_output, test_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
-            # Check the order of messages received
-            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM, EXPECT_SUB_NUM):
-                cm.assertInStdout(f"Receiving {i}.")
-            cm.assertInStdout("All messages received. Shutting down.")
+            proc_output = "".join(cm._output)
 
-            # Check the number of messages received
-            sub_count = "".join(cm._output).count("Receiving ")
-            self.assertEqual(sub_count, EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM)
+            # The display order is not guaranteed, so the message order is not checked.
+            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM, EXPECT_SUB_NUM):
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
+            self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
-            stdout_content = "".join(cm._output)
+            proc_output = "".join(cm._output)
 
-            # No checking of the order of messages received in ROS 2 subscription
+            # The display order is not guaranteed, so the message order is not checked.
             for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
-                self.assertIn(f"Receiving {i}.", stdout_content)
-            self.assertIn("All messages received. Shutting down.", stdout_content)
-
-            # Check the number of messages received
-            sub_count = stdout_content.count("Receiving ")
-            self.assertEqual(sub_count, EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM)
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
+            self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
