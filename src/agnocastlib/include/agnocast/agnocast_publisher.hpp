@@ -55,8 +55,6 @@ class Publisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   pid_t publisher_pid_;
-  // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
-  // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   PublisherOptions options_;
 
@@ -201,6 +199,25 @@ public:
 
     const union ioctl_publish_args publish_args =
       publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+
+    if (opened_mqs_.size() != publish_args.ret_subscriber_num) {
+      // Close mqs that are no longer needed and update `opened_mqs_`
+      std::unordered_map<std::string, mqd_t> new_opened_mqs;
+      for (uint32_t i = 0; i < publish_args.ret_subscriber_num; ++i) {
+        const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
+        const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name_, subscriber_id);
+        // All the mqs have been opened in the `publisher_core` function, so we can skip key
+        // existence check
+        new_opened_mqs[mq_name] = opened_mqs_[mq_name];
+        opened_mqs_.erase(mq_name);
+      }
+      for (const auto & p : opened_mqs_) {
+        if (mq_close(p.second) == -1) {
+          RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+        }
+      }
+      opened_mqs_ = std::move(new_opened_mqs);
+    }
 
     message.set_entry_id(publish_args.ret_entry_id);
 
