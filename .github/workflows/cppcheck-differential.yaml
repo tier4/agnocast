@@ -83,12 +83,12 @@ jobs:
           echo "target-paths=$target_paths" >> $GITHUB_OUTPUT
 
       - name: Run Cppcheck on modified packages
-        if: ${{ steps.add-header-paths.target_paths != '' }}
+        if: ${{ steps.add-header-paths.outputs.target_paths != '' }}
         continue-on-error: true
         id: cppcheck
         run: |
-          echo "Running Cppcheck on modified packages: ${{ steps.add-header-paths.target_paths }}"
-          cppcheck --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --suppress=unusedStructMember:*.hpp --suppressions-list=.cppcheck_suppressions --inline-suppr ${{ steps.add-header-paths.outputs.target-paths }} 2> cppcheck-report.txt
+          echo "Running Cppcheck on modified packages: ${{ steps.add-header-paths.outputs.target_paths }}"
+          cppcheck --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --suppress=unusedStructMember:*.hpp --suppressions-list=.cppcheck_suppressions --inline-suppr ${{ steps.add-header-paths.outputs.target_paths }} 2> cppcheck-report.txt
         shell: bash
 
       - name: Setup Problem Matchers for cppcheck
