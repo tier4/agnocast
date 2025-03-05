@@ -69,7 +69,7 @@ jobs:
         id: add-kmod
         run: |
           target_paths="${{ steps.filter-paths-no-cpp-files.outputs.filtered-full-paths }}"
-          target_paths="$target_paths $(realpath agnocast_kmod/agnocast_main.c)"
+          target_paths="$target_paths$(realpath agnocast_kmod/agnocast_main.c)"
           target_paths="$target_paths $(realpath agnocast_kmod/memory_allocator.c)"
           echo "target_paths=$target_paths" >> $GITHUB_OUTPUT
 
@@ -92,21 +92,21 @@ jobs:
         shell: bash
 
       - name: Setup Problem Matchers for cppcheck
-        if: ${{ steps.add-header-paths.target_paths != '' }}
+        if: ${{ steps.add-header-paths.outputs.target_paths != '' }}
         run: echo "::add-matcher::.github/cppcheck-problem-matcher.json"
 
       - name: Show cppcheck-report result
-        if: ${{ steps.add-header-paths.target_paths != '' }}
+        if: ${{ steps.add-header-paths.outputs.target_paths != '' }}
         run: |
           cat cppcheck-report.txt
 
       - name: Upload Cppcheck report
-        if: ${{ steps.add-header-paths.target_paths != '' }}
+        if: ${{ steps.add-header-paths.outputs.target_paths != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: cppcheck-report
           path: cppcheck-report.txt
 
       - name: Fail the job if Cppcheck failed
-        if: ${{ steps.add-header-paths.target_paths != '' && steps.cppcheck.outcome == 'failure' }}
+        if: ${{ steps.add-header-paths.outputs.target_paths != '' && steps.cppcheck.outcome == 'failure' }}
         run: exit 1
