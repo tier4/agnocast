@@ -68,43 +68,45 @@ jobs:
       - name: Add kmod to paths
         id: add-kmod
         run: |
-          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath agnocast_kmod/agnocast_main.c)" >> $GITHUB_OUTPUT
-          echo "filtered-full-paths=${{ steps.add-header-paths.outputs.target-paths }} $(realpath agnocast_kmod/memory_allocator.c)" >> $GITHUB_OUTPUT
+          target_paths="${{ steps.filter-paths-no-cpp-files.outputs.filtered-full-paths }}"
+          target_paths="$target_paths $(realpath agnocast_kmod/agnocast.c)"
+          target_paths="$target_paths $(realpath agnocast_kmod/memory_allocator.c)"
+          echo "target_paths=$target_paths" >> $GITHUB_OUTPUT
 
       - name: Add header file paths
         id: add-header-paths
         run: |
-          target_paths="${{ steps.filter-paths-no-cpp-files.outputs.filtered-full-paths }}"
-          for dir in ${{ steps.filter-paths-no-cpp-files.outputs.filtered-full-paths }}; do
+          target_paths="${{ steps.add-kmod.outputs.target_paths }}"
+          for dir in ${{ steps.add-kmod.outputs.target_paths }}; do
             target_paths="$target_paths $(find "$dir" -name "*.hpp" -o -name "*.h" | tr '\n' ' ')"
           done
           echo "target-paths=$target_paths" >> $GITHUB_OUTPUT
 
       - name: Run Cppcheck on modified packages
-        if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}
+        if: ${{ steps.add-header-paths.target_paths != '' }}
         continue-on-error: true
         id: cppcheck
         run: |
-          echo "Running Cppcheck on modified packages: ${{ steps.add-kmod.outputs.filtered-full-paths }}"
-          cppcheck --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --suppress=unusedStructMember:*.hpp --suppressions-list=.cppcheck_suppressions --inline-suppr ${{ steps.add-kmod.outputs.filtered-full-paths }} 2> cppcheck-report.txt
+          echo "Running Cppcheck on modified packages: ${{ steps.add-header-paths.target_paths }}"
+          cppcheck --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --suppress=unusedStructMember:*.hpp --suppressions-list=.cppcheck_suppressions --inline-suppr ${{ steps.add-header-paths.outputs.target-paths }} 2> cppcheck-report.txt
         shell: bash
 
       - name: Setup Problem Matchers for cppcheck
-        if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}
+        if: ${{ steps.add-header-paths.target_paths != '' }}
         run: echo "::add-matcher::.github/cppcheck-problem-matcher.json"
 
       - name: Show cppcheck-report result
-        if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}
+        if: ${{ steps.add-header-paths.target_paths != '' }}
         run: |
           cat cppcheck-report.txt
 
       - name: Upload Cppcheck report
-        if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' }}
+        if: ${{ steps.add-header-paths.target_paths != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: cppcheck-report
           path: cppcheck-report.txt
 
       - name: Fail the job if Cppcheck failed
-        if: ${{ steps.add-kmod.outputs.filtered-full-paths != '' && steps.cppcheck.outcome == 'failure' }}
+        if: ${{ steps.add-header-paths.target_paths != '' && steps.cppcheck.outcome == 'failure' }}
         run: exit 1
