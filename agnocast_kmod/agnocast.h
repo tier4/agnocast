@@ -231,4 +231,6 @@ int get_topic_entries_num(char * topic_name);
 bool is_in_topic_entries(char * topic_name, int64_t entry_id);
 int get_publisher_num(const char * topic_name);
 bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id);
+int get_topic_num(void);
+bool is_in_topic_htable(const char * topic_name);
 #endif

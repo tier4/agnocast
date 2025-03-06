@@ -1788,6 +1788,23 @@ bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publ
   return true;
 }
 
+int get_topic_num(void)
+{
+  int count = 0;
+  struct topic_wrapper * wrapper;
+  int bkt_wrapper;
+  hash_for_each(topic_hashtable, bkt_wrapper, wrapper, node)
+  {
+    count++;
+  }
+  return count;
+}
+
+bool is_in_topic_htable(const char * topic_name)
+{
+  return find_topic(topic_name) != NULL;
+}
+
 #endif
 
 // =========================================
