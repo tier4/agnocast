@@ -9,9 +9,9 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define MEMPOOL_8GB_NUM 10
 #define MEMPOOL_TOTAL_NUM (MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM + MEMPOOL_8GB_NUM)
 
-const uint64_t MEMPOOL_128MB_SIZE = 134217728;  // 128 * 1024 * 1024
-const uint64_t MEMPOOL_1GB_SIZE = 1073741824;   // 1 * 1024 * 1024 * 1024
-const uint64_t MEMPOOL_8GB_SIZE = 8589934592;   // 8 * 1024 * 1024 * 1024
+static const uint64_t MEMPOOL_128MB_SIZE = 134217728;  // 128 * 1024 * 1024
+static const uint64_t MEMPOOL_1GB_SIZE = 1073741824;   // 1 * 1024 * 1024 * 1024
+static const uint64_t MEMPOOL_8GB_SIZE = 8589934592;   // 8 * 1024 * 1024 * 1024
 
 static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
