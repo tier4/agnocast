@@ -2,15 +2,15 @@
 
 #include <linux/types.h>
 
-// Maximum number of read-only shared memory regions mappable per process
-#define MAX_MAP_NUM 8
+// Maximum number of processes that can be mapped to a memory pool
+#define MAX_PROCESS_NUM_PER_MEMPOOL 8
 
 struct mempool_entry
 {
   uint64_t addr;
   uint64_t pool_size;
   uint32_t mapped_num;
-  pid_t mapped_pids[MAX_MAP_NUM];
+  pid_t mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL];
 };
 
 void agnocast_init_memory_allocator(void);

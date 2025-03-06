@@ -855,9 +855,9 @@ static int set_publisher_shm_info(
       } else if (ret == -ENOBUFS) {
         dev_warn(
           agnocast_device,
-          "Process (pid=%d)'s memory pool is already full (MAX_MAP_NUM=%d), so no new mapping from "
-          "pid=%d can be created. (set_publisher_shm_info)\n",
-          pub_info->pid, MAX_MAP_NUM, sub_proc_info->pid);
+          "Process (pid=%d)'s memory pool is already full (MAX_PROCESS_NUM_PER_MEMPOOL=%d), so no "
+          "new mapping from pid=%d can be created. (set_publisher_shm_info)\n",
+          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, sub_proc_info->pid);
         return ret;
       } else {
         dev_warn(
