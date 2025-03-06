@@ -172,84 +172,6 @@ static struct subscriber_info * find_subscriber_info(
   return NULL;
 }
 
-static int insert_subscriber_info(
-  struct topic_wrapper * wrapper, char * node_name, const pid_t subscriber_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
-  struct subscriber_info ** new_info)
-{
-  if (qos_depth > MAX_QOS_DEPTH) {
-    dev_warn(
-      agnocast_device,
-      "Subscriber's (topic_local_id=%s, pid=%d, qos_depth=%d) qos_depth can't be larger than "
-      "MAX_QOS_DEPTH(=%d). (insert_subscriber_info)\n",
-      wrapper->key, subscriber_pid, qos_depth, MAX_QOS_DEPTH);
-    return -EINVAL;
-  }
-
-  int count = get_size_sub_info_htable(wrapper);
-  if (count == MAX_SUBSCRIBER_NUM) {
-    dev_warn(
-      agnocast_device,
-      "The number of subscribers for the topic (topic_name=%s) reached the upper "
-      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
-      "added. (insert_subscriber_info)\n",
-      wrapper->key, MAX_SUBSCRIBER_NUM);
-    return -ENOBUFS;
-  }
-
-  *new_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
-  if (!*new_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_subscriber_info)\n");
-    return -ENOMEM;
-  }
-
-  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
-  if (!node_name_copy) {
-    dev_warn(agnocast_device, "kstrdup failed. (insert_subscriber_info)\n");
-    return -ENOMEM;
-  }
-
-  const topic_local_id_t new_id = wrapper->current_pubsub_id;
-  wrapper->current_pubsub_id++;
-
-  (*new_info)->id = new_id;
-  (*new_info)->pid = subscriber_pid;
-  (*new_info)->qos_depth = qos_depth;
-  (*new_info)->qos_is_transient_local = qos_is_transient_local;
-  (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
-  (*new_info)->node_name = node_name_copy;
-  (*new_info)->is_take_sub = is_take_sub;
-  (*new_info)->new_publisher = false;
-  INIT_HLIST_NODE(&(*new_info)->node);
-  uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
-  hash_add(wrapper->topic.sub_info_htable, &(*new_info)->node, hash_val);
-
-  dev_info(
-    agnocast_device,
-    "Subscriber (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
-    "(insert_subscriber_info)\n",
-    new_id, subscriber_pid, wrapper->key);
-
-  // Check if the topic has any volatile publishers.
-  if (qos_is_transient_local) {
-    struct publisher_info * pub_info;
-    int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-    {
-      if (!pub_info->qos_is_transient_local) {
-        dev_warn(
-          agnocast_device,
-          "Imcompatible QoS is set for the topic (topic_name=%s): subscriber is transient local "
-          "but publisher is volatile. (insert_subscriber_info)\n",
-          wrapper->key);
-        break;
-      }
-    }
-  }
-
-  return 0;
-}
-
 static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
 {
   int count = 0;
@@ -915,44 +837,101 @@ int subscriber_add(
       agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
   }
 
-  struct subscriber_info * sub_info;
-  ret = insert_subscriber_info(
-    wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
-  if (ret < 0) {
-    return ret;
+  if (qos_depth > MAX_QOS_DEPTH) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber's (topic_name=%s, pid=%d) qos_depth(=%d) can't be larger than "
+      "MAX_QOS_DEPTH(=%d). (subscriber_add)\n",
+      wrapper->key, subscriber_pid, qos_depth, MAX_QOS_DEPTH);
+    return -EINVAL;
   }
 
-  ioctl_ret->ret_id = sub_info->id;
+  if (get_size_sub_info_htable(wrapper) == MAX_SUBSCRIBER_NUM) {
+    dev_warn(
+      agnocast_device,
+      "The number of subscribers for the topic (topic_name=%s) reached the upper "
+      "bound (MAX_SUBSCRIBER_NUM=%d), so no new subscriber can be "
+      "added. (subscriber_add)\n",
+      wrapper->key, MAX_SUBSCRIBER_NUM);
+    return -ENOBUFS;
+  }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
+  struct subscriber_info * new_sub_info = kmalloc(sizeof(struct subscriber_info), GFP_KERNEL);
+  if (!new_sub_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (subscriber_add)\n");
+    return -ENOMEM;
+  }
+
+  char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
+  if (!node_name_copy) {
+    dev_warn(agnocast_device, "kstrdup failed. (subscriber_add)\n");
+    return -ENOMEM;
+  }
+
+  const topic_local_id_t new_id = wrapper->current_pubsub_id;
+  wrapper->current_pubsub_id++;
+
+  new_sub_info->id = new_id;
+  new_sub_info->pid = subscriber_pid;
+  new_sub_info->qos_depth = qos_depth;
+  new_sub_info->qos_is_transient_local = qos_is_transient_local;
+  new_sub_info->latest_received_entry_id = wrapper->current_entry_id++;
+  new_sub_info->node_name = node_name_copy;
+  new_sub_info->is_take_sub = is_take_sub;
+  new_sub_info->new_publisher = false;
+  INIT_HLIST_NODE(&new_sub_info->node);
+  uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
+  hash_add(wrapper->topic.sub_info_htable, &new_sub_info->node, hash_val);
+
+  if (set_publisher_shm_info(wrapper, new_sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
     return -1;
   }
 
+  ioctl_ret->ret_id = new_id;
   ioctl_ret->ret_transient_local_num = 0;
-  if (!qos_is_transient_local) {
-    return 0;
-  }
 
-  // Return qos_depth messages in order from newest to oldest for transient local
-  bool sub_info_updated = false;
-  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
-    if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
-
-    struct entry_node * en = container_of(node, struct entry_node, node);
-
-    if (increment_sub_rc(en, sub_info->id) == -1) {
-      return -1;
+  if (qos_is_transient_local) {
+    // Check if the topic has any volatile publishers
+    struct publisher_info * pub_info;
+    int bkt_pub_info;
+    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
+    {
+      if (!pub_info->qos_is_transient_local) {
+        dev_warn(
+          agnocast_device,
+          "Incompatible QoS is set for the topic (topic_name=%s): subscriber is transient local "
+          "but publisher is volatile. (subscriber_add)\n",
+          wrapper->key);
+      }
     }
 
-    ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
-    ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
-    ioctl_ret->ret_transient_local_num++;
+    // Return qos_depth messages in order from newest to oldest for transient local
+    bool sub_info_updated = false;
+    for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+      if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
 
-    if (!sub_info_updated) {
-      sub_info->latest_received_entry_id = en->entry_id;
-      sub_info_updated = true;
+      struct entry_node * en = container_of(node, struct entry_node, node);
+
+      if (increment_sub_rc(en, new_id) == -1) {
+        return -1;
+      }
+
+      ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
+      ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
+      ioctl_ret->ret_transient_local_num++;
+
+      if (!sub_info_updated) {
+        new_sub_info->latest_received_entry_id = en->entry_id;
+        sub_info_updated = true;
+      }
     }
   }
+
+  dev_info(
+    agnocast_device,
+    "Subscriber (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
+    "(subscriber_add)\n",
+    new_id, subscriber_pid, wrapper->key);
 
   return 0;
 }
