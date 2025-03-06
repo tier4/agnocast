@@ -25,7 +25,7 @@ void agnocast_init_memory_allocator(void)
     mempool_entries[i].pool_size = MEMPOOL_128MB_SIZE;
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
-      mempool_entries[i].mapped_pids[j] = 0;
+      mempool_entries[i].mapped_pids[j] = -1;
     }
     addr += MEMPOOL_128MB_SIZE;
   }
@@ -35,7 +35,7 @@ void agnocast_init_memory_allocator(void)
     mempool_entries[i + MEMPOOL_128MB_NUM].pool_size = MEMPOOL_1GB_SIZE;
     mempool_entries[i + MEMPOOL_128MB_NUM].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
-      mempool_entries[i + MEMPOOL_128MB_NUM].mapped_pids[j] = 0;
+      mempool_entries[i + MEMPOOL_128MB_NUM].mapped_pids[j] = -1;
     }
     addr += MEMPOOL_1GB_SIZE;
   }
@@ -45,7 +45,7 @@ void agnocast_init_memory_allocator(void)
     mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].pool_size = MEMPOOL_8GB_SIZE;
     mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
-      mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].mapped_pids[j] = 0;
+      mempool_entries[i + MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM].mapped_pids[j] = -1;
     }
     addr += MEMPOOL_8GB_SIZE;
   }
@@ -113,7 +113,7 @@ void agnocast_free_memory(const pid_t pid)
         for (int k = j; k < MAX_PROCESS_NUM_PER_MEMPOOL - 1; k++) {
           mempool_entries[i].mapped_pids[k] = mempool_entries[i].mapped_pids[k + 1];
         }
-        mempool_entries[i].mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL - 1] = 0;
+        mempool_entries[i].mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL - 1] = -1;
         mempool_entries[i].mapped_num--;
         break;
       }
@@ -127,7 +127,7 @@ void agnocast_exit_memory_allocator(void)
   for (int i = 0; i < MEMPOOL_TOTAL_NUM; i++) {
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
-      mempool_entries[i].mapped_pids[j] = 0;
+      mempool_entries[i].mapped_pids[j] = -1;
     }
   }
 }
