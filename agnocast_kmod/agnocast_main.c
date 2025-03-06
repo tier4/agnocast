@@ -1,5 +1,5 @@
 #include "agnocast.h"
-#include "memory_allocator.h"
+#include "agnocast_memory_allocator.h"
 
 #include <linux/device.h>
 #include <linux/hashtable.h>
@@ -848,7 +848,7 @@ static int set_publisher_shm_info(
       return -1;
     }
 
-    int ret = agnocast_reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
+    int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
     if (ret < 0) {
       if (ret == -EEXIST) {
         continue;
@@ -1264,7 +1264,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   new_proc_info->pid = pid;
   new_proc_info->shm_size = shm_size;
 
-  new_proc_info->mempool_entry = agnocast_assign_memory(pid, shm_size);
+  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
   if (!new_proc_info->mempool_entry) {
     dev_warn(
       agnocast_device,
@@ -1925,7 +1925,7 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
-  agnocast_free_memory(pid);
+  free_memory(pid);
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
@@ -2092,7 +2092,7 @@ static int agnocast_init(void)
   ret = agnocast_init_kprobe();
   if (ret < 0) return ret;
 
-  agnocast_init_memory_allocator();
+  init_memory_allocator();
 
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;

@@ -80,8 +80,8 @@ jobs:
           target_paths="${{ steps.add-header-paths.outputs.filtered-full-paths }}"
           target_paths="$target_paths $(realpath agnocast_kmod/agnocast_main.c)"
           target_paths="$target_paths $(realpath agnocast_kmod/agnocast.h)"
-          target_paths="$target_paths $(realpath agnocast_kmod/memory_allocator.c)"
-          target_paths="$target_paths $(realpath agnocast_kmod/memory_allocator.h)"
+          target_paths="$target_paths $(realpath agnocast_kmod/agnocast_memory_allocator.c)"
+          target_paths="$target_paths $(realpath agnocast_kmod/agnocast_memory_allocator.h)"
           echo "target-paths=$target_paths" >> $GITHUB_OUTPUT
 
       - name: Run Cppcheck on modified packages

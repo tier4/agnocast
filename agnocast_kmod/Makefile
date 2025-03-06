@@ -2,11 +2,11 @@ ccflags-y += -Wall -Werror
 
 ifneq ($(KUNIT_BUILD),y)
   obj-m := agnocast.o
-  agnocast-objs := agnocast_main.o memory_allocator.o
+  agnocast-objs := agnocast_main.o agnocast_memory_allocator.o
 else
   ifeq ($(CONFIG_KUNIT)$(CONFIG_GCOV_KERNEL),yy)
     obj-m := agnocast_kunit.o
-	agnocast_kunit-objs := agnocast_kunit_main.o agnocast_main.o memory_allocator.o\
+	agnocast_kunit-objs := agnocast_kunit_main.o agnocast_main.o agnocast_memory_allocator.o\
 	  agnocast_kunit/agnocast_kunit_subscriber_add.o \
 	  agnocast_kunit/agnocast_kunit_publisher_add.o \
 	  agnocast_kunit/agnocast_kunit_increment_rc.o \

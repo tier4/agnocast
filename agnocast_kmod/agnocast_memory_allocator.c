@@ -1,4 +1,4 @@
-#include "memory_allocator.h"
+#include "agnocast_memory_allocator.h"
 
 #include <linux/module.h>
 
@@ -15,7 +15,7 @@ const uint64_t MEMPOOL_8GB_SIZE = 8589934592;   // 8 * 1024 * 1024 * 1024
 
 static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
-void agnocast_init_memory_allocator(void)
+void init_memory_allocator(void)
 {
   // TODO(Ryuta Kambe): we assume that the address from 0x40000000000 to 0x8B000000000 is available
   uint64_t addr = 0x40000000000;
@@ -51,7 +51,7 @@ void agnocast_init_memory_allocator(void)
   }
 }
 
-struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t size)
+struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size)
 {
   if (size <= MEMPOOL_128MB_SIZE) {
     for (int i = 0; i < MEMPOOL_128MB_NUM; i++) {
@@ -87,7 +87,7 @@ struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t si
   return NULL;
 }
 
-int agnocast_reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
+int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
 {
   if (mempool_entry->mapped_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
     return -ENOBUFS;
@@ -105,7 +105,7 @@ int agnocast_reference_memory(struct mempool_entry * mempool_entry, const pid_t 
   return 0;
 }
 
-void agnocast_free_memory(const pid_t pid)
+void free_memory(const pid_t pid)
 {
   for (int i = 0; i < MEMPOOL_TOTAL_NUM; i++) {
     for (int j = 0; j < mempool_entries[i].mapped_num; j++) {
@@ -122,7 +122,7 @@ void agnocast_free_memory(const pid_t pid)
 }
 
 #ifdef KUNIT_BUILD
-void agnocast_exit_memory_allocator(void)
+void exit_memory_allocator(void)
 {
   for (int i = 0; i < MEMPOOL_TOTAL_NUM; i++) {
     mempool_entries[i].mapped_num = 0;

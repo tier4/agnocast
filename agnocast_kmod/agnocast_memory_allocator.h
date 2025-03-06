@@ -13,11 +13,11 @@ struct mempool_entry
   pid_t mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL];
 };
 
-void agnocast_init_memory_allocator(void);
-struct mempool_entry * agnocast_assign_memory(const pid_t pid, const uint64_t size);
-int agnocast_reference_memory(struct mempool_entry * mempool_entry, const pid_t pid);
-void agnocast_free_memory(const pid_t pid);
+void init_memory_allocator(void);
+struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size);
+int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid);
+void free_memory(const pid_t pid);
 
 #ifdef KUNIT_BUILD
-void agnocast_exit_memory_allocator(void);
+void exit_memory_allocator(void);
 #endif
