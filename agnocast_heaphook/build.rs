@@ -4,7 +4,7 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let status = std::process::Command::new("rustc")
-        .args(&[
+        .args([
             "--crate-type=cdylib",
             "stub/lib.rs",
             "-o",
