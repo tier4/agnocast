@@ -89,7 +89,7 @@ struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size)
 
 int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
 {
-  if (mempool_entry->mapped_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
+  if (mempool_entry->mapped_num == MAX_PROCESS_NUM_PER_MEMPOOL) {
     return -ENOBUFS;
   }
 
