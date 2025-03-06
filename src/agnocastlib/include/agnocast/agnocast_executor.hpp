@@ -26,6 +26,7 @@ class AgnocastExecutor : public rclcpp::Executor
 protected:
   int epoll_fd_;
   pid_t my_pid_;
+  std::mutex wait_mutex_;
 
   void prepare_epoll();
   bool get_next_agnocast_executables(

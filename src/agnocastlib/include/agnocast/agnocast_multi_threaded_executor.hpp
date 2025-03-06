@@ -12,8 +12,6 @@ class MultiThreadedAgnocastExecutor : public agnocast::AgnocastExecutor
 {
   RCLCPP_DISABLE_COPY(MultiThreadedAgnocastExecutor)
 
-  std::mutex wait_mutex_;
-
   /*
   For performance, it is recommented to divide ROS 2's callbacks and Agnocast's callbacks into
   different callback groups. If divided, you can set `ros2_next_exec_timeout` to be long enough

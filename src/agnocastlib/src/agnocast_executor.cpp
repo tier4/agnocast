@@ -166,7 +166,13 @@ void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnoca
   if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
     // In a single-threaded executor, it never sleeps here.
     // For multi-threaded executor, it's workaround to preserve the callback group rule.
-    while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
+    while (true) {
+      {
+        std::lock_guard wait_lock{wait_mutex_};
+        if (agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
+          break;
+        }
+      }
       std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
     }
   } else if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::Reentrant) {
