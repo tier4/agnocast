@@ -206,6 +206,7 @@ static int insert_subscriber_info(
   char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
   if (!node_name_copy) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_subscriber_info)\n");
+    kfree(*new_info);
     return -ENOMEM;
   }
 
@@ -301,6 +302,7 @@ static int insert_publisher_info(
   char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
   if (!node_name_copy) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_publisher_info)\n");
+    kfree(*new_info);
     return -ENOMEM;
   }
 
