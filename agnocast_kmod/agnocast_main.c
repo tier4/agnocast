@@ -1788,6 +1788,45 @@ bool is_in_topic_entries(char * topic_name, int64_t entry_id)
   return true;
 }
 
+int get_publisher_num(const char * topic_name)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return 0;
+  }
+  return get_size_pub_info_htable(wrapper);
+}
+
+bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return false;
+  }
+  const struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    return false;
+  }
+  return true;
+}
+
+int get_topic_num(void)
+{
+  int count = 0;
+  struct topic_wrapper * wrapper;
+  int bkt_wrapper;
+  hash_for_each(topic_hashtable, bkt_wrapper, wrapper, node)
+  {
+    count++;
+  }
+  return count;
+}
+
+bool is_in_topic_htable(const char * topic_name)
+{
+  return find_topic(topic_name) != NULL;
+}
+
 #endif
 
 // =========================================
