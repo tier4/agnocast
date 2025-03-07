@@ -240,7 +240,7 @@ static int insert_subscriber_info(
       if (!pub_info->qos_is_transient_local) {
         dev_warn(
           agnocast_device,
-          "Imcompatible QoS is set for the topic (topic_name=%s): subscriber is transient local "
+          "Incompatible QoS is set for the topic (topic_name=%s): subscriber is transient local "
           "but publisher is volatile. (insert_subscriber_info)\n",
           wrapper->key);
         break;
@@ -335,7 +335,7 @@ static int insert_publisher_info(
       if (sub_info->qos_is_transient_local) {
         dev_warn(
           agnocast_device,
-          "Imcompatible QoS is set for the topic (topic_name=%s): publisher is volatile "
+          "Incompatible QoS is set for the topic (topic_name=%s): publisher is volatile "
           "but subscriber is transient local. (insert_publisher_info)\n",
           wrapper->key);
         break;
