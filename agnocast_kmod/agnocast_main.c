@@ -1990,6 +1990,8 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   unsigned long flags;
   uint32_t next;
 
+  bool need_wakeup = false;
+
   spin_lock_irqsave(&pid_queue_lock, flags);
 
   // Assumes EXIT_QUEUE_SIZE is 2^N
@@ -1999,14 +2001,16 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
     exit_pid_queue[queue_tail] = current->pid;
     queue_tail = next;
     atomic_set(&has_new_pid, 1);
-
-    wake_up_interruptible(&worker_wait);
-  } else {
-    // do nothing and put error message
-    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+    need_wakeup = true;
   }
 
   spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+  if (need_wakeup) {
+    wake_up_interruptible(&worker_wait);
+  } else {
+    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+  }
 
   return 0;
 }
