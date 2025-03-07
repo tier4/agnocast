@@ -6,8 +6,8 @@ use std::{
     mem::MaybeUninit,
     os::raw::{c_int, c_void},
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
         LazyLock, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
