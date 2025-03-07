@@ -1,15 +1,12 @@
-name: build test
+name: build-and-test-cpp
 
 on:
   pull_request:
     types:
       - labeled
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  build_and_test:
+  build-and-test-cpp:
     if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-22.04
 
@@ -36,7 +33,7 @@ jobs:
     # TODO: Cache
 
     - name: Setup ROS 2 environment
-      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
       run: |
         sudo apt update
         sudo apt install -y software-properties-common curl gcovr
@@ -47,7 +44,7 @@ jobs:
         sudo apt install -y ros-humble-desktop python3-colcon-common-extensions ros-humble-ament-cmake python3-colcon-mixin
 
     - name: Install dependencies
-      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
         sudo apt install -y python3-rosdep
@@ -56,7 +53,7 @@ jobs:
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
     - name: Build src
-      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
       run: |
         source /opt/ros/humble/setup.bash
         colcon build --cmake-args -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=1
@@ -68,7 +65,7 @@ jobs:
         run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
 
     - name: Test for agnocastlib
-      if: steps.check_changes_cpp.outputs.cpp_changed == 'true' || steps.check_changes_rust.outputs.rust_changed == 'true'
+      if: steps.check_changes_cpp.outputs.cpp_changed == 'true'
       id: test
       uses: autowarefoundation/autoware-github-actions/colcon-test@v1
       with:
