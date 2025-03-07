@@ -1908,7 +1908,7 @@ static uint32_t queue_tail;
 // For controling the kernel thread
 static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
-static atomic_t has_new_pid = ATOMIC_INIT(0);
+static int has_new_pid = false;
 
 void process_exit_cleanup(const pid_t pid)
 {
@@ -1958,7 +1958,7 @@ static int exit_worker_thread(void * data)
     unsigned long flags;
     bool got_pid = false;
 
-    wait_event_interruptible(worker_wait, atomic_read(&has_new_pid) || kthread_should_stop());
+    wait_event_interruptible(worker_wait, smp_load_acquire(&has_new_pid) || kthread_should_stop());
 
     if (kthread_should_stop()) break;
 
@@ -1971,7 +1971,7 @@ static int exit_worker_thread(void * data)
     }
 
     // queue is empty
-    if (queue_head == queue_tail) atomic_set(&has_new_pid, 0);
+    if (queue_head == queue_tail) smp_store_release(&has_new_pid, 0);
 
     spin_unlock_irqrestore(&pid_queue_lock, flags);
 
@@ -2000,7 +2000,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   if (next != queue_head) {  // queue is not full
     exit_pid_queue[queue_tail] = current->pid;
     queue_tail = next;
-    atomic_set(&has_new_pid, 1);
+    smp_store_release(&has_new_pid, 1);
     need_wakeup = true;
   }
 
