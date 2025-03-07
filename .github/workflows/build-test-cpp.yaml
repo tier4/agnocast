@@ -1,4 +1,4 @@
-name: build test
+name: build and test cpp
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
       - labeled
 
 jobs:
-  build_and_test:
+  build-and-test-cpp:
     if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-22.04
 
