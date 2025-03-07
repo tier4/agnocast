@@ -4,8 +4,8 @@
 
 #include <kunit/test.h>
 
-static const char * topic_name = "my_topic";
-static const char * node_name = "my_node";
+static const char * topic_name = "/kunit_test_topic";
+static const char * node_name = "/kunit_test_node";
 static const pid_t publisher_pid = 1000;
 static const uint32_t qos_depth = 1;
 static const bool qos_is_transient_local = false;
