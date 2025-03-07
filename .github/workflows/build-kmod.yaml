@@ -1,4 +1,4 @@
-name: build kmod
+name: build-kmod
 
 on:
   pull_request:

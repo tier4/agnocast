@@ -1,4 +1,4 @@
-name: build heaphook
+name: build-heaphook
 
 on:
   pull_request:

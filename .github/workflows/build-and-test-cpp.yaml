@@ -1,4 +1,4 @@
-name: build and test cpp
+name: build-and-test-cpp
 
 on:
   pull_request:
