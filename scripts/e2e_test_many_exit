@@ -2,6 +2,7 @@
 
 AGNOCAST_PROCESS_NUM=100
 NUM_OTHER_PROCESSES=100
+WAIT_TIME=5
 
 source install/setup.bash
 export LD_PRELOAD="libagnocast_heaphook.so:$LD_PRELOAD"
@@ -11,10 +12,10 @@ for i in $(seq 1 $AGNOCAST_PROCESS_NUM); do
 done
 
 for i in $(seq 1 $NUM_OTHER_PROCESSES); do
-    sleep "$(echo "scale=3; 5 + $i * 0.001" | bc)" &
+    sleep "$(echo "scale=3; $WAIT_TIME + $i * 0.001" | bc)" &
 done
 
-sleep 5
+sleep $WAIT_TIME
 
 pkill -2 -f talker
 
