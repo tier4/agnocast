@@ -1,0 +1,21 @@
+#!/bin/bash
+
+AGNOCAST_PROCESS_NUM=100
+NUM_OTHER_PROCESSES=100
+
+source install/setup.bash
+export LD_PRELOAD="libagnocast_heaphook.so:$LD_PRELOAD"
+export MEMPOOL_SIZE=67108864
+for i in $(seq 1 $AGNOCAST_PROCESS_NUM); do
+    ros2 run agnocast_sample_application talker --ros-args --remap __node:=talker_node$i --remap /my_topic:=/topic$i &
+done
+
+for i in $(seq 1 $NUM_OTHER_PROCESSES); do
+    sleep "$(echo "scale=3; 5 + $i * 0.001" | bc)" &
+done
+
+sleep 5
+
+pkill -2 -f talker
+
+wait
