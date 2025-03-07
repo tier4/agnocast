@@ -5,6 +5,9 @@ on:
     types:
       - labeled
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-and-test-heaphook:
     if: ${{ github.event.label.name == 'run-build-test' }}
@@ -54,4 +57,3 @@ jobs:
       run: |
         cd agnocast_heaphook
         cargo build
-
