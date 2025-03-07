@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-extern "C" {
+unsafe extern "C" {
     fn initialize_agnocast(size: usize) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
@@ -251,7 +251,7 @@ fn should_use_original_func() -> bool {
     false
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __libc_start_main(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
     argc: c_int,
@@ -269,7 +269,7 @@ pub extern "C" fn __libc_start_main(
     unsafe { ORIGINAL_LIBC_START_MAIN(main, argc, argv, init, fini, rtld_fini, stack_end) }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe { ORIGINAL_MALLOC(size) };
@@ -287,7 +287,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn free(ptr: *mut c_void) {
     let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
         Some(ptr) => ptr,
@@ -318,7 +318,7 @@ pub extern "C" fn free(ptr: *mut c_void) {
     });
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe { ORIGINAL_CALLOC(num, size) };
@@ -339,7 +339,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     let (ptr_addr, allocated_by_original) =
         if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
@@ -385,7 +385,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
     if should_use_original_func() {
         return unsafe { ORIGINAL_POSIX_MEMALIGN(memptr, alignment, size) };
@@ -403,7 +403,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe { ORIGINAL_ALIGNED_ALLOC(alignment, size) };
@@ -421,7 +421,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe { ORIGINAL_MEMALIGN(alignment, size) };
@@ -439,12 +439,12 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn valloc(_size: usize) -> *mut c_void {
     panic!("[ERROR] [Agnocast] valloc is not supported");
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
     panic!("[ERROR] [Agnocast] pvalloc is not supported");
 }
