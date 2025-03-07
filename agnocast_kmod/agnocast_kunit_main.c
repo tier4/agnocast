@@ -8,6 +8,7 @@
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
 #include "agnocast_kunit/agnocast_kunit_subscriber_add.h"
 #include "agnocast_kunit/agnocast_kunit_take_msg.h"
+#include "agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
 
@@ -48,6 +49,8 @@ static int agnocast_test_suite_init(struct kunit_suite * test_suite)
   ret = agnocast_init_kprobe();
   if (ret < 0) return ret;
 
+  init_memory_allocator();
+
   return 0;
 }
 
@@ -57,6 +60,7 @@ static void agnocast_test_suite_exit(struct kunit_suite * test_suite)
   agnocast_exit_kthread();
   agnocast_exit_kprobe();
   agnocast_exit_device();
+  exit_memory_allocator();
 }
 
 struct kunit_suite agnocast_test_suite = {
