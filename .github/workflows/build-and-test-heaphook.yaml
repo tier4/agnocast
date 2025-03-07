@@ -1,4 +1,4 @@
-name: build-heaphook
+name: build-and-test-heaphook
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-heaphook:
+  build-and-test-heaphook:
     if: ${{ github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-22.04
 
