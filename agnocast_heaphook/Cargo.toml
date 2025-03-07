@@ -2,7 +2,7 @@
 name = "agnocast_heaphook"
 version = "1.0.0"
 edition = "2024"
-license = "Apatch-2.0"
+license = "Apache-2.0"
 authors = [
     "Takahiro Ishikawa-Aso <sykwer@gmail.com>",
     "Ryuta Kambe <ryuta.kambe@tier4.jp>",
