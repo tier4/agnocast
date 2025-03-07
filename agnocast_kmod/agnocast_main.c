@@ -206,6 +206,7 @@ static int insert_subscriber_info(
   char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
   if (!node_name_copy) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_subscriber_info)\n");
+    kfree(*new_info);
     return -ENOMEM;
   }
 
@@ -301,6 +302,7 @@ static int insert_publisher_info(
   char * node_name_copy = kstrdup(node_name, GFP_KERNEL);
   if (!node_name_copy) {
     dev_warn(agnocast_device, "kstrdup failed. (insert_publisher_info)\n");
+    kfree(*new_info);
     return -ENOMEM;
   }
 
@@ -1867,6 +1869,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
 
     const topic_local_id_t subscriber_id = sub_info->id;
     hash_del(&sub_info->node);
+    kfree(sub_info->node_name);
     kfree(sub_info);
 
     struct rb_root * root = &wrapper->topic.entries;
@@ -1900,6 +1903,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       pub_info->entries_num--;
       if (pub_info->entries_num == 0) {
         hash_del(&pub_info->node);
+        kfree(pub_info->node_name);
         kfree(pub_info);
       }
     }
@@ -1931,6 +1935,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 
     if (pub_info->entries_num == 0) {
       hash_del(&pub_info->node);
+      kfree(pub_info->node_name);
       kfree(pub_info);
     }
   }
@@ -2160,6 +2165,7 @@ static void remove_all_topics(void)
     hash_for_each_safe(wrapper->topic.pub_info_htable, bkt_pub_info, tmp_pub_info, pub_info, node)
     {
       hash_del(&pub_info->node);
+      kfree(pub_info->node_name);
       kfree(pub_info);
     }
 
@@ -2169,6 +2175,7 @@ static void remove_all_topics(void)
     hash_for_each_safe(wrapper->topic.sub_info_htable, bkt_sub_info, tmp_sub_info, sub_info, node)
     {
       hash_del(&sub_info->node);
+      kfree(sub_info->node_name);
       kfree(sub_info);
     }
 
