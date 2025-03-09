@@ -1,0 +1,13 @@
+Source: agnocast-kmod
+Section: kernel
+Priority: optional
+Maintainer: Takahiro Ishikawa-Aso <sykwer@gmail.com>
+Build-Depends: debhelper (>= 10), dkms
+Standards-Version: 4.5.0
+Homepage: https://github.com/tier4/agnocast
+
+Package: agnocast-kmod
+Architecture: all
+Depends: ${misc:Depends}, dkms
+Description: Agnocast kernel module (DKMS version)
+ DKMS packaged version of the Agnocast kernel module.

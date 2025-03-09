@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with dkms
+
+override_dh_auto_build:
+	@echo "Skipping build due to DKMS."
+
+override_dh_auto_clean:
+	@echo "Skipping clean due to DKMS."
+
+override_dh_auto_test:
+	@echo "Skipping tests during PPA build."

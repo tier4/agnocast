@@ -1,0 +1,5 @@
+agnocast-kmod (1.0.1-3) jammy; urgency=medium
+
+  * Initial release.
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Mon, 10 Mar 2025 07:38:53 +0900
