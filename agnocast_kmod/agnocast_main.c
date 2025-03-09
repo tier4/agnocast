@@ -383,7 +383,7 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
     "(increment_sub_rc)\n",
     MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
-  return -1;
+  return -ENOBUFS;
 }
 
 static struct entry_node * find_message_entry(
@@ -830,7 +830,7 @@ static int set_publisher_shm_info(
     dev_warn(
       agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
       subscriber_pid);
-    return -1;
+    return -ESRCH;
   }
 
   uint32_t publisher_num = 0;
@@ -847,7 +847,7 @@ static int set_publisher_shm_info(
       dev_warn(
         agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
         pub_info->pid);
-      return -1;
+      return -ESRCH;
     }
 
     int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
@@ -878,7 +878,7 @@ static int set_publisher_shm_info(
         "returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
         wrapper->key, sub_proc_info->pid);
-      return -1;
+      return -ENOBUFS;
     }
 
     pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
@@ -1077,15 +1077,14 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
-int receive_and_check_new_publisher(
+int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (receive_and_update)\n", topic_name);
-    return -1;
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1093,9 +1092,9 @@ int receive_and_check_new_publisher(
     dev_warn(
       agnocast_device,
       "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(receive_and_update)\n",
+      "(receive_msg)\n",
       subscriber_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   // Receive msg
@@ -1110,8 +1109,9 @@ int receive_and_check_new_publisher(
       break;
     }
 
-    if (increment_sub_rc(en, subscriber_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(en, subscriber_id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
@@ -1130,8 +1130,9 @@ int receive_and_check_new_publisher(
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   sub_info->new_publisher = false;
@@ -1586,8 +1587,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
       goto unlock_mutex_and_return;
-    ret = receive_and_check_new_publisher(
-      topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
+    ret = receive_msg(topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto unlock_mutex_and_return;
