@@ -5,7 +5,7 @@ cp -r agnocast_heaphook agnocast-heaphook-1.0.1
 tar czf agnocast-heaphook_1.0.1.orig.tar.gz agnocast-heaphook-1.0.1
 
 cd agnocast-heaphook-1.0.1
-debuild -S -sa -d
+debuild -S -sa
 
 cd ..
 rm -rf agnocast-heaphook-1.0.1
