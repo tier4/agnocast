@@ -1,0 +1,2 @@
+vendor/unicode-ident/tests/fst/xid_continue.fst
+vendor/unicode-ident/tests/fst/xid_start.fst
