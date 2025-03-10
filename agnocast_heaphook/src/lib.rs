@@ -220,7 +220,7 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
 
     // store `start_addr`
     let start_addr_ptr: *mut usize =
-        (aligned_addr - *POINTER_SIZE.get_or_init(|| std::mem::size_of::<&usize>())) as *mut usize;
+        (aligned_addr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
     aligned_addr as *mut c_void
@@ -229,7 +229,7 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
 fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     // get the original start address from internal allocator
     let original_start_addr: usize = unsafe {
-        *((ptr - *POINTER_SIZE.get_or_init(|| std::mem::size_of::<&usize>())) as *mut usize)
+        *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize)
     };
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
@@ -240,7 +240,7 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
 
     // store `start_addr`
     let start_addr_ptr: *mut usize =
-        (aligned_addr - *POINTER_SIZE.get_or_init(|| std::mem::size_of::<&usize>())) as *mut usize;
+        (aligned_addr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize;
     unsafe { *start_addr_ptr = start_addr };
 
     aligned_addr as *mut c_void
@@ -249,7 +249,7 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
 fn tlsf_deallocate_wrapped(ptr: usize) {
     // get the original start address from internal allocator
     let original_start_addr: usize = unsafe {
-        *((ptr - *POINTER_SIZE.get_or_init(|| std::mem::size_of::<&usize>())) as *mut usize)
+        *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize)
     };
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
@@ -275,8 +275,10 @@ fn should_use_original_func() -> bool {
     false
 }
 
+/// # Safety
+///
 #[no_mangle]
-pub extern "C" fn __libc_start_main(
+pub unsafe extern "C" fn __libc_start_main(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
     argc: c_int,
     argv: *const *const u8,
@@ -291,7 +293,7 @@ pub extern "C" fn __libc_start_main(
     }
 
     unsafe {
-        (*ORIGINAL_LIBC_START_MAIN.get_or_init(|| init_original_libc_start_main()))(
+        (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
             main, argc, argv, init, fini, rtld_fini, stack_end,
         )
     }
@@ -300,12 +302,12 @@ pub extern "C" fn __libc_start_main(
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
     if should_use_original_func() {
-        return unsafe { (*ORIGINAL_MALLOC.get_or_init(|| init_original_malloc()))(size) };
+        return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
-            unsafe { (*ORIGINAL_MALLOC.get_or_init(|| init_original_malloc()))(size) }
+            unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) }
         } else {
             hooked.set(true);
             let ret: *mut c_void = tlsf_allocate_wrapped(0, size);
@@ -315,8 +317,10 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     })
 }
 
+/// # Safety
+///
 #[no_mangle]
-pub extern "C" fn free(ptr: *mut c_void) {
+pub unsafe extern "C" fn free(ptr: *mut c_void) {
     let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
         Some(ptr) => ptr,
         None => return,
@@ -332,12 +336,12 @@ pub extern "C" fn free(ptr: *mut c_void) {
             return;
         }
 
-        return unsafe { (*ORIGINAL_FREE.get_or_init(|| init_original_free()))(ptr) };
+        return unsafe { (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr) };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() || allocated_by_original {
-            unsafe { (*ORIGINAL_FREE.get_or_init(|| init_original_free()))(ptr) }
+            unsafe { (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr) }
         } else {
             hooked.set(true);
             tlsf_deallocate_wrapped(ptr_addr);
@@ -349,12 +353,12 @@ pub extern "C" fn free(ptr: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
-        return unsafe { (*ORIGINAL_CALLOC.get_or_init(|| init_original_calloc()))(num, size) };
+        return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
-            unsafe { (*ORIGINAL_CALLOC.get_or_init(|| init_original_calloc()))(num, size) }
+            unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) }
         } else {
             hooked.set(true);
             let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
@@ -367,8 +371,10 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     })
 }
 
+/// # Safety
+///
 #[no_mangle]
-pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
+pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     let (ptr_addr, allocated_by_original) =
         if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
             let addr = non_null_ptr.as_ptr() as usize;
@@ -382,9 +388,9 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     if should_use_original_func() {
         // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
-            unsafe { (*ORIGINAL_MALLOC.get_or_init(|| init_original_malloc()))(new_size) }
+            unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size) }
         } else {
-            unsafe { (*ORIGINAL_REALLOC.get_or_init(|| init_original_realloc()))(ptr, new_size) }
+            unsafe { (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size) }
         };
 
         return realloc_ret;
@@ -392,7 +398,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
-            unsafe { (*ORIGINAL_REALLOC.get_or_init(|| init_original_realloc()))(ptr, new_size) }
+            unsafe { (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size) }
         } else {
             hooked.set(true);
 
@@ -400,7 +406,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
                 Some(addr) => {
                     if allocated_by_original {
                         unsafe {
-                            (*ORIGINAL_REALLOC.get_or_init(|| init_original_realloc()))(
+                            (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(
                                 ptr, new_size,
                             )
                         }
@@ -421,7 +427,7 @@ pub extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
     if should_use_original_func() {
         return unsafe {
-            (*ORIGINAL_POSIX_MEMALIGN.get_or_init(|| init_original_posix_memalign()))(
+            (*ORIGINAL_POSIX_MEMALIGN.get_or_init(init_original_posix_memalign))(
                 memptr, alignment, size,
             )
         };
@@ -430,7 +436,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe {
-                (*ORIGINAL_POSIX_MEMALIGN.get_or_init(|| init_original_posix_memalign()))(
+                (*ORIGINAL_POSIX_MEMALIGN.get_or_init(init_original_posix_memalign))(
                     memptr, alignment, size,
                 )
             }
@@ -447,14 +453,14 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe {
-            (*ORIGINAL_ALIGNED_ALLOC.get_or_init(|| init_original_aligned_alloc()))(alignment, size)
+            (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
         };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe {
-                (*ORIGINAL_ALIGNED_ALLOC.get_or_init(|| init_original_aligned_alloc()))(
+                (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(
                     alignment, size,
                 )
             }
@@ -471,14 +477,14 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
     if should_use_original_func() {
         return unsafe {
-            (*ORIGINAL_MEMALIGN.get_or_init(|| init_original_memalign()))(alignment, size)
+            (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
         };
     }
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe {
-                (*ORIGINAL_MEMALIGN.get_or_init(|| init_original_memalign()))(alignment, size)
+                (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
             }
         } else {
             hooked.set(true);
