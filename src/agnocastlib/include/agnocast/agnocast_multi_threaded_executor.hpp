@@ -33,8 +33,8 @@ public:
     const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions(),
     size_t number_of_ros2_threads = 0, size_t number_of_agnocast_threads = 0,
     bool yield_before_execute = false,
-    std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(1 * 1000 * 1000),
-    int agnocast_next_exec_timeout_ms = 1);
+    std::chrono::nanoseconds ros2_next_exec_timeout = std::chrono::nanoseconds(5 * 1000 * 1000),
+    int agnocast_next_exec_timeout_ms = 5);
 
   RCLCPP_PUBLIC
   void spin() override;

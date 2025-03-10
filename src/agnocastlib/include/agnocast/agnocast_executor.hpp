@@ -21,7 +21,6 @@ class AgnocastExecutor : public rclcpp::Executor
   // prevent objects from being destructed by keeping reference count
   std::vector<rclcpp::Node::SharedPtr> nodes_;
 
-  std::chrono::nanoseconds agnocast_callback_group_wait_time_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
 
 protected:
