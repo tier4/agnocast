@@ -37,11 +37,11 @@ void SingleThreadedAgnocastExecutor::spin()
       prepare_epoll();
     }
 
-    agnocast::AgnocastExecutables agnocast_executables;
+    agnocast::AgnocastExecutable agnocast_executable;
 
-    if (get_next_agnocast_executables(
-          agnocast_executables, next_exec_timeout_ms_ /*timed-blocking*/)) {
-      execute_agnocast_executables(agnocast_executables);
+    if (get_next_agnocast_executable(
+          agnocast_executable, next_exec_timeout_ms_ /*timed-blocking*/)) {
+      execute_agnocast_executable(agnocast_executable);
     }
 
     rclcpp::AnyExecutable any_executable;

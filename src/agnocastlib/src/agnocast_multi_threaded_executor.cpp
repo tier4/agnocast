@@ -10,8 +10,7 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
   size_t number_of_agnocast_threads, bool yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
-: agnocast::AgnocastExecutor(
-    options, ros2_next_exec_timeout /* agnocast_callback_group_wait_time = ros2_next_exec_timeout for fair scheduling */),
+: agnocast::AgnocastExecutor(options),
   yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
@@ -104,7 +103,7 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
       prepare_epoll();
     }
 
-    agnocast::AgnocastExecutables agnocast_executables;
+    agnocast::AgnocastExecutable agnocast_executable;
 
     if (!rclcpp::ok(this->context_) || !spinning.load()) {
       return;
@@ -112,16 +111,16 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
 
     // Unlike a single-threaded executor, in a multi-threaded executor, each thread is dedicated to
     // handling either ROS 2 callbacks or Agnocast callbacks exclusively.
-    // Given this separation, get_next_agnocast_executables() can block indefinitely without a
+    // Given this separation, get_next_agnocast_executable() can block indefinitely without a
     // timeout. However, since we need to periodically check for epoll updates, we should implement
     // a long timeout period instead of an infinite block.
-    if (get_next_agnocast_executables(
-          agnocast_executables, agnocast_next_exec_timeout_ms_ /* timed-blocking*/)) {
+    if (get_next_agnocast_executable(
+          agnocast_executable, agnocast_next_exec_timeout_ms_ /* timed-blocking*/)) {
       if (yield_before_execute_) {
         std::this_thread::yield();
       }
 
-      execute_agnocast_executables(agnocast_executables);
+      execute_agnocast_executable(agnocast_executable);
     }
   }
 }
