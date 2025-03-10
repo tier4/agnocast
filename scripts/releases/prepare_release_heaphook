@@ -1,0 +1,13 @@
+#!/bin/bash
+set -eux
+
+VERSION="1.0.1"
+
+cp -r agnocast_heaphook agnocast-heaphook-${VERSION}
+tar czf agnocast-heaphook_${VERSION}.orig.tar.gz agnocast-heaphook-${VERSION}
+
+cd agnocast-heaphook-${VERSION}
+debuild -S -sa
+
+cd ..
+rm -rf agnocast-heaphook-${VERSION}
