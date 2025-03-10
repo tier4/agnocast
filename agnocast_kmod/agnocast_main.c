@@ -1,4 +1,5 @@
 #include "agnocast.h"
+#include "agnocast_memory_allocator.h"
 
 #include <linux/device.h>
 #include <linux/hashtable.h>
@@ -27,9 +28,6 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
 
-// Maximum number of read-only shared memory regions mappable per process
-#define MAX_MAP_NUM 8
-
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
 
@@ -39,11 +37,9 @@ static DEFINE_MUTEX(global_mutex);
 struct process_info
 {
   pid_t pid;
-  uint64_t shm_addr;
   uint64_t shm_size;
+  struct mempool_entry * mempool_entry;
   struct hlist_node node;
-  uint32_t mapped_num;
-  pid_t mapped_pids[MAX_MAP_NUM];
 };
 
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
@@ -600,7 +596,7 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
   {
     used_size += scnprintf(
       buf + used_size, PAGE_SIZE - used_size, "process: pid=%u, addr=%llu, size=%llu\n",
-      proc_info->pid, proc_info->shm_addr, proc_info->shm_size);
+      proc_info->pid, proc_info->mempool_entry->addr, proc_info->shm_size);
 
     used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher\n");
 
@@ -845,15 +841,34 @@ static int set_publisher_shm_info(
     if (pub_info->exited || sub_proc_info->pid == pub_info->pid) {
       continue;
     }
-    bool already_mapped = false;
-    for (int i = 0; i < sub_proc_info->mapped_num; i++) {
-      if (sub_proc_info->mapped_pids[i] == pub_info->pid) {
-        already_mapped = true;
-        break;
-      }
+
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      dev_warn(
+        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
+        pub_info->pid);
+      return -1;
     }
-    if (already_mapped) {
-      continue;
+
+    int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
+    if (ret < 0) {
+      if (ret == -EEXIST) {
+        continue;
+      } else if (ret == -ENOBUFS) {
+        dev_warn(
+          agnocast_device,
+          "Process (pid=%d)'s memory pool is already full (MAX_PROCESS_NUM_PER_MEMPOOL=%d), so no "
+          "new mapping from pid=%d can be created. (set_publisher_shm_info)\n",
+          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, sub_proc_info->pid);
+        return ret;
+      } else {
+        dev_warn(
+          agnocast_device,
+          "Process (pid=%d) failed to reference memory of (pid=%d). "
+          "(set_publisher_shm_info)\n",
+          sub_proc_info->pid, pub_info->pid);
+        return ret;
+      }
     }
 
     if (publisher_num == MAX_PUBLISHER_NUM) {
@@ -866,30 +881,10 @@ static int set_publisher_shm_info(
       return -1;
     }
 
-    if (sub_proc_info->mapped_num == MAX_MAP_NUM) {
-      dev_warn(
-        agnocast_device,
-        "This process (topic_name=%s, subscriber_pid=%d) has reached the upper bound of the number "
-        "of memory regions of other processes that it can map, so no new mapping can be created. "
-        "(set_publisher_shm_info)\n",
-        wrapper->key, sub_proc_info->pid);
-      return -1;
-    }
-
-    const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
-      dev_warn(
-        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-        pub_info->pid);
-      return -1;
-    }
-
     pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
-    pub_shm_info->shm_addrs[publisher_num] = proc_info->shm_addr;
+    pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
     pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
     publisher_num++;
-    sub_proc_info->mapped_pids[sub_proc_info->mapped_num] = pub_info->pid;
-    sub_proc_info->mapped_num++;
   }
 
   pub_shm_info->publisher_num = publisher_num;
@@ -1250,9 +1245,6 @@ int take_msg(
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
-  // TODO: assume 0x40000000000~ (4398046511104) is allocatable
-  static uint64_t allocatable_addr = 0x40000000000;
-
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
       agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
@@ -1270,21 +1262,25 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
     return -ENOMEM;
   }
+
   new_proc_info->pid = pid;
-  new_proc_info->shm_addr = allocatable_addr;
   new_proc_info->shm_size = shm_size;
-  new_proc_info->mapped_num = 0;
-  for (int i = 0; i < MAX_MAP_NUM; i++) {
-    new_proc_info->mapped_pids[i] = -1;
+
+  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
+  if (!new_proc_info->mempool_entry) {
+    dev_warn(
+      agnocast_device,
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (new_shm_addr)\n", pid,
+      shm_size);
+    kfree(new_proc_info);
+    return -ENOMEM;
   }
 
   INIT_HLIST_NODE(&new_proc_info->node);
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
-  allocatable_addr += shm_size;
-
-  ioctl_ret->ret_addr = new_proc_info->shm_addr;
+  ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
   return 0;
 }
 
@@ -1952,7 +1948,7 @@ static uint32_t queue_tail;
 // For controling the kernel thread
 static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
-static atomic_t has_new_pid = ATOMIC_INIT(0);
+static int has_new_pid = false;
 
 void process_exit_cleanup(const pid_t pid)
 {
@@ -1972,6 +1968,8 @@ void process_exit_cleanup(const pid_t pid)
   }
 
   if (!agnocast_related) return;
+
+  free_memory(pid);
 
   struct topic_wrapper * wrapper;
   struct hlist_node * node;
@@ -2002,7 +2000,7 @@ static int exit_worker_thread(void * data)
     unsigned long flags;
     bool got_pid = false;
 
-    wait_event_interruptible(worker_wait, atomic_read(&has_new_pid) || kthread_should_stop());
+    wait_event_interruptible(worker_wait, smp_load_acquire(&has_new_pid) || kthread_should_stop());
 
     if (kthread_should_stop()) break;
 
@@ -2015,7 +2013,7 @@ static int exit_worker_thread(void * data)
     }
 
     // queue is empty
-    if (queue_head == queue_tail) atomic_set(&has_new_pid, 0);
+    if (queue_head == queue_tail) smp_store_release(&has_new_pid, 0);
 
     spin_unlock_irqrestore(&pid_queue_lock, flags);
 
@@ -2034,6 +2032,8 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   unsigned long flags;
   uint32_t next;
 
+  bool need_wakeup = false;
+
   spin_lock_irqsave(&pid_queue_lock, flags);
 
   // Assumes EXIT_QUEUE_SIZE is 2^N
@@ -2042,15 +2042,17 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   if (next != queue_head) {  // queue is not full
     exit_pid_queue[queue_tail] = current->pid;
     queue_tail = next;
-    atomic_set(&has_new_pid, 1);
-
-    wake_up_interruptible(&worker_wait);
-  } else {
-    // do nothing and put error message
-    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+    smp_store_release(&has_new_pid, 1);
+    need_wakeup = true;
   }
 
   spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+  if (need_wakeup) {
+    wake_up_interruptible(&worker_wait);
+  } else {
+    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+  }
 
   return 0;
 }
@@ -2137,6 +2139,8 @@ static int agnocast_init(void)
 
   ret = agnocast_init_kprobe();
   if (ret < 0) return ret;
+
+  init_memory_allocator();
 
   dev_info(agnocast_device, "Agnocast installed!\n");
   return 0;
