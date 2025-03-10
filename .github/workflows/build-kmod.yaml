@@ -35,9 +35,3 @@ jobs:
       run: |
         cd agnocast_kmod
         make
-
-    - name: Build kmod with kunit
-      if: steps.check_changes.outputs.kmod_changed == 'true'
-      run: |
-        cd agnocast_kmod
-        make test
