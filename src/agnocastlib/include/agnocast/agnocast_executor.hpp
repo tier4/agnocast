@@ -37,10 +37,7 @@ protected:
 
 public:
   RCLCPP_PUBLIC
-  explicit AgnocastExecutor(
-    const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions(),
-    std::chrono::nanoseconds agnocast_callback_group_wait_time =
-      std::chrono::nanoseconds(10 * 1000 * 1000));
+  explicit AgnocastExecutor(const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions());
 
   RCLCPP_PUBLIC
   virtual ~AgnocastExecutor();

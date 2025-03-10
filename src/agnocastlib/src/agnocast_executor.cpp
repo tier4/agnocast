@@ -8,9 +8,7 @@
 namespace agnocast
 {
 
-AgnocastExecutor::AgnocastExecutor(
-  const rclcpp::ExecutorOptions & options,
-  std::chrono::nanoseconds agnocast_callback_group_wait_time)
+AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
 : rclcpp::Executor(options), epoll_fd_(epoll_create1(0)), my_pid_(getpid())
 {
   if (epoll_fd_ == -1) {

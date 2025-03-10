@@ -10,8 +10,7 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
   size_t number_of_agnocast_threads, bool yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
-: agnocast::AgnocastExecutor(
-    options, ros2_next_exec_timeout /* agnocast_callback_group_wait_time = ros2_next_exec_timeout for fair scheduling */),
+: agnocast::AgnocastExecutor(options),
   yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
