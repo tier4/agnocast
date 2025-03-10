@@ -6,13 +6,13 @@
 
 static char * topic_name = "/kunit_test_topic";
 static char * node_name = "/kunit_test_node";
-static uint32_t qos_depth = 1;
 static bool qos_is_transient_local = false;
 static pid_t subscriber_pid = 1000;
 static pid_t publisher_pid = 2000;
 static bool is_take_sub = false;
 
-static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscriber_id)
+static void setup_one_subscriber(
+  struct kunit * test, uint32_t qos_depth, topic_local_id_t * subscriber_id)
 {
   subscriber_pid++;
 
@@ -30,7 +30,7 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
 }
 
 static void setup_one_publisher(
-  struct kunit * test, topic_local_id_t * publisher_id, uint64_t * ret_addr)
+  struct kunit * test, uint32_t qos_depth, topic_local_id_t * publisher_id, uint64_t * ret_addr)
 {
   publisher_pid++;
 
@@ -65,7 +65,7 @@ void test_case_no_subscriber(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
+  setup_one_publisher(test, 1, &publisher_id, &ret_addr);
 
   topic_local_id_t subscriber_id = 0;
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
@@ -81,7 +81,7 @@ void test_case_no_publish_no_receive(struct kunit * test)
 {
   // Arrange
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, &subscriber_id);
+  setup_one_subscriber(test, 1, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
 
@@ -99,13 +99,13 @@ void test_case_no_receive_since_volatile(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
+  setup_one_publisher(test, 1, &publisher_id, &ret_addr);
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, &subscriber_id);
+  setup_one_subscriber(test, 1, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
 
@@ -123,9 +123,9 @@ void test_case_receive_one(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
+  setup_one_publisher(test, 1, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, &subscriber_id);
+  setup_one_subscriber(test, 1, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
@@ -147,9 +147,9 @@ void test_case_receive_based_on_qos_depth(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
+  setup_one_publisher(test, 1, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, &subscriber_id);
+  setup_one_subscriber(test, 1, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
@@ -169,32 +169,58 @@ void test_case_receive_based_on_qos_depth(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
-// fail in increment_sub_rc
-void test_case_receive(struct kunit * test)
+void test_case_too_many_rc(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, &publisher_id, &ret_addr);
+  setup_one_publisher(test, 1, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, &subscriber_id);
+  setup_one_subscriber(test, 1, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
-    union ioctl_receive_msg_args ioctl_receive_msg_ret;
     int ret = increment_message_entry_rc(
       topic_name, subscriber_id + i + 1, ioctl_publish_msg_ret1.ret_entry_id);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
+
+  union ioctl_receive_msg_args ioctl_receive_msg_ret;
 
   // Act
   int ret2 = receive_msg(topic_name, subscriber_id, &ioctl_receive_msg_ret);
 
   // Assert
   KUNIT_ASSERT_EQ(test, ret2, -ENOBUFS);
+}
+
+void test_case_receive_max_qos_depth(struct kunit * test)
+{
+  // Arrange
+  topic_local_id_t publisher_id;
+  uint64_t ret_addr;
+  setup_one_publisher(test, 10, &publisher_id, &ret_addr);
+  topic_local_id_t subscriber_id;
+  setup_one_subscriber(test, 10, &subscriber_id);
+
+  for (int i = 0; i < MAX_QOS_DEPTH; i++) {
+    union ioctl_publish_args ioctl_publish_msg_ret;
+    int ret = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    KUNIT_ASSERT_EQ(test, ret, 0);
+  }
+
+  union ioctl_receive_msg_args ioctl_receive_msg_ret;
+
+  // Act
+  int ret3 = receive_msg(topic_name, subscriber_id, &ioctl_receive_msg_ret);
+
+  // Assert
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 10);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
 // ================================================
