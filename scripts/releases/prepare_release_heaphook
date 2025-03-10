@@ -1,11 +1,13 @@
 #!/bin/bash
 set -eux
 
-cp -r agnocast_heaphook agnocast-heaphook-1.0.1
-tar czf agnocast-heaphook_1.0.1.orig.tar.gz agnocast-heaphook-1.0.1
+VERSION="1.0.1"
 
-cd agnocast-heaphook-1.0.1
+cp -r agnocast_heaphook agnocast-heaphook-${VERSION}
+tar czf agnocast-heaphook_${VERSION}.orig.tar.gz agnocast-heaphook-${VERSION}
+
+cd agnocast-heaphook-${VERSION}
 debuild -S -sa
 
 cd ..
-rm -rf agnocast-heaphook-1.0.1
+rm -rf agnocast-heaphook-${VERSION}
