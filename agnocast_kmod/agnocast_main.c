@@ -436,8 +436,9 @@ int increment_message_entry_rc(
       wrapper->key, entry_id, pubsub_id);
     return -1;
   } else {
-    if (increment_sub_rc(en, pubsub_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(en, pubsub_id);
+    if (ret < 0) {
+      return ret;
     }
   }
 
@@ -1112,8 +1113,9 @@ int receive_and_check_new_publisher(
       break;
     }
 
-    if (increment_sub_rc(en, subscriber_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(en, subscriber_id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
@@ -1221,8 +1223,9 @@ int take_msg(
   }
 
   if (candidate_en) {
-    if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(candidate_en, subscriber_id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
