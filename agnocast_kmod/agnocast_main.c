@@ -383,7 +383,7 @@ static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
     "(increment_sub_rc)\n",
     MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
-  return -1;
+  return -ENOBUFS;
 }
 
 static struct entry_node * find_message_entry(
@@ -830,7 +830,7 @@ static int set_publisher_shm_info(
     dev_warn(
       agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
       subscriber_pid);
-    return -1;
+    return -EINVAL;
   }
 
   uint32_t publisher_num = 0;
@@ -847,7 +847,7 @@ static int set_publisher_shm_info(
       dev_warn(
         agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
         pub_info->pid);
-      return -1;
+      return -EINVAL;
     }
 
     int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
@@ -878,7 +878,7 @@ static int set_publisher_shm_info(
         "returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
         wrapper->key, sub_proc_info->pid);
-      return -1;
+      return -ENOBUFS;
     }
 
     pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
@@ -921,8 +921,9 @@ int subscriber_add(
 
   ioctl_ret->ret_id = sub_info->id;
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   ioctl_ret->ret_transient_local_num = 0;
@@ -937,8 +938,9 @@ int subscriber_add(
 
     struct entry_node * en = container_of(node, struct entry_node, node);
 
-    if (increment_sub_rc(en, sub_info->id) == -1) {
-      return -1;
+    ret = increment_sub_rc(en, sub_info->id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
@@ -1130,8 +1132,9 @@ int receive_and_check_new_publisher(
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   sub_info->new_publisher = false;
@@ -1234,8 +1237,9 @@ int take_msg(
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   sub_info->new_publisher = false;

@@ -3,7 +3,7 @@
 #include <linux/types.h>
 
 // Maximum number of processes that can be mapped to a memory pool
-#define MAX_PROCESS_NUM_PER_MEMPOOL 16
+#define MAX_PROCESS_NUM_PER_MEMPOOL 32
 
 struct mempool_entry
 {
