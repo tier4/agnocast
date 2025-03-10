@@ -832,7 +832,7 @@ static int set_publisher_shm_info(
     dev_warn(
       agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
       subscriber_pid);
-    return -EINVAL;
+    return -ESRCH;
   }
 
   uint32_t publisher_num = 0;
@@ -849,7 +849,7 @@ static int set_publisher_shm_info(
       dev_warn(
         agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
         pub_info->pid);
-      return -EINVAL;
+      return -ESRCH;
     }
 
     int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
