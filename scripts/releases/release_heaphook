@@ -1,1 +1,8 @@
-dput ppa:t4-system-software/agnocast agnocast-heaphook_1.0.1-2_source.changes
+#!/bin/bash
+set -eux
+
+VERSION="1.0.1"
+RELEASE="2"
+CHANGES_FILE="agnocast-heaphook_${VERSION}-${RELEASE}_source.changes"
+
+dput ppa:t4-system-software/agnocast ${CHANGES_FILE}
