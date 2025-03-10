@@ -10,9 +10,9 @@ namespace agnocast
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
-struct AgnocastExecutables
+struct AgnocastExecutable
 {
-  std::queue<std::shared_ptr<std::function<void()>>> callable_queue;
+  std::shared_ptr<std::function<void()>> callable;
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
@@ -22,15 +22,19 @@ class AgnocastExecutor : public rclcpp::Executor
   std::vector<rclcpp::Node::SharedPtr> nodes_;
 
   std::chrono::nanoseconds agnocast_callback_group_wait_time_;
+  std::vector<AgnocastExecutable> ready_agnocast_executables_;
 
 protected:
   int epoll_fd_;
   pid_t my_pid_;
+  std::mutex wait_mutex_;
+  std::mutex ready_agnocast_executables_mutex_;
 
   void prepare_epoll();
-  bool get_next_agnocast_executables(
-    AgnocastExecutables & agnocast_executables, const int timeout_ms) const;
-  void execute_agnocast_executables(AgnocastExecutables & agnocast_executables);
+  bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, const int timeout_ms);
+  void wait_for_work(const int timeout_ms);
+  bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
+  void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
 public:
   RCLCPP_PUBLIC
