@@ -16,5 +16,5 @@ fn main() {
     assert!(status.success(), "rustc failed to compile stub library");
 
     println!("cargo:rustc-link-search=native={}", out_dir.display());
-    println!("cargo:rustc-link-lib=dylib=agnocast");
+    println!("cargo:rustc-link-lib=dylib=agnocast hoge");
 }

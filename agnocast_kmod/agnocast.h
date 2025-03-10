@@ -2,7 +2,7 @@
 
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 8        // Maximum number of publishers per topic
+#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
 #define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
