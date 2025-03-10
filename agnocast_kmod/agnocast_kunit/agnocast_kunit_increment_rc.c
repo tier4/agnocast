@@ -5,7 +5,6 @@
 
 #include <kunit/test.h>
 
-
 static char * topic_name = "/kunit_test_topic";
 static char * node_name = "/kunit_test_node";
 static uint32_t qos_depth = 10;
@@ -35,15 +34,28 @@ void test_case_increment_rc(struct kunit * test)
   union ioctl_publish_args publish_args;
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  
+
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
   int ret_pub = publish_msg(topic_name, publisher_id, ret_addr, &publish_args);
   KUNIT_ASSERT_EQ(test, ret_pub, 0);
   int64_t entry_id = publish_args.ret_entry_id;
 
-  int ret_inc = increment_message_entry_rc(topic_name, 2, entry_id);
+  int ret_inc = increment_message_entry_rc(topic_name, 1, entry_id);
   KUNIT_EXPECT_EQ(test, ret_inc, 0);
+}
+
+void test_case_increment_rc_fail(struct kunit * test)
+{
+  union ioctl_publish_args publish_args;
+  topic_local_id_t publisher_id;
+  uint64_t ret_addr;
+
+  setup_one_publisher(test, &publisher_id, &ret_addr);
+
+  int ret_pub = publish_msg(topic_name, publisher_id, ret_addr, &publish_args);
+  KUNIT_ASSERT_EQ(test, ret_pub, 0);
+  int64_t entry_id = publish_args.ret_entry_id;
 
   int ret_inc_fail = increment_message_entry_rc(topic_name, publisher_id, entry_id);
   KUNIT_EXPECT_EQ(test, ret_inc_fail, -1);
