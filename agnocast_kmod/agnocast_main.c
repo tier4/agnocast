@@ -169,7 +169,7 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static int insert_subscriber_info(
-  struct topic_wrapper * wrapper, char * node_name, const pid_t subscriber_pid,
+  struct topic_wrapper * wrapper, const char * node_name, const pid_t subscriber_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
   struct subscriber_info ** new_info)
 {
@@ -824,7 +824,8 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 static int set_publisher_shm_info(
-  struct topic_wrapper * wrapper, pid_t subscriber_pid, struct publisher_shm_info * pub_shm_info)
+  const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
+  struct publisher_shm_info * pub_shm_info)
 {
   struct process_info * sub_proc_info = find_process_info(subscriber_pid);
   if (!sub_proc_info) {
@@ -894,8 +895,9 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  char * topic_name, char * node_name, const pid_t subscriber_pid, uint32_t qos_depth,
-  bool qos_is_transient_local, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
+  union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);

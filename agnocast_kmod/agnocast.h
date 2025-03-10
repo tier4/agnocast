@@ -187,8 +187,9 @@ void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
 int subscriber_add(
-  char * topic_name, char * node_name, const pid_t subscriber_pid, uint32_t qos_depth,
-  bool qos_is_transient_local, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
+  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
+  union ioctl_subscriber_args * ioctl_ret);
 
 int publisher_add(
   const char * topic_name, const char * node_name, const pid_t publisher_pid,
