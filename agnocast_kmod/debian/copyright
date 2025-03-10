@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: agnocast-kmod
+Source: https://github.com/tier4/agnocast
+
+Files: *
+Copyright: 2025 TIER IV, Inc.
+License: Dual BSD/GPL
+
+License: Dual BSD/GPL
+ This software is licensed under the terms of the GNU General Public License version 2 (GPLv2),
+ or, at your option, under the terms of the BSD license.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 2 can be found in "/usr/share/common-licenses/GPL-2", and the
+ complete text of the BSD license can be found in "/usr/share/common-licenses/BSD".

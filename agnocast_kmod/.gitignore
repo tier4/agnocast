@@ -7,3 +7,4 @@
 *.gcno
 Module.symvers
 modules.order
+debian/files

@@ -22,7 +22,7 @@ else
   endif
 endif
 
-KERNEL_VERSION := $(shell uname -r)
+KERNEL_VERSION ?= $(shell uname -r)
 KERNEL_MAJOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 1)
 KERNEL_MINOR := $(shell echo $(KERNEL_VERSION) | cut -d '.' -f 2)
 
