@@ -40,6 +40,13 @@ jobs:
         rustup default 1.75.0
         rustup component add clippy rustfmt
 
+    - name: Generate vendor directory
+      if: steps.check_changes_rust.outputs.rust_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        mkdir -p .cargo
+        cargo vendor > .cargo/config.toml
+
     - name: Run rustfmt on agnocast_heaphook
       if: steps.check_changes_rust.outputs.rust_changed == 'true'
       run: |
