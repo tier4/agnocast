@@ -1082,15 +1082,14 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
-int receive_and_check_new_publisher(
+int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (receive_and_update)\n", topic_name);
-    return -1;
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1098,9 +1097,9 @@ int receive_and_check_new_publisher(
     dev_warn(
       agnocast_device,
       "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(receive_and_update)\n",
+      "(receive_msg)\n",
       subscriber_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   // Receive msg
@@ -1595,8 +1594,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           topic_name_buf, (char __user *)receive_msg_args.topic_name, sizeof(topic_name_buf)))
       goto unlock_mutex_and_return;
-    ret = receive_and_check_new_publisher(
-      topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
+    ret = receive_msg(topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto unlock_mutex_and_return;
