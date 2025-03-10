@@ -228,9 +228,8 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
 
 fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe {
-        *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize)
-    };
+    let original_start_addr: usize =
+        unsafe { *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize) };
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
@@ -248,9 +247,8 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
 
 fn tlsf_deallocate_wrapped(ptr: usize) {
     // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe {
-        *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize)
-    };
+    let original_start_addr: usize =
+        unsafe { *((ptr - *POINTER_SIZE.get_or_init(std::mem::size_of::<&usize>)) as *mut usize) };
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
@@ -406,9 +404,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 Some(addr) => {
                     if allocated_by_original {
                         unsafe {
-                            (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(
-                                ptr, new_size,
-                            )
+                            (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
                         }
                     } else {
                         tlsf_reallocate_wrapped(addr, new_size)
@@ -460,9 +456,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
             unsafe {
-                (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(
-                    alignment, size,
-                )
+                (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
             }
         } else {
             hooked.set(true);
@@ -483,9 +477,7 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
 
     HOOKED.with(|hooked: &Cell<bool>| {
         if hooked.get() {
-            unsafe {
-                (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
-            }
+            unsafe { (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size) }
         } else {
             hooked.set(true);
             let ret = tlsf_allocate_wrapped(alignment, size);
