@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        dkms add -m agnocast -v 1.0.1
+        dkms build -m agnocast -v 1.0.1
+        dkms install -m agnocast -v 1.0.1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0
