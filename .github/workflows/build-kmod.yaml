@@ -19,20 +19,25 @@ jobs:
       with:
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
 
-    - name: Check for .c file changes
+    - name: Check for agnocast_kmod changes
       id: check_changes
       run: |
-        if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.c$'; then
-          echo ".c files changed"
-          echo "c_changed=true" >> $GITHUB_OUTPUT
+        if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '^agnocast_kmod/'; then
+          echo "agnocast_kmod changed"
+          echo "kmod_changed=true" >> $GITHUB_OUTPUT
         else
-          echo "No .c files changed"
-          echo "c_changed=false" >> $GITHUB_OUTPUT
+          echo "No agnocast_kmod changed"
+          echo "kmod_changed=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Build kmod
-      if: steps.check_changes.outputs.c_changed == 'true'
+      if: steps.check_changes.outputs.kmod_changed == 'true'
       run: |
         cd agnocast_kmod
         make
 
+    - name: Build kmod with kunit
+      if: steps.check_changes.outputs.kmod_changed == 'true'
+      run: |
+        cd agnocast_kmod
+        make test
