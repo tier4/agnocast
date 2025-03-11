@@ -8,18 +8,17 @@ namespace agnocast
 
 MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, size_t number_of_ros2_threads,
-  size_t number_of_agnocast_threads, bool yield_before_execute,
-  std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
+  size_t number_of_agnocast_threads, bool yield_before_execute, std::chrono::nanoseconds timeout)
 : agnocast::AgnocastExecutor(options),
   yield_before_execute_(yield_before_execute),
-  ros2_next_exec_timeout_(ros2_next_exec_timeout),
-  agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
+  ros2_timeout_(timeout),
+  agnocast_timeout_ms_(static_cast<int>(
+    timeout.count() / (1000 * 1000)) /* agnocast_timeout_ms_ = ros2_timeout_ for fair scheduling */)
 {
-  if (ros2_next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
+  if (ros2_timeout_ == std::chrono::nanoseconds(-1)) {
     RCLCPP_ERROR(
       logger,
-      "If `ros2_next_exec_timeout` is set to infinite, ros2 callbacks which share the callback "
-      "group "
+      "If `timeout` is set to infinite, ros2 callbacks which share the callback group "
       "with agnocast callbacks may not be executed. Set this parameter to be short enough");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -78,7 +77,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
       if (!rclcpp::ok(this->context_) || !spinning.load()) {
         return;
       }
-      if (!get_next_executable(any_executable, ros2_next_exec_timeout_)) {
+      if (!get_next_executable(any_executable, ros2_timeout_)) {
         continue;
       }
     }
@@ -115,7 +114,7 @@ void MultiThreadedAgnocastExecutor::agnocast_spin()
     // timeout. However, since we need to periodically check for epoll updates, we should implement
     // a long timeout period instead of an infinite block.
     if (get_next_agnocast_executable(
-          agnocast_executable, agnocast_next_exec_timeout_ms_ /* timed-blocking*/)) {
+          agnocast_executable, agnocast_timeout_ms_ /* timed-blocking*/)) {
       if (yield_before_execute_) {
         std::this_thread::yield();
       }
