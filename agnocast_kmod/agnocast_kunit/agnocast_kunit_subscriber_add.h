@@ -18,7 +18,6 @@ void test_case_subscriber_add_normal_with_entry(struct kunit * test);
 void test_case_subscriber_add_normal_with_many_entries1(struct kunit * test);
 void test_case_subscriber_add_normal_with_many_entries2(struct kunit * test);
 void test_case_subscriber_add_normal_with_many_entries3(struct kunit * test);
-
 void test_case_subscriber_add_invalid_qos(struct kunit * test);
 void test_case_subscriber_add_too_many_subscribers(struct kunit * test);
 void test_case_subscriber_add_without_self_process(struct kunit * test);
