@@ -33,7 +33,7 @@ protected:
   bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, const int timeout_ms);
   void wait_for_work(const int timeout_ms);
   bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
-  void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
+  static void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
 public:
   RCLCPP_PUBLIC
