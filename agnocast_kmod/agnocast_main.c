@@ -866,7 +866,7 @@ static int set_publisher_shm_info(
       } else {
         dev_warn(
           agnocast_device,
-          "Process (pid=%d) failed to reference memory of (pid=%d). "
+          "Unreachable: process (pid=%d) failed to reference memory of (pid=%d). "
           "(set_publisher_shm_info)\n",
           sub_proc_info->pid, pub_info->pid);
         return ret;
@@ -876,7 +876,8 @@ static int set_publisher_shm_info(
     if (publisher_num == MAX_PUBLISHER_NUM) {
       dev_warn(
         agnocast_device,
-        "The number of publisher processes to be mapped exceeds the maximum number that can be "
+        "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
+        "that can be "
         "returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
         wrapper->key, sub_proc_info->pid);
@@ -1757,26 +1758,23 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
-int get_topic_entries_num(char * topic_name)
+int get_topic_entries_num(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (get_topic_entries_num)\n", topic_name);
-    return -1;
+    return 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
-  struct rb_node ** new = &(root->rb_node);
+  struct rb_node * node;
   int count = 0;
-  while (*new) {
-    new = &((*new)->rb_right);
+  for (node = rb_first(root); node; node = rb_next(node)) {
     count++;
   }
   return count;
 }
 
-bool is_in_topic_entries(char * topic_name, int64_t entry_id)
+bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1794,6 +1792,19 @@ bool is_in_topic_entries(char * topic_name, int64_t entry_id)
     return false;
   }
 
+  return true;
+}
+
+bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return false;
+  }
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return false;
+  }
   return true;
 }
 
@@ -1999,7 +2010,7 @@ void process_exit_cleanup(const pid_t pid)
     }
   }
 
-  dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
+  // dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
 }
 
 static int exit_worker_thread(void * data)
