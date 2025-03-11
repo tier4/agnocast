@@ -70,13 +70,13 @@ bool AgnocastExecutor::get_next_agnocast_executable(
     return true;
   }
 
-  wait_for_work(timeout_ms);
+  wait_and_handle_epoll_event(timeout_ms);
 
   // Try again
   return get_next_ready_agnocast_executable(agnocast_executable);
 }
 
-void AgnocastExecutor::wait_for_work(const int timeout_ms)
+void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 {
   struct epoll_event event = {};
 
