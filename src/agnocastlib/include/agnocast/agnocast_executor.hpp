@@ -3,8 +3,6 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <queue>
-
 namespace agnocast
 {
 
