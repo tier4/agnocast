@@ -167,6 +167,30 @@ void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kuni
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 0);
 }
 
+void test_case_subscriber_add_normal_with_many_publishers_of_same_process(struct kunit * test)
+{
+  // Arrange
+  union ioctl_subscriber_args subscriber_args;
+  const bool qos_is_transient_local = false;
+  const pid_t publisher_pid = 999;
+  const pid_t subscriber_pid = 1000;
+  setup_process(test, publisher_pid);
+  setup_process(test, subscriber_pid);
+  for (uint32_t i = 0; i < MAX_PUBLISHER_NUM; i++) {
+    setup_publisher(test, publisher_pid);
+  }
+
+  // Act
+  int ret = subscriber_add(
+    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+}
+
 void test_case_subscriber_add_normal_with_entry(struct kunit * test)
 {
   // Arrange
