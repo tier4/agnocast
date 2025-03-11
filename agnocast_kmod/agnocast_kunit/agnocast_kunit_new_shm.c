@@ -5,6 +5,7 @@
 #include <kunit/test.h>
 
 static pid_t pid = 1000;
+static const int max_process_num = 1000 + 100 + 10;
 
 void test_case_new_shm_normal(struct kunit * test)
 {
@@ -21,14 +22,13 @@ void test_case_new_shm_normal(struct kunit * test)
 
 void test_case_new_shm_many(struct kunit * test)
 {
-  const int process_num = 1000;
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 0);
 
   // ================================================
   // Act
 
   pid_t local_pid_start = pid;
-  for (int i = 0; i < process_num - 1; i++) {
+  for (int i = 0; i < max_process_num - 1; i++) {
     uint64_t local_pid = pid++;
     union ioctl_new_shm_args args;
     new_shm_addr(local_pid, PAGE_SIZE, &args);
@@ -42,13 +42,9 @@ void test_case_new_shm_many(struct kunit * test)
   // Assert
 
   KUNIT_EXPECT_EQ(test, ret, 0);
-  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), process_num);
-  for (int i = 0; i < process_num; i++) {
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), max_process_num);
+  for (int i = 0; i < max_process_num; i++) {
     KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(local_pid_start + i));
-  }
-
-  for (int i = 0; i < process_num; i++) {
-    process_exit_cleanup(pid - process_num + i);
   }
 }
 
@@ -92,13 +88,12 @@ void test_case_new_shm_too_big(struct kunit * test)
 
 void test_case_new_shm_too_many(struct kunit * test)
 {
-  const int process_num = 2000;
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 0);
 
   // ================================================
   // Act
 
-  for (int i = 0; i < process_num; i++) {
+  for (int i = 0; i < max_process_num; i++) {
     uint64_t local_pid = pid++;
     union ioctl_new_shm_args args;
     new_shm_addr(local_pid, PAGE_SIZE, &args);
@@ -111,11 +106,6 @@ void test_case_new_shm_too_many(struct kunit * test)
   // Assert
 
   KUNIT_EXPECT_EQ(test, ret, -ENOMEM);
-  KUNIT_EXPECT_TRUE(test, get_proc_info_htable_size() > 0);
-  KUNIT_EXPECT_TRUE(test, get_proc_info_htable_size() < process_num);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), max_process_num);
   KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(local_pid));
-
-  for (int i = 0; i < process_num; i++) {
-    process_exit_cleanup(pid - process_num + i);
-  }
 }
