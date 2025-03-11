@@ -4,4 +4,7 @@ cd agnocast_kmod
 make
 
 cd ../agnocast_heaphook
-cargo deb --install
+cargo vendor
+cargo build --release
+cd ..
+cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib

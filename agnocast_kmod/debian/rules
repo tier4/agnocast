@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+VERSION = 1.0.1
+
+%:
+	dh $@ --with dkms
+
+override_dh_auto_install:
+	mkdir -p $(CURDIR)/debian/agnocast-kmod/usr/src/agnocast-$(VERSION)
+	rsync -av --exclude='debian' ./ $(CURDIR)/debian/agnocast-kmod/usr/src/agnocast-$(VERSION)/
+
+override_dh_auto_build:
+	@echo "Skipping build due to DKMS."
+
+override_dh_auto_clean:
+	@echo "Skipping clean due to DKMS."
+
+override_dh_auto_test:
+	@echo "Skipping tests during PPA build."
