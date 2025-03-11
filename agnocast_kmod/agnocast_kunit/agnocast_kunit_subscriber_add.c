@@ -150,17 +150,17 @@ void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kuni
   // Arrange
   union ioctl_subscriber_args subscriber_args;
   const bool qos_is_transient_local = false;
-  const pid_t pid = 1000;
-  setup_process(test, pid);
-  setup_publisher(test, pid);
-  setup_subscriber(test, pid);
-
-  const pid_t subscriber_pid = 1001;
+  const pid_t publisher_pid = 999;
+  const pid_t subscriber_pid = 1000;
+  setup_process(test, publisher_pid);
   setup_process(test, subscriber_pid);
+  setup_publisher(test, publisher_pid);
+  setup_subscriber(test, subscriber_pid);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
