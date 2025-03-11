@@ -54,6 +54,9 @@ union ioctl_publish_args publish_core(
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, mqd_t> & opened_mqs)
 {
+  thread_local std::unordered_set<mqd_t> mqs_to_keep;
+  mqs_to_keep.clear();
+
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
   publish_args.publisher_id = publisher_id;
@@ -95,6 +98,20 @@ union ioctl_publish_args publish_core(
       if (errno != EAGAIN) {
         RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
       }
+    }
+
+    mqs_to_keep.insert(mq);
+  }
+
+  // Close mqs that are no longer needed and update `opened_mqs`
+  for (auto it = opened_mqs.begin(); it != opened_mqs.end();) {
+    if (mqs_to_keep.find(it->second) == mqs_to_keep.end()) {
+      if (mq_close(it->second) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
+      it = opened_mqs.erase(it);
+    } else {
+      ++it;
     }
   }
 

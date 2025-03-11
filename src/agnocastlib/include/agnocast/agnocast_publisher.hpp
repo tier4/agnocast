@@ -55,8 +55,6 @@ class Publisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   pid_t publisher_pid_;
-  // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
-  // not currently implemented.
   std::unordered_map<std::string, mqd_t> opened_mqs_;
   PublisherOptions options_;
 
