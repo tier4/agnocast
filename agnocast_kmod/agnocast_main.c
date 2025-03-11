@@ -1757,7 +1757,7 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
-int get_topic_entries_num(char * topic_name)
+int get_topic_entries_num(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
