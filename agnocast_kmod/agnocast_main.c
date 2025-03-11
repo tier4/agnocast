@@ -1761,16 +1761,13 @@ int get_topic_entries_num(char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (get_topic_entries_num)\n", topic_name);
-    return -1;
+    return 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
-  struct rb_node ** new = &(root->rb_node);
+  struct rb_node * node;
   int count = 0;
-  while (*new) {
-    new = &((*new)->rb_right);
+  for (node = rb_first(root); node; node = rb_next(node)) {
     count++;
   }
   return count;
