@@ -126,6 +126,32 @@ void test_case_subscriber_add_normal_with_publisher(struct kunit * test)
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
+void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit * test)
+{
+  // Arrange
+  union ioctl_subscriber_args subscriber_args;
+  const bool qos_is_transient_local = false;
+  const pid_t pid = 1000;
+  setup_process(test, pid);
+  setup_publisher(test, pid);
+
+  // Act
+  int ret = subscriber_add(
+    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 0);
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+}
+
 void test_case_subscriber_add_normal_with_entry(struct kunit * test)
 {
   // Arrange
