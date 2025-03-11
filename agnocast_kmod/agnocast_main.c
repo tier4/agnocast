@@ -2009,7 +2009,9 @@ void process_exit_cleanup(const pid_t pid)
     }
   }
 
+#ifndef KUNIT_BUILD
   dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
+#endif
 }
 
 static int exit_worker_thread(void * data)

@@ -30,6 +30,7 @@ static int agnocast_test_init(struct kunit * test)
 static void agnocast_test_exit(struct kunit * test)
 {
   agnocast_exit_free_data();
+  exit_memory_allocator();
 }
 
 static int agnocast_test_suite_init(struct kunit_suite * test_suite)
@@ -60,7 +61,6 @@ static void agnocast_test_suite_exit(struct kunit_suite * test_suite)
   agnocast_exit_kthread();
   agnocast_exit_kprobe();
   agnocast_exit_device();
-  exit_memory_allocator();
 }
 
 struct kunit_suite agnocast_test_suite = {
