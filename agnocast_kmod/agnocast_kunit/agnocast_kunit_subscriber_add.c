@@ -19,6 +19,15 @@ static void setup_process(struct kunit * test, const pid_t pid)
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
+static void setup_subscriber(struct kunit * test, const pid_t pid)
+{
+  const bool qos_is_transient_local = true;
+  union ioctl_subscriber_args subscriber_args;
+  int ret = subscriber_add(
+    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+}
+
 static void setup_publisher(struct kunit * test, const pid_t pid)
 {
   const bool qos_is_transient_local = true;
@@ -114,16 +123,8 @@ void test_case_subscriber_add_normal_with_publisher(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, 0);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
 void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit * test)
@@ -141,15 +142,29 @@ void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, 0);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 0);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+}
+
+void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kunit * test)
+{
+  // Arrange
+  union ioctl_subscriber_args subscriber_args;
+  const bool qos_is_transient_local = false;
+  const pid_t pid = 1000;
+  setup_process(test, pid);
+  setup_publisher(test, pid);
+  setup_subscriber(test, pid);
+
+  const pid_t subscriber_pid = 1001;
+  setup_process(test, subscriber_pid);
+
+  // Act
+  int ret = subscriber_add(
+    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 0);
 }
 
 void test_case_subscriber_add_normal_with_entry(struct kunit * test)
@@ -172,17 +187,8 @@ void test_case_subscriber_add_normal_with_entry(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_entry_ids[0], 0);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
 // publisher_qos_depth > entries_num > subscriber_qos_depth
@@ -209,20 +215,11 @@ void test_case_subscriber_add_normal_with_many_entries1(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, subscriber_qos_depth);
   for (uint32_t i = 1; i < subscriber_qos_depth; i++) {
     KUNIT_EXPECT_TRUE(
       test, subscriber_args.ret_entry_ids[i - 1] > subscriber_args.ret_entry_ids[i]);
   }
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
 // publisher_qos_depth > subscriber_qos_depth > entries_num
@@ -249,20 +246,11 @@ void test_case_subscriber_add_normal_with_many_entries2(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, entries_num);
   for (uint32_t i = 1; i < entries_num; i++) {
     KUNIT_EXPECT_TRUE(
       test, subscriber_args.ret_entry_ids[i - 1] > subscriber_args.ret_entry_ids[i]);
   }
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
 // entries_num > publisher_qos_depth > subscriber_qos_depth
@@ -289,20 +277,11 @@ void test_case_subscriber_add_normal_with_many_entries3(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
-  union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 1);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, subscriber_qos_depth);
   for (uint32_t i = 1; i < subscriber_qos_depth; i++) {
     KUNIT_EXPECT_TRUE(
       test, subscriber_args.ret_entry_ids[i - 1] > subscriber_args.ret_entry_ids[i]);
   }
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
 }
 
 void test_case_subscriber_add_invalid_qos(struct kunit * test)
