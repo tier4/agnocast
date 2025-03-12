@@ -934,26 +934,28 @@ int subscriber_add(
     return 0;
   }
 
-  // Return qos_depth messages in order from newest to oldest for transient local
-  bool sub_info_updated = false;
+  int transient_local_num = 0;
   for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
-    if (qos_depth <= ioctl_ret->ret_transient_local_num) break;
+    if (qos_depth <= transient_local_num) break;
 
     struct entry_node * en = container_of(node, struct entry_node, node);
 
-    ret = increment_sub_rc(en, sub_info->id);
-    if (ret < 0) {
-      return ret;
-    }
-
-    ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
-    ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
-    ioctl_ret->ret_transient_local_num++;
-
-    if (!sub_info_updated) {
+    if (is_take_sub) {
+      // Update latest_received_entry_id for take subscriber
       sub_info->latest_received_entry_id = en->entry_id;
-      sub_info_updated = true;
+    } else {
+      // Return qos_depth messages in order from newest to oldest for non-take subscriber
+      ret = increment_sub_rc(en, sub_info->id);
+      if (ret < 0) {
+        return ret;
+      }
+
+      ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
+      ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
+      ioctl_ret->ret_transient_local_num++;
     }
+
+    transient_local_num++;
   }
 
   return 0;
