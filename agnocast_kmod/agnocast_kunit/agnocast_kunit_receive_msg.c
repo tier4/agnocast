@@ -60,7 +60,9 @@ void test_case_receive_msg_no_subscriber_when_receive(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 1, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 1;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
 
   topic_local_id_t subscriber_id = 0;
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
@@ -72,11 +74,13 @@ void test_case_receive_msg_no_subscriber_when_receive(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
-void test_case_receive_msg_no_publish_no_receive(struct kunit * test)
+void test_case_receive_msg_no_publish_nothing_to_receive(struct kunit * test)
 {
   // Arrange
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 1;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
 
@@ -94,9 +98,13 @@ void test_case_receive_msg_receive_one(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 1, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 1;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 1;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret);
@@ -123,9 +131,13 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_p
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 10, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 10;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 1;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
@@ -156,9 +168,13 @@ void test_case_receive_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_p
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 10, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 10;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 2, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 2;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret);
@@ -185,9 +201,13 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, MAX_QOS_DEPTH, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = MAX_QOS_DEPTH;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 1;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   for (int i = 0; i < MAX_QOS_DEPTH; i++) {
     union ioctl_publish_args ioctl_publish_msg_ret;
@@ -220,9 +240,13 @@ void test_case_receive_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_a
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, MAX_QOS_DEPTH, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = MAX_QOS_DEPTH;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, MAX_QOS_DEPTH, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = MAX_QOS_DEPTH;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   for (int i = 0; i < MAX_QOS_DEPTH - 1; i++) {
     union ioctl_publish_args ioctl_publish_msg_ret;
@@ -252,9 +276,13 @@ void test_case_receive_msg_too_many_rc(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 1, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 1;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 1;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
@@ -282,10 +310,14 @@ void test_case_receive_msg_one_new_pub(struct kunit * test)
 {
   // Arrange
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 10, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 10;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 10, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 10;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
 
@@ -302,13 +334,17 @@ void test_case_receive_msg_pubsub_in_same_process(struct kunit * test)
 {
   // Arrange
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(1000, PAGE_SIZE, &new_shm_args);
+  const pid_t pid = 1000;
+  int ret1 = new_shm_addr(pid, PAGE_SIZE, &new_shm_args);
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t subscriber_qos_depth = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 1000, 10, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, pid, subscriber_qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
+    &subscriber_args);
   union ioctl_publisher_args publisher_args;
-  int ret3 =
-    publisher_add(TOPIC_NAME, NODE_NAME, 1000, 10, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+  const uint32_t publisher_qos_depth = 10;
+  int ret3 = publisher_add(
+    TOPIC_NAME, NODE_NAME, pid, publisher_qos_depth, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
@@ -329,16 +365,22 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   // Arrange
 
   topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 10, &subscriber_id);
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 10;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
 
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(1000, PAGE_SIZE, &new_shm_args);
+  const pid_t publisher_pid = 1000;
+  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
   union ioctl_publisher_args publisher_args1;
-  int ret2 =
-    publisher_add(TOPIC_NAME, NODE_NAME, 1000, 10, QOS_IS_TRANSIENT_LOCAL, &publisher_args1);
+  const uint32_t publisher_qos_depth = 10;
+  int ret2 = publisher_add(
+    TOPIC_NAME, NODE_NAME, publisher_pid, publisher_qos_depth, QOS_IS_TRANSIENT_LOCAL,
+    &publisher_args1);
   union ioctl_publisher_args publisher_args2;
-  int ret3 =
-    publisher_add(TOPIC_NAME, NODE_NAME, 1000, 1, QOS_IS_TRANSIENT_LOCAL, &publisher_args2);
+  int ret3 = publisher_add(
+    TOPIC_NAME, NODE_NAME, publisher_pid, publisher_qos_depth, QOS_IS_TRANSIENT_LOCAL,
+    &publisher_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
@@ -358,20 +400,27 @@ void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
 {
   // Arrange
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(2000, PAGE_SIZE, &new_shm_args);
+  const pid_t subscriber_pid = 2000;
+  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
   union ioctl_subscriber_args subscriber_args1;
+  const uint32_t subscriber_qos_depth1 = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 2000, 10, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args1);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth1, QOS_IS_TRANSIENT_LOCAL,
+    IS_TAKE_SUB, &subscriber_args1);
   union ioctl_subscriber_args subscriber_args2;
+  const uint32_t subscriber_qos_depth2 = 1;
   int ret3 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 2000, 1, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args2);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth2, QOS_IS_TRANSIENT_LOCAL,
+    IS_TAKE_SUB, &subscriber_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 10, &publisher_id, &ret_addr);
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 10;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
   int ret4 = receive_msg(TOPIC_NAME, subscriber_args1.ret_id, &ioctl_receive_msg_ret);

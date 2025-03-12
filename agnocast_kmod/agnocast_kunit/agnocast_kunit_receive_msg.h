@@ -4,7 +4,7 @@
 #define TEST_CASES_RECEIVE_MSG                                                                      \
   KUNIT_CASE(test_case_receive_msg_no_topic_when_receive),                                          \
     KUNIT_CASE(test_case_receive_msg_no_subscriber_when_receive),                                   \
-    KUNIT_CASE(test_case_receive_msg_no_publish_no_receive),                                        \
+    KUNIT_CASE(test_case_receive_msg_no_publish_nothing_to_receive),                                \
     KUNIT_CASE(test_case_receive_msg_receive_one),                                                  \
     KUNIT_CASE(                                                                                     \
       test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_qos_depth),     \
@@ -22,7 +22,7 @@
 
 void test_case_receive_msg_no_topic_when_receive(struct kunit * test);
 void test_case_receive_msg_no_subscriber_when_receive(struct kunit * test);
-void test_case_receive_msg_no_publish_no_receive(struct kunit * test);
+void test_case_receive_msg_no_publish_nothing_to_receive(struct kunit * test);
 void test_case_receive_msg_receive_one(struct kunit * test);
 void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_qos_depth(
   struct kunit * test);
