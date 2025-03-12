@@ -28,51 +28,43 @@ static void setup_subscriber(struct kunit * test, const pid_t pid)
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
-static void setup_publisher(struct kunit * test, const pid_t pid)
+static topic_local_id_t setup_publisher(
+  struct kunit * test, const pid_t pid, const uint32_t qos_depth)
 {
-  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = true;
   union ioctl_publisher_args publisher_args;
   int ret =
     publisher_add(TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
+
+  return publisher_args.ret_id;
 }
 
 static void setup_entry(struct kunit * test, const pid_t pid)
 {
   const uint32_t qos_depth = 1;
-  const bool qos_is_transient_local = true;
-  union ioctl_publisher_args publisher_args;
-  int ret1 =
-    publisher_add(TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, &publisher_args);
-  KUNIT_ASSERT_EQ(test, ret1, 0);
+  const topic_local_id_t publisher_id = setup_publisher(test, pid, qos_depth);
 
   union ioctl_publish_args publish_args;
-  int ret2 = publish_msg(TOPIC_NAME, publisher_args.ret_id, 0, &publish_args);
-  KUNIT_ASSERT_EQ(test, ret2, 0);
+  int ret1 = publish_msg(TOPIC_NAME, publisher_id, 0, &publish_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  int ret3 =
-    decrement_message_entry_rc(TOPIC_NAME, publisher_args.ret_id, publish_args.ret_entry_id);
-  KUNIT_ASSERT_EQ(test, ret3, 0);
+  int ret2 = decrement_message_entry_rc(TOPIC_NAME, publisher_id, publish_args.ret_entry_id);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
 }
 
 static void setup_many_entries(
   struct kunit * test, const pid_t pid, const uint32_t publisher_qos_depth, const uint32_t num)
 {
-  const bool qos_is_transient_local = true;
-  union ioctl_publisher_args publisher_args;
-  int ret1 = publisher_add(
-    TOPIC_NAME, NODE_NAME, pid, publisher_qos_depth, qos_is_transient_local, &publisher_args);
-  KUNIT_ASSERT_EQ(test, ret1, 0);
+  const topic_local_id_t publisher_id = setup_publisher(test, pid, publisher_qos_depth);
 
   for (uint32_t i = 0; i < num; i++) {
     union ioctl_publish_args publish_args;
-    int ret2 = publish_msg(TOPIC_NAME, publisher_args.ret_id, PAGE_SIZE * i, &publish_args);
-    KUNIT_ASSERT_EQ(test, ret2, 0);
+    int ret1 = publish_msg(TOPIC_NAME, publisher_id, 0, &publish_args);
+    KUNIT_ASSERT_EQ(test, ret1, 0);
 
-    int ret3 =
-      decrement_message_entry_rc(TOPIC_NAME, publisher_args.ret_id, publish_args.ret_entry_id);
-    KUNIT_ASSERT_EQ(test, ret3, 0);
+    int ret2 = decrement_message_entry_rc(TOPIC_NAME, publisher_id, publish_args.ret_entry_id);
+    KUNIT_ASSERT_EQ(test, ret2, 0);
   }
 }
 
@@ -118,7 +110,7 @@ void test_case_subscriber_add_normal_with_publisher(struct kunit * test)
   const pid_t subscriber_pid = 1000;
   setup_process(test, subscriber_pid);
   setup_process(test, publisher_pid);
-  setup_publisher(test, publisher_pid);
+  setup_publisher(test, publisher_pid, qos_depth);
 
   // Act
   int ret = subscriber_add(
@@ -139,7 +131,7 @@ void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit
   const bool qos_is_transient_local = false;
   const pid_t pid = 1000;
   setup_process(test, pid);
-  setup_publisher(test, pid);
+  setup_publisher(test, pid, qos_depth);
 
   // Act
   int ret = subscriber_add(
@@ -160,7 +152,7 @@ void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kuni
   const pid_t subscriber_pid = 1000;
   setup_process(test, publisher_pid);
   setup_process(test, subscriber_pid);
-  setup_publisher(test, publisher_pid);
+  setup_publisher(test, publisher_pid, qos_depth);
   setup_subscriber(test, subscriber_pid);
 
   // Act
@@ -184,7 +176,7 @@ void test_case_subscriber_add_normal_with_many_publishers_of_same_process(struct
   setup_process(test, publisher_pid);
   setup_process(test, subscriber_pid);
   for (uint32_t i = 0; i < MAX_PUBLISHER_NUM; i++) {
-    setup_publisher(test, publisher_pid);
+    setup_publisher(test, publisher_pid, qos_depth);
   }
 
   // Act
@@ -384,7 +376,7 @@ void test_case_subscriber_add_without_publisher_process(struct kunit * test)
   const bool qos_is_transient_local = false;
   setup_process(test, subscriber_pid);
   const pid_t publisher_pid = subscriber_pid - 1;
-  setup_publisher(test, publisher_pid);
+  setup_publisher(test, publisher_pid, qos_depth);
   KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
 
   // Act
