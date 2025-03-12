@@ -453,7 +453,7 @@ int decrement_message_entry_rc(
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
       topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
@@ -463,7 +463,7 @@ int decrement_message_entry_rc(
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(decrement_message_entry_rc)\n",
       topic_name, entry_id);
-    return -1;
+    return -EINVAL;
   }
 
   // decrement reference_count
@@ -484,7 +484,7 @@ int decrement_message_entry_rc(
     "entry (topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
     pubsub_id, topic_name, entry_id);
 
-  return -1;
+  return -EINVAL;
 }
 
 static int insert_message_entry(

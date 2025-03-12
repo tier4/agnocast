@@ -1,7 +1,6 @@
 #include "agnocast_kunit_decrement_rc.h"
 
 #include "../agnocast.h"
-#include "../agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
 
@@ -51,7 +50,7 @@ static void setup_one_publisher(
 void test_case_decrement_rc_no_topic(struct kunit * test)
 {
   KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
-  KUNIT_EXPECT_EQ(test, decrement_message_entry_rc(TOPIC_NAME, 0, 0), -1);
+  KUNIT_EXPECT_EQ(test, decrement_message_entry_rc(TOPIC_NAME, 0, 0), -EINVAL);
 }
 
 void test_case_decrement_rc_no_message(struct kunit * test)
@@ -67,7 +66,7 @@ void test_case_decrement_rc_no_message(struct kunit * test)
   int ret = decrement_message_entry_rc(TOPIC_NAME, ret_publisher_id, 0);
 
   // Assert
-  KUNIT_EXPECT_EQ(test, ret, -1);
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
 void test_case_decrement_rc_last_reference(struct kunit * test)
