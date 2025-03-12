@@ -866,7 +866,7 @@ static int set_publisher_shm_info(
       } else {
         dev_warn(
           agnocast_device,
-          "Process (pid=%d) failed to reference memory of (pid=%d). "
+          "Unreachable: process (pid=%d) failed to reference memory of (pid=%d). "
           "(set_publisher_shm_info)\n",
           sub_proc_info->pid, pub_info->pid);
         return ret;
@@ -876,8 +876,8 @@ static int set_publisher_shm_info(
     if (publisher_num == MAX_PUBLISHER_NUM) {
       dev_warn(
         agnocast_device,
-        "The number of publisher processes to be mapped exceeds the maximum number that can be "
-        "returned at once in a call from this subscriber process (topic_name=%s, "
+        "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
+        "that can be returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
         wrapper->key, sub_proc_info->pid);
       return -ENOBUFS;
@@ -1773,7 +1773,7 @@ int get_topic_entries_num(const char * topic_name)
   return count;
 }
 
-bool is_in_topic_entries(char * topic_name, int64_t entry_id)
+bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
@@ -1791,6 +1791,19 @@ bool is_in_topic_entries(char * topic_name, int64_t entry_id)
     return false;
   }
 
+  return true;
+}
+
+bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return false;
+  }
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return false;
+  }
   return true;
 }
 
