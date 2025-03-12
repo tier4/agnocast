@@ -1796,18 +1796,11 @@ int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscri
 {
   const struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
-    return -EINVAL;
+    return -1;
   }
   const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
-    dev_warn(
-      agnocast_device,
-      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(receive_msg)\n",
-      subscriber_id, topic_name);
-    return -EINVAL;
+    return -1;
   }
 
   return sub_info->latest_received_entry_id;
