@@ -486,18 +486,20 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
 {
   // Arrange
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(1000, PAGE_SIZE, &new_shm_args);
+  const pid_t pid = 1000;
+  int ret1 = new_shm_addr(pid, PAGE_SIZE, &new_shm_args);
   const bool is_transient_local = true;
 
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t subscriber_qos_depth = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 1000, 10, is_transient_local, IS_TAKE_SUB, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, pid, subscriber_qos_depth, is_transient_local, IS_TAKE_SUB,
+    &subscriber_args);
 
   union ioctl_publisher_args publisher_args;
-  const pid_t publisher_pid = 1000;
   const uint32_t publisher_qos_depth = 10;
   int ret3 = publisher_add(
-    TOPIC_NAME, NODE_NAME, publisher_pid, publisher_qos_depth, is_transient_local, &publisher_args);
+    TOPIC_NAME, NODE_NAME, pid, publisher_qos_depth, is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
@@ -525,22 +527,21 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(1000, PAGE_SIZE, &new_shm_args);
+  const pid_t publisher_pid = 1000;
+  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
 
   union ioctl_publisher_args publisher_args1;
-  const pid_t publisher_pid1 = 1000;
   const uint32_t publisher_qos_depth1 = 10;
   const bool is_transient_local1 = true;
   int ret2 = publisher_add(
-    TOPIC_NAME, NODE_NAME, publisher_pid1, publisher_qos_depth1, is_transient_local1,
+    TOPIC_NAME, NODE_NAME, publisher_pid, publisher_qos_depth1, is_transient_local1,
     &publisher_args1);
 
   union ioctl_publisher_args publisher_args2;
-  const pid_t publisher_pid2 = 1000;
   const uint32_t publisher_qos_depth2 = 1;
   const bool is_transient_local2 = true;
   int ret3 = publisher_add(
-    TOPIC_NAME, NODE_NAME, publisher_pid2, publisher_qos_depth2, is_transient_local2,
+    TOPIC_NAME, NODE_NAME, publisher_pid, publisher_qos_depth2, is_transient_local2,
     &publisher_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -562,16 +563,21 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
 {
   // Arrange
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(2000, PAGE_SIZE, &new_shm_args);
+  const pid_t subscriber_pid = 2000;
+  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
   const bool is_transient_local = true;
 
   union ioctl_subscriber_args subscriber_args1;
+  const uint32_t subscriber_qos_depth1 = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 2000, 10, is_transient_local, IS_TAKE_SUB, &subscriber_args1);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth1, is_transient_local, IS_TAKE_SUB,
+    &subscriber_args1);
 
   union ioctl_subscriber_args subscriber_args2;
+  const uint32_t subscriber_qos_depth2 = 1;
   int ret3 = subscriber_add(
-    TOPIC_NAME, NODE_NAME, 2000, 1, is_transient_local, IS_TAKE_SUB, &subscriber_args2);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth2, is_transient_local, IS_TAKE_SUB,
+    &subscriber_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
