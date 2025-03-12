@@ -1,6 +1,7 @@
 #include "agnocast_kunit_subscriber_add.h"
 
 #include "../agnocast.h"
+#include "../agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
 
@@ -390,6 +391,47 @@ void test_case_subscriber_add_without_publisher_process(struct kunit * test)
 
 void test_case_subscriber_add_too_many_mmap(struct kunit * test)
 {
-  // TODO(Ryuta Kambe): Implement this test case
-  KUNIT_EXPECT_EQ(test, 0, 0);
+  // Arrange: create MAX_PROCESS_NUM_PER_MEMPOOL processes which map to the same memory pool
+  int ret;
+  union ioctl_subscriber_args subscriber_args;
+  union ioctl_publisher_args publisher_args;
+  const pid_t publisher_pid = 999;
+  pid_t subscriber_pid = 1000;
+  const uint32_t qos_depth = 1;
+  const bool qos_is_transient_local = false;
+  setup_process(test, publisher_pid);
+  int mmap_process_num = 1;
+  for (int i = 0; i < MAX_PROCESS_NUM_PER_MEMPOOL / MAX_SUBSCRIBER_NUM + 1; i++) {
+    char topic_name[50];
+    snprintf(topic_name, sizeof(topic_name), "/kunit_test_topic%d", i);
+    ret = publisher_add(
+      topic_name, NODE_NAME, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+    KUNIT_ASSERT_EQ(test, ret, 0);
+    for (int j = 0; j < MAX_SUBSCRIBER_NUM; j++) {
+      if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
+        break;
+      }
+      setup_process(test, subscriber_pid);
+      ret = subscriber_add(
+        topic_name, NODE_NAME, subscriber_pid++, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
+        &subscriber_args);
+      KUNIT_ASSERT_EQ(test, ret, 0);
+      mmap_process_num++;
+    }
+  }
+  const char * topic_name = "/kunit_test_topic_1000";
+  ret = publisher_add(
+    topic_name, NODE_NAME, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), MAX_PROCESS_NUM_PER_MEMPOOL);
+
+  setup_process(test, subscriber_pid);
+
+  // Act
+  ret = subscriber_add(
+    topic_name, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
+    &subscriber_args);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
 }
