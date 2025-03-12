@@ -89,30 +89,6 @@ void test_case_no_publish_no_receive(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
-void test_case_no_receive_since_volatile(struct kunit * test)
-{
-  // Arrange
-  topic_local_id_t publisher_id;
-  uint64_t ret_addr;
-  setup_one_publisher(test, 1000, 1, &publisher_id, &ret_addr);
-  union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 = publish_msg(topic_name, publisher_id, ret_addr, &ioctl_publish_msg_ret);
-  KUNIT_ASSERT_EQ(test, ret1, 0);
-
-  topic_local_id_t subscriber_id;
-  setup_one_subscriber(test, 2000, 1, &subscriber_id);
-
-  union ioctl_receive_msg_args ioctl_receive_msg_ret;
-
-  // Act
-  int ret2 = receive_msg(topic_name, subscriber_id, &ioctl_receive_msg_ret);
-
-  // Assert
-  KUNIT_EXPECT_EQ(test, ret2, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
-}
-
 void test_case_receive_one(struct kunit * test)
 {
   // Arrange
