@@ -190,7 +190,7 @@ void test_case_subscriber_add_normal_with_many_publishers_of_same_process(struct
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_pids[0], publisher_pid);
 }
 
-void test_case_subscriber_add_normal_with_entry(struct kunit * test)
+void test_case_subscriber_add_normal_with_entry_and_transient_local(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
@@ -216,7 +216,7 @@ void test_case_subscriber_add_normal_with_entry(struct kunit * test)
 }
 
 // publisher_qos_depth > entries_num > subscriber_qos_depth
-void test_case_subscriber_add_normal_with_many_entries1(struct kunit * test)
+void test_case_subscriber_add_normal_with_many_entries_and_transient_local_1(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
@@ -247,7 +247,7 @@ void test_case_subscriber_add_normal_with_many_entries1(struct kunit * test)
 }
 
 // publisher_qos_depth > subscriber_qos_depth > entries_num
-void test_case_subscriber_add_normal_with_many_entries2(struct kunit * test)
+void test_case_subscriber_add_normal_with_many_entries_and_transient_local_2(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
@@ -278,7 +278,7 @@ void test_case_subscriber_add_normal_with_many_entries2(struct kunit * test)
 }
 
 // entries_num > publisher_qos_depth > subscriber_qos_depth
-void test_case_subscriber_add_normal_with_many_entries3(struct kunit * test)
+void test_case_subscriber_add_normal_with_many_entries_and_transient_local_3(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
