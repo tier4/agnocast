@@ -453,7 +453,7 @@ int decrement_message_entry_rc(
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
       topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
@@ -463,7 +463,7 @@ int decrement_message_entry_rc(
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(decrement_message_entry_rc)\n",
       topic_name, entry_id);
-    return -1;
+    return -EINVAL;
   }
 
   // decrement reference_count
@@ -480,11 +480,11 @@ int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
-    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    "Unreachable: Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message "
+    "entry (topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
     pubsub_id, topic_name, entry_id);
 
-  return -1;
+  return -EINVAL;
 }
 
 static int insert_message_entry(
@@ -1792,6 +1792,31 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
   }
 
   return true;
+}
+
+int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_local_id_t pubsub_id)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_entry_rc)\n", topic_name);
+    return -1;
+  }
+
+  const struct entry_node * en = find_message_entry(wrapper, entry_id);
+  if (!en) {
+    dev_warn(
+      agnocast_device, "Message entry (topic_name=%s entry_id=%lld) not found. (get_entry_rc)\n",
+      topic_name, entry_id);
+    return -1;
+  }
+
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    if (en->referencing_ids[i] == pubsub_id) {
+      return en->reference_count[i];
+    }
+  }
+
+  return 0;
 }
 
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
