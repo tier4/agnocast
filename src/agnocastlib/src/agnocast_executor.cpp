@@ -8,13 +8,8 @@
 namespace agnocast
 {
 
-AgnocastExecutor::AgnocastExecutor(
-  const rclcpp::ExecutorOptions & options,
-  std::chrono::nanoseconds agnocast_callback_group_wait_time)
-: rclcpp::Executor(options),
-  agnocast_callback_group_wait_time_(agnocast_callback_group_wait_time),
-  epoll_fd_(epoll_create1(0)),
-  my_pid_(getpid())
+AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
+: rclcpp::Executor(options), epoll_fd_(epoll_create1(0)), my_pid_(getpid())
 {
   if (epoll_fd_ == -1) {
     RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
@@ -68,8 +63,20 @@ void AgnocastExecutor::prepare_epoll()
   }
 }
 
-bool AgnocastExecutor::get_next_agnocast_executables(
-  AgnocastExecutables & agnocast_executables, const int timeout_ms) const
+bool AgnocastExecutor::get_next_agnocast_executable(
+  AgnocastExecutable & agnocast_executable, const int timeout_ms)
+{
+  if (get_next_ready_agnocast_executable(agnocast_executable)) {
+    return true;
+  }
+
+  wait_and_handle_epoll_event(timeout_ms);
+
+  // Try again
+  return get_next_ready_agnocast_executable(agnocast_executable);
+}
+
+void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 {
   struct epoll_event event = {};
 
@@ -83,12 +90,12 @@ bool AgnocastExecutor::get_next_agnocast_executables(
       exit(EXIT_FAILURE);
     }
 
-    return false;
+    return;
   }
 
   // timeout
   if (nfds == 0) {
-    return false;
+    return;
   }
 
   const uint32_t callback_info_id = event.data.u32;
@@ -119,7 +126,7 @@ bool AgnocastExecutor::get_next_agnocast_executables(
       exit(EXIT_FAILURE);
     }
 
-    return false;
+    return;
   }
 
   union ioctl_receive_msg_args receive_args = {};
@@ -153,42 +160,48 @@ bool AgnocastExecutor::get_next_agnocast_executables(
       pid_ciid);
 #endif
 
-    agnocast_executables.callable_queue.push(callable);
+    {
+      std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
+      ready_agnocast_executables_.emplace_back(
+        AgnocastExecutable{callable, callback_info.callback_group});
+    }
   }
-
-  agnocast_executables.callback_group = callback_info.callback_group;
-
-  return true;
 }
 
-void AgnocastExecutor::execute_agnocast_executables(AgnocastExecutables & agnocast_executables)
+bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
-  if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
-    // In a single-threaded executor, it never sleeps here.
-    // For multi-threaded executor, it's workaround to preserve the callback group rule.
-    while (!agnocast_executables.callback_group->can_be_taken_from().exchange(false)) {
-      std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
-    }
-  } else if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::Reentrant) {
-    while (!agnocast_executables.callback_group->can_be_taken_from().load()) {
-      std::this_thread::sleep_for(std::chrono::nanoseconds(agnocast_callback_group_wait_time_));
+  std::scoped_lock ready_wait_lock{ready_agnocast_executables_mutex_, wait_mutex_};
+
+  for (auto it = ready_agnocast_executables_.begin(); it != ready_agnocast_executables_.end();
+       ++it) {
+    if (it->callback_group->can_be_taken_from().load()) {
+      if (it->callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
+        it->callback_group->can_be_taken_from().store(false);
+      }
+
+      agnocast_executable = *it;
+      ready_agnocast_executables_.erase(it);
+
+      return true;
     }
   }
 
-  while (!agnocast_executables.callable_queue.empty()) {
-    const auto callable = agnocast_executables.callable_queue.front();
-    agnocast_executables.callable_queue.pop();
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    TRACEPOINT(agnocast_callable_start, static_cast<const void *>(callable.get()));
-#endif
-    (*callable)();
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    TRACEPOINT(agnocast_callable_end, static_cast<const void *>(callable.get()));
-#endif
-  }
+  return false;
+}
 
-  if (agnocast_executables.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
-    agnocast_executables.callback_group->can_be_taken_from().store(true);
+void AgnocastExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast_executable)
+{
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(
+    agnocast_callable_start, static_cast<const void *>(agnocast_executable.callable.get()));
+#endif
+  (*agnocast_executable.callable)();
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(agnocast_callable_end, static_cast<const void *>(agnocast_executable.callable.get()));
+#endif
+
+  if (agnocast_executable.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
+    agnocast_executable.callback_group->can_be_taken_from().store(true);
   }
 }
 

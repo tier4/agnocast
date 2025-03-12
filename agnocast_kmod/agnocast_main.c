@@ -169,7 +169,7 @@ static struct subscriber_info * find_subscriber_info(
 }
 
 static int insert_subscriber_info(
-  struct topic_wrapper * wrapper, char * node_name, const pid_t subscriber_pid,
+  struct topic_wrapper * wrapper, const char * node_name, const pid_t subscriber_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
   struct subscriber_info ** new_info)
 {
@@ -436,8 +436,9 @@ int increment_message_entry_rc(
       wrapper->key, entry_id, pubsub_id);
     return -1;
   } else {
-    if (increment_sub_rc(en, pubsub_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(en, pubsub_id);
+    if (ret < 0) {
+      return ret;
     }
   }
 
@@ -823,7 +824,8 @@ static struct attribute_group attribute_group = {
 // =========================================
 // /dev/agnocast
 static int set_publisher_shm_info(
-  struct topic_wrapper * wrapper, pid_t subscriber_pid, struct publisher_shm_info * pub_shm_info)
+  const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
+  struct publisher_shm_info * pub_shm_info)
 {
   struct process_info * sub_proc_info = find_process_info(subscriber_pid);
   if (!sub_proc_info) {
@@ -893,8 +895,9 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  char * topic_name, char * node_name, const pid_t subscriber_pid, uint32_t qos_depth,
-  bool qos_is_transient_local, bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
+  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
+  union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -921,8 +924,9 @@ int subscriber_add(
 
   ioctl_ret->ret_id = sub_info->id;
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   ioctl_ret->ret_transient_local_num = 0;
@@ -937,8 +941,9 @@ int subscriber_add(
 
     struct entry_node * en = container_of(node, struct entry_node, node);
 
-    if (increment_sub_rc(en, sub_info->id) == -1) {
-      return -1;
+    ret = increment_sub_rc(en, sub_info->id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
@@ -1219,8 +1224,9 @@ int take_msg(
   }
 
   if (candidate_en) {
-    if (increment_sub_rc(candidate_en, subscriber_id) == -1) {
-      return -1;
+    int ret = increment_sub_rc(candidate_en, subscriber_id);
+    if (ret < 0) {
+      return ret;
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
@@ -1235,8 +1241,9 @@ int take_msg(
     return 0;
   }
 
-  if (set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info) == -1) {
-    return -1;
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  if (ret < 0) {
+    return ret;
   }
 
   sub_info->new_publisher = false;
@@ -1748,20 +1755,17 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
-int get_topic_entries_num(char * topic_name)
+int get_topic_entries_num(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (get_topic_entries_num)\n", topic_name);
-    return -1;
+    return 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
-  struct rb_node ** new = &(root->rb_node);
+  struct rb_node * node;
   int count = 0;
-  while (*new) {
-    new = &((*new)->rb_right);
+  for (node = rb_first(root); node; node = rb_next(node)) {
     count++;
   }
   return count;
@@ -1807,6 +1811,45 @@ int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscri
   }
 
   return sub_info->latest_received_entry_id;
+}
+  
+int get_publisher_num(const char * topic_name)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return 0;
+  }
+  return get_size_pub_info_htable(wrapper);
+}
+
+bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return false;
+  }
+  const struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    return false;
+  }
+  return true;
+}
+
+int get_topic_num(void)
+{
+  int count = 0;
+  struct topic_wrapper * wrapper;
+  int bkt_wrapper;
+  hash_for_each(topic_hashtable, bkt_wrapper, wrapper, node)
+  {
+    count++;
+  }
+  return count;
+}
+
+bool is_in_topic_htable(const char * topic_name)
+{
+  return find_topic(topic_name) != NULL;
 }
 
 #endif
@@ -1972,7 +2015,9 @@ void process_exit_cleanup(const pid_t pid)
     }
   }
 
+#ifndef KUNIT_BUILD
   dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
+#endif
 }
 
 static int exit_worker_thread(void * data)
