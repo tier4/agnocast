@@ -4,10 +4,9 @@
 
 #include <kunit/test.h>
 
-static const char * topic_name = "/kunit_test_topic";
-static const char * node_name = "/kunit_test_node";
-static const uint32_t qos_depth = 1;
-static const bool is_take_sub = false;
+static const char * TOPIC_NAME = "/kunit_test_topic";
+static const char * NODE_NAME = "/kunit_test_node";
+static const bool IS_TAKE_SUB = false;
 
 // ================================================
 // helper functions for subscriber_add test
@@ -21,36 +20,39 @@ static void setup_process(struct kunit * test, const pid_t pid)
 
 static void setup_subscriber(struct kunit * test, const pid_t pid)
 {
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = true;
   union ioctl_subscriber_args subscriber_args;
   int ret = subscriber_add(
-    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB, &subscriber_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
 static void setup_publisher(struct kunit * test, const pid_t pid)
 {
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = true;
   union ioctl_publisher_args publisher_args;
   int ret =
-    publisher_add(topic_name, node_name, pid, qos_depth, qos_is_transient_local, &publisher_args);
+    publisher_add(TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
 static void setup_entry(struct kunit * test, const pid_t pid)
 {
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = true;
   union ioctl_publisher_args publisher_args;
   int ret1 =
-    publisher_add(topic_name, node_name, pid, qos_depth, qos_is_transient_local, &publisher_args);
+    publisher_add(TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_args publish_args;
-  int ret2 = publish_msg(topic_name, publisher_args.ret_id, 0, &publish_args);
+  int ret2 = publish_msg(TOPIC_NAME, publisher_args.ret_id, 0, &publish_args);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   int ret3 =
-    decrement_message_entry_rc(topic_name, publisher_args.ret_id, publish_args.ret_entry_id);
+    decrement_message_entry_rc(TOPIC_NAME, publisher_args.ret_id, publish_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 }
 
@@ -60,16 +62,16 @@ static void setup_many_entries(
   const bool qos_is_transient_local = true;
   union ioctl_publisher_args publisher_args;
   int ret1 = publisher_add(
-    topic_name, node_name, pid, publisher_qos_depth, qos_is_transient_local, &publisher_args);
+    TOPIC_NAME, NODE_NAME, pid, publisher_qos_depth, qos_is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   for (uint32_t i = 0; i < num; i++) {
     union ioctl_publish_args publish_args;
-    int ret2 = publish_msg(topic_name, publisher_args.ret_id, PAGE_SIZE * i, &publish_args);
+    int ret2 = publish_msg(TOPIC_NAME, publisher_args.ret_id, PAGE_SIZE * i, &publish_args);
     KUNIT_ASSERT_EQ(test, ret2, 0);
 
     int ret3 =
-      decrement_message_entry_rc(topic_name, publisher_args.ret_id, publish_args.ret_entry_id);
+      decrement_message_entry_rc(TOPIC_NAME, publisher_args.ret_id, publish_args.ret_entry_id);
     KUNIT_ASSERT_EQ(test, ret3, 0);
   }
 }
@@ -82,6 +84,7 @@ void test_case_subscriber_add_normal(struct kunit * test)
   // Arrange
   union ioctl_subscriber_args subscriber_args;
   const pid_t subscriber_pid = 1000;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   setup_process(test, subscriber_pid);
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 1);
@@ -89,26 +92,27 @@ void test_case_subscriber_add_normal(struct kunit * test)
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(topic_name, &get_subscriber_num_args);
+  get_subscriber_num(TOPIC_NAME, &get_subscriber_num_args);
   KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 0);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(TOPIC_NAME, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_transient_local_num, 0);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_pub_shm_info.publisher_num, 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME));
 }
 
 void test_case_subscriber_add_normal_with_publisher(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   const pid_t publisher_pid = 999;
   const pid_t subscriber_pid = 1000;
@@ -118,7 +122,7 @@ void test_case_subscriber_add_normal_with_publisher(struct kunit * test)
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -131,6 +135,7 @@ void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   const pid_t pid = 1000;
   setup_process(test, pid);
@@ -138,7 +143,7 @@ void test_case_subscriber_add_normal_with_publisher_of_same_process(struct kunit
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -149,6 +154,7 @@ void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kuni
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   const pid_t publisher_pid = 999;
   const pid_t subscriber_pid = 1000;
@@ -159,7 +165,7 @@ void test_case_subscriber_add_normal_with_subscriber_of_same_process(struct kuni
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -171,6 +177,7 @@ void test_case_subscriber_add_normal_with_many_publishers_of_same_process(struct
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   const pid_t publisher_pid = 999;
   const pid_t subscriber_pid = 1000;
@@ -182,7 +189,7 @@ void test_case_subscriber_add_normal_with_many_publishers_of_same_process(struct
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -195,18 +202,19 @@ void test_case_subscriber_add_normal_with_entry(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = true;
   const pid_t publisher_pid = 999;
   const pid_t subscriber_pid = 1000;
   setup_process(test, subscriber_pid);
   setup_process(test, publisher_pid);
   setup_entry(test, publisher_pid);
-  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 1);
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(topic_name), 1);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), 1);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -229,13 +237,13 @@ void test_case_subscriber_add_normal_with_many_entries1(struct kunit * test)
   setup_process(test, subscriber_pid);
   setup_process(test, publisher_pid);
   setup_many_entries(test, publisher_pid, publisher_qos_depth, entries_num);
-  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 1);
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(topic_name), entries_num);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), entries_num);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
-    is_take_sub, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
+    IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -260,13 +268,13 @@ void test_case_subscriber_add_normal_with_many_entries2(struct kunit * test)
   setup_process(test, subscriber_pid);
   setup_process(test, publisher_pid);
   setup_many_entries(test, publisher_pid, publisher_qos_depth, entries_num);
-  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 1);
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(topic_name), entries_num);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), entries_num);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
-    is_take_sub, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
+    IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -291,13 +299,13 @@ void test_case_subscriber_add_normal_with_many_entries3(struct kunit * test)
   setup_process(test, subscriber_pid);
   setup_process(test, publisher_pid);
   setup_many_entries(test, publisher_pid, publisher_qos_depth, entries_num);
-  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 1);
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(topic_name), publisher_qos_depth);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), publisher_qos_depth);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
-    is_take_sub, &subscriber_args);
+    TOPIC_NAME, NODE_NAME, subscriber_pid, subscriber_qos_depth, qos_is_transient_local,
+    IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -319,7 +327,7 @@ void test_case_subscriber_add_invalid_qos(struct kunit * test)
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, invalid_qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, invalid_qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -330,19 +338,20 @@ void test_case_subscriber_add_too_many_subscribers(struct kunit * test)
 {
   // Arrange
   union ioctl_subscriber_args subscriber_args;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   const pid_t subscriber_pid = 1000;
   setup_process(test, subscriber_pid);
   for (uint32_t i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     union ioctl_subscriber_args subscriber_args;
     subscriber_add(
-      topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+      TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
       &subscriber_args);
   }
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -354,11 +363,12 @@ void test_case_subscriber_add_without_self_process(struct kunit * test)
   // Arrange
   union ioctl_subscriber_args subscriber_args;
   const pid_t subscriber_pid = 1000;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
@@ -370,15 +380,16 @@ void test_case_subscriber_add_without_publisher_process(struct kunit * test)
   // Arrange
   union ioctl_subscriber_args subscriber_args;
   const pid_t subscriber_pid = 1000;
+  const uint32_t qos_depth = 1;
   const bool qos_is_transient_local = false;
   setup_process(test, subscriber_pid);
   const pid_t publisher_pid = subscriber_pid - 1;
   setup_publisher(test, publisher_pid);
-  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 1);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
 
   // Act
   int ret = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
+    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, qos_is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
 
   // Assert
