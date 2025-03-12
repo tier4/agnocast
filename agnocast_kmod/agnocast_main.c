@@ -1794,13 +1794,13 @@ bool is_in_topic_entries(char * topic_name, int64_t entry_id)
 
 int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscriber_id)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
     return -EINVAL;
   }
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
       agnocast_device,
@@ -1812,7 +1812,7 @@ int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscri
 
   return sub_info->latest_received_entry_id;
 }
-  
+
 int get_publisher_num(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
