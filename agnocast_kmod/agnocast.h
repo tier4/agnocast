@@ -229,7 +229,7 @@ void process_exit_cleanup(const pid_t pid);
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
 int get_topic_entries_num(const char * topic_name);
-int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscriber_id);
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id);
 bool is_in_topic_entries(const char * topic_name, int64_t entry_id);
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id);
 int get_publisher_num(const char * topic_name);

@@ -1792,7 +1792,7 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
   return true;
 }
 
-int64_t get_latest_received_entry_id(char * topic_name, topic_local_id_t subscriber_id)
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id)
 {
   const struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
