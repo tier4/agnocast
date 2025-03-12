@@ -28,7 +28,7 @@ int main(int argc, char * argv[])
   const int agnocast_next_exec_timeout_ms =
     (node->has_parameter("agnocast_next_exec_timeout_ms"))
       ? static_cast<int>(node->get_parameter("agnocast_next_exec_timeout_ms").as_int())
-      : 1000;
+      : 10;
 
   auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
     rclcpp::ExecutorOptions{}, number_of_ros2_threads, number_of_agnocast_threads,
