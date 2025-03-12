@@ -18,8 +18,8 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   if (ros2_timeout_ == std::chrono::nanoseconds(-1)) {
     RCLCPP_ERROR(
       logger,
-      "If `timeout` is set to infinite, ros2 callbacks which share the callback group "
-      "with agnocast callbacks may not be executed. Set this parameter to be short enough");
+      "If `timeout` is set to infinite, agnocast callbacks which share the callback group with "
+      "ros2 callbacks may be blocked. Set this parameter to be short enough");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
