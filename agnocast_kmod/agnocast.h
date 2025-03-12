@@ -202,7 +202,7 @@ int increment_message_entry_rc(
 int decrement_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 
-int receive_and_check_new_publisher(
+int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret);
 
