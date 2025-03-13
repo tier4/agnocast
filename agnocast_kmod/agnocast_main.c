@@ -1194,7 +1194,7 @@ int take_msg(
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1202,7 +1202,7 @@ int take_msg(
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
       subscriber_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   // These remains 0 if no message is found to take.
