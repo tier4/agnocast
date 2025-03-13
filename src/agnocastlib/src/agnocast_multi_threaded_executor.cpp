@@ -67,9 +67,9 @@ void MultiThreadedAgnocastExecutor::validate_callback_group(
       logger,
       "To prevent performance degradation, MultiThreadedAgnocastExecutor prohibits the agnocast "
       "callback and the ros2 callback from belonging to the same MutuallyExclusive callback group "
-      ". If mutual exclusion between callbacks is not required, consider using `Reentrant`. If "
-      "mutual exclusion is required, separate them into different callback groups and use a mutex "
-      "or other synchronization mechanism.");
+      ". If mutual exclusion between callbacks is not required, consider using Reentrant callback "
+      "group. If mutual exclusion is required, separate them into different callback groups and "
+      "use a mutex or other synchronization mechanism.");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
