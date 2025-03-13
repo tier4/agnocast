@@ -50,7 +50,6 @@ def calc_action_delays(config: dict) -> tuple:
     return pub_delay, sub_delay, ready_delay
 
 
-@launch_testing.markers.keep_alive
 def generate_test_description():
     with open(CONFIG_PATH, 'r') as f:
         config = yaml.safe_load(f)
