@@ -1194,7 +1194,7 @@ int take_msg(
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1202,12 +1202,12 @@ int take_msg(
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
       subscriber_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
-  ioctl_ret->ret_entry_id = 0;
+  ioctl_ret->ret_entry_id = -1;
 
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
@@ -1792,6 +1792,20 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
   }
 
   return true;
+}
+
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return -1;
+  }
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return -1;
+  }
+
+  return sub_info->latest_received_entry_id;
 }
 
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
