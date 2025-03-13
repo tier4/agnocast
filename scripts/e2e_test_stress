@@ -11,6 +11,14 @@ for ((i = 0; i < NUM_PERCENTAGES; i++)); do
 done
 TIMEOUT=680s # based on the measurement time of e2e tests
 
+cleanup() {
+    echo "Stopping stress-ng..."
+    pkill -P $$ # Kill all child processes
+    exit 1
+}
+
+trap cleanup SIGINT
+
 run-stress-ng() {
     if [ $1 -lt $NUM_PERCENTAGES ]; then
         echo "Run stress-ng with CPU load ${PERCENTAGES[$1]}%" | sudo tee /dev/kmsg

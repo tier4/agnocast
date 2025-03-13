@@ -19,7 +19,6 @@ TIMEOUT = float(os.environ.get('STRESS_TEST_TIMEOUT', 8.0))
 FOREVER = True if (os.environ.get('STRESS_TEST_TIMEOUT')) else False
 
 
-@launch_testing.markers.keep_alive
 def generate_test_description():
     pub_i = 0
     sub_i = 0
