@@ -21,6 +21,7 @@ class MultiThreadedAgnocastExecutor : public agnocast::AgnocastExecutor
 
   void ros2_spin();
   void agnocast_spin();
+  void validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const override;
 
 public:
   RCLCPP_PUBLIC

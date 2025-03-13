@@ -22,50 +22,6 @@ AgnocastExecutor::~AgnocastExecutor()
   close(epoll_fd_);
 }
 
-bool AgnocastExecutor::is_shared_with_ros2(const rclcpp::CallbackGroup::SharedPtr & group)
-{
-  // Check the cache
-  {
-    std::lock_guard<std::mutex> lock(is_shared_with_ros2_cache_mutex_);
-    const auto it = is_shared_with_ros2_cache_.find(group.get());
-    if (it != is_shared_with_ros2_cache_.end()) {
-      return it->second;
-    }
-  }
-
-  // If not found in the cache, access the group internals
-  bool shared = false;
-  group->collect_all_ptrs(
-    [&](const rclcpp::SubscriptionBase::SharedPtr &) {
-      shared = true;
-      return;
-    },
-    [&](const rclcpp::ServiceBase::SharedPtr &) {
-      shared = true;
-      return;
-    },
-    [&](const rclcpp::ClientBase::SharedPtr &) {
-      shared = true;
-      return;
-    },
-    [&](const rclcpp::TimerBase::SharedPtr &) {
-      shared = true;
-      return;
-    },
-    [&](const rclcpp::Waitable::SharedPtr &) {
-      shared = true;
-      return;
-    });
-
-  // Cache the result
-  {
-    std::lock_guard<std::mutex> lock(is_shared_with_ros2_cache_mutex_);
-    is_shared_with_ros2_cache_[group.get()] = shared;
-  }
-
-  return shared;
-}
-
 void AgnocastExecutor::prepare_epoll()
 {
   // For added callback groups after calling spin().
@@ -90,15 +46,7 @@ void AgnocastExecutor::prepare_epoll()
       if (group != callback_info.callback_group) {
         continue;
       }
-
-      if (is_shared_with_ros2(group)) {
-        RCLCPP_WARN(
-          logger,
-          "The Agnocast callback and the rclcpp callback belong to the same callback group. In "
-          "this case, the AgnocastExecutor will schedule them without considering their arrival "
-          "order. Furthermore, performance is also degraded due to the overhead of mutual "
-          "exclusion. If you want to avoid this, assign them to separate callback groups.");
-      }
+      validate_callback_group(group);
 
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
