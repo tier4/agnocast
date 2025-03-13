@@ -15,6 +15,8 @@ with open(CONFIG_PATH, 'r') as f:
     CONFIG = yaml.safe_load(f)
 QOS_DEPTH = 10
 PUB_NUM = int(QOS_DEPTH / 2)
+TIMEOUT = float(os.environ.get('STRESS_TEST_TIMEOUT', 8.0))
+FOREVER = True if (os.environ.get('STRESS_TEST_TIMEOUT')) else False
 
 
 @launch_testing.markers.keep_alive
@@ -39,7 +41,8 @@ def generate_test_description():
                                 "init_pub_num": 0,
                                 "pub_num": PUB_NUM,
                                 "planned_pub_count": 2,
-                                "planned_sub_count": 2
+                                "planned_sub_count": 2,
+                                "forever": FOREVER,
                             }
                         ],
                     )
@@ -57,6 +60,7 @@ def generate_test_description():
                                 "qos_depth": QOS_DEPTH,
                                 "transient_local": False,
                                 "sub_num": QOS_DEPTH,
+                                "forever": FOREVER,
                             }
                         ],
                     )
@@ -83,13 +87,12 @@ def generate_test_description():
             [
                 SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '0'),
                 *containers,
-                TimerAction(period=8.0, actions=[launch_testing.actions.ReadyToTest()])
+                TimerAction(period=TIMEOUT, actions=[launch_testing.actions.ReadyToTest()])
             ]
         ), testing_processes
     )
 
 
-@launch_testing.post_shutdown_test()
 class Test2To2(unittest.TestCase):
     pub_i_ = 0
     sub_i_ = 0
