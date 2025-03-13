@@ -66,6 +66,7 @@ struct CallbackInfo
 {
   std::string topic_name;
   topic_local_id_t subscriber_id;
+  bool is_transient_local;
   mqd_t mqdes;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   TypeErasedCallback callback;
@@ -77,7 +78,6 @@ struct CallbackInfo
 
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
-extern std::atomic<uint32_t> next_callback_info_id;
 extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
@@ -99,7 +99,7 @@ TypeErasedCallback get_erased_callback(const Func callback)
 template <typename Func>
 uint32_t register_callback(
   const Func callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
-  mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
+  const bool is_transient_local, mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   using MessagePtrType = typename callback_first_arg<Func>::type;
   using MessageType = typename MessagePtrType::element_type;
@@ -114,21 +114,19 @@ uint32_t register_callback(
       entry_id));
   };
 
+  static std::atomic<uint32_t> next_callback_info_id = 0;
   uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
 
   {
     std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    id2_callback_info[callback_info_id] = CallbackInfo{
-      topic_name, subscriber_id, mqdes, callback_group, erased_callback, message_creator};
+    id2_callback_info[callback_info_id] =
+      CallbackInfo{topic_name,     subscriber_id,   is_transient_local, mqdes,
+                   callback_group, erased_callback, message_creator};
   }
 
   need_epoll_updates.store(true);
 
   return callback_info_id;
 }
-
-std::shared_ptr<std::function<void()>> create_callable(
-  const void * ptr, const topic_local_id_t subscriber_id, const int64_t entry_id,
-  const uint32_t callback_info_id);
 
 }  // namespace agnocast

@@ -30,15 +30,12 @@ void SingleThreadedAgnocastExecutor::spin()
 
   RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
 
-  // TODO(sykwer): Transient local
-
   while (rclcpp::ok(this->context_) && spinning.load()) {
     if (need_epoll_updates.exchange(false)) {
       prepare_epoll();
     }
 
     agnocast::AgnocastExecutable agnocast_executable;
-
     if (get_next_agnocast_executable(
           agnocast_executable, next_exec_timeout_ms_ /*timed-blocking*/)) {
       execute_agnocast_executable(agnocast_executable);

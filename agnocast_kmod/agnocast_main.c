@@ -213,10 +213,14 @@ static int insert_subscriber_info(
   (*new_info)->pid = subscriber_pid;
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
-  (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+  if (qos_is_transient_local) {
+    (*new_info)->latest_received_entry_id = -1;
+  } else {
+    (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+  }
   (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
-  (*new_info)->new_publisher = false;
+  (*new_info)->new_publisher = true;
   INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &(*new_info)->node, hash_val);
@@ -923,40 +927,6 @@ int subscriber_add(
   }
 
   ioctl_ret->ret_id = sub_info->id;
-
-  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
-  if (ret < 0) {
-    return ret;
-  }
-
-  ioctl_ret->ret_transient_local_num = 0;
-  if (!qos_is_transient_local) {
-    return 0;
-  }
-
-  int transient_local_num = 0;
-  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
-    if (qos_depth <= transient_local_num) break;
-
-    struct entry_node * en = container_of(node, struct entry_node, node);
-
-    if (is_take_sub) {
-      // Update latest_received_entry_id for take subscriber
-      sub_info->latest_received_entry_id = en->entry_id;
-    } else {
-      // Return qos_depth messages in order from newest to oldest for non-take subscriber
-      ret = increment_sub_rc(en, sub_info->id);
-      if (ret < 0) {
-        return ret;
-      }
-
-      ioctl_ret->ret_entry_ids[ioctl_ret->ret_transient_local_num] = en->entry_id;
-      ioctl_ret->ret_entry_addrs[ioctl_ret->ret_transient_local_num] = en->msg_virtual_address;
-      ioctl_ret->ret_transient_local_num++;
-    }
-
-    transient_local_num++;
-  }
 
   return 0;
 }

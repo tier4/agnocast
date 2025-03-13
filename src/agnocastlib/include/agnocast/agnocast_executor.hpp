@@ -27,6 +27,7 @@ protected:
   std::mutex wait_mutex_;
   std::mutex ready_agnocast_executables_mutex_;
 
+  void receive_message(const CallbackInfo & callback_info);
   void prepare_epoll();
   bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, const int timeout_ms);
   void wait_and_handle_epoll_event(const int timeout_ms);
