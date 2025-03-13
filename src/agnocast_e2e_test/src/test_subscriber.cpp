@@ -45,8 +45,12 @@ public:
 
     count_ = 0;
     target_sub_num_ = this->get_parameter("sub_num").as_int();
+
+    auto cbg = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    agnocast::SubscriptionOptions sub_options;
+    sub_options.callback_group = cbg;
     sub_ = agnocast::create_subscription<std_msgs::msg::Int64>(
-      this, "/test_topic", qos, std::bind(&TestSubscriber::callback, this, _1));
+      this, "/test_topic", qos, std::bind(&TestSubscriber::callback, this, _1), sub_options);
   }
 };
 
