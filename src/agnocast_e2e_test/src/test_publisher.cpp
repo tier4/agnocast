@@ -16,6 +16,7 @@ class TestPublisher : public rclcpp::Node
   int64_t planned_sub_count_;
   size_t planned_pub_count_;
   bool is_ready_ = false;
+  bool forever_;
 
   bool is_ready()
   {
@@ -47,11 +48,13 @@ class TestPublisher : public rclcpp::Node
     count_++;
 
     if (count_ == target_pub_num_) {
-      timer_->cancel();
       RCLCPP_INFO(this->get_logger(), "All messages published. Shutting down.");
       std::cout << std::flush;
       sleep(3);  // HACK: wait for other nodes in the same container
-      rclcpp::shutdown();
+
+      if (!forever_) {
+        rclcpp::shutdown();
+      }
     }
   }
 
@@ -64,12 +67,14 @@ public:
     this->declare_parameter<int64_t>("pub_num", 10);
     this->declare_parameter<int64_t>("planned_sub_count", 1);
     this->declare_parameter<int64_t>("planned_pub_count", 1);
+    this->declare_parameter<bool>("forever", false);
     int64_t qos_depth = this->get_parameter("qos_depth").as_int();
     bool transient_local = this->get_parameter("transient_local").as_bool();
     int64_t init_pub_num = this->get_parameter("init_pub_num").as_int();
     int64_t pub_num = this->get_parameter("pub_num").as_int();
     planned_sub_count_ = this->get_parameter("planned_sub_count").as_int();
     planned_pub_count_ = static_cast<size_t>(this->get_parameter("planned_pub_count").as_int());
+    forever_ = this->get_parameter("forever").as_bool();
 
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth));
     if (transient_local) {

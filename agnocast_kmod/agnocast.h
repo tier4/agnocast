@@ -202,7 +202,7 @@ int increment_message_entry_rc(
 int decrement_message_entry_rc(
   const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 
-int receive_and_check_new_publisher(
+int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret);
 
@@ -229,7 +229,9 @@ void process_exit_cleanup(const pid_t pid);
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
 int get_topic_entries_num(const char * topic_name);
-bool is_in_topic_entries(char * topic_name, int64_t entry_id);
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id);
+bool is_in_topic_entries(const char * topic_name, int64_t entry_id);
+bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id);
 int get_publisher_num(const char * topic_name);
 bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id);
 int get_topic_num(void);
