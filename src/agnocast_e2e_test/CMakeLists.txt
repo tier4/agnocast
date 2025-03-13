@@ -11,7 +11,6 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(agnocastlib REQUIRED)
-find_package(launch_testing_ament_cmake REQUIRED)
 
 add_library(test_talker_component SHARED src/test_publisher.cpp)
 ament_target_dependencies(test_talker_component rclcpp rclcpp_components std_msgs agnocastlib)

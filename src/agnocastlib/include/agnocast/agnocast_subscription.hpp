@@ -128,11 +128,6 @@ public:
       dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
 #endif
 
-    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      RCLCPP_WARN(
-        logger, "The transient local is not supported by TakeSubscription, so it is ignored.");
-    }
-
     union ioctl_subscriber_args subscriber_args =
       initialize(qos, true, node->get_fully_qualified_name());
 
