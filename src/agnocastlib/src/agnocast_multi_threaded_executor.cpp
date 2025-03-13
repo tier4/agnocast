@@ -32,6 +32,49 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
                                   : std::thread::hardware_concurrency() / 2;
 }
 
+void MultiThreadedAgnocastExecutor::validate_callback_group(
+  const rclcpp::CallbackGroup::SharedPtr & group) const
+{
+  if (group->type() == rclcpp::CallbackGroupType::Reentrant) {
+    return;
+  }
+
+  bool is_shared_with_ros2 = false;
+  group->collect_all_ptrs(
+    [&](const rclcpp::SubscriptionBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::ServiceBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::ClientBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::TimerBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::Waitable::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    });
+
+  if (is_shared_with_ros2) {
+    RCLCPP_ERROR(
+      logger,
+      "To prevent performance degradation, MultiThreadedAgnocastExecutor prohibits the agnocast "
+      "callback and the ros2 callback from belonging to the same MutuallyExclusive callback group "
+      ". If mutual exclusion between callbacks is not required, consider using Reentrant callback "
+      "group. If mutual exclusion is required, separate them into different callback groups and "
+      "use a mutex or other synchronization mechanism.");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+}
+
 void MultiThreadedAgnocastExecutor::spin()
 {
   if (spinning.exchange(true)) {
