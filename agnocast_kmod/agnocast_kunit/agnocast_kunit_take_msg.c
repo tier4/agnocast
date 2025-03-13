@@ -523,6 +523,8 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret3.ret_entry_id);
+  KUNIT_EXPECT_EQ(
+    test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
@@ -562,6 +564,8 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret2.ret_entry_id);
+  KUNIT_EXPECT_EQ(
+    test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
@@ -600,6 +604,8 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret1.ret_entry_id);
+  KUNIT_EXPECT_EQ(
+    test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
