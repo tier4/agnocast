@@ -67,3 +67,47 @@ void test_case_increment_rc(struct kunit * test)
   // Assert
   KUNIT_EXPECT_EQ(test, ret_inc, 0);
 }
+
+void test_case_increment_rc_without_topic(struct kunit * test)
+{
+  // Arrange
+  const char * invalid_topic_name = "/kunit_test_topic_dummy";
+
+  // Act
+  int ret = increment_message_entry_rc(invalid_topic_name, 0, 0);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
+}
+
+void test_case_increment_rc_without_entry(struct kunit * test)
+{
+  // Arrange
+  topic_local_id_t subscriber_id;
+  setup_one_subscriber(test, &subscriber_id);
+  const int64_t invalid_entry_id = -1;
+
+  // Act
+  int ret = increment_message_entry_rc(TOPIC_NAME, subscriber_id, invalid_entry_id);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
+}
+
+void test_case_increment_rc_by_publisher(struct kunit * test)
+{
+  // Arrange
+  topic_local_id_t publisher_id;
+  uint64_t ret_addr;
+  setup_one_publisher(test, &publisher_id, &ret_addr);
+  union ioctl_publish_args publish_args;
+  int ret_pub = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &publish_args);
+  KUNIT_ASSERT_EQ(test, ret_pub, 0);
+  int64_t entry_id = publish_args.ret_entry_id;
+
+  // Act
+  int ret = increment_message_entry_rc(TOPIC_NAME, publisher_id, entry_id);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
+}

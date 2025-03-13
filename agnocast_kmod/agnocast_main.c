@@ -415,7 +415,7 @@ int increment_message_entry_rc(
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
       topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
@@ -425,7 +425,7 @@ int increment_message_entry_rc(
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(increment_message_entry_rc)\n",
       topic_name, entry_id);
-    return -1;
+    return -EINVAL;
   }
 
   if (en->publisher_id == pubsub_id) {
@@ -434,12 +434,12 @@ int increment_message_entry_rc(
       "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
       "(increment_message_entry_rc)\n",
       wrapper->key, entry_id, pubsub_id);
-    return -1;
-  } else {
-    int ret = increment_sub_rc(en, pubsub_id);
-    if (ret < 0) {
-      return ret;
-    }
+    return -EINVAL;
+  }
+
+  int ret = increment_sub_rc(en, pubsub_id);
+  if (ret < 0) {
+    return ret;
   }
 
   return 0;
