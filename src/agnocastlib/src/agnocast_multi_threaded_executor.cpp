@@ -15,16 +15,6 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
-  if (ros2_next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
-    RCLCPP_ERROR(
-      logger,
-      "If `ros2_next_exec_timeout` is set to infinite, ros2 callbacks which share the callback "
-      "group "
-      "with agnocast callbacks may not be executed. Set this parameter to be short enough");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
   number_of_ros2_threads_ =
     number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2;
   number_of_agnocast_threads_ = number_of_agnocast_threads != 0
