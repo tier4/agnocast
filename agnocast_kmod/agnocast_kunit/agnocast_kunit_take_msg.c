@@ -4,9 +4,9 @@
 
 #include <kunit/test.h>
 
-static char * TOPIC_NAME = "/kunit_test_topic";
-static char * NODE_NAME = "/kunit_test_node";
-static bool IS_TAKE_SUB = true;
+static const char * TOPIC_NAME = "/kunit_test_topic";
+static const char * NODE_NAME = "/kunit_test_node";
+static const bool IS_TAKE_SUB = true;
 
 static void setup_one_subscriber(
   struct kunit * test, pid_t subscriber_pid, uint32_t qos_depth, bool is_transient_local,
