@@ -23,6 +23,8 @@
       test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_than_publish_num), \
     KUNIT_CASE(                                                                                  \
       test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller_than_pub_qos), \
+    KUNIT_CASE(                                                                                  \
+      test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller_than_pub_qos), \
     KUNIT_CASE(test_case_take_msg_one_new_pub),                                                  \
     KUNIT_CASE(test_case_take_msg_pubsub_in_same_process),                                       \
     KUNIT_CASE(test_case_take_msg_2pub_in_same_process),                                         \
@@ -50,6 +52,8 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
 void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_than_publish_num(
   struct kunit * test);
 void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller_than_pub_qos(
+  struct kunit * test);
+void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller_than_pub_qos(
   struct kunit * test);
 void test_case_take_msg_one_new_pub(struct kunit * test);
 void test_case_take_msg_pubsub_in_same_process(struct kunit * test);
