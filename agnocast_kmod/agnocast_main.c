@@ -1794,6 +1794,20 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
   return true;
 }
 
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return -1;
+  }
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return -1;
+  }
+
+  return sub_info->latest_received_entry_id;
+}
+
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
 {
   const struct topic_wrapper * wrapper = find_topic(topic_name);
