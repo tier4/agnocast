@@ -1207,7 +1207,7 @@ int take_msg(
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
-  ioctl_ret->ret_entry_id = 0;
+  ioctl_ret->ret_entry_id = -1;
 
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
