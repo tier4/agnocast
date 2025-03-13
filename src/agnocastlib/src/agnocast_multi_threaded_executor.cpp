@@ -11,15 +11,15 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   size_t number_of_agnocast_threads, bool yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options),
+  number_of_ros2_threads_(
+    number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2),
+  number_of_agnocast_threads_(
+    number_of_agnocast_threads != 0 ? number_of_agnocast_threads
+                                    : std::thread::hardware_concurrency() / 2),
   yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
-  number_of_ros2_threads_ =
-    number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2;
-  number_of_agnocast_threads_ = number_of_agnocast_threads != 0
-                                  ? number_of_agnocast_threads
-                                  : std::thread::hardware_concurrency() / 2;
 }
 
 void MultiThreadedAgnocastExecutor::validate_callback_group(
