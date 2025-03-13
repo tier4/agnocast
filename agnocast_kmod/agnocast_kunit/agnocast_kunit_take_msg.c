@@ -751,8 +751,8 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
   int ret4 = take_msg(TOPIC_NAME, subscriber_args1.ret_id, true, &ioctl_take_msg_ret);
   KUNIT_ASSERT_EQ(test, ret4, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
+  KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
+  KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
 
   // Act
