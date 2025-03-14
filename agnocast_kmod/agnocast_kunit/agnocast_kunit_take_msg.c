@@ -196,14 +196,14 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret1);
+  const bool allow_same_message = true;
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
-  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
@@ -240,14 +240,14 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret1);
+  const bool allow_same_message = false;
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
-  const bool allow_same_message = false;
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
@@ -759,12 +759,11 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
     test, publisher_pid, publisher_qos_depth, is_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_take_msg_args ioctl_take_msg_ret;
-  int ret4 = take_msg(TOPIC_NAME, subscriber_args1.ret_id, true, &ioctl_take_msg_ret);
+  const bool allow_same_message = true;
+  int ret4 = take_msg(TOPIC_NAME, subscriber_args1.ret_id, allow_same_message, &ioctl_take_msg_ret);
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-
-  const bool allow_same_message = true;
 
   // Act
   int ret5 = take_msg(TOPIC_NAME, subscriber_args2.ret_id, allow_same_message, &ioctl_take_msg_ret);
