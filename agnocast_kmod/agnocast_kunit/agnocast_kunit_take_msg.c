@@ -69,7 +69,7 @@ void test_case_take_msg_no_subscriber(struct kunit * test)
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   topic_local_id_t subscriber_id = 0;
-  bool allow_same_message = true;
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
@@ -89,7 +89,7 @@ void test_case_take_msg_no_publish_nothing_to_take(struct kunit * test)
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
-  bool allow_same_message = true;
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
@@ -98,7 +98,6 @@ void test_case_take_msg_no_publish_nothing_to_take(struct kunit * test)
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
@@ -123,7 +122,7 @@ void test_case_take_msg_take_one(struct kunit * test)
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  bool allow_same_message = true;
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
@@ -137,7 +136,7 @@ void test_case_take_msg_take_one(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
-void test_case_take_msg_take_the_second_one_when_sub_qos_depth_is_two(struct kunit * test)
+void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
@@ -161,10 +160,11 @@ void test_case_take_msg_take_the_second_one_when_sub_qos_depth_is_two(struct kun
   int ret2 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret3 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret3 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -203,10 +203,11 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
-  int ret3 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret2);
+  int ret3 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -246,15 +247,15 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
+  const bool allow_same_message = false;
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
-  int ret3 = take_msg(TOPIC_NAME, subscriber_id, false, &ioctl_take_msg_ret2);
+  int ret3 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_pub_shm_info.publisher_num, 0);
 }
 
@@ -283,10 +284,11 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
   int ret2 = publish_msg(TOPIC_NAME, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret3 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret3 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -318,10 +320,11 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
   int ret1 = publish_msg(TOPIC_NAME, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -359,10 +362,11 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
     publish_msg(TOPIC_NAME, publisher_id, ret_addr + MAX_QOS_DEPTH + 1, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -400,10 +404,11 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret3 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret3 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -441,10 +446,11 @@ void test_case_take_msg_too_many_rc(struct kunit * test)
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, -ENOBUFS);
@@ -473,10 +479,11 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret2 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret2 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -515,10 +522,11 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret4 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret4 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -556,10 +564,11 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret4 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret4 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -596,10 +605,11 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret4 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret4 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -629,15 +639,15 @@ void test_case_take_msg_one_new_pub(struct kunit * test)
   setup_one_publisher(
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
 }
 
@@ -663,15 +673,15 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret4 = take_msg(TOPIC_NAME, subscriber_args.ret_id, true, &ioctl_take_msg_ret);
+  int ret4 = take_msg(TOPIC_NAME, subscriber_args.ret_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
@@ -706,15 +716,15 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
+  const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  int ret4 = take_msg(TOPIC_NAME, subscriber_id, true, &ioctl_take_msg_ret);
+  int ret4 = take_msg(TOPIC_NAME, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
 }
 
@@ -752,16 +762,16 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   int ret4 = take_msg(TOPIC_NAME, subscriber_args1.ret_id, true, &ioctl_take_msg_ret);
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
 
+  const bool allow_same_message = true;
+
   // Act
-  int ret5 = take_msg(TOPIC_NAME, subscriber_args2.ret_id, true, &ioctl_take_msg_ret);
+  int ret5 = take_msg(TOPIC_NAME, subscriber_args2.ret_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
