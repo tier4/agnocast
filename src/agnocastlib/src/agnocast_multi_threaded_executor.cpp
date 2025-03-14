@@ -11,25 +11,58 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   size_t number_of_agnocast_threads, bool yield_before_execute,
   std::chrono::nanoseconds ros2_next_exec_timeout, int agnocast_next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options),
+  number_of_ros2_threads_(
+    number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2),
+  number_of_agnocast_threads_(
+    number_of_agnocast_threads != 0 ? number_of_agnocast_threads
+                                    : std::thread::hardware_concurrency() / 2),
   yield_before_execute_(yield_before_execute),
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
-  if (ros2_next_exec_timeout_ == std::chrono::nanoseconds(-1)) {
+}
+
+void MultiThreadedAgnocastExecutor::validate_callback_group(
+  const rclcpp::CallbackGroup::SharedPtr & group) const
+{
+  if (group->type() == rclcpp::CallbackGroupType::Reentrant) {
+    return;
+  }
+
+  bool is_shared_with_ros2 = false;
+  group->collect_all_ptrs(
+    [&](const rclcpp::SubscriptionBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::ServiceBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::ClientBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::TimerBase::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    },
+    [&](const rclcpp::Waitable::SharedPtr &) {
+      is_shared_with_ros2 = true;
+      return;
+    });
+
+  if (is_shared_with_ros2) {
     RCLCPP_ERROR(
       logger,
-      "If `ros2_next_exec_timeout` is set to infinite, ros2 callbacks which share the callback "
-      "group "
-      "with agnocast callbacks may not be executed. Set this parameter to be short enough");
+      "To prevent performance degradation, MultiThreadedAgnocastExecutor prohibits the agnocast "
+      "callback and the ros2 callback from belonging to the same MutuallyExclusive callback group "
+      ". If mutual exclusion between callbacks is not required, consider using Reentrant callback "
+      "group. If mutual exclusion is required, separate them into different callback groups and "
+      "use a mutex or other synchronization mechanism.");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-
-  number_of_ros2_threads_ =
-    number_of_ros2_threads != 0 ? number_of_ros2_threads : std::thread::hardware_concurrency() / 2;
-  number_of_agnocast_threads_ = number_of_agnocast_threads != 0
-                                  ? number_of_agnocast_threads
-                                  : std::thread::hardware_concurrency() / 2;
 }
 
 void MultiThreadedAgnocastExecutor::spin()

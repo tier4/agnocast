@@ -9,6 +9,7 @@ class TestROS2Subscriber : public rclcpp::Node
   rclcpp::Subscription<std_msgs::msg::Int64>::SharedPtr sub_;
   int64_t count_;
   int64_t sub_num_;
+  bool forever_;
 
   void callback(const std_msgs::msg::Int64 & message)
   {
@@ -18,7 +19,10 @@ class TestROS2Subscriber : public rclcpp::Node
     if (count_ == sub_num_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
       std::cout << std::flush;
-      rclcpp::shutdown();
+
+      if (!forever_) {
+        rclcpp::shutdown();
+      }
     }
   }
 
@@ -29,8 +33,10 @@ public:
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
     this->declare_parameter<int64_t>("sub_num", 10);
+    this->declare_parameter<bool>("forever", false);
     int64_t qos_depth = this->get_parameter("qos_depth").as_int();
     bool transient_local = this->get_parameter("transient_local").as_bool();
+    forever_ = this->get_parameter("forever").as_bool();
 
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth));
     if (transient_local) {

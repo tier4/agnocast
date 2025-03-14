@@ -12,6 +12,7 @@ class SingleThreadedAgnocastExecutor : public agnocast::AgnocastExecutor
   RCLCPP_DISABLE_COPY(SingleThreadedAgnocastExecutor)
 
   const int next_exec_timeout_ms_;
+  void validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const override;
 
 public:
   RCLCPP_PUBLIC
