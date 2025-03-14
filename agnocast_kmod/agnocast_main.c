@@ -103,31 +103,6 @@ static unsigned long get_topic_hash(const char * str)
   return hash_min(hash, TOPIC_HASH_BITS);
 }
 
-static int insert_topic(const char * topic_name, struct topic_wrapper ** wrapper)
-{
-  *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
-  if (!*wrapper) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
-    return -ENOMEM;
-  }
-
-  (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
-  if (!(*wrapper)->key) {
-    dev_warn(agnocast_device, "kstrdup failed. (insert_topic)\n");
-    kfree(*wrapper);
-    return -ENOMEM;
-  }
-
-  (*wrapper)->current_pubsub_id = 0;
-  (*wrapper)->current_entry_id = 0;
-  (*wrapper)->topic.entries = RB_ROOT;
-  hash_init((*wrapper)->topic.pub_info_htable);
-  hash_init((*wrapper)->topic.sub_info_htable);
-
-  hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
-  return 0;
-}
-
 static struct topic_wrapper * find_topic(const char * topic_name)
 {
   struct topic_wrapper * entry;
@@ -139,6 +114,42 @@ static struct topic_wrapper * find_topic(const char * topic_name)
   }
 
   return NULL;
+}
+
+static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
+{
+  *wrapper = find_topic(topic_name);
+  if (*wrapper) {
+    return 0;
+  }
+
+  *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
+  if (!*wrapper) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kmalloc. (add_topic)\n",
+      topic_name);
+    return -ENOMEM;
+  }
+
+  (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
+  if (!(*wrapper)->key) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kstrdup. (add_topic)\n",
+      topic_name);
+    kfree(*wrapper);
+    return -ENOMEM;
+  }
+
+  (*wrapper)->current_pubsub_id = 0;
+  (*wrapper)->current_entry_id = 0;
+  (*wrapper)->topic.entries = RB_ROOT;
+  hash_init((*wrapper)->topic.pub_info_htable);
+  hash_init((*wrapper)->topic.sub_info_htable);
+  hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
+
+  dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
+
+  return 0;
 }
 
 static int get_size_sub_info_htable(struct topic_wrapper * wrapper)
@@ -900,19 +911,11 @@ int subscriber_add(
   union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    ret = insert_topic(topic_name, &wrapper);
-    if (ret < 0) {
-      dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n",
-        topic_name);
-      return ret;
-    }
-    dev_info(agnocast_device, "Topic (topic_name=%s) added. (subscriber_add)\n", topic_name);
-  } else {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
+
+  struct topic_wrapper * wrapper;
+  ret = add_topic(topic_name, &wrapper);
+  if (ret < 0) {
+    return ret;
   }
 
   struct subscriber_info * sub_info;
@@ -967,19 +970,11 @@ int publisher_add(
   union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    ret = insert_topic(topic_name, &wrapper);
-    if (ret < 0) {
-      dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n",
-        topic_name);
-      return ret;
-    }
-    dev_info(agnocast_device, "Topic (topic_name=%s) added. (publisher_add)\n", topic_name);
-  } else {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
+
+  struct topic_wrapper * wrapper;
+  ret = add_topic(topic_name, &wrapper);
+  if (ret < 0) {
+    return ret;
   }
 
   struct publisher_info * pub_info;
