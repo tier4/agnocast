@@ -21,7 +21,7 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
 }
 
 void SingleThreadedAgnocastExecutor::validate_callback_group(
-  [[maybe_unused]] const rclcpp::CallbackGroup::SharedPtr & group) const
+  const rclcpp::CallbackGroup::SharedPtr & group) const
 {
   if (!group) {
     RCLCPP_ERROR(logger, "Callback group is nullptr. The node may have been destructed.");
