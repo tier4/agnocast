@@ -2,8 +2,8 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.2 (2025-03-14)
+------------------
 * improve(MultiThreadedAgnocastExecutor): remove unnecessary check (`#530 <https://github.com/tier4/agnocast/issues/530>`_)
 * fix(MultiThreadedAgnocastExecutor): restore starvation tests (`#529 <https://github.com/tier4/agnocast/issues/529>`_)
 * improve: remove old comment (`#527 <https://github.com/tier4/agnocast/issues/527>`_)

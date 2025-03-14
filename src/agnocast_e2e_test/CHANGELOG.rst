@@ -2,8 +2,8 @@
 Changelog for package agnocast_e2e_test
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.2 (2025-03-14)
+------------------
 * feat: add validation if agnocast cb and ros2 cb belong to same MutuallyExclusive cbg in MultiThreadedAgnocastExecutor (`#515 <https://github.com/tier4/agnocast/issues/515>`_)
 * fix: stress test (`#526 <https://github.com/tier4/agnocast/issues/526>`_)
 * improve: stress test (`#522 <https://github.com/tier4/agnocast/issues/522>`_)
