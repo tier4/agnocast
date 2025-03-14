@@ -12,14 +12,10 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
 union ioctl_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
-  const pid_t subscriber_pid = getpid();
-
-  // Register topic and subscriber info with the kernel module, and receive the publisher's shared
-  // memory information along with messages needed to achieve transient local, if neccessary.
   union ioctl_subscriber_args subscriber_args = {};
   subscriber_args.topic_name = topic_name_.c_str();
   subscriber_args.node_name = node_name.c_str();
-  subscriber_args.subscriber_pid = subscriber_pid;
+  subscriber_args.subscriber_pid = getpid();
   subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
@@ -28,13 +24,6 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
     RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
-  }
-
-  for (uint32_t i = 0; i < subscriber_args.ret_pub_shm_info.publisher_num; i++) {
-    const pid_t pid = subscriber_args.ret_pub_shm_info.publisher_pids[i];
-    const uint64_t addr = subscriber_args.ret_pub_shm_info.shm_addrs[i];
-    const uint64_t size = subscriber_args.ret_pub_shm_info.shm_sizes[i];
-    map_read_only_area(pid, addr, size);
   }
 
   return subscriber_args;
