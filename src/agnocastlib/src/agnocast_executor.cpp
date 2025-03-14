@@ -46,6 +46,7 @@ void AgnocastExecutor::prepare_epoll()
       if (group != callback_info.callback_group) {
         continue;
       }
+      validate_callback_group(group);
 
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
@@ -170,20 +171,20 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
-  std::scoped_lock ready_wait_lock{ready_agnocast_executables_mutex_, wait_mutex_};
+  std::scoped_lock ready_wait_lock{ready_agnocast_executables_mutex_};
 
   for (auto it = ready_agnocast_executables_.begin(); it != ready_agnocast_executables_.end();
        ++it) {
-    if (it->callback_group->can_be_taken_from().load()) {
-      if (it->callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
-        it->callback_group->can_be_taken_from().store(false);
-      }
-
-      agnocast_executable = *it;
-      ready_agnocast_executables_.erase(it);
-
-      return true;
+    if (
+      it->callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive &&
+      !it->callback_group->can_be_taken_from().exchange(false)) {
+      continue;
     }
+
+    agnocast_executable = *it;
+    ready_agnocast_executables_.erase(it);
+
+    return true;
   }
 
   return false;

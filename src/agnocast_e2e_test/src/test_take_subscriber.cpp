@@ -12,6 +12,7 @@ class TestTakeSubscriber : public rclcpp::Node
   agnocast::TakeSubscription<std_msgs::msg::Int64>::SharedPtr sub_;
   uint64_t count_;
   uint64_t sub_num_;
+  bool forever_;
 
   void timer_callback()
   {
@@ -24,8 +25,12 @@ class TestTakeSubscriber : public rclcpp::Node
     if (count_ == sub_num_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
       std::cout << std::flush;
-      timer_->cancel();
-      rclcpp::shutdown();
+
+      if (!forever_) {
+        rclcpp::shutdown();
+      } else {
+        count_++;
+      }
     }
   }
 
@@ -36,6 +41,8 @@ public:
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
     this->declare_parameter<int64_t>("sub_num", 10);
+    this->declare_parameter<bool>("forever", false);
+    forever_ = this->get_parameter("forever").as_bool();
 
     int64_t qos_depth = this->get_parameter("qos_depth").as_int();
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth));
