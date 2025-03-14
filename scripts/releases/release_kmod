@@ -1,8 +1,8 @@
 #!/bin/bash
 set -eux
 
-VERSION="1.0.1"
-RELEASE="7"
+VERSION="1.0.2"
+RELEASE="1"
 CHANGES_FILE="agnocast-kmod_${VERSION}-${RELEASE}_source.changes"
 
 dput ppa:t4-system-software/agnocast ${CHANGES_FILE}
