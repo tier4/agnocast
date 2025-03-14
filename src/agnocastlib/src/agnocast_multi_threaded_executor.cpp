@@ -25,6 +25,12 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
 void MultiThreadedAgnocastExecutor::validate_callback_group(
   const rclcpp::CallbackGroup::SharedPtr & group) const
 {
+  if (!group) {
+    RCLCPP_ERROR(logger, "Callback group is nullptr. The node may have been destructed.");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   if (group->type() == rclcpp::CallbackGroupType::Reentrant) {
     return;
   }

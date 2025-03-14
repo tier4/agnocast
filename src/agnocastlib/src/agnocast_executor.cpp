@@ -24,11 +24,7 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  // For added callback groups after calling spin().
-  add_callback_groups_from_nodes_associated_to_executor();
-
   std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-  std::lock_guard<std::mutex> lock2(rclcpp::Executor::mutex_);  // weak_groups_to_nodes_
 
   // Check if each callback's callback_group is included in this executor
   for (auto & it : id2_callback_info) {
@@ -38,29 +34,19 @@ void AgnocastExecutor::prepare_epoll()
       continue;
     }
 
-    for (const auto & [weak_group, _] : rclcpp::Executor::weak_groups_to_nodes_) {
-      const auto group = weak_group.lock();
-      if (!group) {
-        continue;
-      }
-      if (group != callback_info.callback_group) {
-        continue;
-      }
-      validate_callback_group(group);
+    validate_callback_group(callback_info.callback_group);
 
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      ev.data.u32 = callback_info_id;
+    struct epoll_event ev = {};
+    ev.events = EPOLLIN;
+    ev.data.u32 = callback_info_id;
 
-      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      callback_info.need_epoll_update = false;
-      break;
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
+      RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
     }
+
+    callback_info.need_epoll_update = false;
   }
 }
 
