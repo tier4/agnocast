@@ -428,6 +428,7 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
+  // Incrementing reference count is allowed only for subscribers
   if (!find_subscriber_info(wrapper, pubsub_id)) {
     dev_warn(
       agnocast_device,
