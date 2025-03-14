@@ -32,7 +32,7 @@ topic_local_id_t initialize_publisher(
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, mqd_t> & opened_mqs);
+  std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
@@ -55,9 +55,7 @@ class Publisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   pid_t publisher_pid_;
-  // TODO(Koichi98): The mq should be closed when a subscriber unsubscribes the topic, but this is
-  // not currently implemented.
-  std::unordered_map<std::string, mqd_t> opened_mqs_;
+  std::unordered_map<std::string, std::tuple<mqd_t, bool>> opened_mqs_;
   PublisherOptions options_;
 
   // ROS2 publish related variables

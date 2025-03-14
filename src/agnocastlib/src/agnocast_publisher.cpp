@@ -52,7 +52,7 @@ topic_local_id_t initialize_publisher(
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, mqd_t> & opened_mqs)
+  std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
@@ -76,14 +76,19 @@ union ioctl_publish_args publish_core(
     const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
     mqd_t mq = 0;
     if (opened_mqs.find(mq_name) != opened_mqs.end()) {
-      mq = opened_mqs[mq_name];
+      std::tuple<mqd_t, bool> & t = opened_mqs[mq_name];
+      mq = std::get<0>(t);
+      // The boolean in the tuple indicates whether the mq is used in this publication round.
+      // An unused mq means that its corresponding subscribers have exited, so we close such mqs
+      // later.
+      std::get<1>(t) = true;
     } else {
       mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
       if (mq == -1) {
         RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
         continue;
       }
-      opened_mqs.insert({mq_name, mq});
+      opened_mqs.insert({mq_name, {mq, true}});
     }
 
     struct MqMsgAgnocast mq_msg = {};
@@ -95,6 +100,22 @@ union ioctl_publish_args publish_core(
       if (errno != EAGAIN) {
         RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
       }
+    }
+  }
+
+  // Close mqs that are no longer needed and update `opened_mqs`
+  for (auto it = opened_mqs.begin(); it != opened_mqs.end();) {
+    bool & keep = std::get<1>(it->second);
+    if (!keep) {
+      mqd_t mq = std::get<0>(it->second);
+      if (mq_close(mq) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
+      it = opened_mqs.erase(it);
+    } else {
+      // Update the value for the next publication round
+      keep = false;
+      ++it;
     }
   }
 
