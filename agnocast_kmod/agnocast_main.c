@@ -428,12 +428,11 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  if (en->publisher_id == pubsub_id) {
+  if (!find_subscriber_info(wrapper, pubsub_id)) {
     dev_warn(
       agnocast_device,
-      "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
-      "(increment_message_entry_rc)\n",
-      wrapper->key, entry_id, pubsub_id);
+      "Subscriber (id=%d) not found in the topic (topic_name=%s). (increment_message_entry_rc)\n",
+      pubsub_id, wrapper->key);
     return -EINVAL;
   }
 
