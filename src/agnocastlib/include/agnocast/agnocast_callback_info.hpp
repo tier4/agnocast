@@ -78,6 +78,7 @@ struct CallbackInfo
 
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
+extern std::atomic<uint32_t> next_callback_info_id;
 extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
@@ -114,7 +115,6 @@ uint32_t register_callback(
       entry_id));
   };
 
-  static std::atomic<uint32_t> next_callback_info_id = 0;
   uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
 
   {
