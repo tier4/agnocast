@@ -31,7 +31,9 @@ protected:
   pid_t my_pid_;
   std::mutex wait_mutex_;
 
-  void receive_message(const CallbackInfo & callback_info);
+  void receive_message(
+    [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+    const CallbackInfo & callback_info);
   void prepare_epoll();
   bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, const int timeout_ms);
   static void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);

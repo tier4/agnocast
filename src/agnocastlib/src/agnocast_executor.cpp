@@ -22,7 +22,9 @@ AgnocastExecutor::~AgnocastExecutor()
   close(epoll_fd_);
 }
 
-void AgnocastExecutor::receive_message(const CallbackInfo & callback_info)
+void AgnocastExecutor::receive_message(
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  const CallbackInfo & callback_info)
 {
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = callback_info.topic_name.c_str();
@@ -52,7 +54,11 @@ void AgnocastExecutor::receive_message(const CallbackInfo & callback_info)
       });
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
-    // TODO: add tracepoint
+    uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
+    TRACEPOINT(
+      agnocast_create_callable, static_cast<const void *>(callable.get()),
+      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
+      pid_ciid);
 #endif
 
     {
@@ -88,7 +94,7 @@ void AgnocastExecutor::prepare_epoll()
     }
 
     if (callback_info.is_transient_local) {
-      receive_message(callback_info);
+      receive_message(callback_info_id, callback_info);
     }
 
     callback_info.need_epoll_update = false;
@@ -161,7 +167,7 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
     return;
   }
 
-  receive_message(callback_info);
+  receive_message(callback_info_id, callback_info);
 }
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
