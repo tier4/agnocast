@@ -1,5 +1,9 @@
 #include "agnocast/agnocast.hpp"
 
+#include <sys/mman.h>
+
+#include <cstring>
+
 namespace agnocast
 {
 
@@ -24,6 +28,20 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
   subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
   subscriber_args.is_take_sub = is_take_sub;
+
+  char * region =
+    (char *)mmap(NULL, 0x2000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (region == MAP_FAILED) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  if (munmap((void *)(region + 0x1000), 0x1000) != 0) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  strcpy(region + 0xf08, subscriber_args.topic_name);
+  subscriber_args.topic_name = region + 0xf08;
+
   if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
