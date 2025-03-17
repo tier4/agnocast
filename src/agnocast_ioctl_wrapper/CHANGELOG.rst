@@ -2,6 +2,9 @@
 Changelog for package agnocast_ioctl_wrapper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.0.2 (2025-03-14)
+------------------
+
 1.0.1 (2025-03-10)
 ------------------
 * fix(ioctl_wrapper): remove NOLINT (`#477 <https://github.com/tier4/agnocast/issues/477>`_)

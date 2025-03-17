@@ -19,19 +19,21 @@ class AgnocastExecutor : public rclcpp::Executor
   // prevent objects from being destructed by keeping reference count
   std::vector<rclcpp::Node::SharedPtr> nodes_;
 
+  std::mutex ready_agnocast_executables_mutex_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
+
+  void wait_and_handle_epoll_event(const int timeout_ms);
+  bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
+  virtual void validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const = 0;
 
 protected:
   int epoll_fd_;
   pid_t my_pid_;
   std::mutex wait_mutex_;
-  std::mutex ready_agnocast_executables_mutex_;
 
   void receive_message(const CallbackInfo & callback_info);
   void prepare_epoll();
   bool get_next_agnocast_executable(AgnocastExecutable & agnocast_executable, const int timeout_ms);
-  void wait_and_handle_epoll_event(const int timeout_ms);
-  bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
   static void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
 public:
