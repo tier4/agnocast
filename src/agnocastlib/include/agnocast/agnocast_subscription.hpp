@@ -79,7 +79,17 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
     const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-    agnocast::register_callback(callback, topic_name_, id_, is_transient_local, mq, callback_group);
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
+      callback, topic_name_, id_, is_transient_local, mq, callback_group);
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
+    TRACEPOINT(
+      agnocast_subscription_init, static_cast<const void *>(this),
+      static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
+      static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
+      tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
+#endif
   }
 
   ~Subscription() { remove_mq(mq_subscription); }
