@@ -109,11 +109,6 @@ static void shutdown_agnocast()
       }
     }
   }
-
-  const std::string shm_name = create_shm_name(pid);
-  if (shm_unlink(shm_name.c_str()) == -1) {
-    perror("[ERROR] [Agnocast] shm_unlink failed");
-  }
 }
 
 class Cleanup

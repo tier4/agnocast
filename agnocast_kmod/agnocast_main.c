@@ -35,6 +35,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of topic info ret
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
+unsigned long lookup_do_unlinkat(void);
+static int (*do_unlinkat)(int, struct filename *);
+
 struct process_info
 {
   pid_t pid;
@@ -1998,16 +2001,20 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
-  char filename[256];
-  int len = snprintf(filename, sizeof(filename), "agnocast@%d", pid);
-  struct filename * fn = getname_kernel(filename);
-  if (!fn) {
-    printk("getname_kernel error");
+  char filename_buffer[256];
+  int len = snprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
+  if (len < 0) {
+    dev_warn(agnocast_device, "snprintf failed\n");
   }
-  int ret = do_unlinkat(AT_FDCWD, fn);
+  struct filename * filename = getname_kernel(filename_buffer);
+  if (!filename) {
+    dev_warn(agnocast_device, "getname_kernel failed\n");
+  }
+  int ret = do_unlinkat(AT_FDCWD, filename);
   if (ret < 0) {
-    printk("do_unlink_at error");
+    dev_warn(agnocast_device, "do_unlinkat failed\n");
   }
+
   free_memory(pid);
 
   struct topic_wrapper * wrapper;
@@ -2103,8 +2110,6 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
-int (*do_unlinkat)(int, struct filename *);
-
 /* Look up and set optee_invoke_func using kprobe */
 unsigned long lookup_do_unlinkat(void)
 {
@@ -2113,7 +2118,11 @@ unsigned long lookup_do_unlinkat(void)
 
   memset(&kp_do_unlinkat, 0, sizeof(struct kprobe));
   kp_do_unlinkat.symbol_name = "do_unlinkat";
-  if (register_kprobe(&kp_do_unlinkat) < 0) {
+  int ret = register_kprobe(&kp_do_unlinkat);
+  if (ret < 0) {
+    dev_warn(
+      agnocast_device, "register_kprobe for do_unlinkat failed, returned %d. (agnocast_init)\n",
+      ret);
     return 0;
   }
   addr = (unsigned long)kp_do_unlinkat.addr;
@@ -2174,11 +2183,15 @@ int agnocast_init_kprobe(void)
 {
   int ret = register_kprobe(&kp);
   if (ret < 0) {
-    dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
+    dev_warn(
+      agnocast_device, "register_kprobe for do_exit failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
 
   do_unlinkat = (int (*)(int, struct filename *))lookup_do_unlinkat();
+  if (!do_unlinkat) {
+    return -1;
+  }
 
   return 0;
 }
