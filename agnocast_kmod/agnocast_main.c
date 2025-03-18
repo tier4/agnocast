@@ -2005,7 +2005,7 @@ void process_exit_cleanup(const pid_t pid)
 
 #ifndef KUNIT_BUILD
   // Unlink /dev/shm/agnocast@PID
-  char filename_buffer[30]; // Larger enough than when pid is 4,194,304 (Linux default pid_max).
+  char filename_buffer[30];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
   scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
 
   struct filename * filename = getname_kernel(filename_buffer);
