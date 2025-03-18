@@ -35,8 +35,10 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of topic info ret
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
-unsigned long lookup_do_unlinkat(void);
+#ifndef KUNIT_BUILD
+static int set_do_unlinkat(void);
 static int (*do_unlinkat)(int, struct filename *);
+#endif
 
 struct process_info
 {
@@ -2001,19 +2003,21 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
-  char filename_buffer[256];
-  int len = snprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
-  if (len < 0) {
-    dev_warn(agnocast_device, "snprintf failed\n");
-  }
+#ifndef KUNIT_BUILD
+  // Unlink /dev/shm/agnocast@PID
+  char filename_buffer[30]; // Larger enough than when pid is 4,194,304 (Linux default pid_max).
+  scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
+
   struct filename * filename = getname_kernel(filename_buffer);
   if (!filename) {
-    dev_warn(agnocast_device, "getname_kernel failed\n");
+    dev_warn(agnocast_device, "getname_kernel failed. (process_exit_cleanup)\n");
   }
+
   int ret = do_unlinkat(AT_FDCWD, filename);
   if (ret < 0) {
-    dev_warn(agnocast_device, "do_unlinkat failed\n");
+    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (process_exit_cleanup)\n", ret);
   }
+#endif
 
   free_memory(pid);
 
@@ -2105,30 +2109,34 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   return 0;
 }
 
-static struct kprobe kp = {
+static struct kprobe kp_do_exit = {
   .symbol_name = "do_exit",
   .pre_handler = pre_handler_do_exit,
 };
 
+#ifndef KUNIT_BUILD
 /* Look up and set do_unlinkat using kprobe */
-unsigned long lookup_do_unlinkat(void)
+static int set_do_unlinkat(void)
 {
   struct kprobe kp_do_unlinkat;
-  unsigned long addr;
 
   memset(&kp_do_unlinkat, 0, sizeof(struct kprobe));
   kp_do_unlinkat.symbol_name = "do_unlinkat";
+
   int ret = register_kprobe(&kp_do_unlinkat);
   if (ret < 0) {
     dev_warn(
       agnocast_device, "register_kprobe for do_unlinkat failed, returned %d. (agnocast_init)\n",
       ret);
-    return 0;
+    return ret;
   }
-  addr = (unsigned long)kp_do_unlinkat.addr;
+
+  do_unlinkat = (int (*)(int, struct filename *))kp_do_unlinkat.addr;
   unregister_kprobe(&kp_do_unlinkat);
-  return addr;
+
+  return 0;
 }
+#endif
 
 void agnocast_init_mutexes(void)
 {
@@ -2181,17 +2189,19 @@ int agnocast_init_kthread(void)
 
 int agnocast_init_kprobe(void)
 {
-  int ret = register_kprobe(&kp);
+  int ret = register_kprobe(&kp_do_exit);
   if (ret < 0) {
     dev_warn(
       agnocast_device, "register_kprobe for do_exit failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
 
-  do_unlinkat = (int (*)(int, struct filename *))lookup_do_unlinkat();
-  if (!do_unlinkat) {
-    return -1;
+#ifndef KUNIT_BUILD
+  ret = set_do_unlinkat();
+  if (ret < 0) {
+    return ret;
   }
+#endif
 
   return 0;
 }
@@ -2297,7 +2307,7 @@ void agnocast_exit_kthread(void)
 
 void agnocast_exit_kprobe(void)
 {
-  unregister_kprobe(&kp);
+  unregister_kprobe(&kp_do_exit);
 }
 
 void agnocast_exit_device(void)

@@ -99,15 +99,11 @@ void * initialize_agnocast(const uint64_t shm_size)
 
 static void shutdown_agnocast()
 {
-  const pid_t pid = getpid();
-
-  {
-    std::lock_guard<std::mutex> lock(shm_fds_mtx);
-    for (int fd : shm_fds) {
+  std::lock_guard<std::mutex> lock(shm_fds_mtx);
+  for (int fd : shm_fds) {
       if (close(fd) == -1) {
-        perror("[ERROR] [Agnocast] close shm_fd failed");
+      perror("[ERROR] [Agnocast] close shm_fd failed");
       }
-    }
   }
 }
 
