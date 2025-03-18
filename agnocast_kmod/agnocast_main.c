@@ -4,7 +4,6 @@
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
-#include <linux/kprobes.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/spinlock.h>
@@ -1966,8 +1965,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 }
 
 // Ring buffer to hold exited pids
-#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
-#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 static DEFINE_SPINLOCK(pid_queue_lock);
 static pid_t exit_pid_queue[EXIT_QUEUE_SIZE];
 static uint32_t queue_head;
@@ -2057,7 +2054,7 @@ static int exit_worker_thread(void * data)
   return 0;
 }
 
-static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   unsigned long flags;
   uint32_t next;

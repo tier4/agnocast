@@ -1,5 +1,6 @@
 #pragma once
 
+#include <linux/kprobes.h>
 #include <linux/types.h>
 
 #define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
@@ -172,7 +173,10 @@ union ioctl_topic_info_args {
 #define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
 
 // ================================================
-// public functions in agnocast_main.c
+// public macros and functions in agnocast_main.c
+
+#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 
 void agnocast_init_mutexes(void);
 int agnocast_init_sysfs(void);
@@ -221,6 +225,8 @@ int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_a
 int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
+
+int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs);
 
 // ================================================
 // helper functions for KUnit test
