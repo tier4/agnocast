@@ -36,7 +36,6 @@ static DEFINE_MUTEX(global_mutex);
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
 #ifndef KUNIT_BUILD
-static int set_do_unlinkat(void);
 static int (*do_unlinkat)(int, struct filename *);
 #endif
 
