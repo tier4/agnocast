@@ -5,12 +5,16 @@
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<rclcpp_components::ComponentManager>();
 
-  const int get_next_timeout_ms =
-    (node->has_parameter("get_next_timeout_ms"))
-      ? static_cast<int>(node->get_parameter("get_next_timeout_ms").as_int())
-      : 50;
+  rclcpp::NodeOptions options;
+  options.allow_undeclared_parameters(true);
+  options.automatically_declare_parameters_from_overrides(true);
+  std::string node_name = "component_manager" + std::to_string(getpid());
+
+  auto node = std::make_shared<rclcpp_components::ComponentManager>(
+    std::weak_ptr<rclcpp::Executor>(), node_name, options);
+
+  const int get_next_timeout_ms = node->get_parameter_or("get_next_timeout_ms", 50);
 
   auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
     rclcpp::ExecutorOptions{}, get_next_timeout_ms);
