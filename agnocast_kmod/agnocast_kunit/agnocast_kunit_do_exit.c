@@ -36,7 +36,7 @@ void test_case_do_exit(struct kunit * test)
   msleep(10);  // wait for exit_worker_thread to handle process exit
 
   // Assert
-  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
   KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(PID_BASE));
 }
 
@@ -55,7 +55,7 @@ void test_case_do_exit_many(struct kunit * test)
   msleep(100);  // wait for exit_worker_thread to handle process exit
 
   // Assert
-  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
     KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(pid));
