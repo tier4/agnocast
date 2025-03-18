@@ -116,8 +116,6 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
     return;
   }
 
-  callback_info.topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
-
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = callback_info.topic_name.c_str();
   receive_args.subscriber_id = callback_info.subscriber_id;

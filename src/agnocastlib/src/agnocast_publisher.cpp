@@ -29,13 +29,10 @@ void decrement_borrowed_publisher_num()
 }
 
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, std::string & topic_name, std::string & node_name,
+  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
   const rclcpp::QoS & qos)
 {
   validate_ld_preload();
-
-  topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
-  node_name.reserve(NODE_NAME_BUFFER_SIZE);
 
   union ioctl_publisher_args pub_args = {};
   pub_args.publisher_pid = publisher_pid;
@@ -53,12 +50,10 @@ topic_local_id_t initialize_publisher(
 }
 
 union ioctl_publish_args publish_core(
-  [[maybe_unused]] const void * publisher_handle /* for CARET */, std::string & topic_name,
+  [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
 {
-  topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
-
   union ioctl_publish_args publish_args = {};
   publish_args.topic_name = topic_name.c_str();
   publish_args.publisher_id = publisher_id;
@@ -127,10 +122,8 @@ union ioctl_publish_args publish_core(
   return publish_args;
 }
 
-uint32_t get_subscription_count_core(std::string & topic_name)
+uint32_t get_subscription_count_core(const std::string & topic_name)
 {
-  topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
-
   union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
   get_subscriber_count_args.topic_name = topic_name.c_str();
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {

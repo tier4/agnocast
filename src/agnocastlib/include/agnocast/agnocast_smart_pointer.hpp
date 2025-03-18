@@ -20,9 +20,9 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 void decrement_rc(
-  std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 void increment_rc(
-  std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+  const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 
 extern int agnocast_fd;
 

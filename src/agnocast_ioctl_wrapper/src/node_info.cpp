@@ -24,12 +24,9 @@ char ** get_agnocast_sub_topics(const char * node_name, int * topic_count)
   char * agnocast_topic_buffer =
     static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
 
-  std::string reserved_node_name = node_name;
-  reserved_node_name.reserve(NODE_NAME_BUFFER_SIZE);
-
   union ioctl_node_info_args node_info_args = {};
   node_info_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
-  node_info_args.node_name = reserved_node_name.c_str();
+  node_info_args.node_name = node_name;
   if (ioctl(fd, AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD, &node_info_args) < 0) {
     perror("AGNOCAST_TAKE_NODE_SUBSCRIBER_TOPICS_CMD failed");
     free(agnocast_topic_buffer);
@@ -87,12 +84,9 @@ char ** get_agnocast_pub_topics(const char * node_name, int * topic_count)
   char * agnocast_topic_buffer =
     static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
 
-  std::string reserved_node_name = node_name;
-  reserved_node_name.reserve(NODE_NAME_BUFFER_SIZE);
-
   union ioctl_node_info_args node_info_args = {};
   node_info_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
-  node_info_args.node_name = reserved_node_name.c_str();
+  node_info_args.node_name = node_name;
   if (ioctl(fd, AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD, &node_info_args) < 0) {
     perror("AGNOCAST_TAKE_NODE_PUBLISHER_TOPICS_CMD failed");
     free(agnocast_topic_buffer);
