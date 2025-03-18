@@ -101,9 +101,9 @@ static void shutdown_agnocast()
 {
   std::lock_guard<std::mutex> lock(shm_fds_mtx);
   for (int fd : shm_fds) {
-      if (close(fd) == -1) {
+    if (close(fd) == -1) {
       perror("[ERROR] [Agnocast] close shm_fd failed");
-      }
+    }
   }
 }
 
