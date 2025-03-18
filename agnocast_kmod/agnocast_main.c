@@ -2,6 +2,7 @@
 #include "agnocast_memory_allocator.h"
 
 #include <linux/device.h>
+#include <linux/fs.h>
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
@@ -1997,6 +1998,16 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
+  char filename[256];
+  int len = snprintf(filename, sizeof(filename), "agnocast@%d", pid);
+  struct filename * fn = getname_kernel(filename);
+  if (!fn) {
+    printk("getname_kernel error");
+  }
+  int ret = do_unlinkat(AT_FDCWD, fn);
+  if (ret < 0) {
+    printk("do_unlink_at error");
+  }
   free_memory(pid);
 
   struct topic_wrapper * wrapper;
@@ -2092,6 +2103,24 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
+int (*do_unlinkat)(int, struct filename *);
+
+/* Look up and set optee_invoke_func using kprobe */
+unsigned long lookup_do_unlinkat(void)
+{
+  struct kprobe kp_do_unlinkat;
+  unsigned long addr;
+
+  memset(&kp_do_unlinkat, 0, sizeof(struct kprobe));
+  kp_do_unlinkat.symbol_name = "do_unlinkat";
+  if (register_kprobe(&kp_do_unlinkat) < 0) {
+    return 0;
+  }
+  addr = (unsigned long)kp_do_unlinkat.addr;
+  unregister_kprobe(&kp_do_unlinkat);
+  return addr;
+}
+
 void agnocast_init_mutexes(void)
 {
   mutex_init(&global_mutex);
@@ -2148,6 +2177,8 @@ int agnocast_init_kprobe(void)
     dev_warn(agnocast_device, "register_kprobe failed, returned %d. (agnocast_init)\n", ret);
     return ret;
   }
+
+  do_unlinkat = (int (*)(int, struct filename *))lookup_do_unlinkat();
 
   return 0;
 }
