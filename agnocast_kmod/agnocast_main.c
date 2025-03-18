@@ -2110,7 +2110,7 @@ static struct kprobe kp = {
   .pre_handler = pre_handler_do_exit,
 };
 
-/* Look up and set optee_invoke_func using kprobe */
+/* Look up and set do_unlinkat using kprobe */
 unsigned long lookup_do_unlinkat(void)
 {
   struct kprobe kp_do_unlinkat;
