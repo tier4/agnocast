@@ -1,6 +1,5 @@
 #pragma once
 
-#include <linux/kprobes.h>
 #include <linux/types.h>
 
 #define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
@@ -226,7 +225,7 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
 
-int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs);
+void pre_handler_do_exit_core(const pid_t pid);
 
 // ================================================
 // helper functions for KUnit test

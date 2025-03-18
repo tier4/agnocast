@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
+#include <linux/kprobes.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/spinlock.h>
@@ -2054,7 +2055,7 @@ static int exit_worker_thread(void * data)
   return 0;
 }
 
-int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+void pre_handler_do_exit_core(const pid_t pid)
 {
   unsigned long flags;
   uint32_t next;
@@ -2067,7 +2068,7 @@ int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
 
   if (next != queue_head) {  // queue is not full
-    exit_pid_queue[queue_tail] = current->pid;
+    exit_pid_queue[queue_tail] = pid;
     queue_tail = next;
     smp_store_release(&has_new_pid, 1);
     need_wakeup = true;
@@ -2080,7 +2081,12 @@ int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   } else {
     dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
   }
+}
 
+static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+{
+  const pid_t pid = current->pid;
+  pre_handler_do_exit_core(pid);
   return 0;
 }
 

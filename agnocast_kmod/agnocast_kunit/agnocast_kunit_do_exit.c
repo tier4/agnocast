@@ -2,12 +2,8 @@
 
 #include "../agnocast.h"
 
-#include <kunit/test-bug.h>
 #include <kunit/test.h>
 #include <linux/delay.h>
-
-static struct kprobe p;
-static struct pt_regs regs;
 
 static const pid_t PID_BASE = 1000;
 
@@ -30,8 +26,7 @@ void test_case_do_exit(struct kunit * test)
   setup_processes(test, process_num);
 
   // Act
-  current->pid = PID_BASE;
-  pre_handler_do_exit(&p, &regs);
+  pre_handler_do_exit_core(PID_BASE);
 
   msleep(10);  // wait for exit_worker_thread to handle process exit
 
@@ -48,8 +43,8 @@ void test_case_do_exit_many(struct kunit * test)
 
   // Act
   for (int i = 0; i < process_num; i++) {
-    current->pid = PID_BASE + i;
-    pre_handler_do_exit(&p, &regs);
+    const pid_t pid = PID_BASE + i;
+    pre_handler_do_exit_core(pid);
   }
 
   msleep(100);  // wait for exit_worker_thread to handle process exit
