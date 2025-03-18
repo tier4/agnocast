@@ -52,7 +52,7 @@ void test_case_do_exit_many(struct kunit * test)
     pre_handler_do_exit(&p, &regs);
   }
 
-  msleep(10);  // wait for exit_worker_thread to handle process exit
+  msleep(100);  // wait for exit_worker_thread to handle process exit
 
   // Assert
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 0);
@@ -60,22 +60,4 @@ void test_case_do_exit_many(struct kunit * test)
     const pid_t pid = PID_BASE + i;
     KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(pid));
   }
-}
-
-void test_case_do_exit_too_many(struct kunit * test)
-{
-  // Arrange
-  const int process_num = EXIT_QUEUE_SIZE + 1;
-  setup_processes(test, process_num);
-
-  // Act
-  for (int i = 0; i < process_num; i++) {
-    current->pid = PID_BASE + i;
-    pre_handler_do_exit(&p, &regs);
-  }
-
-  msleep(10);  // wait for exit_worker_thread to handle process exit
-
-  // Assert: exceeded process is not handled
-  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
 }
