@@ -30,8 +30,11 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
     return nullptr;
   }
 
+  std::string reserved_topic_name = topic_name;
+  reserved_topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
+
   union ioctl_topic_info_args topic_info_args = {};
-  topic_info_args.topic_name = topic_name;
+  topic_info_args.topic_name = reserved_topic_name.c_str();
   topic_info_args.topic_info_ret_buffer_addr =
     reinterpret_cast<uint64_t>(agnocast_topic_info_ret_buffer);
   if (ioctl(fd, AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD, &topic_info_args) < 0) {
@@ -70,8 +73,11 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
     return nullptr;
   }
 
+  std::string reserved_topic_name = topic_name;
+  reserved_topic_name.reserve(TOPIC_NAME_BUFFER_SIZE);
+
   union ioctl_topic_info_args topic_info_args = {};
-  topic_info_args.topic_name = topic_name;
+  topic_info_args.topic_name = reserved_topic_name.c_str();
   topic_info_args.topic_info_ret_buffer_addr =
     reinterpret_cast<uint64_t>(agnocast_topic_info_ret_buffer);
   if (ioctl(fd, AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD, &topic_info_args) < 0) {

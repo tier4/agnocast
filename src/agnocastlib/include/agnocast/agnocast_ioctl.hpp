@@ -8,6 +8,11 @@
 namespace agnocast
 {
 
+// The memory allocated for the topic_name and node_name pointers must be at least as large as the
+// size specified by the following macros:
+#define TOPIC_NAME_BUFFER_SIZE 256
+#define NODE_NAME_BUFFER_SIZE 256
+
 #define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
 #define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber

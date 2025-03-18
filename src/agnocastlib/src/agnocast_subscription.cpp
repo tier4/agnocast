@@ -3,16 +3,20 @@
 namespace agnocast
 {
 
-SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topic_name)
-: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
+SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topic_name) : id_(0)
 {
   validate_ld_preload();
+
+  topic_name_ = node->get_node_topics_interface()->resolve_topic_name(topic_name);
+  topic_name_.reserve(TOPIC_NAME_BUFFER_SIZE);
 }
 
 union ioctl_subscriber_args SubscriptionBase::initialize(
-  const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
+  const rclcpp::QoS & qos, const bool is_take_sub, std::string & node_name)
 {
   const pid_t subscriber_pid = getpid();
+
+  node_name.reserve(NODE_NAME_BUFFER_SIZE);
 
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.

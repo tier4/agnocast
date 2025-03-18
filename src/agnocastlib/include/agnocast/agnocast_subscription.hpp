@@ -47,9 +47,10 @@ class SubscriptionBase
 {
 protected:
   topic_local_id_t id_;
-  const std::string topic_name_;
+  // At least TOPIC_NAME_BUFFER_SIZE bytes of capacity are reserved when constructed.
+  std::string topic_name_;
   union ioctl_subscriber_args initialize(
-    const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name);
+    const rclcpp::QoS & qos, const bool is_take_sub, std::string & node_name);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
@@ -69,8 +70,8 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
-    union ioctl_subscriber_args subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
+    std::string node_name = node->get_fully_qualified_name();
+    union ioctl_subscriber_args subscriber_args = initialize(qos, false, node_name);
 
     id_ = subscriber_args.ret_id;
 
@@ -128,8 +129,8 @@ public:
       dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
 #endif
 
-    union ioctl_subscriber_args subscriber_args =
-      initialize(qos, true, node->get_fully_qualified_name());
+    std::string node_name = node->get_fully_qualified_name();
+    union ioctl_subscriber_args subscriber_args = initialize(qos, true, node_name);
 
     id_ = subscriber_args.ret_id;
   }

@@ -27,13 +27,13 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
+  const pid_t publisher_pid, std::string & topic_name, std::string & node_name,
   const rclcpp::QoS & qos);
 union ioctl_publish_args publish_core(
-  [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
+  [[maybe_unused]] const void * publisher_handle /* for CARET */, std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs);
-uint32_t get_subscription_count_core(const std::string & topic_name);
+uint32_t get_subscription_count_core(std::string & topic_name);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
 
@@ -95,8 +95,8 @@ public:
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(
-      publisher_pid_, topic_name_, node->get_fully_qualified_name(), actual_qos);
+    std::string node_name = node->get_fully_qualified_name();
+    id_ = initialize_publisher(publisher_pid_, topic_name_, node_name, actual_qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
@@ -228,7 +228,7 @@ public:
     }
   }
 
-  uint32_t get_subscription_count() const
+  uint32_t get_subscription_count()
   {
     return ros2_publisher_->get_subscription_count() + get_subscription_count_core(topic_name_);
   }
