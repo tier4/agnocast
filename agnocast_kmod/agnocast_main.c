@@ -1983,6 +1983,24 @@ static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
 static int has_new_pid = false;
 
+#ifndef KUNIT_BUILD
+static void unlink_shm(const pid_t pid)
+{
+  char filename_buffer[30];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
+  scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
+
+  struct filename * filename = getname_kernel(filename_buffer);
+  if (!filename) {
+    dev_warn(agnocast_device, "getname_kernel failed. (process_exit_cleanup)\n");
+  }
+
+  int ret = do_unlinkat(AT_FDCWD, filename);
+  if (ret < 0) {
+    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (process_exit_cleanup)\n", ret);
+  }
+}
+#endif
+
 void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
@@ -2003,19 +2021,7 @@ void process_exit_cleanup(const pid_t pid)
   if (!agnocast_related) return;
 
 #ifndef KUNIT_BUILD
-  // Unlink /dev/shm/agnocast@PID
-  char filename_buffer[30];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
-  scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
-
-  struct filename * filename = getname_kernel(filename_buffer);
-  if (!filename) {
-    dev_warn(agnocast_device, "getname_kernel failed. (process_exit_cleanup)\n");
-  }
-
-  int ret = do_unlinkat(AT_FDCWD, filename);
-  if (ret < 0) {
-    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (process_exit_cleanup)\n", ret);
-  }
+  unlink_shm(pid);
 #endif
 
   free_memory(pid);
