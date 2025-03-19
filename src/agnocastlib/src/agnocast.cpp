@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_version.hpp"
 
 #include <sys/types.h>
 
@@ -72,6 +73,8 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(const uint64_t shm_size)
 {
+  RCLCPP_INFO(logger, "Running version: %s", agnocastlib::VERSION);
+
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
     exit(EXIT_FAILURE);

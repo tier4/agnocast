@@ -17,6 +17,16 @@ static struct class * agnocast_class;
 static struct device * agnocast_device;
 static DEFINE_MUTEX(global_mutex);
 
+#ifndef AGNOCAST_VERSION
+#define AGNOCAST_VERSION "unknown"
+#endif
+
+#define XSTR(s) STR(s)
+#define STR(s) #s
+#pragma message "AGNOCAST_VERSION = " XSTR(AGNOCAST_VERSION)
+
+// static const char *agnocast_version = AGNOCAST_VERSION;
+
 // =========================================
 // data structure
 
@@ -2172,7 +2182,7 @@ static int agnocast_init(void)
 
   init_memory_allocator();
 
-  dev_info(agnocast_device, "Agnocast installed!\n");
+  dev_info(agnocast_device, "Agnocast installed! %s\n", AGNOCAST_VERSION);
   return 0;
 }
 #endif
