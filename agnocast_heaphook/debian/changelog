@@ -1,3 +1,7 @@
+agnocast-heaphook (1.0.2-1) jammy; urgency=medium
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Fri, 14 Mar 2025 20:38:25 +0900
+
 agnocast-heaphook (1.0.1-2) jammy; urgency=medium
 
   * Initial release.

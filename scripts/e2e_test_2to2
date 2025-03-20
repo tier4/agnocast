@@ -51,9 +51,9 @@ source install/setup.bash
 # Run test
 CONFIG_FILE=src/agnocast_e2e_test/test/config_test_2to2.yaml
 show_config() {
-    echo "----------------------------------------------"
-    cat $CONFIG_FILE
-    echo "----------------------------------------------"
+    echo "----------------------------------------------" | sudo tee /dev/kmsg
+    cat $CONFIG_FILE | sudo tee /dev/kmsg
+    echo "----------------------------------------------" | sudo tee /dev/kmsg
 }
 
 FAILURE_COUNT=0
@@ -61,7 +61,7 @@ if [ "$RUN_SINGLE" = true ]; then
     show_config
     launch_test src/agnocast_e2e_test/test/test_2to2.py
     if [ $? -ne 0 ]; then
-        echo "Test failed"
+        echo "Test failed" | sudo tee /dev/kmsg
         exit 1
     fi
 else
@@ -81,12 +81,12 @@ else
             sed -i "s|^container$i:.*|container$i: [$list]|" "$CONFIG_FILE"
         done
 
-        echo "====================== $COUNT / 8 ======================"
+        echo "====================== $COUNT / 8 ======================" | sudo tee /dev/kmsg
         show_config
         launch_test src/agnocast_e2e_test/test/test_2to2.py
 
         if [ $? -ne 0 ]; then
-            echo "Test failed"
+            echo "Test failed" | sudo tee /dev/kmsg
             if [ "$CONTINUE_ON_FAILURE" = true ]; then
                 FAILURE_COUNT=$((FAILURE_COUNT + 1))
             else
@@ -97,10 +97,10 @@ else
 fi
 
 if [ "$FAILURE_COUNT" -gt 0 ]; then
-    echo "$FAILURE_COUNT / $COUNT tests failed"
+    echo "$FAILURE_COUNT / $COUNT tests failed" | sudo tee /dev/kmsg
     exit 1
 else
-    echo "All tests passed!!"
+    echo "All tests passed!!" | sudo tee /dev/kmsg
 fi
 
 # Reset config file

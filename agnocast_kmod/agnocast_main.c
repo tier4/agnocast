@@ -103,31 +103,6 @@ static unsigned long get_topic_hash(const char * str)
   return hash_min(hash, TOPIC_HASH_BITS);
 }
 
-static int insert_topic(const char * topic_name, struct topic_wrapper ** wrapper)
-{
-  *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
-  if (!*wrapper) {
-    dev_warn(agnocast_device, "kmalloc failed. (insert_topic)\n");
-    return -ENOMEM;
-  }
-
-  (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
-  if (!(*wrapper)->key) {
-    dev_warn(agnocast_device, "kstrdup failed. (insert_topic)\n");
-    kfree(*wrapper);
-    return -ENOMEM;
-  }
-
-  (*wrapper)->current_pubsub_id = 0;
-  (*wrapper)->current_entry_id = 0;
-  (*wrapper)->topic.entries = RB_ROOT;
-  hash_init((*wrapper)->topic.pub_info_htable);
-  hash_init((*wrapper)->topic.sub_info_htable);
-
-  hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
-  return 0;
-}
-
 static struct topic_wrapper * find_topic(const char * topic_name)
 {
   struct topic_wrapper * entry;
@@ -139,6 +114,42 @@ static struct topic_wrapper * find_topic(const char * topic_name)
   }
 
   return NULL;
+}
+
+static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
+{
+  *wrapper = find_topic(topic_name);
+  if (*wrapper) {
+    return 0;
+  }
+
+  *wrapper = kmalloc(sizeof(struct topic_wrapper), GFP_KERNEL);
+  if (!*wrapper) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kmalloc. (add_topic)\n",
+      topic_name);
+    return -ENOMEM;
+  }
+
+  (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
+  if (!(*wrapper)->key) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kstrdup. (add_topic)\n",
+      topic_name);
+    kfree(*wrapper);
+    return -ENOMEM;
+  }
+
+  (*wrapper)->current_pubsub_id = 0;
+  (*wrapper)->current_entry_id = 0;
+  (*wrapper)->topic.entries = RB_ROOT;
+  hash_init((*wrapper)->topic.pub_info_htable);
+  hash_init((*wrapper)->topic.sub_info_htable);
+  hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
+
+  dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
+
+  return 0;
 }
 
 static int get_size_sub_info_htable(struct topic_wrapper * wrapper)
@@ -415,7 +426,7 @@ int increment_message_entry_rc(
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
       topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
@@ -425,21 +436,21 @@ int increment_message_entry_rc(
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(increment_message_entry_rc)\n",
       topic_name, entry_id);
-    return -1;
+    return -EINVAL;
   }
 
-  if (en->publisher_id == pubsub_id) {
+  // Incrementing reference count is allowed only for subscribers
+  if (!find_subscriber_info(wrapper, pubsub_id)) {
     dev_warn(
       agnocast_device,
-      "Incrementing publisher's rc is not allowed. (topic_name=%s entry_id=%lld pubsub_id=%d) "
-      "(increment_message_entry_rc)\n",
-      wrapper->key, entry_id, pubsub_id);
-    return -1;
-  } else {
-    int ret = increment_sub_rc(en, pubsub_id);
-    if (ret < 0) {
-      return ret;
-    }
+      "Subscriber (id=%d) not found in the topic (topic_name=%s). (increment_message_entry_rc)\n",
+      pubsub_id, wrapper->key);
+    return -EINVAL;
+  }
+
+  int ret = increment_sub_rc(en, pubsub_id);
+  if (ret < 0) {
+    return ret;
   }
 
   return 0;
@@ -900,19 +911,11 @@ int subscriber_add(
   union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    ret = insert_topic(topic_name, &wrapper);
-    if (ret < 0) {
-      dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (subscriber_add)\n",
-        topic_name);
-      return ret;
-    }
-    dev_info(agnocast_device, "Topic (topic_name=%s) added. (subscriber_add)\n", topic_name);
-  } else {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (subscriber_add)\n", topic_name);
+
+  struct topic_wrapper * wrapper;
+  ret = add_topic(topic_name, &wrapper);
+  if (ret < 0) {
+    return ret;
   }
 
   struct subscriber_info * sub_info;
@@ -967,19 +970,11 @@ int publisher_add(
   union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
-  struct topic_wrapper * wrapper = find_topic(topic_name);
-  if (!wrapper) {
-    ret = insert_topic(topic_name, &wrapper);
-    if (ret < 0) {
-      dev_warn(
-        agnocast_device, "Failed to add a new topic (topic_name=%s). (publisher_add)\n",
-        topic_name);
-      return ret;
-    }
-    dev_info(agnocast_device, "Topic (topic_name=%s) added. (publisher_add)\n", topic_name);
-  } else {
-    dev_info(
-      agnocast_device, "Topic (topic_name=%s) already exists. (publisher_add)\n", topic_name);
+
+  struct topic_wrapper * wrapper;
+  ret = add_topic(topic_name, &wrapper);
+  if (ret < 0) {
+    return ret;
   }
 
   struct publisher_info * pub_info;
@@ -1194,7 +1189,7 @@ int take_msg(
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1202,12 +1197,12 @@ int take_msg(
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
       subscriber_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
-  ioctl_ret->ret_entry_id = 0;
+  ioctl_ret->ret_entry_id = -1;
 
   uint32_t searched_count = 0;
   struct entry_node * candidate_en = NULL;
@@ -1319,10 +1314,11 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
       return -ENOBUFS;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
@@ -1355,10 +1351,11 @@ static int get_node_subscriber_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1394,10 +1391,11 @@ static int get_node_publisher_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1817,6 +1815,20 @@ int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_lo
   }
 
   return 0;
+}
+
+int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  if (!wrapper) {
+    return -1;
+  }
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return -1;
+  }
+
+  return sub_info->latest_received_entry_id;
 }
 
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)

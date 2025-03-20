@@ -51,9 +51,9 @@ source install/setup.bash
 # Run test
 CONFIG_FILE="src/agnocast_e2e_test/test/config_test_1to1_with_ros2sub.yaml"
 show_config() {
-    echo "----------------------------------------------"
-    cat $CONFIG_FILE
-    echo "----------------------------------------------"
+    echo "----------------------------------------------" | sudo tee /dev/kmsg
+    cat $CONFIG_FILE | sudo tee /dev/kmsg
+    echo "----------------------------------------------" | sudo tee /dev/kmsg
 }
 
 FAILURE_COUNT=0
@@ -61,7 +61,7 @@ if [ "$RUN_SINGLE" = true ]; then
     show_config
     launch_test src/agnocast_e2e_test/test/test_1to1_with_ros2sub.py
     if [ $? -ne 0 ]; then
-        echo "Test failed"
+        echo "Test failed" | sudo tee /dev/kmsg
         exit 1
     fi
 else
@@ -86,12 +86,12 @@ else
                             sed -i "s/sub_qos_depth:.*/sub_qos_depth: $sub_qos_depth/g" $CONFIG_FILE
                             sed -i "s/sub_transient_local:.*/sub_transient_local: $sub_transient_local/g" $CONFIG_FILE
                             sed -i "s/use_take_sub:.*/use_take_sub: $use_take_sub/g" $CONFIG_FILE
-                            echo "====================== $COUNT / 64 ======================"
+                            echo "====================== $COUNT / 64 ======================" | sudo tee /dev/kmsg
                             show_config
                             launch_test src/agnocast_e2e_test/test/test_1to1_with_ros2sub.py
 
                             if [ $? -ne 0 ]; then
-                                echo "Test failed."
+                                echo "Test failed." | sudo tee /dev/kmsg
                                 if [ "$CONTINUE_ON_FAILURE" = true ]; then
                                     FAILURE_COUNT=$((FAILURE_COUNT + 1))
                                 else
@@ -107,10 +107,10 @@ else
 fi
 
 if [ "$FAILURE_COUNT" -gt 0 ]; then
-    echo "$FAILURE_COUNT / $COUNT tests failed"
+    echo "$FAILURE_COUNT / $COUNT tests failed" | sudo tee /dev/kmsg
     exit 1
 else
-    echo "All tests passed!!"
+    echo "All tests passed!!" | sudo tee /dev/kmsg
 fi
 
 # Reset config file

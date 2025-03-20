@@ -12,6 +12,7 @@ private:
   std::chrono::milliseconds cb_exec_time_;
 
   // For Agnocast
+  rclcpp::CallbackGroup::SharedPtr agnocast_common_cbg_ = nullptr;
   rclcpp::TimerBase::SharedPtr agnocast_timer_;
   std::vector<bool> agnocast_sub_cbs_called_;
   std::string agnocast_topic_name_ = "/dummy_agnocast_topic";
@@ -26,6 +27,7 @@ private:
   void agnocast_sub_cb(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg, int64_t cb_i);
 
   // For ROS 2
+  rclcpp::CallbackGroup::SharedPtr ros2_common_cbg_ = nullptr;
   rclcpp::TimerBase::SharedPtr ros2_timer_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ros2_pub_;
   std::vector<rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr> ros2_subs_;

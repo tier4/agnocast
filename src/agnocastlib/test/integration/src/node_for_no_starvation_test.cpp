@@ -7,9 +7,11 @@ NodeForNoStarvation::NodeForNoStarvation(
 : Node("node_for_no_starvation")
 {
   if (cbg_type == "mutually_exclusive") {
-    common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    agnocast_common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    ros2_common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   } else if (cbg_type == "reentrant") {
-    common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    agnocast_common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    ros2_common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
   }
   cb_exec_time_ = cb_exec_time;
 
@@ -26,8 +28,8 @@ NodeForNoStarvation::NodeForNoStarvation(
   ros2_timer_ = create_wall_timer(pub_period, std::bind(&NodeForNoStarvation::ros2_timer_cb, this));
   for (int64_t i = 0; i < num_ros2_sub_cbs; i++) {
     rclcpp::SubscriptionOptions options;
-    if (common_cbg_) {
-      options.callback_group = common_cbg_;
+    if (ros2_common_cbg_) {
+      options.callback_group = ros2_common_cbg_;
     } else {  // individual
       options.callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     }
@@ -61,8 +63,9 @@ void NodeForNoStarvation::add_agnocast_sub_cb()
 {
   int64_t cb_i = mq_receivers_.size();
   rclcpp::SubscriptionOptions options;
-  auto cbg = (common_cbg_) ? common_cbg_
-                           : create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto cbg = (agnocast_common_cbg_)
+               ? agnocast_common_cbg_
+               : create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   options.callback_group = cbg;
   auto mq = open_mq_for_receiver(cb_i);
   std::function<void(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> &)> callback =
