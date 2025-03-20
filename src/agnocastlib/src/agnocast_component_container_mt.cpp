@@ -6,9 +6,9 @@
 
 int main(int argc, char * argv[])
 {
-  using namespace std::chrono;
-
   try {
+    using namespace std::chrono;
+
     rclcpp::init(argc, argv);
 
     rclcpp::NodeOptions options;
@@ -37,7 +37,10 @@ int main(int argc, char * argv[])
 
     rclcpp::shutdown();
   } catch (rclcpp_components::ComponentManagerException & ex) {
-    std::cerr << "ComponentManager exception: " << ex.what() << std::endl;
+    std::cerr << "Exception caught in main: " << ex.what() << std::endl;
+    return EXIT_FAILURE;
+  } catch (...) {
+    std::cerr << "Unknown exception caught in main: " << std::endl;
     return EXIT_FAILURE;
   }
 

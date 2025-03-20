@@ -25,7 +25,10 @@ int main(int argc, char * argv[])
 
     rclcpp::shutdown();
   } catch (rclcpp_components::ComponentManagerException & ex) {
-    std::cerr << "ComponentManager exception: " << ex.what() << std::endl;
+    std::cerr << "Exception caught in main: " << ex.what() << std::endl;
+    return EXIT_FAILURE;
+  } catch (...) {
+    std::cerr << "Unknown exception caught in main: " << std::endl;
     return EXIT_FAILURE;
   }
 
