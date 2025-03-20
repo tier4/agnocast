@@ -10,8 +10,9 @@ int main(int argc, char * argv[])
   options.allow_undeclared_parameters(true);
   options.automatically_declare_parameters_from_overrides(true);
 
+  std::string node_name = "ComponentManager";
   auto node = std::make_shared<rclcpp_components::ComponentManager>(
-    std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
+    std::weak_ptr<rclcpp::Executor>(), node_name, options);
 
   const int get_next_timeout_ms = node->get_parameter_or("get_next_timeout_ms", 50);
 
