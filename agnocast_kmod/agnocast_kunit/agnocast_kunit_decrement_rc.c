@@ -30,13 +30,13 @@ static void setup_one_publisher(
 
 void test_case_decrement_rc_no_topic(struct kunit * test)
 {
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
   KUNIT_EXPECT_EQ(test, decrement_message_entry_rc(TOPIC_NAME, 0, 0), -EINVAL);
 }
 
 void test_case_decrement_rc_no_message(struct kunit * test)
 {
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
 
   // Arrange
   topic_local_id_t ret_publisher_id;
@@ -52,7 +52,7 @@ void test_case_decrement_rc_no_message(struct kunit * test)
 
 void test_case_decrement_rc_last_reference(struct kunit * test)
 {
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
 
   // Arrange
   topic_local_id_t ret_publisher_id;
@@ -73,7 +73,7 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
 
 void test_case_decrement_rc_multi_reference(struct kunit * test)
 {
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
 
   // Arrange
   topic_local_id_t ret_publisher_id;
