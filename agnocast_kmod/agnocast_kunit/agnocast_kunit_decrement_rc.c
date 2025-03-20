@@ -8,18 +8,17 @@ static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const bool QOS_IS_TRANSIENT_LOCAL = true;
 static const uint32_t QOS_DEPTH = 1;
-static pid_t publisher_pid = 2000;
 
 static void setup_one_publisher(
   struct kunit * test, topic_local_id_t * ret_publisher_id, uint64_t * ret_addr)
 {
-  publisher_pid++;
+  const pid_t PUBLISHER_PID = 2000;
 
   union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
+  int ret1 = new_shm_addr(PUBLISHER_PID, PAGE_SIZE, &new_shm_args);
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
-    TOPIC_NAME, NODE_NAME, publisher_pid, QOS_DEPTH, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+    TOPIC_NAME, NODE_NAME, PUBLISHER_PID, QOS_DEPTH, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
