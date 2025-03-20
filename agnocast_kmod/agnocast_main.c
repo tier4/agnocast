@@ -1796,15 +1796,11 @@ int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_lo
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_entry_rc)\n", topic_name);
     return -1;
   }
 
   const struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
-    dev_warn(
-      agnocast_device, "Message entry (topic_name=%s entry_id=%lld) not found. (get_entry_rc)\n",
-      topic_name, entry_id);
     return -1;
   }
 
