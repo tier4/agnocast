@@ -12,14 +12,14 @@ protected:
   {
     bool yield_before_execute = std::get<0>(GetParam());
     int next_exec_timeout_ms = std::get<1>(GetParam());
-    std::string cbg_type = std::get<2>(GetParam());
+    cbg_type_ = std::get<2>(GetParam());
     int agnocast_next_exec_timeout_ms = next_exec_timeout_ms;
     std::chrono::nanoseconds ros2_next_exec_timeout(next_exec_timeout_ms * 1000 * 1000);
 
     // Set the execution time of each callback
     uint64_t num_cbs = NUM_AGNOCAST_SUB_CBS + NUM_AGNOCAST_CBS_TO_BE_ADDED + NUM_ROS2_SUB_CBS;
     std::chrono::milliseconds cb_exec_time =
-      (cbg_type == "mutually_exclusive")
+      (cbg_type_ == "mutually_exclusive")
         ? std::chrono::duration_cast<std::chrono::milliseconds>(
             PUB_PERIOD * CPU_UTILIZATION / (num_cbs))
         : std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -43,7 +43,7 @@ protected:
       yield_before_execute, ros2_next_exec_timeout, agnocast_next_exec_timeout_ms);
     test_node_ = std::make_shared<NodeForNoStarvation>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD,
-      cb_exec_time, cbg_type);
+      cb_exec_time, cbg_type_);
     executor_->add_node(test_node_);
   }
 
@@ -52,6 +52,7 @@ protected:
   std::chrono::seconds spin_duration_;
   std::shared_ptr<NodeForNoStarvation> test_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
+  std::string cbg_type_;
 
   // Fixed parameters
   const std::chrono::milliseconds PUB_PERIOD = std::chrono::milliseconds(100);
@@ -82,4 +83,11 @@ TEST_P(MultiThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
   // Assert
   EXPECT_TRUE(test_node_->is_all_ros2_sub_cbs_called());
   EXPECT_TRUE(test_node_->is_all_agnocast_sub_cbs_called());
+  if (cbg_type_ == "mutually_exclusive") {
+    EXPECT_TRUE(test_node_->is_mutually_exclusive_agnocast());
+    EXPECT_TRUE(test_node_->is_mutually_exclusive_ros2());
+  } else {
+    EXPECT_FALSE(test_node_->is_mutually_exclusive_agnocast());
+    EXPECT_FALSE(test_node_->is_mutually_exclusive_ros2());
+  }
 }
