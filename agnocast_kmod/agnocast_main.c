@@ -856,8 +856,6 @@ static struct attribute_group attribute_group = {
   .attrs = attrs,
 };
 
-// =========================================
-// /dev/agnocast
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
   struct publisher_shm_info * pub_shm_info)
