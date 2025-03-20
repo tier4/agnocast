@@ -491,8 +491,8 @@ int decrement_message_entry_rc(
 
   dev_warn(
     agnocast_device,
-    "Unreachable: Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message "
-    "entry (topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
     pubsub_id, topic_name, entry_id);
 
   return -EINVAL;

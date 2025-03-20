@@ -50,6 +50,28 @@ void test_case_decrement_rc_no_message(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
+void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
+{
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
+
+  // Arrange
+  topic_local_id_t ret_publisher_id;
+  uint64_t ret_addr;
+  setup_one_publisher(test, &ret_publisher_id, &ret_addr);
+
+  union ioctl_publish_args publish_args;
+  int ret0 = publish_msg(TOPIC_NAME, ret_publisher_id, ret_addr, &publish_args);
+  KUNIT_ASSERT_EQ(test, ret0, 0);
+  int ret1 = decrement_message_entry_rc(TOPIC_NAME, ret_publisher_id, publish_args.ret_entry_id);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+
+  // Act
+  int ret_sut = decrement_message_entry_rc(TOPIC_NAME, ret_publisher_id, publish_args.ret_entry_id);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret_sut, -EINVAL);
+}
+
 void test_case_decrement_rc_last_reference(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(), 0);
