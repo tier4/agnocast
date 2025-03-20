@@ -187,12 +187,12 @@ void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
 int subscriber_add(
-  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
+  const char * topic_name, const char * node_name, const pid_t subscriber_pid_arg,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret);
 
 int publisher_add(
-  const char * topic_name, const char * node_name, const pid_t publisher_pid,
+  const char * topic_name, const char * node_name, const pid_t publisher_pid_arg,
   const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret);
 
@@ -214,7 +214,7 @@ int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret);
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
+int new_shm_addr(const pid_t pid_arg, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
 
 int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
 
