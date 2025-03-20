@@ -13,10 +13,9 @@ int main(int argc, char * argv[])
   rclcpp::NodeOptions options;
   options.allow_undeclared_parameters(true);
   options.automatically_declare_parameters_from_overrides(true);
-  std::string node_name = "component_manager" + std::to_string(getpid());
 
   auto node = std::make_shared<rclcpp_components::ComponentManager>(
-    std::weak_ptr<rclcpp::Executor>(), node_name, options);
+    std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
 
   const size_t number_of_ros2_threads = node->get_parameter_or("number_of_ros2_threads", 0);
   const size_t number_of_agnocast_threads = node->get_parameter_or("number_of_agnocast_threads", 0);
