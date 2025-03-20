@@ -109,7 +109,7 @@ static pid_t convert_pid_to_global(pid_t local_pid)
 
   pid_struct = find_vpid(local_pid);
   if (!pid_struct) {
-    dev_err(agnocast_device, "convert_pid_to_global: Invalid PID %d\n", local_pid);
+    dev_err(agnocast_device, "Internal error: Invalid PID %d (covnert_pid_to_global)\n", local_pid);
     goto out;
   }
 
@@ -129,7 +129,7 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   pid_struct = find_pid_ns(global_pid, &init_pid_ns);
   if (!pid_struct) {
-    dev_err(agnocast_device, "convert_pid_to_local: Invalid PID %d\n", global_pid);
+    dev_err(agnocast_device, "Internal error: Invalid PID %d (convert_pid_to_local)\n", global_pid);
     goto out;
   }
 
