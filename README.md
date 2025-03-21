@@ -4,9 +4,7 @@ True Zero Copy Communication Middleware for Undefined ROS 2 Message Types.
 
 prototype: <https://github.com/sykwer/agnocast>
 
-## Build
-
-Setup.
+## Setup
 
 ```bash
 bash scripts/setup
@@ -30,9 +28,7 @@ libagnocast_heaphook.so
 Insert kernel module.
 
 ```bash
-cd agnocast_kmod
-sudo insmod agnocast.ko
-sudo lsmod
+sudo modprobe agnocast
 ```
 
 Run sample app (different window for each script).
