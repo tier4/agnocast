@@ -36,8 +36,8 @@ topic_local_id_t initialize_publisher(
 
   union ioctl_publisher_args pub_args = {};
   pub_args.publisher_pid = publisher_pid;
-  pub_args.topic_name = topic_name.c_str();
-  pub_args.node_name = node_name.c_str();
+  pub_args.topic_name = {topic_name.c_str(), topic_name.size()};
+  pub_args.node_name = {node_name.c_str(), node_name.size()};
   pub_args.qos_depth = qos.depth();
   pub_args.qos_is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
@@ -55,7 +55,7 @@ union ioctl_publish_args publish_core(
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
 {
   union ioctl_publish_args publish_args = {};
-  publish_args.topic_name = topic_name.c_str();
+  publish_args.topic_name = {topic_name.c_str(), topic_name.size()};
   publish_args.publisher_id = publisher_id;
   publish_args.msg_virtual_address = msg_virtual_address;
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
@@ -125,7 +125,7 @@ union ioctl_publish_args publish_core(
 uint32_t get_subscription_count_core(const std::string & topic_name)
 {
   union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-  get_subscriber_count_args.topic_name = topic_name.c_str();
+  get_subscriber_count_args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);

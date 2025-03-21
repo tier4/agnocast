@@ -12,6 +12,12 @@
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
 
+struct name_info
+{
+  const char * ptr;
+  uint64_t len;
+};
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_topic_list_args {
@@ -22,7 +28,7 @@ union ioctl_topic_list_args {
 union ioctl_node_info_args {
   struct
   {
-    const char * node_name;
+    struct name_info node_name;
     uint64_t topic_name_buffer_addr;
   };
   uint32_t ret_topic_num;
@@ -38,7 +44,7 @@ struct topic_info_ret
 union ioctl_topic_info_args {
   struct
   {
-    const char * topic_name;
+    struct name_info topic_name;
     uint64_t topic_info_ret_buffer_addr;
   };
   uint32_t ret_topic_info_ret_num;

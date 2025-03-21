@@ -17,8 +17,8 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
   // Register topic and subscriber info with the kernel module, and receive the publisher's shared
   // memory information along with messages needed to achieve transient local, if neccessary.
   union ioctl_subscriber_args subscriber_args = {};
-  subscriber_args.topic_name = topic_name_.c_str();
-  subscriber_args.node_name = node_name.c_str();
+  subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+  subscriber_args.node_name = {node_name.c_str(), node_name.size()};
   subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   subscriber_args.qos_is_transient_local =
