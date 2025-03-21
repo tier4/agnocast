@@ -118,7 +118,9 @@ pre-commit install
 
 If you want to disable pre-commit, please run `pre-commit uninstall`.
 
-### Build
+### Build and insert kmod
+
+Build.
 
 ```bash
 bash scripts/build_all
@@ -129,6 +131,14 @@ Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
 ```bash
 $ ls /usr/lib | grep libagnocast_heaphook
 libagnocast_heaphook.so
+```
+
+Insert kernel module.
+
+```bash
+cd agnocast_kmod
+sudo insmod agnocast.ko
+sudo lsmod
 ```
 
 ### Test
