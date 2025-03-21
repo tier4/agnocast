@@ -10,19 +10,6 @@ prototype: <https://github.com/sykwer/agnocast>
 bash scripts/setup
 ```
 
-Build.
-
-```bash
-bash scripts/build_all
-```
-
-Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
-
-```bash
-$ ls /usr/lib | grep libagnocast_heaphook
-libagnocast_heaphook.so
-```
-
 ## Run
 
 Insert kernel module.
@@ -96,39 +83,6 @@ make CFLAGS_agnocast.o="-DDEBUG"
 
 Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentation/kbuild/makefiles.txt) on kbuild for more information about compilation flags.
 
-## (For developer) Test
-
-You can build, test and generate the coverage report by following:
-
-```bash
-bash scripts/test_and_create_report
-```
-
-## (For developer) Kernel Module Test
-
-A custom kernel with the following CONFIG enabled is required to run KUnit Test and obtain the coverage report (sample custom kernel is placed [here](https://drive.google.com/drive/folders/1sd8ROusgxhnEDOO0hbze3F5y47qtIdcM?usp=drive_link)).
-
-- `CONFIG_KUNIT=y`
-- `CONFIG_GCOV_KERNEL=y`
-
-If booting with the custom kernel, the following script can be used to run unit tests on kernel modules and generate coverage reports.
-
-```bash
-bash script/run_kunit
-```
-
-You can also use [pre-commit](#for-developer-setup-pre-commit).
-
-## (For developer) Setup pre-commit
-
-The following command allows `clang-format`, `markdownlint`, and [KUNIT Test](./agnocast_kmod/agnocast_kunit.c) to be run before each commit.
-
-```bash
-bash scripts/setup
-```
-
-If you want to disable pre-commit, please execute `pre-commit uninstall`.
-
 ## Documents
 
 - [shared memory](./docs/shared_memory.md)
@@ -147,3 +101,55 @@ Although Agnocast includes cleanup procedures for resources like shared memory a
 rm /dev/shm/agnocast@*
 rm /dev/mqueue/agnocast@*
 ```
+
+---
+
+## For developer
+
+### Setup pre-commit
+
+The following command allows `clang-format`, `markdownlint`, and [KUNIT Test](./agnocast_kmod/agnocast_kunit.c) to be run before each commit.
+
+```bash
+python3 -m pip install pre-commit
+python3 -m pip install --upgrade pre-commit identify
+pre-commit install
+```
+
+If you want to disable pre-commit, please run `pre-commit uninstall`.
+
+### Build
+
+```bash
+bash scripts/build_all
+```
+
+Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
+
+```bash
+$ ls /usr/lib | grep libagnocast_heaphook
+libagnocast_heaphook.so
+```
+
+### Test
+
+You can build, test and generate the coverage report by following:
+
+```bash
+bash scripts/test_and_create_report
+```
+
+### Kernel Module Test
+
+A custom kernel with the following CONFIG enabled is required to run KUnit Test and obtain the coverage report (sample custom kernel is placed [here](https://drive.google.com/drive/folders/1sd8ROusgxhnEDOO0hbze3F5y47qtIdcM?usp=drive_link)).
+
+- `CONFIG_KUNIT=y`
+- `CONFIG_GCOV_KERNEL=y`
+
+If booting with the custom kernel, the following script can be used to run unit tests on kernel modules and generate coverage reports.
+
+```bash
+bash script/run_kunit
+```
+
+You can also use [pre-commit](#setup-pre-commit)
