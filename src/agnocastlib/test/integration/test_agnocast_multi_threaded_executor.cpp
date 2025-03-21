@@ -83,6 +83,9 @@ TEST_P(MultiThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
   // Assert
   EXPECT_TRUE(test_node_->is_all_ros2_sub_cbs_called());
   EXPECT_TRUE(test_node_->is_all_agnocast_sub_cbs_called());
+
+  // The success rate of subsequent tests depends on the number of callbacks and CPU utilization.
+  // With the current configuration, the test is almost certain to pass.
   if (cbg_type_ == "mutually_exclusive") {
     EXPECT_TRUE(test_node_->is_mutually_exclusive_agnocast());
     EXPECT_TRUE(test_node_->is_mutually_exclusive_ros2());
