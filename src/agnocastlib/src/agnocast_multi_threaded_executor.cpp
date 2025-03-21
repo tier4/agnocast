@@ -81,8 +81,6 @@ void MultiThreadedAgnocastExecutor::spin()
 
   RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
 
-  // TODO(sykwer): Transient Local
-
   std::vector<std::thread> threads;
 
   {
