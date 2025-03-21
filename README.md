@@ -29,7 +29,7 @@ bash scripts/run_talker
 Stop applications and unload kernel module.
 
 ```bash
-sudo rmmod agnocast
+sudo modprobe -r agnocast
 ```
 
 ## Debug
