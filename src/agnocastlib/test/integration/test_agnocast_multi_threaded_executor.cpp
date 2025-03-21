@@ -1,10 +1,10 @@
-#include "node_for_no_starvation_test.hpp"
+#include "node_for_executor_test.hpp"
 
 #include <gtest/gtest.h>
 
 #include <thread>
 
-class MultiThreadedAgnocastExecutorNoStarvationTest
+class MultiThreadedAgnocastExecutorTest
 : public ::testing::TestWithParam<std::tuple<bool, int, std::string>>
 {
 protected:
@@ -41,7 +41,7 @@ protected:
     executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, NUMBER_OF_ROS2_THREADS, NUMBER_OF_AGNOCAST_THREADS,
       yield_before_execute, ros2_next_exec_timeout, agnocast_next_exec_timeout_ms);
-    test_node_ = std::make_shared<NodeForNoStarvation>(
+    test_node_ = std::make_shared<NodeForExecutorTest>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD,
       cb_exec_time, cbg_type_);
     executor_->add_node(test_node_);
@@ -50,7 +50,7 @@ protected:
   void TearDown() override { rclcpp::shutdown(); }
 
   std::chrono::seconds spin_duration_;
-  std::shared_ptr<NodeForNoStarvation> test_node_;
+  std::shared_ptr<NodeForExecutorTest> test_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::string cbg_type_;
 
@@ -65,14 +65,14 @@ protected:
 };
 
 INSTANTIATE_TEST_SUITE_P(
-  MultiThreadedAgnocastExecutorNoStarvationTests, MultiThreadedAgnocastExecutorNoStarvationTest,
+  MultiThreadedAgnocastExecutorTests, MultiThreadedAgnocastExecutorTest,
   ::testing::Combine(
     ::testing::Values(true, false),  // yield_before_execute
     ::testing::Values(
       25, 50, 100, 200, 400),  // ros2_next_exec_timeout and agnocast_next_exec_timeout_ms
     ::testing::Values("individual", "mutually_exclusive", "reentrant")));
 
-TEST_P(MultiThreadedAgnocastExecutorNoStarvationTest, test_no_starvation)
+TEST_P(MultiThreadedAgnocastExecutorTest, test_no_starvation_and_callback_group)
 {
   // Act
   std::thread spin_thread([this]() { this->executor_->spin(); });

@@ -5,7 +5,7 @@
 
 #include <vector>
 
-class NodeForNoStarvation : public rclcpp::Node
+class NodeForExecutorTest : public rclcpp::Node
 {
 private:
   std::chrono::milliseconds cb_exec_time_;
@@ -41,12 +41,12 @@ private:
   void ros2_sub_cb(const std::shared_ptr<const std_msgs::msg::Bool> & msg, int64_t cb_i);
 
 public:
-  explicit NodeForNoStarvation(
+  explicit NodeForExecutorTest(
     const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
     const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period,
     const std::chrono::milliseconds cb_exec_time, const std::string cbg_type = "individual");
 
-  ~NodeForNoStarvation();
+  ~NodeForExecutorTest();
 
   bool is_all_ros2_sub_cbs_called() const;
   bool is_all_agnocast_sub_cbs_called() const;

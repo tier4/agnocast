@@ -1,4 +1,4 @@
-#include "node_for_no_starvation_test.hpp"
+#include "node_for_executor_test.hpp"
 
 #include <gtest/gtest.h>
 
@@ -30,7 +30,7 @@ protected:
     rclcpp::init(0, nullptr);
     executor_ = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, GetParam());
-    test_node_ = std::make_shared<NodeForNoStarvation>(
+    test_node_ = std::make_shared<NodeForExecutorTest>(
       NUM_AGNOCAST_SUB_CBS, NUM_ROS2_SUB_CBS, NUM_AGNOCAST_CBS_TO_BE_ADDED, PUB_PERIOD,
       cb_exec_time);
     executor_->add_node(test_node_);
@@ -38,7 +38,7 @@ protected:
 
   void TearDown() override { rclcpp::shutdown(); }
 
-  std::shared_ptr<NodeForNoStarvation> test_node_;
+  std::shared_ptr<NodeForExecutorTest> test_node_;
   std::shared_ptr<agnocast::SingleThreadedAgnocastExecutor> executor_;
   std::chrono::seconds spin_duration_;
 
