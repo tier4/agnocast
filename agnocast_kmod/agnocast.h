@@ -231,6 +231,7 @@ bool is_in_proc_info_htable(const pid_t pid);
 int get_topic_entries_num(const char * topic_name);
 int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id);
 bool is_in_topic_entries(const char * topic_name, int64_t entry_id);
+int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_local_id_t pubsub_id);
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id);
 int get_publisher_num(const char * topic_name);
 bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id);
