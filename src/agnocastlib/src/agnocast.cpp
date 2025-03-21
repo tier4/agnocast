@@ -70,11 +70,46 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
-// NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
-void * initialize_agnocast(const uint64_t shm_size)
+int check_version_consistency(
+  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
+  struct ioctl_get_version_args kmod_version)
 {
   RCLCPP_INFO(logger, "Running version: %s", agnocastlib::VERSION);
 
+  char heaphook_version[VERSION_BUFFER_LEN];
+  size_t copy_len = heaphook_version_str_len < 32 ? heaphook_version_str_len : 32;
+  heaphook_version[copy_len] = '\0';
+  memcpy(heaphook_version, heaphook_version_ptr, copy_len);
+  RCLCPP_INFO(logger, "Agnocast Heaphook version: %s", heaphook_version);
+
+  size_t agnocastlib_version_len = strlen(agnocastlib::VERSION);
+  if (
+    agnocastlib_version_len != heaphook_version_str_len ||
+    strncmp(heaphook_version, agnocastlib::VERSION, agnocastlib_version_len) != 0) {
+    RCLCPP_INFO(
+      logger, "Version mismatch between Agnocastlib (v%s) and Agnocast heaphook (v%s)",
+      agnocastlib::VERSION, heaphook_version);
+    return -1;
+  }
+
+  size_t kmod_version_len = strlen(kmod_version.version);
+  if (
+    agnocastlib_version_len != kmod_version_len ||
+    strncmp(kmod_version.version, agnocastlib::VERSION, agnocastlib_version_len) != 0) {
+    RCLCPP_INFO(
+      logger, "Version mismatch between Agnocastlib (v%s) and Agnocast kernel module (v%s)",
+      agnocastlib::VERSION, kmod_version.version);
+    return -1;
+  }
+
+  return 0;
+}
+
+// NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
+void * initialize_agnocast(
+  const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
+  const size_t heaphook_version_str_len)
+{
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
     exit(EXIT_FAILURE);
@@ -83,6 +118,21 @@ void * initialize_agnocast(const uint64_t shm_size)
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  struct ioctl_get_version_args get_version_args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION, &get_version_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION failed");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  RCLCPP_ERROR(logger, "Agnocast kernel module version: %s", get_version_args.version);
+  if (
+    check_version_consistency(heaphook_version_ptr, heaphook_version_str_len, get_version_args) <
+    0) {
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 

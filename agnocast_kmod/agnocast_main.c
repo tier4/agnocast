@@ -21,12 +21,6 @@ static DEFINE_MUTEX(global_mutex);
 #define AGNOCAST_VERSION "unknown"
 #endif
 
-#define XSTR(s) STR(s)
-#define STR(s) #s
-#pragma message "AGNOCAST_VERSION = " XSTR(AGNOCAST_VERSION)
-
-// static const char *agnocast_version = AGNOCAST_VERSION;
-
 // =========================================
 // data structure
 
@@ -1299,6 +1293,13 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   return 0;
 }
 
+int get_version(struct ioctl_get_version_args * ioctl_ret)
+{
+  memcpy(ioctl_ret->version, AGNOCAST_VERSION, strlen(AGNOCAST_VERSION) + 1);
+
+  return 0;
+}
+
 int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
@@ -1634,6 +1635,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto unlock_mutex_and_return;
     ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
+      goto unlock_mutex_and_return;
+  } else if (cmd == AGNOCAST_GET_VERSION) {
+    struct ioctl_get_version_args get_version_args;
+    ret = get_version(&get_version_args);
+    if (copy_to_user(
+          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
       goto unlock_mutex_and_return;
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;
@@ -2182,7 +2189,7 @@ static int agnocast_init(void)
 
   init_memory_allocator();
 
-  dev_info(agnocast_device, "Agnocast installed! %s\n", AGNOCAST_VERSION);
+  dev_info(agnocast_device, "Agnocast installed! v%s\n", AGNOCAST_VERSION);
   return 0;
 }
 #endif
