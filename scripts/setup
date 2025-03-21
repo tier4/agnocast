@@ -1,8 +1,3 @@
-# pre-commit
-python3 -m pip install pre-commit
-python3 -m pip install --upgrade pre-commit identify
-pre-commit install
-
 # ROS 2
 source /opt/ros/humble/setup.bash
 rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
@@ -11,3 +6,8 @@ rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 rustup toolchain install 1.75.0
 rustup default 1.75.0
 rustup component add clippy rustfmt
+
+# agnocast-heaphook and agnocast-kmod
+sudo add-apt-repository ppa:t4-system-software/agnocast
+sudo apt update
+sudo apt install agnocast-heaphook agnocast-kmod
