@@ -28,7 +28,8 @@ void test_case_do_exit(struct kunit * test)
   // Act
   pre_handler_do_exit_core(PID_BASE);
 
-  msleep(10);  // wait for exit_worker_thread to handle process exit
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
 
   // Assert
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
@@ -47,7 +48,9 @@ void test_case_do_exit_many(struct kunit * test)
     pre_handler_do_exit_core(pid);
   }
 
-  msleep(100);  // wait for exit_worker_thread to handle process exit
+  // wait for exit_worker_thread to handle process exit:
+  // this value is conservatively estimated to be large enough
+  msleep(100);
 
   // Assert
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
