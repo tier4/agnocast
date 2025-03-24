@@ -12,7 +12,6 @@ namespace agnocast
 #define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
-#define VERSION_BUFFER_LEN 32  // Maximum size of version number represented as a string
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
@@ -142,11 +141,6 @@ union ioctl_new_shm_args {
 };
 #pragma GCC diagnostic pop
 
-struct ioctl_get_version_args
-{
-  char version[VERSION_BUFFER_LEN];
-};
-
 union ioctl_get_subscriber_num_args {
   const char * topic_name;
   uint32_t ret_subscriber_num;
@@ -160,7 +154,6 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-#define AGNOCAST_GET_VERSION _IOW('I', 2, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
 
 }  // namespace agnocast
