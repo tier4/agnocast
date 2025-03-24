@@ -140,6 +140,11 @@ void NodeForNoStarvation::agnocast_timer_cb()
 void NodeForNoStarvation::agnocast_sub_cb(
   [[maybe_unused]] const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg, int64_t cb_i)
 {
+  std::unique_lock<std::mutex> lock(mutex_for_agnocast_cbg_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    is_mutually_exclusive_agnocast_ = false;
+  }
+
   // Each callback only accesses its own index, so it's safe to access the vector without a mutex.
   agnocast_sub_cbs_called_[cb_i] = true;
   dummy_work(cb_exec_time_);
@@ -155,6 +160,11 @@ void NodeForNoStarvation::ros2_timer_cb()
 void NodeForNoStarvation::ros2_sub_cb(
   [[maybe_unused]] const std::shared_ptr<const std_msgs::msg::Bool> & msg, int64_t cb_i)
 {
+  std::unique_lock<std::mutex> lock(mutex_for_ros2_cbg_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    is_mutually_exclusive_ros2_ = false;
+  }
+
   // Each callback only accesses its own index, so it's safe to access the vector without a mutex.
   ros2_sub_cbs_called_[cb_i] = true;
   dummy_work(cb_exec_time_);
@@ -172,4 +182,14 @@ bool NodeForNoStarvation::is_all_agnocast_sub_cbs_called() const
   return std::all_of(
     agnocast_sub_cbs_called_.begin(), agnocast_sub_cbs_called_.end(),
     [](bool is_called) { return is_called; });
+}
+
+bool NodeForNoStarvation::is_mutually_exclusive_agnocast() const
+{
+  return is_mutually_exclusive_agnocast_;
+}
+
+bool NodeForNoStarvation::is_mutually_exclusive_ros2() const
+{
+  return is_mutually_exclusive_ros2_;
 }
