@@ -7,6 +7,7 @@
 #define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
+#define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info

@@ -20,6 +20,10 @@ static struct class * agnocast_class;
 static struct device * agnocast_device;
 static DEFINE_MUTEX(global_mutex);
 
+#ifndef AGNOCAST_VERSION
+#define AGNOCAST_VERSION "unknown"
+#endif
+
 // =========================================
 // data structure
 
@@ -2314,7 +2318,7 @@ static int agnocast_init(void)
 
   init_memory_allocator();
 
-  dev_info(agnocast_device, "Agnocast installed!\n");
+  dev_info(agnocast_device, "Agnocast installed! v%s\n", AGNOCAST_VERSION);
   return 0;
 }
 #endif
