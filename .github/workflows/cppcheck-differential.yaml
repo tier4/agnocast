@@ -77,7 +77,7 @@ jobs:
       - name: Add kmod to paths
         id: add-kmod
         run: |
-          target_paths="${{ steps.add-header-paths.outputs.filtered-full-paths }}"
+          target_paths="${{ steps.add-header-paths.outputs.target-paths }}"
           target_paths="$target_paths $(realpath agnocast_kmod/agnocast_main.c)"
           target_paths="$target_paths $(realpath agnocast_kmod/agnocast.h)"
           target_paths="$target_paths $(realpath agnocast_kmod/agnocast_memory_allocator.c)"
