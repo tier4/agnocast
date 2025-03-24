@@ -4,21 +4,35 @@
 
 int main(int argc, char * argv[])
 {
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<rclcpp_components::ComponentManager>();
+  try {
+    rclcpp::init(argc, argv);
 
-  const int get_next_timeout_ms =
-    (node->has_parameter("get_next_timeout_ms"))
-      ? static_cast<int>(node->get_parameter("get_next_timeout_ms").as_int())
-      : 50;
+    rclcpp::NodeOptions options;
+    options.allow_undeclared_parameters(true);
+    options.automatically_declare_parameters_from_overrides(true);
 
-  auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
-    rclcpp::ExecutorOptions{}, get_next_timeout_ms);
+    auto node = std::make_shared<rclcpp_components::ComponentManager>(
+      std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
 
-  node->set_executor(executor);
-  executor->add_node(node);
-  executor->spin();
+    const int get_next_timeout_ms = node->get_parameter_or("get_next_timeout_ms", 50);
 
-  rclcpp::shutdown();
+    auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
+      rclcpp::ExecutorOptions{}, get_next_timeout_ms);
+
+    node->set_executor(executor);
+    executor->add_node(node);
+    executor->spin();
+
+    rclcpp::shutdown();
+  } catch (rclcpp_components::ComponentManagerException & ex) {
+    std::cerr << "Exception caught in main: " << ex.what() << std::endl;
+    close(agnocast::agnocast_fd);
+    return EXIT_FAILURE;
+  } catch (...) {
+    std::cerr << "Unknown exception caught in main: " << std::endl;
+    close(agnocast::agnocast_fd);
+    return EXIT_FAILURE;
+  }
+
   return 0;
 }

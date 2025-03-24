@@ -17,12 +17,17 @@ struct publisher_shm_info
   uint64_t shm_addrs[MAX_PUBLISHER_NUM];
   uint64_t shm_sizes[MAX_PUBLISHER_NUM];
 };
+struct name_info
+{
+  const char * ptr;
+  uint64_t len;
+};
 
 union ioctl_subscriber_args {
   struct
   {
-    const char * topic_name;
-    const char * node_name;
+    struct name_info topic_name;
+    struct name_info node_name;
     pid_t subscriber_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
@@ -31,18 +36,14 @@ union ioctl_subscriber_args {
   struct
   {
     topic_local_id_t ret_id;
-    uint32_t ret_transient_local_num;
-    int64_t ret_entry_ids[MAX_QOS_DEPTH];
-    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
-    struct publisher_shm_info ret_pub_shm_info;
   };
 };
 
 union ioctl_publisher_args {
   struct
   {
-    const char * topic_name;
-    const char * node_name;
+    struct name_info topic_name;
+    struct name_info node_name;
     pid_t publisher_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
@@ -55,7 +56,7 @@ union ioctl_publisher_args {
 
 struct ioctl_update_entry_args
 {
-  const char * topic_name;
+  struct name_info topic_name;
   topic_local_id_t pubsub_id;
   int64_t entry_id;
 };
@@ -63,7 +64,7 @@ struct ioctl_update_entry_args
 union ioctl_receive_msg_args {
   struct
   {
-    const char * topic_name;
+    struct name_info topic_name;
     topic_local_id_t subscriber_id;
   };
   struct
@@ -78,7 +79,7 @@ union ioctl_receive_msg_args {
 union ioctl_publish_args {
   struct
   {
-    const char * topic_name;
+    struct name_info topic_name;
     topic_local_id_t publisher_id;
     uint64_t msg_virtual_address;
   };
@@ -95,7 +96,7 @@ union ioctl_publish_args {
 union ioctl_take_msg_args {
   struct
   {
-    const char * topic_name;
+    struct name_info topic_name;
     topic_local_id_t subscriber_id;
     bool allow_same_message;
   };
@@ -122,7 +123,7 @@ struct ioctl_get_version_args
 };
 
 union ioctl_get_subscriber_num_args {
-  const char * topic_name;
+  struct name_info topic_name;
   uint32_t ret_subscriber_num;
 };
 
@@ -150,7 +151,7 @@ union ioctl_topic_list_args {
 union ioctl_node_info_args {
   struct
   {
-    const char * node_name;
+    struct name_info node_name;
     uint64_t topic_name_buffer_addr;
   };
   uint32_t ret_topic_num;
@@ -166,7 +167,7 @@ struct topic_info_ret
 union ioctl_topic_info_args {
   struct
   {
-    const char * topic_name;
+    struct name_info topic_name;
     uint64_t topic_info_ret_buffer_addr;
   };
   uint32_t ret_topic_info_ret_num;
@@ -179,7 +180,10 @@ union ioctl_topic_info_args {
 #define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
 
 // ================================================
-// public functions in agnocast_main.c
+// public macros and functions in agnocast_main.c
+
+#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 
 void agnocast_init_mutexes(void);
 int agnocast_init_sysfs(void);
@@ -231,6 +235,8 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
 
+void enqueue_exit_pid(const pid_t pid);
+
 // ================================================
 // helper functions for KUnit test
 
@@ -240,6 +246,7 @@ bool is_in_proc_info_htable(const pid_t pid);
 int get_topic_entries_num(const char * topic_name);
 int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id);
 bool is_in_topic_entries(const char * topic_name, int64_t entry_id);
+int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_local_id_t pubsub_id);
 bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id);
 int get_publisher_num(const char * topic_name);
 bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id);
