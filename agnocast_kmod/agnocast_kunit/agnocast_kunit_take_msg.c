@@ -134,7 +134,8 @@ void test_case_take_msg_take_one(struct kunit * test)
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kunit * test)
@@ -173,7 +174,8 @@ void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kuni
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * test)
@@ -218,7 +220,8 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret1.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret1.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret1.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * test)
@@ -299,7 +302,8 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_qos_depth(
@@ -336,7 +340,8 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_publish_num(
@@ -379,7 +384,8 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_max_qos_depth(
@@ -423,7 +429,8 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_all_equal(
@@ -459,7 +466,8 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_than_publish_num(
@@ -505,7 +513,8 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 //
@@ -548,7 +557,8 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller_than_pub_qos(
@@ -590,7 +600,8 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id), ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 // ================================================
@@ -623,7 +634,8 @@ void test_case_take_msg_one_new_pub(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
 void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
@@ -701,7 +713,8 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], new_shm_args.ret_addr);
 }
 
 void test_case_take_msg_2sub_in_same_process(struct kunit * test)
@@ -740,7 +753,8 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
-  // TODO(Koichi98): Test ret_pub_shm_info is set correctly
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 
   // Act
   int ret5 = take_msg(TOPIC_NAME, subscriber_args2.ret_id, allow_same_message, &ioctl_take_msg_ret);
