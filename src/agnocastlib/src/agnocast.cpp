@@ -123,7 +123,7 @@ void * initialize_agnocast(
 
   struct ioctl_get_version_args get_version_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION, &get_version_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION failed");
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }

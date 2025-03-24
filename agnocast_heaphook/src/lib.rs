@@ -12,7 +12,7 @@ use std::{
 };
 
 extern "C" {
-    fn initialize_agnocast(size: usize, version: *const c_char, length: usize) -> *mut c_void;
+    fn initialize_agnocast(size: usize, version: *const c_char, version_str_length: usize) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
 
