@@ -105,6 +105,14 @@ if(BUILD_TESTING)
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
     TIMEOUT 120
   )
+
+  # Integration tests for agnocast_heaphook
+  ament_add_gmock(test_integration_agnocast_heaphook
+    test/integration/test_agnocast_heaphook.cpp)
+  target_include_directories(test_integration_agnocast_heaphook PRIVATE include)
+  target_link_libraries(test_integration_agnocast_heaphook agnocast)
+  set_tests_properties(test_heaphook_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe;LD_PRELOAD=${CMAKE_INSTALL_PREFIX}/lib/libagnocast_heaphook.so:;MEMPOOL_SIZE=1000000")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
