@@ -71,7 +71,6 @@ install(
 
 find_package(Python3 REQUIRED)
 
-# package.xmlからバージョン情報を取得
 execute_process(
   COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
   OUTPUT_VARIABLE PACKAGE_VERSION

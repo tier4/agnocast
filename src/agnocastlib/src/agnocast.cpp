@@ -17,6 +17,58 @@ int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
 
+struct SemVer
+{
+  int major;
+  int minor;
+  int patch;
+
+  static SemVer parse(const char * version)
+  {
+    SemVer result = {0, 0, 0};
+    if (!version) return result;
+
+    sscanf(version, "%d.%d.%d", &result.major, &result.minor, &result.patch);
+    return result;
+  }
+
+  static bool is_compatible(const SemVer & v1, const SemVer & v2)
+  {
+    return (v1.major == v2.major && v1.minor == v2.minor);
+  }
+};
+
+int check_version_consistency(
+  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
+  struct ioctl_get_version_args kmod_version)
+{
+  char heaphook_version[VERSION_BUFFER_LEN];
+  size_t copy_len = heaphook_version_str_len < 32 ? heaphook_version_str_len : 32;
+  heaphook_version[copy_len] = '\0';
+  memcpy(heaphook_version, heaphook_version_ptr, copy_len);
+
+  SemVer lib_version = SemVer::parse(agnocastlib::VERSION);
+  SemVer heaphook_ver = SemVer::parse(heaphook_version);
+  SemVer kmod_ver = SemVer::parse(kmod_version.version);
+
+  if (!SemVer::is_compatible(lib_version, heaphook_ver)) {
+    RCLCPP_INFO(
+      logger, "Major.Minor versions must match: Agnocastlib(%d.%d) vs Agnocast heaphook(%d.%d)",
+      lib_version.major, lib_version.minor, heaphook_ver.major, heaphook_ver.minor);
+    return -1;
+  }
+
+  if (!SemVer::is_compatible(lib_version, kmod_ver)) {
+    RCLCPP_INFO(
+      logger,
+      "Major.Minor versions must match: Agnocastlib(%d.%d) vs Agnocast kernel module(%d.%d)",
+      lib_version.major, lib_version.minor, kmod_ver.major, kmod_ver.minor);
+    return -1;
+  }
+
+  return 0;
+}
+
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
@@ -70,41 +122,6 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
-int check_version_consistency(
-  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
-  struct ioctl_get_version_args kmod_version)
-{
-  RCLCPP_INFO(logger, "Running version: %s", agnocastlib::VERSION);
-
-  char heaphook_version[VERSION_BUFFER_LEN];
-  size_t copy_len = heaphook_version_str_len < 32 ? heaphook_version_str_len : 32;
-  heaphook_version[copy_len] = '\0';
-  memcpy(heaphook_version, heaphook_version_ptr, copy_len);
-  RCLCPP_INFO(logger, "Agnocast Heaphook version: %s", heaphook_version);
-
-  size_t agnocastlib_version_len = strlen(agnocastlib::VERSION);
-  if (
-    agnocastlib_version_len != heaphook_version_str_len ||
-    strncmp(heaphook_version, agnocastlib::VERSION, agnocastlib_version_len) != 0) {
-    RCLCPP_INFO(
-      logger, "Version mismatch between Agnocastlib (v%s) and Agnocast heaphook (v%s)",
-      agnocastlib::VERSION, heaphook_version);
-    return -1;
-  }
-
-  size_t kmod_version_len = strlen(kmod_version.version);
-  if (
-    agnocastlib_version_len != kmod_version_len ||
-    strncmp(kmod_version.version, agnocastlib::VERSION, agnocastlib_version_len) != 0) {
-    RCLCPP_INFO(
-      logger, "Version mismatch between Agnocastlib (v%s) and Agnocast kernel module (v%s)",
-      agnocastlib::VERSION, kmod_version.version);
-    return -1;
-  }
-
-  return 0;
-}
-
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -128,7 +145,6 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  RCLCPP_ERROR(logger, "Agnocast kernel module version: %s", get_version_args.version);
   if (
     check_version_consistency(heaphook_version_ptr, heaphook_version_str_len, get_version_args) <
     0) {
