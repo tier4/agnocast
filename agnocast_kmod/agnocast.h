@@ -175,7 +175,8 @@ union ioctl_topic_info_args {
 // ================================================
 // public macros and functions in agnocast_main.c
 
-#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
+// From experience, EXIT_QUEUE_SIZE_BITS should be greater than 10
+#define EXIT_QUEUE_SIZE_BITS 16
 #define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 
 void agnocast_init_mutexes(void);
