@@ -1,5 +1,13 @@
 #!/bin/bash
 set -eux
 
-cd agnocast_kmod
+VERSION="1.0.2"
+
+cp -r agnocast_kmod agnocast-kmod-${VERSION}
+tar czf agnocast-kmod_${VERSION}.orig.tar.gz agnocast-kmod-${VERSION}
+
+cd agnocast-kmod-${VERSION}
 debuild -S -sa
+
+cd ..
+rm -rf agnocast-kmod-${VERSION}
