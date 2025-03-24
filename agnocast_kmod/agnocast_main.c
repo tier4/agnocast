@@ -2055,7 +2055,7 @@ static int exit_worker_thread(void * data)
   return 0;
 }
 
-void pre_handler_do_exit_core(const pid_t pid)
+void enqueue_exit_pid(const pid_t pid)
 {
   unsigned long flags;
   uint32_t next;
@@ -2086,7 +2086,7 @@ void pre_handler_do_exit_core(const pid_t pid)
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   const pid_t pid = current->pid;
-  pre_handler_do_exit_core(pid);
+  enqueue_exit_pid(pid);
   return 0;
 }
 

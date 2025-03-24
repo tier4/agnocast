@@ -225,7 +225,7 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
 
-void pre_handler_do_exit_core(const pid_t pid);
+void enqueue_exit_pid(const pid_t pid);
 
 // ================================================
 // helper functions for KUnit test

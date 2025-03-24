@@ -26,7 +26,7 @@ void test_case_do_exit(struct kunit * test)
   setup_processes(test, process_num);
 
   // Act
-  pre_handler_do_exit_core(PID_BASE);
+  enqueue_exit_pid(PID_BASE);
 
   // wait for exit_worker_thread to handle process exit
   msleep(10);
@@ -45,7 +45,7 @@ void test_case_do_exit_many(struct kunit * test)
   // Act
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
-    pre_handler_do_exit_core(pid);
+    enqueue_exit_pid(pid);
   }
 
   // wait for exit_worker_thread to handle process exit:
