@@ -72,7 +72,8 @@ void NodeForExecutorTest::add_agnocast_sub_cb()
     [this, cb_i](const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg) {
       agnocast_sub_cb(msg, cb_i);
     };
-  agnocast::register_callback(callback, agnocast_topic_name_, cb_i, mq, cbg);
+  const bool is_transient_local = false;
+  agnocast::register_callback(callback, agnocast_topic_name_, cb_i, is_transient_local, mq, cbg);
 }
 
 // NOTE: If the implementation of agnocast is changed, this function does not

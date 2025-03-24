@@ -35,10 +35,6 @@ union ioctl_subscriber_args {
   struct
   {
     topic_local_id_t ret_id;
-    uint32_t ret_transient_local_num;
-    int64_t ret_entry_ids[MAX_QOS_DEPTH];
-    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
-    struct publisher_shm_info ret_pub_shm_info;
   };
 };
 

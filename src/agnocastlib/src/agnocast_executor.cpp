@@ -22,6 +22,53 @@ AgnocastExecutor::~AgnocastExecutor()
   close(epoll_fd_);
 }
 
+void AgnocastExecutor::receive_message(
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  const CallbackInfo & callback_info)
+{
+  union ioctl_receive_msg_args receive_args = {};
+  receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
+  receive_args.subscriber_id = callback_info.subscriber_id;
+  if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  // Map the shared memory region with read permissions whenever a new publisher is discovered.
+  for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
+    const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
+    const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
+    const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
+    map_read_only_area(pid, addr, size);
+  }
+
+  // older messages first
+  for (int32_t i = static_cast<int32_t>(receive_args.ret_entry_num) - 1; i >= 0; i--) {
+    const std::shared_ptr<std::function<void()>> callable =
+      std::make_shared<std::function<void()>>([callback_info, receive_args, i]() {
+        auto typed_msg = callback_info.message_creator(
+          reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.topic_name,
+          callback_info.subscriber_id, receive_args.ret_entry_ids[i]);
+        callback_info.callback(*typed_msg);
+      });
+
+#ifdef TRACETOOLS_LTTNG_ENABLED
+    uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
+    TRACEPOINT(
+      agnocast_create_callable, static_cast<const void *>(callable.get()),
+      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
+      pid_ciid);
+#endif
+
+    {
+      std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
+      ready_agnocast_executables_.emplace_back(
+        AgnocastExecutable{callable, callback_info.callback_group});
+    }
+  }
+}
+
 void AgnocastExecutor::prepare_epoll()
 {
   std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
@@ -44,6 +91,10 @@ void AgnocastExecutor::prepare_epoll()
       RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
+    }
+
+    if (callback_info.is_transient_local) {
+      receive_message(callback_info_id, callback_info);
     }
 
     callback_info.need_epoll_update = false;
@@ -116,43 +167,7 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
     return;
   }
 
-  union ioctl_receive_msg_args receive_args = {};
-  receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
-  receive_args.subscriber_id = callback_info.subscriber_id;
-  if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  // Map the shared memory region with read permissions whenever a new publisher is discovered.
-  for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
-    const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
-    const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
-    const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
-    map_read_only_area(pid, addr, size);
-  }
-
-  for (int32_t i = static_cast<int32_t>(receive_args.ret_entry_num) - 1; i >= 0;
-       i--) {  // older messages first
-    const auto callable = agnocast::create_callable(
-      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.subscriber_id,
-      receive_args.ret_entry_ids[i], callback_info_id);
-
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
-    TRACEPOINT(
-      agnocast_create_callable, static_cast<const void *>(callable.get()),
-      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
-      pid_ciid);
-#endif
-
-    {
-      std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
-      ready_agnocast_executables_.emplace_back(
-        AgnocastExecutable{callable, callback_info.callback_group});
-    }
-  }
+  receive_message(callback_info_id, callback_info);
 }
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
