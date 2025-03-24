@@ -1972,7 +1972,16 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     while (node) {
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
-      if (en->publisher_id == publisher_id && !is_referenced(en)) {
+
+      if (en->publisher_id != publisher_id) continue;
+
+      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+        if (en->referencing_ids[i] == publisher_id) {
+          remove_reference_by_index(en, i);
+        }
+      }
+
+      if (!is_referenced(en)) {
         pub_info->entries_num--;
         remove_entry_node(wrapper, en);
       }
