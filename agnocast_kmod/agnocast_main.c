@@ -1988,17 +1988,17 @@ static int has_new_pid = false;
 #ifndef KUNIT_BUILD
 static void unlink_shm(const pid_t pid)
 {
-  char filename_buffer[30];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
+  char filename_buffer[32];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
   scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
 
   struct filename * filename = getname_kernel(filename_buffer);
   if (!filename) {
-    dev_warn(agnocast_device, "getname_kernel failed. (process_exit_cleanup)\n");
+    dev_warn(agnocast_device, "getname_kernel failed. (unlink_shm)\n");
   }
 
   int ret = do_unlinkat(AT_FDCWD, filename);
   if (ret < 0) {
-    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (process_exit_cleanup)\n", ret);
+    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (unlink_shm)\n", ret);
   }
 }
 #endif
@@ -2110,7 +2110,9 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   if (need_wakeup) {
     wake_up_interruptible(&worker_wait);
   } else {
-    dev_warn(agnocast_device, "exit_pid_queue is full! consider expanding the queue size\n");
+    dev_warn(
+      agnocast_device,
+      "exit_pid_queue is full! consider expanding the queue size. (pre_handler_do_exit)\n");
   }
 
   return 0;
@@ -2137,7 +2139,9 @@ static int check_dev_shm_available(void)
   }
 
   if (st.f_type != TMPFS_MAGIC) {  // TMPFS_MAGIC has the same value as SHMFS_SUPER_MAGIC in glibc.
-    dev_warn(agnocast_device, "(check_dev_shm_availability)\n");
+    dev_warn(
+      agnocast_device,
+      "/dev/shm cannot be used as shared memory file system.(check_dev_shm_availability)\n");
     return -ECANCELED;
   }
 
@@ -2155,8 +2159,8 @@ static int setup_for_unlink_shm(void)
   int ret = register_kprobe(&kp_do_unlinkat);
   if (ret < 0) {
     dev_warn(
-      agnocast_device, "register_kprobe for do_unlinkat failed, returned %d. (agnocast_init)\n",
-      ret);
+      agnocast_device,
+      "register_kprobe for do_unlinkat failed, returned %d. (setup_for_unlink_shm)\n", ret);
     return ret;
   }
 
@@ -2214,7 +2218,7 @@ int agnocast_init_kthread(void)
 
   worker_task = kthread_run(exit_worker_thread, NULL, "agnocast_exit_worker");
   if (IS_ERR(worker_task)) {
-    dev_warn(agnocast_device, "failed to create kernel thread\n");
+    dev_warn(agnocast_device, "failed to create kernel thread. (agnocast_init_kthread)\n");
     return PTR_ERR(worker_task);
   }
 
@@ -2226,7 +2230,8 @@ int agnocast_init_kprobe(void)
   int ret = register_kprobe(&kp_do_exit);
   if (ret < 0) {
     dev_warn(
-      agnocast_device, "register_kprobe for do_exit failed, returned %d. (agnocast_init)\n", ret);
+      agnocast_device, "register_kprobe for do_exit failed, returned %d. (agnocast_init_kprobe)\n",
+      ret);
     return ret;
   }
 
