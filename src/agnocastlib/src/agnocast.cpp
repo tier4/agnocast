@@ -178,20 +178,11 @@ void * initialize_agnocast(
 
 static void shutdown_agnocast()
 {
-  const pid_t pid = getpid();
-
-  {
-    std::lock_guard<std::mutex> lock(shm_fds_mtx);
-    for (int fd : shm_fds) {
-      if (close(fd) == -1) {
-        perror("[ERROR] [Agnocast] close shm_fd failed");
-      }
+  std::lock_guard<std::mutex> lock(shm_fds_mtx);
+  for (int fd : shm_fds) {
+    if (close(fd) == -1) {
+      perror("[ERROR] [Agnocast] close shm_fd failed");
     }
-  }
-
-  const std::string shm_name = create_shm_name(pid);
-  if (shm_unlink(shm_name.c_str()) == -1) {
-    perror("[ERROR] [Agnocast] shm_unlink failed");
   }
 }
 
