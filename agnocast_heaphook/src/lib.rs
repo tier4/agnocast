@@ -16,6 +16,37 @@ extern "C" {
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
 
+#[cfg(feature = "alloc-stats")]
+mod alloc_stats {
+    use super::*;
+
+    pub static ORIGINAL_MALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+    pub static ORIGINAL_FREE_COUNT: AtomicUsize = AtomicUsize::new(0);
+    pub static TLSF_ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+    pub static TLSF_DEALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    #[no_mangle]
+    pub extern "C" fn reset_alloc_stats() {
+        ORIGINAL_MALLOC_COUNT.store(0, Ordering::Relaxed);
+        ORIGINAL_FREE_COUNT.store(0, Ordering::Relaxed);
+        TLSF_ALLOC_COUNT.store(0, Ordering::Relaxed);
+        TLSF_DEALLOC_COUNT.store(0, Ordering::Relaxed);
+    }
+
+    #[no_mangle]
+    pub extern "C" fn get_alloc_stats(
+        original_malloc: &mut usize,
+        original_free: &mut usize,
+        tlsf_alloc: &mut usize,
+        tlsf_dealloc: &mut usize,
+    ) {
+        *original_malloc = ORIGINAL_MALLOC_COUNT.load(Ordering::Relaxed);
+        *original_free = ORIGINAL_FREE_COUNT.load(Ordering::Relaxed);
+        *tlsf_alloc = TLSF_ALLOC_COUNT.load(Ordering::Relaxed);
+        *tlsf_dealloc = TLSF_DEALLOC_COUNT.load(Ordering::Relaxed);
+    }
+}
+
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
 
@@ -180,6 +211,9 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
         panic!("[ERROR] [Agnocast] memory allocation failed: use larger MEMPOOL_SIZE");
     });
 
+    #[cfg(feature = "alloc-stats")]
+    alloc_stats::TLSF_ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
+
     ptr.as_ptr() as *mut c_void
 }
 
@@ -205,6 +239,9 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     let mut tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
     unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
+
+    #[cfg(feature = "alloc-stats")]
+    alloc_stats::TLSF_DEALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {

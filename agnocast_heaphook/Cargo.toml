@@ -17,3 +17,6 @@ crate-type = ["cdylib"]
 [dependencies]
 libc = "0.2"
 rlsf = "0.2"
+
+[features]
+alloc-stats = []
