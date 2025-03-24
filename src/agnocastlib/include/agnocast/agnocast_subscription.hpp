@@ -137,7 +137,7 @@ public:
   agnocast::ipc_shared_ptr<MessageT> take(bool allow_same_message = false)
   {
     union ioctl_take_msg_args take_args;
-    take_args.topic_name = topic_name_.c_str();
+    take_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
     take_args.subscriber_id = id_;
     take_args.allow_same_message = allow_same_message;
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
