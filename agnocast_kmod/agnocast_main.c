@@ -65,7 +65,7 @@ struct subscriber_info
   int64_t latest_received_entry_id;
   char * node_name;
   bool is_take_sub;
-  bool new_publisher;
+  bool need_mmap_update;
   struct hlist_node node;
 };
 
@@ -231,7 +231,7 @@ static int insert_subscriber_info(
   }
   (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
-  (*new_info)->new_publisher = true;
+  (*new_info)->need_mmap_update = true;
   INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.sub_info_htable, &(*new_info)->node, hash_val);
@@ -956,12 +956,12 @@ int publisher_add(
 
   ioctl_ret->ret_id = pub_info->id;
 
-  // set true to subscriber_info.new_publisher to notify
+  // set true to subscriber_info.need_mmap_update to notify
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    sub_info->new_publisher = true;
+    sub_info->need_mmap_update = true;
   }
 
   return 0;
@@ -1096,8 +1096,8 @@ int receive_msg(
     }
   }
 
-  // Check for new publisher
-  if (!sub_info->new_publisher) {
+  // Check if there is any publisher that need to be mmapped
+  if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
     return 0;
   }
@@ -1107,7 +1107,7 @@ int receive_msg(
     return ret;
   }
 
-  sub_info->new_publisher = false;
+  sub_info->need_mmap_update = false;
 
   return 0;
 }
@@ -1202,8 +1202,8 @@ int take_msg(
     sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
   }
 
-  // Check for new publisher
-  if (!sub_info->new_publisher) {
+  // Check if there is any publisher that need to be mmapped
+  if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
     return 0;
   }
@@ -1213,7 +1213,7 @@ int take_msg(
     return ret;
   }
 
-  sub_info->new_publisher = false;
+  sub_info->need_mmap_update = false;
 
   return 0;
 }
