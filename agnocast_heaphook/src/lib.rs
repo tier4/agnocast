@@ -150,6 +150,8 @@ fn init_tlsf() -> Mutex<TlsfType> {
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
 
+    let mempool_ptr: *mut c_void = unsafe { initialize_agnocast(aligned_size) };
+
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
