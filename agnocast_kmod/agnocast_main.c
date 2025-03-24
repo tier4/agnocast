@@ -2018,8 +2018,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 }
 
 // Ring buffer to hold exited pids
-#define EXIT_QUEUE_SIZE_BITS 10  // arbitrary size
-#define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 static DEFINE_SPINLOCK(pid_queue_lock);
 static pid_t exit_pid_queue[EXIT_QUEUE_SIZE];
 static uint32_t queue_head;
@@ -2131,7 +2129,7 @@ static int exit_worker_thread(void * data)
   return 0;
 }
 
-static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+void enqueue_exit_pid(const pid_t pid)
 {
   unsigned long flags;
   uint32_t next;
@@ -2144,7 +2142,7 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
   next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
 
   if (next != queue_head) {  // queue is not full
-    exit_pid_queue[queue_tail] = current->pid;
+    exit_pid_queue[queue_tail] = pid;
     queue_tail = next;
     smp_store_release(&has_new_pid, 1);
     need_wakeup = true;
@@ -2159,7 +2157,12 @@ static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
       agnocast_device,
       "exit_pid_queue is full! consider expanding the queue size. (pre_handler_do_exit)\n");
   }
+}
 
+static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
+{
+  const pid_t pid = current->pid;
+  enqueue_exit_pid(pid);
   return 0;
 }
 
