@@ -23,9 +23,10 @@ static DEFINE_MUTEX(global_mutex);
 // =========================================
 // data structure
 
-#define TOPIC_HASH_BITS 10  // hash table size : 2^TOPIC_HASH_BITS
-#define PUB_INFO_HASH_BITS 1
-#define SUB_INFO_HASH_BITS 3
+// hashtable size becomes 2^HASH_BITS
+#define TOPIC_HASH_BITS 10
+#define PUB_INFO_HASH_BITS 3
+#define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
 
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
