@@ -7,8 +7,10 @@
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
+#include <linux/namei.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/spinlock.h>
+#include <linux/statfs.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -2120,8 +2122,30 @@ static struct kprobe kp_do_exit = {
 };
 
 #ifndef KUNIT_BUILD
+static int check_dev_shm_available(void)
+{
+  struct path path;
+  struct kstatfs st;
+  int ret = kern_path("/dev/shm/", LOOKUP_FOLLOW, &path);
+  if (ret < 0) {
+    return ret;
+  }
+
+  ret = vfs_statfs(&path, &st);
+  if (ret < 0) {
+    return ret;
+  }
+
+  if (st.f_type != TMPFS_MAGIC) {  // TMPFS_MAGIC has the same value as SHMFS_SUPER_MAGIC in glibc.
+    dev_warn(agnocast_device, "(check_dev_shm_availability)\n");
+    return -ECANCELED;
+  }
+
+  return 0;
+}
+
 /* Look up and set do_unlinkat using kprobe */
-static int set_do_unlinkat(void)
+static int setup_for_unlink_shm(void)
 {
   struct kprobe kp_do_unlinkat;
 
@@ -2138,6 +2162,11 @@ static int set_do_unlinkat(void)
 
   do_unlinkat = (int (*)(int, struct filename *))kp_do_unlinkat.addr;
   unregister_kprobe(&kp_do_unlinkat);
+
+  ret = check_dev_shm_available();
+  if (ret < 0) {
+    return ret;
+  }
 
   return 0;
 }
@@ -2202,7 +2231,7 @@ int agnocast_init_kprobe(void)
   }
 
 #ifndef KUNIT_BUILD
-  ret = set_do_unlinkat();
+  ret = setup_for_unlink_shm();
   if (ret < 0) {
     return ret;
   }
