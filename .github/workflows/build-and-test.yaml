@@ -78,6 +78,7 @@ jobs:
       if: steps.check_diff_cpp.outputs.cpp_changed == 'true'
       id: test
       run: |
+        source /opt/ros/humble/setup.bash
         colcon test --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
 
     - name: Display coverage report in PR comment
@@ -128,4 +129,5 @@ jobs:
     - name: Test for agnocast_heaphook
       if: steps.check_diff_heaphook.outputs.heaphook_changed == 'true'
       run: |
+        source /opt/ros/humble/setup.bash
         colcon test --event-handlers console_direct+ --ctest-args -R "test_integration_agnocast_heaphook"
