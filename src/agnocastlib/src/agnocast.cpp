@@ -16,53 +16,63 @@ namespace agnocast
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
-
-struct SemVer
+struct semver
 {
   int major;
   int minor;
   int patch;
-
-  static SemVer parse(const char * version)
-  {
-    SemVer result = {0, 0, 0};
-    if (!version) return result;
-
-    sscanf(version, "%d.%d.%d", &result.major, &result.minor, &result.patch);
-    return result;
-  }
-
-  static bool is_compatible(const SemVer & v1, const SemVer & v2)
-  {
-    return (v1.major == v2.major && v1.minor == v2.minor);
-  }
 };
+
+void parse_semver(const char * version, struct semver * out_ver)
+{
+  if (!version || !out_ver) {
+    return;
+  }
+
+  out_ver->major = 0;
+  out_ver->minor = 0;
+  out_ver->patch = 0;
+
+  sscanf(version, "%d.%d.%d", &out_ver->major, &out_ver->minor, &out_ver->patch);
+}
+
+int check_semver_compatibility(const struct semver * v1, const struct semver * v2)
+{
+  if (!v1 || !v2) {
+    return 0;
+  }
+
+  return (v1->major == v2->major && v1->minor == v2->minor) ? 1 : 0;
+}
 
 int check_version_consistency(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
   struct ioctl_get_version_args kmod_version)
 {
   char heaphook_version[VERSION_BUFFER_LEN];
-  size_t copy_len = heaphook_version_str_len < 32 ? heaphook_version_str_len : 32;
-  heaphook_version[copy_len] = '\0';
+  struct semver lib_ver, heaphook_ver, kmod_ver;
+
+  size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
+                                                                        : (VERSION_BUFFER_LEN - 1);
   memcpy(heaphook_version, heaphook_version_ptr, copy_len);
+  heaphook_version[copy_len] = '\0';
 
-  SemVer lib_version = SemVer::parse(agnocastlib::VERSION);
-  SemVer heaphook_ver = SemVer::parse(heaphook_version);
-  SemVer kmod_ver = SemVer::parse(kmod_version.version);
+  parse_semver(agnocastlib::VERSION, &lib_ver);
+  parse_semver(heaphook_version, &heaphook_ver);
+  parse_semver(kmod_version.version, &kmod_ver);
 
-  if (!SemVer::is_compatible(lib_version, heaphook_ver)) {
+  if (!check_semver_compatibility(&lib_ver, &heaphook_ver)) {
     RCLCPP_INFO(
-      logger, "Major.Minor versions must match: Agnocastlib(%d.%d) vs Agnocast heaphook(%d.%d)",
-      lib_version.major, lib_version.minor, heaphook_ver.major, heaphook_ver.minor);
+      logger, "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocat heaphook (%d.%d)",
+      lib_ver.major, lib_ver.minor, heaphook_ver.major, heaphook_ver.minor);
     return -1;
   }
 
-  if (!SemVer::is_compatible(lib_version, kmod_ver)) {
+  if (!check_semver_compatibility(&lib_ver, &kmod_ver)) {
     RCLCPP_INFO(
       logger,
-      "Major.Minor versions must match: Agnocastlib(%d.%d) vs Agnocast kernel module(%d.%d)",
-      lib_version.major, lib_version.minor, kmod_ver.major, kmod_ver.minor);
+      "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocast kernel module (%d.%d)",
+      lib_ver.major, lib_ver.minor, kmod_ver.major, kmod_ver.minor);
     return -1;
   }
 
