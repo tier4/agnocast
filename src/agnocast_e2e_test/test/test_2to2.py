@@ -73,6 +73,7 @@ def generate_test_description():
             executable='agnocast_component_container_mt',
             composable_node_descriptions=composable_nodes,
             output='screen',
+            parameters=[{'number_of_ros2_threads': 8, 'number_of_agnocast_threads': 8}],
             additional_env={
                 'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
                 'MEMPOOL_SIZE': '134217728',

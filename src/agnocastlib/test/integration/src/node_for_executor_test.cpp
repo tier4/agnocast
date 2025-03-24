@@ -1,10 +1,10 @@
-#include "node_for_no_starvation_test.hpp"
+#include "node_for_executor_test.hpp"
 
-NodeForNoStarvation::NodeForNoStarvation(
+NodeForExecutorTest::NodeForExecutorTest(
   const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
   const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period,
   const std::chrono::milliseconds cb_exec_time, const std::string cbg_type)
-: Node("node_for_no_starvation")
+: Node("node_for_executor_test")
 {
   if (cbg_type == "mutually_exclusive") {
     agnocast_common_cbg_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -17,7 +17,7 @@ NodeForNoStarvation::NodeForNoStarvation(
 
   // For Agnocast
   agnocast_timer_ =
-    create_wall_timer(pub_period, std::bind(&NodeForNoStarvation::agnocast_timer_cb, this));
+    create_wall_timer(pub_period, std::bind(&NodeForExecutorTest::agnocast_timer_cb, this));
   for (int64_t i = 0; i < num_agnocast_sub_cbs; i++) {
     add_agnocast_sub_cb();
   }
@@ -25,7 +25,7 @@ NodeForNoStarvation::NodeForNoStarvation(
 
   // For ROS 2
   ros2_pub_ = create_publisher<std_msgs::msg::Bool>(ros2_topic_name_, 1);
-  ros2_timer_ = create_wall_timer(pub_period, std::bind(&NodeForNoStarvation::ros2_timer_cb, this));
+  ros2_timer_ = create_wall_timer(pub_period, std::bind(&NodeForExecutorTest::ros2_timer_cb, this));
   for (int64_t i = 0; i < num_ros2_sub_cbs; i++) {
     rclcpp::SubscriptionOptions options;
     if (ros2_common_cbg_) {
@@ -41,7 +41,7 @@ NodeForNoStarvation::NodeForNoStarvation(
   ros2_sub_cbs_called_.assign(num_ros2_sub_cbs, false);
 }
 
-NodeForNoStarvation::~NodeForNoStarvation()
+NodeForExecutorTest::~NodeForExecutorTest()
 {
   for (auto & mq_sender : mq_senders_) {
     if (mq_close(mq_sender.second) == -1) {
@@ -59,7 +59,7 @@ NodeForNoStarvation::~NodeForNoStarvation()
   }
 }
 
-void NodeForNoStarvation::add_agnocast_sub_cb()
+void NodeForExecutorTest::add_agnocast_sub_cb()
 {
   int64_t cb_i = mq_receivers_.size();
   rclcpp::SubscriptionOptions options;
@@ -77,7 +77,7 @@ void NodeForNoStarvation::add_agnocast_sub_cb()
 
 // NOTE: If the implementation of agnocast is changed, this function does not
 // necessarily have to be changed as well, because this test is for the Executor.
-mqd_t NodeForNoStarvation::open_mq_for_receiver(const int64_t cb_i)
+mqd_t NodeForExecutorTest::open_mq_for_receiver(const int64_t cb_i)
 {
   std::string mq_name = agnocast_topic_name_ + "@" + std::to_string(cb_i);
   struct mq_attr attr = {};
@@ -97,7 +97,7 @@ mqd_t NodeForNoStarvation::open_mq_for_receiver(const int64_t cb_i)
   return mq;
 }
 
-void NodeForNoStarvation::dummy_work(std::chrono::milliseconds exec_time)
+void NodeForExecutorTest::dummy_work(std::chrono::milliseconds exec_time)
 {
   auto start = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - start < exec_time) {
@@ -106,7 +106,7 @@ void NodeForNoStarvation::dummy_work(std::chrono::milliseconds exec_time)
 
 // NOTE: If the implementation of agnocast is changed, this function does not
 // necessarily have to be changed as well, because this test is for the Executor.
-void NodeForNoStarvation::agnocast_timer_cb()
+void NodeForExecutorTest::agnocast_timer_cb()
 {
   // mq_send()
   for (auto & mq_receiver : mq_receivers_) {
@@ -137,39 +137,59 @@ void NodeForNoStarvation::agnocast_timer_cb()
   }
 }
 
-void NodeForNoStarvation::agnocast_sub_cb(
+void NodeForExecutorTest::agnocast_sub_cb(
   [[maybe_unused]] const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg, int64_t cb_i)
 {
+  std::unique_lock<std::mutex> lock(mutex_for_agnocast_cbg_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    is_mutually_exclusive_agnocast_ = false;
+  }
+
   // Each callback only accesses its own index, so it's safe to access the vector without a mutex.
   agnocast_sub_cbs_called_[cb_i] = true;
   dummy_work(cb_exec_time_);
 }
 
-void NodeForNoStarvation::ros2_timer_cb()
+void NodeForExecutorTest::ros2_timer_cb()
 {
   std_msgs::msg::Bool msg;
   msg.data = true;
   ros2_pub_->publish(msg);
 }
 
-void NodeForNoStarvation::ros2_sub_cb(
+void NodeForExecutorTest::ros2_sub_cb(
   [[maybe_unused]] const std::shared_ptr<const std_msgs::msg::Bool> & msg, int64_t cb_i)
 {
+  std::unique_lock<std::mutex> lock(mutex_for_ros2_cbg_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    is_mutually_exclusive_ros2_ = false;
+  }
+
   // Each callback only accesses its own index, so it's safe to access the vector without a mutex.
   ros2_sub_cbs_called_[cb_i] = true;
   dummy_work(cb_exec_time_);
 }
 
-bool NodeForNoStarvation::is_all_ros2_sub_cbs_called() const
+bool NodeForExecutorTest::is_all_ros2_sub_cbs_called() const
 {
   return std::all_of(ros2_sub_cbs_called_.begin(), ros2_sub_cbs_called_.end(), [](bool is_called) {
     return is_called;
   });
 }
 
-bool NodeForNoStarvation::is_all_agnocast_sub_cbs_called() const
+bool NodeForExecutorTest::is_all_agnocast_sub_cbs_called() const
 {
   return std::all_of(
     agnocast_sub_cbs_called_.begin(), agnocast_sub_cbs_called_.end(),
     [](bool is_called) { return is_called; });
+}
+
+bool NodeForExecutorTest::is_mutually_exclusive_agnocast() const
+{
+  return is_mutually_exclusive_agnocast_;
+}
+
+bool NodeForExecutorTest::is_mutually_exclusive_ros2() const
+{
+  return is_mutually_exclusive_ros2_;
 }

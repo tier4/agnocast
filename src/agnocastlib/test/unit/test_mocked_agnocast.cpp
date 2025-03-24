@@ -22,7 +22,7 @@ MOCK_GLOBAL_FUNC3(
 MOCK_GLOBAL_FUNC5(
   publish_core_mock, union ioctl_publish_args(
                        const void *, const std::string &, const topic_local_id_t, const uint64_t,
-                       std::unordered_map<std::string, mqd_t> &));
+                       std::unordered_map<std::string, std::tuple<mqd_t, bool>> &));
 
 namespace agnocast
 {
@@ -43,7 +43,7 @@ topic_local_id_t initialize_publisher(
 union ioctl_publish_args publish_core(
   const void * publisher_handle, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, mqd_t> & opened_mqs)
+  std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
 {
   return publish_core_mock(
     publisher_handle, topic_name, publisher_id, msg_virtual_address, opened_mqs);

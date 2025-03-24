@@ -117,7 +117,7 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
   }
 
   union ioctl_receive_msg_args receive_args = {};
-  receive_args.topic_name = callback_info.topic_name.c_str();
+  receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
   if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
