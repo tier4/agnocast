@@ -1,7 +1,6 @@
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
-    cell::Cell,
     ffi::{CStr,CString},
     mem::MaybeUninit,
     os::raw::{c_int, c_void, c_char},
