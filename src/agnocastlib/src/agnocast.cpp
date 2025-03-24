@@ -61,18 +61,15 @@ int check_version_consistency(
   parse_semver(heaphook_version, &heaphook_ver);
   parse_semver(kmod_version.version, &kmod_ver);
 
-  if (!check_semver_compatibility(&lib_ver, &heaphook_ver)) {
-    RCLCPP_INFO(
-      logger, "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocast heaphook (%d.%d)",
-      lib_ver.major, lib_ver.minor, heaphook_ver.major, heaphook_ver.minor);
-    return -1;
-  }
-
-  if (!check_semver_compatibility(&lib_ver, &kmod_ver)) {
+  if (
+    !check_semver_compatibility(&lib_ver, &heaphook_ver) ||
+    !check_semver_compatibility(&lib_ver, &heaphook_ver)) {
     RCLCPP_INFO(
       logger,
-      "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocast kernel module (%d.%d)",
-      lib_ver.major, lib_ver.minor, kmod_ver.major, kmod_ver.minor);
+      "Major.Minor versions must match: Agnocastlib(%d.%d), Agnocast heaphook(%d.%d), Agnocast "
+      "kernel module(%d.%d)",
+      lib_ver.major, lib_ver.minor, heaphook_ver.major, heaphook_ver.minor, kmod_ver.major,
+      kmod_ver.minor);
     return -1;
   }
 

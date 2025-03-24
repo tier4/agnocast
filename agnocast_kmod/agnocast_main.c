@@ -1271,7 +1271,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   return 0;
 }
 
-int get_version(struct ioctl_get_version_args * ioctl_ret)
+static int get_version(struct ioctl_get_version_args * ioctl_ret)
 {
   memcpy(ioctl_ret->version, AGNOCAST_VERSION, strlen(AGNOCAST_VERSION) + 1);
 
