@@ -36,13 +36,13 @@ void parse_semver(const char * version, struct semver * out_ver)
   sscanf(version, "%d.%d.%d", &out_ver->major, &out_ver->minor, &out_ver->patch);
 }
 
-int check_semver_compatibility(const struct semver * v1, const struct semver * v2)
+bool check_semver_compatibility(const struct semver * v1, const struct semver * v2)
 {
   if (!v1 || !v2) {
-    return 0;
+    return false;
   }
 
-  return (v1->major == v2->major && v1->minor == v2->minor) ? 1 : 0;
+  return (v1->major == v2->major && v1->minor == v2->minor) ? true : false;
 }
 
 int check_version_consistency(
