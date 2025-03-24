@@ -63,7 +63,7 @@ int check_version_consistency(
 
   if (!check_semver_compatibility(&lib_ver, &heaphook_ver)) {
     RCLCPP_INFO(
-      logger, "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocat heaphook (%d.%d)",
+      logger, "Major.Minor versions must match: Agnocastlib (%d.%d) vs Agnocast heaphook (%d.%d)",
       lib_ver.major, lib_ver.minor, heaphook_ver.major, heaphook_ver.minor);
     return -1;
   }
