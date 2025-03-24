@@ -5,13 +5,14 @@
 
 #include <vector>
 
-class NodeForNoStarvation : public rclcpp::Node
+class NodeForExecutorTest : public rclcpp::Node
 {
 private:
-  rclcpp::CallbackGroup::SharedPtr common_cbg_ = nullptr;
   std::chrono::milliseconds cb_exec_time_;
 
   // For Agnocast
+  std::mutex mutex_for_agnocast_cbg_;
+  bool is_mutually_exclusive_agnocast_ = true;
   rclcpp::CallbackGroup::SharedPtr agnocast_common_cbg_ = nullptr;
   rclcpp::TimerBase::SharedPtr agnocast_timer_;
   std::vector<bool> agnocast_sub_cbs_called_;
@@ -27,6 +28,8 @@ private:
   void agnocast_sub_cb(const agnocast::ipc_shared_ptr<std_msgs::msg::Bool> & msg, int64_t cb_i);
 
   // For ROS 2
+  std::mutex mutex_for_ros2_cbg_;
+  bool is_mutually_exclusive_ros2_ = true;
   rclcpp::CallbackGroup::SharedPtr ros2_common_cbg_ = nullptr;
   rclcpp::TimerBase::SharedPtr ros2_timer_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ros2_pub_;
@@ -38,13 +41,15 @@ private:
   void ros2_sub_cb(const std::shared_ptr<const std_msgs::msg::Bool> & msg, int64_t cb_i);
 
 public:
-  explicit NodeForNoStarvation(
+  explicit NodeForExecutorTest(
     const int64_t num_agnocast_sub_cbs, const int64_t num_ros2_sub_cbs,
     const int64_t num_agnocast_cbs_to_be_added, const std::chrono::milliseconds pub_period,
     const std::chrono::milliseconds cb_exec_time, const std::string cbg_type = "individual");
 
-  ~NodeForNoStarvation();
+  ~NodeForExecutorTest();
 
   bool is_all_ros2_sub_cbs_called() const;
   bool is_all_agnocast_sub_cbs_called() const;
+  bool is_mutually_exclusive_agnocast() const;
+  bool is_mutually_exclusive_ros2() const;
 };

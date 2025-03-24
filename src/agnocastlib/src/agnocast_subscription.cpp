@@ -15,8 +15,8 @@ union ioctl_subscriber_args SubscriptionBase::initialize(
   const pid_t subscriber_pid = getpid();
 
   union ioctl_subscriber_args subscriber_args = {};
-  subscriber_args.topic_name = topic_name_.c_str();
-  subscriber_args.node_name = node_name.c_str();
+  subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+  subscriber_args.node_name = {node_name.c_str(), node_name.size()};
   subscriber_args.subscriber_pid = subscriber_pid;
   subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   subscriber_args.qos_is_transient_local =
