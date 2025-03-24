@@ -4,10 +4,18 @@ True Zero Copy Communication Middleware for Undefined ROS 2 Message Types.
 
 prototype: <https://github.com/sykwer/agnocast>
 
-## Setup
+## Build
+
+Setup.
 
 ```bash
 bash scripts/setup
+```
+
+Build.
+
+```bash
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
 ## Run
@@ -119,6 +127,9 @@ pre-commit install
 If you want to disable pre-commit, please run `pre-commit uninstall`.
 
 ### Build and insert kmod
+
+> [!NOTE]
+> If you have already installed `agnocast-heaphook` or `agnocast-kmod` via apt (i.e., `bash scripts/setup`), please remove them first.
 
 Build.
 
