@@ -77,7 +77,8 @@ jobs:
     - name: Test for agnocastlib
       if: steps.check_diff_cpp.outputs.cpp_changed == 'true'
       id: test
-      uses: colcon test --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
+      run: |
+        colcon test --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
 
     - name: Display coverage report in PR comment
       if: steps.check_diff_cpp.outputs.cpp_changed == 'true'
