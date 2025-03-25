@@ -134,6 +134,279 @@ void test_case_do_exit_with_subscriber(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
 }
 
+// Test case for process exit where there are two publishers and subscribers in one process
+void test_case_do_exit_with_many_pubsub_in_one_process(struct kunit * test)
+{
+  // Arrange
+  const pid_t pid = PID_BASE;
+  union ioctl_new_shm_args new_shm_args;
+  int ret1 = new_shm_addr(pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_publisher_args publisher_args1, publisher_args2;
+  int ret2 =
+    publisher_add(topic_name, node_name, pid, qos_depth, qos_is_transient_local, &publisher_args1);
+  int ret3 =
+    publisher_add(topic_name, node_name, pid, qos_depth, qos_is_transient_local, &publisher_args2);
+  union ioctl_subscriber_args subscriber_args1, subscriber_args2;
+  int ret4 = subscriber_add(
+    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args1);
+  int ret5 = subscriber_add(
+    topic_name, node_name, pid, qos_depth, qos_is_transient_local, is_take_sub, &subscriber_args2);
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  int ret6 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
+  KUNIT_ASSERT_EQ(test, ret5, 0);
+  KUNIT_ASSERT_EQ(test, ret6, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(pid));
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+
+  // Act
+  enqueue_exit_pid(pid);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret7 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret7, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+}
+
+// Test case for process exit where there are two publishers and subscribers in different processes
+// and one publisher exits
+void test_case_do_exit_with_many_pubsub_in_different_processes_and_publisher_exit(
+  struct kunit * test)
+{
+  // Arrange
+  const pid_t publisher_pid1 = PID_BASE;
+  const pid_t publisher_pid2 = PID_BASE + 1;
+  const pid_t subscriber_pid1 = PID_BASE + 2;
+  const pid_t subscriber_pid2 = PID_BASE + 3;
+  union ioctl_new_shm_args new_shm_args;
+  int ret1 = new_shm_addr(publisher_pid1, PAGE_SIZE, &new_shm_args);
+  int ret2 = new_shm_addr(publisher_pid2, PAGE_SIZE, &new_shm_args);
+  int ret3 = new_shm_addr(subscriber_pid1, PAGE_SIZE, &new_shm_args);
+  int ret4 = new_shm_addr(subscriber_pid2, PAGE_SIZE, &new_shm_args);
+  union ioctl_publisher_args publisher_args1, publisher_args2;
+  int ret5 = publisher_add(
+    topic_name, node_name, publisher_pid1, qos_depth, qos_is_transient_local, &publisher_args1);
+  int ret6 = publisher_add(
+    topic_name, node_name, publisher_pid2, qos_depth, qos_is_transient_local, &publisher_args2);
+  union ioctl_subscriber_args subscriber_args1, subscriber_args2;
+  int ret7 = subscriber_add(
+    topic_name, node_name, subscriber_pid1, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args1);
+  int ret8 = subscriber_add(
+    topic_name, node_name, subscriber_pid2, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args2);
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  int ret9 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
+  KUNIT_ASSERT_EQ(test, ret5, 0);
+  KUNIT_ASSERT_EQ(test, ret6, 0);
+  KUNIT_ASSERT_EQ(test, ret7, 0);
+  KUNIT_ASSERT_EQ(test, ret8, 0);
+  KUNIT_ASSERT_EQ(test, ret9, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 4);
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid2));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+
+  // Act
+  enqueue_exit_pid(publisher_pid1);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret10 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret10, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 3);
+  KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(publisher_pid1));
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(publisher_pid2));
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_EXPECT_FALSE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+}
+
+// Test case for process exit where there are two publishers and subscribers in different processes
+// and one subscriber exits
+void test_case_do_exit_with_many_pubsub_in_different_processes_and_subscriber_exit(
+  struct kunit * test)
+{
+  // Arrange
+  const pid_t publisher_pid1 = PID_BASE;
+  const pid_t publisher_pid2 = PID_BASE + 1;
+  const pid_t subscriber_pid1 = PID_BASE + 2;
+  const pid_t subscriber_pid2 = PID_BASE + 3;
+  union ioctl_new_shm_args new_shm_args;
+  int ret1 = new_shm_addr(publisher_pid1, PAGE_SIZE, &new_shm_args);
+  int ret2 = new_shm_addr(publisher_pid2, PAGE_SIZE, &new_shm_args);
+  int ret3 = new_shm_addr(subscriber_pid1, PAGE_SIZE, &new_shm_args);
+  int ret4 = new_shm_addr(subscriber_pid2, PAGE_SIZE, &new_shm_args);
+  union ioctl_publisher_args publisher_args1, publisher_args2;
+  int ret5 = publisher_add(
+    topic_name, node_name, publisher_pid1, qos_depth, qos_is_transient_local, &publisher_args1);
+  int ret6 = publisher_add(
+    topic_name, node_name, publisher_pid2, qos_depth, qos_is_transient_local, &publisher_args2);
+  union ioctl_subscriber_args subscriber_args1, subscriber_args2;
+  int ret7 = subscriber_add(
+    topic_name, node_name, subscriber_pid1, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args1);
+  int ret8 = subscriber_add(
+    topic_name, node_name, subscriber_pid2, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args2);
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  int ret9 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
+  KUNIT_ASSERT_EQ(test, ret5, 0);
+  KUNIT_ASSERT_EQ(test, ret6, 0);
+  KUNIT_ASSERT_EQ(test, ret7, 0);
+  KUNIT_ASSERT_EQ(test, ret8, 0);
+  KUNIT_ASSERT_EQ(test, ret9, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 4);
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid2));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+
+  // Act
+  enqueue_exit_pid(subscriber_pid1);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret10 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret10, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 3);
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(publisher_pid1));
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(publisher_pid2));
+  KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(subscriber_pid1));
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 2);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_EXPECT_FALSE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+}
+
+// Test case for process exit where there are two publishers and subscribers in different processes
+// and all publishers and subscribers exit
+void test_case_do_exit_with_many_pubsub_in_different_processes_and_all_pubsub_exit(
+  struct kunit * test)
+{
+  // Arrange
+  const pid_t publisher_pid1 = PID_BASE;
+  const pid_t publisher_pid2 = PID_BASE + 1;
+  const pid_t subscriber_pid1 = PID_BASE + 2;
+  const pid_t subscriber_pid2 = PID_BASE + 3;
+  union ioctl_new_shm_args new_shm_args;
+  int ret1 = new_shm_addr(publisher_pid1, PAGE_SIZE, &new_shm_args);
+  int ret2 = new_shm_addr(publisher_pid2, PAGE_SIZE, &new_shm_args);
+  int ret3 = new_shm_addr(subscriber_pid1, PAGE_SIZE, &new_shm_args);
+  int ret4 = new_shm_addr(subscriber_pid2, PAGE_SIZE, &new_shm_args);
+  union ioctl_publisher_args publisher_args1, publisher_args2;
+  int ret5 = publisher_add(
+    topic_name, node_name, publisher_pid1, qos_depth, qos_is_transient_local, &publisher_args1);
+  int ret6 = publisher_add(
+    topic_name, node_name, publisher_pid2, qos_depth, qos_is_transient_local, &publisher_args2);
+  union ioctl_subscriber_args subscriber_args1, subscriber_args2;
+  int ret7 = subscriber_add(
+    topic_name, node_name, subscriber_pid1, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args1);
+  int ret8 = subscriber_add(
+    topic_name, node_name, subscriber_pid2, qos_depth, qos_is_transient_local, is_take_sub,
+    &subscriber_args2);
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  int ret9 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
+  KUNIT_ASSERT_EQ(test, ret5, 0);
+  KUNIT_ASSERT_EQ(test, ret6, 0);
+  KUNIT_ASSERT_EQ(test, ret7, 0);
+  KUNIT_ASSERT_EQ(test, ret8, 0);
+  KUNIT_ASSERT_EQ(test, ret9, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 4);
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(publisher_pid2));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
+  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_ASSERT_EQ(test, get_publisher_num(topic_name), 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args2.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args1.ret_id));
+  KUNIT_ASSERT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args2.ret_id));
+
+  // Act
+  enqueue_exit_pid(publisher_pid1);
+  enqueue_exit_pid(publisher_pid2);
+  enqueue_exit_pid(subscriber_pid1);
+  enqueue_exit_pid(subscriber_pid2);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret10 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret10, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+}
+
 void test_case_do_exit_with_entry(struct kunit * test)
 {
   // Arrange
@@ -223,7 +496,6 @@ void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit *
 
   // Act
   enqueue_exit_pid(publisher_pid);
-  enqueue_exit_pid(subscriber_pid);
 
   // wait for exit_worker_thread to handle process exit
   msleep(10);
@@ -231,6 +503,26 @@ void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit *
   // Assert
   int ret8 = get_subscriber_num(topic_name, &get_subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret8, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args.ret_id));
+  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(topic_name, subscriber_args.ret_id));
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret.ret_entry_id));
+  KUNIT_EXPECT_EQ(
+    test, get_entry_rc(topic_name, ioctl_publish_msg_ret.ret_entry_id, subscriber_args.ret_id), 1);
+
+  // Act
+  enqueue_exit_pid(subscriber_pid);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret9 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret9, 0);
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 0);
@@ -288,7 +580,6 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
 
   // Act
   enqueue_exit_pid(subscriber_pid);
-  enqueue_exit_pid(publisher_pid);
 
   // wait for exit_worker_thread to handle process exit
   msleep(10);
@@ -296,9 +587,29 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
   // Assert
   int ret8 = get_subscriber_num(topic_name, &get_subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret8, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_proc_info_htable(publisher_pid));
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_publisher_htable(topic_name, publisher_args.ret_id));
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
+  KUNIT_EXPECT_TRUE(test, is_in_topic_entries(topic_name, ioctl_publish_msg_ret.ret_entry_id));
+  KUNIT_EXPECT_EQ(
+    test, get_entry_rc(topic_name, ioctl_publish_msg_ret.ret_entry_id, publisher_args.ret_id), 1);
+
+  // Act
+  enqueue_exit_pid(publisher_pid);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret9 = get_subscriber_num(topic_name, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret9, 0);
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(), 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name), 0);
   KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
-  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 0);
 }
