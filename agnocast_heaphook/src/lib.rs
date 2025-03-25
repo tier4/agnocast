@@ -352,7 +352,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
         };
 
     if should_use_original_func() {
-        // In the child processes, ignore the free operation to the shared memory dummy
+        // In the child processes, ignore the free operation to the shared memory
         let realloc_ret: *mut c_void = if !allocated_by_original {
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
         } else {
@@ -369,7 +369,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
             } else {
                 tlsf_reallocate_wrapped(addr, new_size)
             }
-        }
+        },
         None => tlsf_allocate_wrapped(0, new_size),
     }
 }
