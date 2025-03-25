@@ -43,7 +43,7 @@ extern "C" void * initialize_agnocast(const uint64_t shm_size)
 void shutdown_agnocast()
 {
   close(shm_fd);
-  shm_unlink(("/heaphook_test@" + std::to_string(getpid())).c_str());
+  shm_unlink(("/agnocast_heaphook_test@" + std::to_string(getpid())).c_str());
 }
 
 }  // namespace agnocast
