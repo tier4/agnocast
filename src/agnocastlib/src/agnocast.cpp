@@ -45,7 +45,7 @@ bool check_semver_compatibility(const struct semver * v1, const struct semver * 
   return (v1->major == v2->major && v1->minor == v2->minor) ? true : false;
 }
 
-int check_version_consistency(
+bool is_version_consistent(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
   struct ioctl_get_version_args kmod_version)
 {
@@ -59,7 +59,7 @@ int check_version_consistency(
 
   parse_semver(agnocastlib::VERSION, &lib_ver);
   parse_semver(heaphook_version, &heaphook_ver);
-  parse_semver(kmod_version.version, &kmod_ver);
+  parse_semver(kmod_version.ret_version, &kmod_ver);
 
   if (
     !check_semver_compatibility(&lib_ver, &heaphook_ver) ||
@@ -70,10 +70,10 @@ int check_version_consistency(
       "kernel module(%d.%d)",
       lib_ver.major, lib_ver.minor, heaphook_ver.major, heaphook_ver.minor, kmod_ver.major,
       kmod_ver.minor);
-    return -1;
+    return false;
   }
 
-  return 0;
+  return true;
 }
 
 void * map_area(
@@ -146,15 +146,13 @@ void * initialize_agnocast(
   }
 
   struct ioctl_get_version_args get_version_args = {};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION, &get_version_args) < 0) {
+  if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION_CMD, &get_version_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  if (
-    check_version_consistency(heaphook_version_ptr, heaphook_version_str_len, get_version_args) <
-    0) {
+  if (!is_version_consistent(heaphook_version_ptr, heaphook_version_str_len, get_version_args)) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }

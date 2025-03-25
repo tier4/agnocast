@@ -1273,7 +1273,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
 
 static int get_version(struct ioctl_get_version_args * ioctl_ret)
 {
-  memcpy(ioctl_ret->version, AGNOCAST_VERSION, strlen(AGNOCAST_VERSION) + 1);
+  memcpy(ioctl_ret->ret_version, AGNOCAST_VERSION, strlen(AGNOCAST_VERSION) + 1);
 
   return 0;
 }
@@ -1642,7 +1642,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_VERSION) {
+  } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
     struct ioctl_get_version_args get_version_args;
     ret = get_version(&get_version_args);
     if (copy_to_user(
