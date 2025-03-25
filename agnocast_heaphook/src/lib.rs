@@ -369,7 +369,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
             } else {
                 tlsf_reallocate_wrapped(addr, new_size)
             }
-        },
+        }
         None => tlsf_allocate_wrapped(0, new_size),
     }
 }
