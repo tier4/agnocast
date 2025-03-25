@@ -15,7 +15,7 @@ namespace agnocast
 
 extern "C" void * initialize_agnocast(const uint64_t shm_size)
 {
-  const std::string shm_name = "/heaphook_test@" + std::to_string(getpid());
+  const std::string shm_name = "/agnocast_heaphook_test@" + std::to_string(getpid());
 
   int oflag = O_CREAT | O_RDWR;
   const int shm_mode = 0666;
