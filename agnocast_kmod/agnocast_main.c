@@ -548,9 +548,7 @@ static int insert_message_entry(
       dev_warn(
         agnocast_device,
         "Unreachable: New message entry (entry_id=%lld) does not have the largest entry_id in the "
-        "topic "
-        "(topic_name=%s). "
-        "(insert_message_entry)\n",
+        "topic (topic_name=%s). (insert_message_entry)\n",
         new_node->entry_id, wrapper->key);
       kfree(new_node);
       return -ECANCELED;
