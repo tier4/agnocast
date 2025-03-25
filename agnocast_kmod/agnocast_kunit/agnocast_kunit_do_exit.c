@@ -1,6 +1,7 @@
 #include "agnocast_kunit_do_exit.h"
 
 #include "../agnocast.h"
+#include "../agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
 #include <linux/delay.h>
@@ -39,11 +40,12 @@ void test_case_do_exit(struct kunit * test)
 void test_case_do_exit_many(struct kunit * test)
 {
   // Arrange
-  const int process_num = EXIT_QUEUE_SIZE;
-  setup_processes(test, process_num);
+  const int agnocast_process_num = MEMPOOL_TOTAL_NUM;
+  const int non_agnocast_process_num = EXIT_QUEUE_SIZE - agnocast_process_num;
+  setup_processes(test, agnocast_process_num);
 
   // Act
-  for (int i = 0; i < process_num; i++) {
+  for (int i = 0; i < agnocast_process_num + non_agnocast_process_num; i++) {
     const pid_t pid = PID_BASE + i;
     enqueue_exit_pid(pid);
   }
@@ -54,7 +56,7 @@ void test_case_do_exit_many(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 0);
-  for (int i = 0; i < process_num; i++) {
+  for (int i = 0; i < agnocast_process_num; i++) {
     const pid_t pid = PID_BASE + i;
     KUNIT_EXPECT_FALSE(test, is_in_proc_info_htable(pid));
   }
