@@ -76,8 +76,7 @@ bool is_version_consistent(
       logger,
       "Agnocast Heaphook and Agnocastlib versions must match exactly: Major, Minor, and Patch "
       "versions must all be identical. (Agnocastlib(%d.%d.%d), Agnocast heaphook(%d.%d.%d), "
-      "Agnocast "
-      "kernel module(%d.%d.%d))",
+      "Agnocast kernel module(%d.%d.%d))",
       lib_ver.major, lib_ver.minor, lib_ver.patch, heaphook_ver.major, heaphook_ver.minor,
       heaphook_ver.patch, kmod_ver.major, kmod_ver.minor, kmod_ver.patch);
     return false;
