@@ -123,7 +123,7 @@ public:
     id_ = subscriber_args.ret_id;
   }
 
-  agnocast::ipc_shared_ptr<MessageT> take(bool allow_same_message = false)
+  agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
   {
     union ioctl_take_msg_args take_args;
     take_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
@@ -143,7 +143,7 @@ public:
     }
 
     if (take_args.ret_addr == 0) {
-      return agnocast::ipc_shared_ptr<MessageT>();
+      return agnocast::ipc_shared_ptr<const MessageT>();
     }
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
@@ -153,7 +153,7 @@ public:
 #endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    return agnocast::ipc_shared_ptr<MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
+    return agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
   }
 };
 
@@ -172,7 +172,7 @@ public:
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
-  const agnocast::ipc_shared_ptr<MessageT> takeData() { return subscriber_->take(true); };
+  const agnocast::ipc_shared_ptr<const MessageT> takeData() { return subscriber_->take(true); };
 };
 
 }  // namespace agnocast
