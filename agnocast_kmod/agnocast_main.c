@@ -1801,17 +1801,10 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (is_in_topic_entries)\n", topic_name);
     return false;
   }
   const struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
-    dev_warn(
-      agnocast_device,
-      "Message entry (topic_name=%s entry_id=%lld) not found. "
-      "(is_in_topic_entries)\n",
-      topic_name, entry_id);
     return false;
   }
 
