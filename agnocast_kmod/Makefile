@@ -1,4 +1,5 @@
-ccflags-y += -Wall -Werror
+AGNOCAST_VERSION := $(shell cat $(src)/version.txt 2>/dev/null || echo "unknown")
+ccflags-y += -Wall -Werror -DAGNOCAST_VERSION='"$(AGNOCAST_VERSION)"'
 
 ifneq ($(KUNIT_BUILD),y)
   obj-m := agnocast.o
@@ -15,7 +16,8 @@ else
 	  agnocast_kunit/agnocast_kunit_publish_msg.o \
 	  agnocast_kunit/agnocast_kunit_take_msg.o \
 	  agnocast_kunit/agnocast_kunit_new_shm.o \
-	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o
+	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
+	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage
   else
     $(warning "CONFIG_KUNIT or CONFIG_GCOV_KERNEL is not set")

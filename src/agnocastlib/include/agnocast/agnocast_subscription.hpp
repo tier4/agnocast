@@ -78,8 +78,9 @@ public:
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
-    [[maybe_unused]] uint32_t callback_info_id =
-      agnocast::register_callback(callback, topic_name_, id_, mq, callback_group);
+    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
+      callback, topic_name_, id_, is_transient_local, mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -89,18 +90,6 @@ public:
       static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
       tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
 #endif
-
-    // If there are messages available and the transient local is enabled, immediately call the
-    // callback.
-    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      // old messages first
-      for (int i = subscriber_args.ret_transient_local_num - 1; i >= 0; i--) {
-        MessageT * ptr = reinterpret_cast<MessageT *>(subscriber_args.ret_entry_addrs[i]);
-        agnocast::ipc_shared_ptr<MessageT> agnocast_ptr = agnocast::ipc_shared_ptr<MessageT>(
-          ptr, topic_name_, id_, subscriber_args.ret_entry_ids[i]);
-        callback(agnocast_ptr);
-      }
-    }
   }
 
   ~Subscription() { remove_mq(mq_subscription); }
@@ -134,10 +123,10 @@ public:
     id_ = subscriber_args.ret_id;
   }
 
-  agnocast::ipc_shared_ptr<MessageT> take(bool allow_same_message = false)
+  agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
   {
     union ioctl_take_msg_args take_args;
-    take_args.topic_name = topic_name_.c_str();
+    take_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
     take_args.subscriber_id = id_;
     take_args.allow_same_message = allow_same_message;
     if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
@@ -154,7 +143,7 @@ public:
     }
 
     if (take_args.ret_addr == 0) {
-      return agnocast::ipc_shared_ptr<MessageT>();
+      return agnocast::ipc_shared_ptr<const MessageT>();
     }
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
@@ -164,7 +153,7 @@ public:
 #endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    return agnocast::ipc_shared_ptr<MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
+    return agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
   }
 };
 
@@ -183,7 +172,7 @@ public:
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
-  const agnocast::ipc_shared_ptr<MessageT> takeData() { return subscriber_->take(true); };
+  const agnocast::ipc_shared_ptr<const MessageT> takeData() { return subscriber_->take(true); };
 };
 
 }  // namespace agnocast

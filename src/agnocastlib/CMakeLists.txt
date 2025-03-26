@@ -98,13 +98,29 @@ if(BUILD_TESTING)
     test/integration/test_agnocast_single_threaded_executor.cpp
     test/integration/test_agnocast_multi_threaded_executor.cpp
     test/integration/src/ioctl_mock.cpp
-    test/integration/src/node_for_no_starvation_test.cpp)
+    test/integration/src/node_for_executor_test.cpp)
   target_include_directories(test_integration_${PROJECT_NAME} PRIVATE test/integration/include)
   target_link_libraries(test_integration_${PROJECT_NAME} agnocast)
   set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
     TIMEOUT 120
   )
+
+  # Integration tests for agnocast_heaphook
+  add_library(initialize_shutdown_mock SHARED test/integration/src/initialize_shutdown_mock.cpp)
+  set_target_properties(initialize_shutdown_mock PROPERTIES
+      OUTPUT_NAME "initialize_shutdown_mock"
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+  )
+  install(TARGETS initialize_shutdown_mock
+      LIBRARY DESTINATION lib
+  )
+
+  ament_add_gmock(test_integration_agnocast_heaphook
+    test/integration/test_agnocast_heaphook.cpp)
+  target_link_libraries(test_integration_agnocast_heaphook agnocast)
+  set_tests_properties(test_integration_agnocast_heaphook PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe;LD_PRELOAD=${CMAKE_INSTALL_PREFIX}/lib/libinitialize_shutdown_mock.so:${CMAKE_INSTALL_PREFIX}/lib/libagnocast_heaphook.so:;MEMPOOL_SIZE=1000000")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
