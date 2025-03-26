@@ -109,10 +109,11 @@ bool is_version_consistent(
                                                                         : (VERSION_BUFFER_LEN - 1);
   std::memcpy(heaphook_version_arr.data(), heaphook_version_ptr, copy_len);
   heaphook_version_arr[copy_len] = '\0';
+  std::string kmod_version_str(kmod_version.ret_version);
 
   bool parse_lib_result = parse_semver(agnocastlib::VERSION, &lib_ver);
   bool parse_heaphook_result = parse_semver(heaphook_version_arr.data(), &heaphook_ver);
-  bool parse_kmod_result = parse_semver(kmod_version.ret_version, &kmod_ver);
+  bool parse_kmod_result = parse_semver(kmod_version_str.c_str(), &kmod_ver);
 
   if (!parse_lib_result || !parse_heaphook_result || !parse_kmod_result) {
     RCLCPP_ERROR(logger, "Failed to parse one or more version strings");
