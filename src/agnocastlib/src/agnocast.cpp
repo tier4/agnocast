@@ -75,10 +75,9 @@ bool is_version_consistent(
     RCLCPP_ERROR(
       logger,
       "Agnocast Heaphook and Agnocastlib versions must match exactly: Major, Minor, and Patch "
-      "versions must all be identical. (Agnocastlib(%d.%d.%d), Agnocast heaphook(%d.%d.%d), "
-      "Agnocast kernel module(%d.%d.%d))",
-      lib_ver.major, lib_ver.minor, lib_ver.patch, heaphook_ver.major, heaphook_ver.minor,
-      heaphook_ver.patch, kmod_ver.major, kmod_ver.minor, kmod_ver.patch);
+      "versions must all be identical. (agnocast-heaphook(%d.%d.%d), agnocast(%d.%d.%d))",
+      heaphook_ver.major, heaphook_ver.minor, heaphook_ver.patch, lib_ver.major, lib_ver.minor,
+      lib_ver.patch);
     return false;
   }
 
@@ -86,10 +85,8 @@ bool is_version_consistent(
     RCLCPP_ERROR(
       logger,
       "Agnocast Kernel Module and Agnocastlib must be compatible: Major and Minor versions must "
-      "match. (Agnocastlib(%d.%d.%d), Agnocast heaphook(%d.%d.%d), Agnocast "
-      "kernel module(%d.%d.%d))",
-      lib_ver.major, lib_ver.minor, lib_ver.patch, heaphook_ver.major, heaphook_ver.minor,
-      heaphook_ver.patch, kmod_ver.major, kmod_ver.minor, kmod_ver.patch);
+      "match. (agnocast-kmod(%d.%d.%d), agnocast(%d.%d.%d))",
+      kmod_ver.major, kmod_ver.minor, kmod_ver.patch, lib_ver.major, lib_ver.minor, lib_ver.patch);
     return false;
   }
 
