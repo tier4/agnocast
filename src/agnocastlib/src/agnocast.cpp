@@ -23,53 +23,89 @@ struct semver
   int patch;
 };
 
-void parse_semver(const char * version, struct semver * out_ver)
+bool parse_semver(const char * version, struct semver * out_ver)
 {
-  if (!version || !out_ver) {
-    return;
+  if (version == nullptr || out_ver == nullptr) {
+    return false;
   }
 
   out_ver->major = 0;
   out_ver->minor = 0;
   out_ver->patch = 0;
-
-  sscanf(version, "%d.%d.%d", &out_ver->major, &out_ver->minor, &out_ver->patch);
+    
+  char* end_ptr;
+  const char* current = version;
+    
+  long major = strtol(current, &end_ptr, 10);
+  if (current == end_ptr || *end_ptr != '.') {
+      return false;
+  }
+    
+  current = end_ptr + 1;
+  long minor = strtol(current, &end_ptr, 10);
+  if (current == end_ptr || *end_ptr != '.') {
+      return false;
+  }
+    
+  current = end_ptr + 1;
+  long patch = strtol(current, &end_ptr, 10);
+  if (current == end_ptr) {
+      return false;
+  }
+    
+  if (major < 0 || minor < 0 || patch < 0) {
+      return false;
+  }
+    
+  out_ver->major = static_cast<int>(major);
+  out_ver->minor = static_cast<int>(minor);
+  out_ver->patch = static_cast<int>(patch);
+    
+  return true;
 }
 
 bool compare_to_minor_version(const struct semver * v1, const struct semver * v2)
 {
-  if (!v1 || !v2) {
+  if (v1 == nullptr || v2 == nullptr) {
     return false;
   }
 
-  return (v1->major == v2->major && v1->minor == v2->minor) ? true : false;
+  return (v1->major == v2->major && v1->minor == v2->minor);
 }
 
 bool compare_to_patch_version(const struct semver * v1, const struct semver * v2)
 {
-  if (!v1 || !v2) {
+  if (v1 == nullptr || v2 == nullptr) {
     return false;
   }
 
-  return (v1->major == v2->major && v1->minor == v2->minor && v1->patch == v2->patch) ? true
-                                                                                      : false;
+  return (v1->major == v2->major && v1->minor == v2->minor && v1->patch == v2->patch);
 }
 
 bool is_version_consistent(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len,
   struct ioctl_get_version_args kmod_version)
 {
-  char heaphook_version[VERSION_BUFFER_LEN];
-  struct semver lib_ver, heaphook_ver, kmod_ver;
+  std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
-  memcpy(heaphook_version, heaphook_version_ptr, copy_len);
-  heaphook_version[copy_len] = '\0';
+  std::memcpy(heaphook_version_arr.data(), heaphook_version_ptr, copy_len);
+  heaphook_version_arr[copy_len] = '\0';
 
-  parse_semver(agnocastlib::VERSION, &lib_ver);
-  parse_semver(heaphook_version, &heaphook_ver);
-  parse_semver(kmod_version.ret_version, &kmod_ver);
+  bool parse_lib_result = parse_semver(agnocastlib::VERSION, &lib_ver);
+  bool parse_heaphook_result = parse_semver(heaphook_version_arr.data(), &heaphook_ver);
+  bool parse_kmod_result = parse_semver(kmod_version.ret_version, &kmod_ver);
+
+  if (!parse_lib_result || !parse_heaphook_result || !parse_kmod_result) {
+    RCLCPP_ERROR(
+      logger,
+      "Failed to parse one or more version strings");
+    return false;
+  }
 
   if (!compare_to_patch_version(&lib_ver, &heaphook_ver)) {
     RCLCPP_ERROR(
