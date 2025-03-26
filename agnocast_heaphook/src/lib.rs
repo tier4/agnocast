@@ -1,9 +1,9 @@
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
-    ffi::{CStr,CString},
+    ffi::{CStr, CString},
     mem::MaybeUninit,
-    os::raw::{c_int, c_void, c_char},
+    os::raw::{c_char, c_int, c_void},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Mutex, OnceLock,
@@ -11,7 +11,11 @@ use std::{
 };
 
 extern "C" {
-    fn initialize_agnocast(size: usize, version: *const c_char, version_str_length: usize) -> *mut c_void;
+    fn initialize_agnocast(
+        size: usize,
+        version: *const c_char,
+        version_str_length: usize,
+    ) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
 
@@ -153,7 +157,9 @@ fn init_tlsf() -> Mutex<TlsfType> {
     let version = env!("CARGO_PKG_VERSION");
     let c_version = CString::new(version).unwrap();
 
-    let mempool_ptr: *mut c_void = unsafe { initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len()) };
+    let mempool_ptr: *mut c_void = unsafe {
+        initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
+    };
 
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
