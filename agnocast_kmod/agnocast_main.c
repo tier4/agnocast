@@ -521,7 +521,7 @@ static int insert_message_entry(
   struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   if (!new_node) {
     dev_warn(agnocast_device, "kmalloc failed. (insert_message_entry)\n");
-    return -1;
+    return -ENOMEM;
   }
 
   new_node->entry_id = wrapper->current_entry_id++;
@@ -547,12 +547,11 @@ static int insert_message_entry(
     } else {
       dev_warn(
         agnocast_device,
-        "New message entry (entry_id=%lld) does not have the largest entry_id in the topic "
-        "(topic_name=%s). "
-        "(insert_message_entry)\n",
+        "Unreachable: New message entry (entry_id=%lld) does not have the largest entry_id in the "
+        "topic (topic_name=%s). (insert_message_entry)\n",
         new_node->entry_id, wrapper->key);
       kfree(new_node);
-      return -1;
+      return -ECANCELED;
     }
   }
 
@@ -1005,9 +1004,10 @@ static int release_msgs_to_meet_depth(
   if (!node) {
     dev_warn(
       agnocast_device,
-      "Failed to get message entries in publisher (id=%d). (release_msgs_to_meet_depth)\n",
+      "Unreachable: Failed to get message entries in publisher (id=%d). "
+      "(release_msgs_to_meet_depth)\n",
       pub_info->id);
-    return -1;
+    return -ENODATA;
   }
 
   // Number of entries exceeding qos_depth
@@ -1031,9 +1031,9 @@ static int release_msgs_to_meet_depth(
     if (!node) {
       dev_warn(
         agnocast_device,
-        "entries_num is inconsistent with actual message entry num. "
+        "Unreachable: entries_num is inconsistent with actual message entry num. "
         "(release_msgs_to_meet_depth)\n");
-      return -1;
+      return -ENODATA;
     }
 
     if (en->publisher_id != pub_info->id) continue;
@@ -1131,7 +1131,7 @@ int publish_msg(
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publish_msg)\n", topic_name);
-    return -1;
+    return -EINVAL;
   }
 
   struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
@@ -1139,15 +1139,17 @@ int publish_msg(
     dev_warn(
       agnocast_device, "Publisher (id=%d) not found in the topic (topic_name=%s). (publish_msg)\n",
       publisher_id, topic_name);
-    return -1;
+    return -EINVAL;
   }
 
-  if (insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret) == -1) {
-    return -1;
+  int ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
+  if (ret < 0) {
+    return ret;
   }
 
-  if (release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret) == -1) {
-    return -1;
+  ret = release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret);
+  if (ret < 0) {
+    return ret;
   }
 
   int subscriber_num = 0;

@@ -48,7 +48,7 @@ static void setup_one_publisher(
 }
 
 // Expect to fail at find_topic()
-void test_case_no_topic(struct kunit * test)
+void test_case_publish_msg_no_topic(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id = 0;
@@ -59,11 +59,11 @@ void test_case_no_topic(struct kunit * test)
   int ret = publish_msg(topic_name, publisher_id, msg_virtual_address, &ioctl_publish_ret);
 
   // Assert
-  KUNIT_EXPECT_EQ(test, ret, -1);
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
 // Expect to fail at find_publisher_info
-void test_case_no_publisher(struct kunit * test)
+void test_case_publish_msg_no_publisher(struct kunit * test)
 {
   // Arrange
   topic_local_id_t subscriber_id;
@@ -77,10 +77,10 @@ void test_case_no_publisher(struct kunit * test)
   int ret = publish_msg(topic_name, publisher_id, msg_virtual_address, &ioctl_publish_msg_ret);
 
   // Assert
-  KUNIT_ASSERT_EQ(test, ret, -1);
+  KUNIT_ASSERT_EQ(test, ret, -EINVAL);
 }
 
-void test_case_simple_publish_without_any_release(struct kunit * test)
+void test_case_publish_msg_simple_publish_without_any_release(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
@@ -100,7 +100,7 @@ void test_case_simple_publish_without_any_release(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
 }
 
-void test_case_different_publisher_no_release(struct kunit * test)
+void test_case_publish_msg_different_publisher_no_release(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id1, publisher_id2;
@@ -129,7 +129,7 @@ void test_case_different_publisher_no_release(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
-void test_case_referenced_node_not_released(struct kunit * test)
+void test_case_publish_msg_referenced_node_not_released(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
@@ -154,7 +154,7 @@ void test_case_referenced_node_not_released(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
-void test_case_single_release_return(struct kunit * test)
+void test_case_publish_msg_single_release_return(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
@@ -184,7 +184,7 @@ void test_case_single_release_return(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 1);
 }
 
-void test_case_excessive_release_count(struct kunit * test)
+void test_case_publish_msg_excessive_release_count(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
@@ -217,7 +217,7 @@ void test_case_excessive_release_count(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
 }
 
-void test_case_ret_one_subscriber(struct kunit * test)
+void test_case_publish_msg_ret_one_subscriber(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id, subscriber_id;
@@ -237,7 +237,7 @@ void test_case_ret_one_subscriber(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_ids[0], subscriber_id);
 }
 
-void test_case_ret_many_subscribers(struct kunit * test)
+void test_case_publish_msg_ret_many_subscribers(struct kunit * test)
 {
   // Arrange
   topic_local_id_t publisher_id;
