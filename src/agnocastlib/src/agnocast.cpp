@@ -36,13 +36,23 @@ void parse_semver(const char * version, struct semver * out_ver)
   sscanf(version, "%d.%d.%d", &out_ver->major, &out_ver->minor, &out_ver->patch);
 }
 
-bool check_semver_compatibility(const struct semver * v1, const struct semver * v2)
+bool compare_to_minor_version(const struct semver * v1, const struct semver * v2)
 {
   if (!v1 || !v2) {
     return false;
   }
 
   return (v1->major == v2->major && v1->minor == v2->minor) ? true : false;
+}
+
+bool compare_to_patch_version(const struct semver * v1, const struct semver * v2)
+{
+  if (!v1 || !v2) {
+    return false;
+  }
+
+  return (v1->major == v2->major && v1->minor == v2->minor && v1->patch == v2->patch) ? true
+                                                                                      : false;
 }
 
 bool is_version_consistent(
@@ -62,9 +72,9 @@ bool is_version_consistent(
   parse_semver(kmod_version.ret_version, &kmod_ver);
 
   if (
-    !check_semver_compatibility(&lib_ver, &heaphook_ver) ||
-    !check_semver_compatibility(&lib_ver, &kmod_ver)) {
-    RCLCPP_INFO(
+    !compare_to_patch_version(&lib_ver, &heaphook_ver) ||
+    !compare_to_minor_version(&lib_ver, &kmod_ver)) {
+    RCLCPP_ERROR(
       logger,
       "Major.Minor versions must match: Agnocastlib(%d.%d), Agnocast heaphook(%d.%d), Agnocast "
       "kernel module(%d.%d)",
