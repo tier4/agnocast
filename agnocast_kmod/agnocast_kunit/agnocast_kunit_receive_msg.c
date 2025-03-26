@@ -419,6 +419,37 @@ void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
 }
 
+void test_case_receive_msg_twice(struct kunit * test)
+{
+  // Arrange
+  topic_local_id_t subscriber_id;
+  const pid_t subscriber_pid = 2000;
+  const uint32_t subscriber_qos_depth = 10;
+  setup_one_subscriber(test, subscriber_pid, subscriber_qos_depth, &subscriber_id);
+
+  topic_local_id_t publisher_id;
+  uint64_t ret_addr;
+  const pid_t publisher_pid = 1000;
+  const uint32_t publisher_qos_depth = 10;
+  setup_one_publisher(test, publisher_pid, publisher_qos_depth, &publisher_id, &ret_addr);
+
+  union ioctl_receive_msg_args ioctl_receive_msg_ret;
+  int ret1 = receive_msg(TOPIC_NAME, subscriber_id, &ioctl_receive_msg_ret);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 1);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
+  KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
+
+  // Act
+  int ret2 = receive_msg(TOPIC_NAME, subscriber_id, &ioctl_receive_msg_ret);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret2, 0);
+  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
+  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 0);
+}
+
 void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
 {
   // TODO(Koichi98): Implement this test case
