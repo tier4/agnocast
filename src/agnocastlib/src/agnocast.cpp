@@ -32,35 +32,35 @@ bool parse_semver(const char * version, struct semver * out_ver)
   out_ver->major = 0;
   out_ver->minor = 0;
   out_ver->patch = 0;
-    
-  char* end_ptr;
-  const char* current = version;
-    
+
+  char * end_ptr;
+  const char * current = version;
+
   long major = strtol(current, &end_ptr, 10);
   if (current == end_ptr || *end_ptr != '.') {
-      return false;
+    return false;
   }
-    
+
   current = end_ptr + 1;
   long minor = strtol(current, &end_ptr, 10);
   if (current == end_ptr || *end_ptr != '.') {
-      return false;
+    return false;
   }
-    
+
   current = end_ptr + 1;
   long patch = strtol(current, &end_ptr, 10);
   if (current == end_ptr) {
-      return false;
+    return false;
   }
-    
+
   if (major < 0 || minor < 0 || patch < 0) {
-      return false;
+    return false;
   }
-    
+
   out_ver->major = static_cast<int>(major);
   out_ver->minor = static_cast<int>(minor);
   out_ver->patch = static_cast<int>(patch);
-    
+
   return true;
 }
 
@@ -87,9 +87,15 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver{};
-  struct semver heaphook_ver{};
-  struct semver kmod_ver{};
+  struct semver lib_ver
+  {
+  };
+  struct semver heaphook_ver
+  {
+  };
+  struct semver kmod_ver
+  {
+  };
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -101,9 +107,7 @@ bool is_version_consistent(
   bool parse_kmod_result = parse_semver(kmod_version.ret_version, &kmod_ver);
 
   if (!parse_lib_result || !parse_heaphook_result || !parse_kmod_result) {
-    RCLCPP_ERROR(
-      logger,
-      "Failed to parse one or more version strings");
+    RCLCPP_ERROR(logger, "Failed to parse one or more version strings");
     return false;
   }
 
