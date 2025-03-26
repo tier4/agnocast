@@ -20,8 +20,8 @@ static struct class * agnocast_class;
 static struct device * agnocast_device;
 static DEFINE_MUTEX(global_mutex);
 
-#ifndef AGNOCAST_VERSION
-#define AGNOCAST_VERSION "unknown"
+#ifndef VERSION
+#define VERSION "unknown"
 #endif
 
 // =========================================
@@ -1273,7 +1273,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
 
 static int get_version(struct ioctl_get_version_args * ioctl_ret)
 {
-  memcpy(ioctl_ret->ret_version, AGNOCAST_VERSION, strlen(AGNOCAST_VERSION) + 1);
+  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
 
   return 0;
 }
@@ -2331,7 +2331,7 @@ static int agnocast_init(void)
 
   init_memory_allocator();
 
-  dev_info(agnocast_device, "Agnocast installed! v%s\n", AGNOCAST_VERSION);
+  dev_info(agnocast_device, "Agnocast installed! v%s\n", VERSION);
   return 0;
 }
 #endif
