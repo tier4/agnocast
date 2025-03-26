@@ -137,10 +137,10 @@ Build.
 bash scripts/build_all
 ```
 
-Check if there is a `libagnocast_heaphook.so` in `/usr/lib`.
+Check if there is a `libagnocast_heaphook.so` in `install/agnocastlib/lib`.
 
 ```bash
-$ ls /usr/lib | grep libagnocast_heaphook
+$ ls install/agnocastlib/lib | grep libagnocast_heaphook
 libagnocast_heaphook.so
 ```
 
