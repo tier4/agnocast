@@ -853,20 +853,12 @@ static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
   struct publisher_shm_info * pub_shm_info)
 {
-  struct process_info * sub_proc_info = find_process_info(subscriber_pid);
-  if (!sub_proc_info) {
-    dev_warn(
-      agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-      subscriber_pid);
-    return -ESRCH;
-  }
-
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
-    if (pub_info->exited || sub_proc_info->pid == pub_info->pid) {
+    if (pub_info->exited || subscriber_pid == pub_info->pid) {
       continue;
     }
 
@@ -878,7 +870,7 @@ static int set_publisher_shm_info(
       return -ESRCH;
     }
 
-    int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
+    int ret = reference_memory(proc_info->mempool_entry, subscriber_pid);
     if (ret < 0) {
       if (ret == -EEXIST) {
         continue;
@@ -887,14 +879,14 @@ static int set_publisher_shm_info(
           agnocast_device,
           "Process (pid=%d)'s memory pool is already full (MAX_PROCESS_NUM_PER_MEMPOOL=%d), so no "
           "new mapping from pid=%d can be created. (set_publisher_shm_info)\n",
-          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, sub_proc_info->pid);
+          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, subscriber_pid);
         return ret;
       } else {
         dev_warn(
           agnocast_device,
           "Unreachable: process (pid=%d) failed to reference memory of (pid=%d). "
           "(set_publisher_shm_info)\n",
-          sub_proc_info->pid, pub_info->pid);
+          subscriber_pid, pub_info->pid);
         return ret;
       }
     }
@@ -905,7 +897,7 @@ static int set_publisher_shm_info(
         "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
         "that can be returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
-        wrapper->key, sub_proc_info->pid);
+        wrapper->key, subscriber_pid);
       return -ENOBUFS;
     }
 
