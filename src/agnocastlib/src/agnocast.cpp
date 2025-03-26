@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <mutex>
 
+constexpr int DECIMAL_RADIX = 10;
+
 namespace agnocast
 {
 
@@ -32,31 +34,37 @@ bool parse_semver(const char * version, struct semver * out_ver)
   out_ver->major = 0;
   out_ver->minor = 0;
   out_ver->patch = 0;
-
-  char * end_ptr;
-  const char * current = version;
-
-  long major = strtol(current, &end_ptr, 10);
-  if (current == end_ptr || *end_ptr != '.') {
-    return false;
+    
+  std::string version_str(version);
+  std::stringstream ss(version_str);
+    
+  int64_t major = 0;
+  int64_t minor = 0;
+  int64_t patch = 0;
+    
+  if (!(ss >> major) || ss.get() != '.') {
+      return false;
   }
-
-  current = end_ptr + 1;
-  long minor = strtol(current, &end_ptr, 10);
-  if (current == end_ptr || *end_ptr != '.') {
-    return false;
+    
+  if (!(ss >> minor) || ss.get() != '.') {
+      return false;
   }
-
-  current = end_ptr + 1;
-  long patch = strtol(current, &end_ptr, 10);
-  if (current == end_ptr) {
-    return false;
+    
+  if (!(ss >> patch)) {
+      return false;
   }
-
+    
+  if (!ss.eof()) {
+      char remaining = '\0';
+      if (ss >> remaining) {
+          return false;
+      }
+  }
+    
   if (major < 0 || minor < 0 || patch < 0) {
-    return false;
+      return false;
   }
-
+    
   out_ver->major = static_cast<int>(major);
   out_ver->minor = static_cast<int>(minor);
   out_ver->patch = static_cast<int>(patch);
