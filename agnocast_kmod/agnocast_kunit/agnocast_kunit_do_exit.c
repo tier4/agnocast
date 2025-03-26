@@ -365,6 +365,53 @@ void test_case_do_exit_with_entry(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME), 0);
 }
 
+// Test case for process exit where there is a message entry with a subscriber reference,
+// and only the subscriber exits
+void test_case_do_exit_with_entry_with_subscriber_reference(struct kunit * test)
+{
+  // Arrange
+  const pid_t publisher_pid = PID_BASE;
+  const uint64_t msg_virtual_address = setup_one_process(test, publisher_pid);
+  const topic_local_id_t publisher_id = setup_one_publisher(test, publisher_pid);
+  const uint64_t entry_id = setup_one_entry(test, publisher_id, msg_virtual_address);
+  int ret1 = decrement_message_entry_rc(TOPIC_NAME, publisher_id, entry_id);
+
+  const pid_t subscriber_pid = PID_BASE + 1;
+  setup_one_process(test, subscriber_pid);
+  const topic_local_id_t subscriber_id = setup_one_subscriber(test, subscriber_pid);
+  int ret2 = increment_message_entry_rc(TOPIC_NAME, subscriber_id, entry_id);
+
+  union ioctl_get_subscriber_num_args get_subscriber_num_args;
+  int ret3 = get_subscriber_num(TOPIC_NAME, &get_subscriber_num_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 2);
+  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_entry_rc(TOPIC_NAME, entry_id, publisher_id), 0);
+  KUNIT_ASSERT_EQ(test, get_entry_rc(TOPIC_NAME, entry_id, subscriber_id), 1);
+
+  // Act
+  enqueue_exit_pid(subscriber_pid);
+
+  // wait for exit_worker_thread to handle process exit
+  msleep(10);
+
+  // Assert
+  int ret4 = get_subscriber_num(TOPIC_NAME, &get_subscriber_num_args);
+  KUNIT_EXPECT_EQ(test, ret4, 0);
+  KUNIT_EXPECT_EQ(test, get_proc_info_htable_size(), 1);
+  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME), 1);
+  KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, entry_id, publisher_id), 0);
+  KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, entry_id, subscriber_id), 0);
+}
+
 // Test case for process exit order: publisher exits first, then subscriber exits
 void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit * test)
 {
