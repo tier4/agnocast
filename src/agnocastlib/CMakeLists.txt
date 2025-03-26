@@ -81,7 +81,7 @@ if(BUILD_TESTING)
   include_directories(${gmock-global_SOURCE_DIR}/include)
 
   find_package(ament_cmake_gmock REQUIRED)
-  
+
   # Unit tests
   ament_add_gmock(test_unit_${PROJECT_NAME}
     test/unit/test_agnocast_utils.cpp
@@ -104,6 +104,16 @@ if(BUILD_TESTING)
   set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
     TIMEOUT 120
+  )
+
+  # Heaphook tests
+  ament_add_gmock(test_heaphook_${PROJECT_NAME}
+    test/heaphook/malloc.cpp)
+  target_include_directories(test_heaphook_${PROJECT_NAME} PRIVATE include)
+  target_link_libraries(test_heaphook_${PROJECT_NAME} agnocast)
+  #get_test_property(test_heaphook_${PROJECT_NAME} ENVIRONMENT existing_env)
+  set_tests_properties(test_heaphook_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe;LD_PRELOAD=${CMAKE_INSTALL_PREFIX}/lib/libagnocast_heaphook.so:;MEMPOOL_SIZE=1000000"
   )
 endif()
 

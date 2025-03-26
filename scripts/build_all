@@ -5,6 +5,6 @@ make
 
 cd ../agnocast_heaphook
 cargo vendor
-cargo build --release
+cargo build --release --features alloc-stats
 cd ..
 cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib
