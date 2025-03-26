@@ -1785,7 +1785,7 @@ int get_topic_entries_num(const char * topic_name)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
-    return -1;
+    return 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
