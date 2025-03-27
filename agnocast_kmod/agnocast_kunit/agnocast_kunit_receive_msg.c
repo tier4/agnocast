@@ -510,7 +510,6 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   union ioctl_receive_msg_args receive_msg_ret;
   ret = receive_msg(topic_name, subscriber_args.ret_id, &receive_msg_ret);
 
-
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
 }

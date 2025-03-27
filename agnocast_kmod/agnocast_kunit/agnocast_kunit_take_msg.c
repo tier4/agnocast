@@ -768,7 +768,7 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
 
 void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
 {
-    // Arrange: create MAX_PROCESS_NUM_PER_MEMPOOL processes which map to the same memory pool
+  // Arrange: create MAX_PROCESS_NUM_PER_MEMPOOL processes which map to the same memory pool
   int ret;
   union ioctl_subscriber_args subscriber_args;
   union ioctl_publisher_args publisher_args;
@@ -826,7 +826,6 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
   // Act
   union ioctl_take_msg_args take_msg_ret;
   ret = take_msg(topic_name, subscriber_args.ret_id, allow_same_message, &take_msg_ret);
-
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
