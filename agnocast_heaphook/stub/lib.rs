@@ -1,7 +1,7 @@
-use std::os::raw::c_void;
+use std::os::raw::{c_void, c_char};
 
 #[no_mangle]
-pub extern "C" fn initialize_agnocast(size: usize) -> *mut c_void {
+pub extern "C" fn initialize_agnocast(size: usize, version: *const c_char, length: usize) -> *mut c_void{
     std::ptr::null_mut()
 }
 
