@@ -173,11 +173,11 @@ union ioctl_topic_info_args {
   uint32_t ret_topic_info_ret_num;
 };
 
-#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR(0xA6, 20, union ioctl_topic_list_args)
-#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR(0xA6, 21, union ioctl_topic_info_args)
-#define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR(0xA6, 22, union ioctl_topic_info_args)
-#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR(0xA6, 23, union ioctl_node_info_args)
-#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR(0xA6, 24, union ioctl_node_info_args)
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOWR(0xA6, 20, union ioctl_topic_list_args)
+#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
+#define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOWR(0xA6, 22, union ioctl_topic_info_args)
+#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOWR(0xA6, 23, union ioctl_node_info_args)
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOWR(0xA6, 24, union ioctl_node_info_args)
 
 // ================================================
 // public macros and functions in agnocast_main.c
