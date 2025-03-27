@@ -13,6 +13,8 @@ int shm_fd;
 namespace agnocast
 {
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 extern "C" void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
   const size_t heaphook_version_str_len)
@@ -41,6 +43,7 @@ extern "C" void * initialize_agnocast(
 
   return ret;
 }
+#pragma GCC diagnostic pop
 
 void shutdown_agnocast()
 {
