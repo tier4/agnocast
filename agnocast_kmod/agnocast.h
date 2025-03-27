@@ -117,6 +117,11 @@ union ioctl_new_shm_args {
   uint64_t ret_addr;
 };
 
+struct ioctl_get_version_args
+{
+  char ret_version[VERSION_BUFFER_LEN];
+};
+
 union ioctl_get_subscriber_num_args {
   struct name_info topic_name;
   uint32_t ret_subscriber_num;
@@ -130,6 +135,7 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
+#define AGNOCAST_GET_VERSION_CMD _IOW('I', 2, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
 
 // ================================================
