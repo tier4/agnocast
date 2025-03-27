@@ -780,7 +780,6 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
 
   union ioctl_new_shm_args new_shm_args;
   ret = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
-  uint64_t msg_virtual_address = new_shm_args.ret_addr;
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   int mmap_process_num = 1;
@@ -789,9 +788,6 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
     snprintf(topic_name, sizeof(topic_name), "/kunit_test_topic%d", i);
     ret = publisher_add(
       topic_name, NODE_NAME, publisher_pid, qos_depth, qos_transient_local, &publisher_args);
-    KUNIT_ASSERT_EQ(test, ret, 0);
-    union ioctl_publish_args publish_ret;
-    ret = publish_msg(topic_name, publisher_args.ret_id, msg_virtual_address++, &publish_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
     for (int j = 0; j < MAX_SUBSCRIBER_NUM; j++) {
       if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
