@@ -122,15 +122,15 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
-#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW('S', 1, union ioctl_subscriber_args)
-#define AGNOCAST_PUBLISHER_ADD_CMD _IOW('P', 1, union ioctl_publisher_args)
-#define AGNOCAST_INCREMENT_RC_CMD _IOW('M', 1, struct ioctl_update_entry_args)
-#define AGNOCAST_DECREMENT_RC_CMD _IOW('M', 2, struct ioctl_update_entry_args)
-#define AGNOCAST_RECEIVE_MSG_CMD _IOW('M', 3, union ioctl_receive_msg_args)
-#define AGNOCAST_PUBLISH_MSG_CMD _IOW('M', 4, union ioctl_publish_args)
-#define AGNOCAST_TAKE_MSG_CMD _IOW('M', 5, union ioctl_take_msg_args)
-#define AGNOCAST_NEW_SHM_CMD _IOW('I', 1, union ioctl_new_shm_args)
-#define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW('G', 1, union ioctl_get_subscriber_num_args)
+#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOW(0xA6, 1, union ioctl_subscriber_args)
+#define AGNOCAST_PUBLISHER_ADD_CMD _IOW(0xA6, 2, union ioctl_publisher_args)
+#define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
+#define AGNOCAST_DECREMENT_RC_CMD _IOW(0xA6, 4, struct ioctl_update_entry_args)
+#define AGNOCAST_RECEIVE_MSG_CMD _IOW(0xA6, 5, union ioctl_receive_msg_args)
+#define AGNOCAST_PUBLISH_MSG_CMD _IOW(0xA6, 6, union ioctl_publish_args)
+#define AGNOCAST_TAKE_MSG_CMD _IOW(0xA6, 7, union ioctl_take_msg_args)
+#define AGNOCAST_NEW_SHM_CMD _IOW(0xA6, 8, union ioctl_new_shm_args)
+#define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW(0xA6, 9, union ioctl_get_subscriber_num_args)
 
 // ================================================
 // ros2cli ioctls
@@ -167,11 +167,11 @@ union ioctl_topic_info_args {
   uint32_t ret_topic_info_ret_num;
 };
 
-#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR('R', 1, union ioctl_topic_list_args)
-#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR('R', 2, union ioctl_topic_info_args)
-#define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR('R', 3, union ioctl_topic_info_args)
-#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR('R', 4, union ioctl_node_info_args)
-#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR('R', 5, union ioctl_node_info_args)
+#define AGNOCAST_GET_TOPIC_LIST_CMD _IOR(0xA6, 20, union ioctl_topic_list_args)
+#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOR(0xA6, 21, union ioctl_topic_info_args)
+#define AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD _IOR(0xA6, 22, union ioctl_topic_info_args)
+#define AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD _IOR(0xA6, 23, union ioctl_node_info_args)
+#define AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD _IOR(0xA6, 24, union ioctl_node_info_args)
 
 // ================================================
 // public macros and functions in agnocast_main.c
