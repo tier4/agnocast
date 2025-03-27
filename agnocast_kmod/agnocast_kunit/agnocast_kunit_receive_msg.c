@@ -1,6 +1,7 @@
 #include "agnocast_kunit_receive_msg.h"
 
 #include "../agnocast.h"
+#include "../agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
 
@@ -665,6 +666,59 @@ void test_case_receive_msg_twice(struct kunit * test)
 
 void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
 {
-  // TODO(Koichi98): Implement this test case
-  KUNIT_EXPECT_EQ(test, 0, 0);
+  // Arrange: create MAX_PROCESS_NUM_PER_MEMPOOL processes which map to the same memory pool
+  int ret;
+  union ioctl_subscriber_args subscriber_args;
+  union ioctl_publisher_args publisher_args;
+  const pid_t publisher_pid = 1000;
+  pid_t subscriber_pid = 2000;
+  const uint32_t qos_depth = 1;
+
+  union ioctl_new_shm_args new_shm_args;
+  ret = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+
+  int mmap_process_num = 1;
+  for (int i = 0; i < MAX_PROCESS_NUM_PER_MEMPOOL / MAX_SUBSCRIBER_NUM + 1; i++) {
+    char topic_name[50];
+    snprintf(topic_name, sizeof(topic_name), "/kunit_test_topic%d", i);
+    ret = publisher_add(
+      topic_name, NODE_NAME, publisher_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+    KUNIT_ASSERT_EQ(test, ret, 0);
+    for (int j = 0; j < MAX_SUBSCRIBER_NUM; j++) {
+      if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
+        break;
+      }
+      ret = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+      KUNIT_ASSERT_EQ(test, ret, 0);
+
+      ret = subscriber_add(
+        topic_name, NODE_NAME, subscriber_pid++, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
+        &subscriber_args);
+      KUNIT_ASSERT_EQ(test, ret, 0);
+      union ioctl_receive_msg_args receive_msg_ret;
+      ret = receive_msg(topic_name, subscriber_args.ret_id, &receive_msg_ret);
+      KUNIT_ASSERT_EQ(test, ret, 0);
+      mmap_process_num++;
+    }
+  }
+  const char * topic_name = "/kunit_test_topic_1000";
+  ret = publisher_add(
+    topic_name, NODE_NAME, publisher_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), MAX_PROCESS_NUM_PER_MEMPOOL);
+
+  ret = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+  ret = subscriber_add(
+    topic_name, NODE_NAME, subscriber_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
+    &subscriber_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+
+  // Act
+  union ioctl_receive_msg_args receive_msg_ret;
+  ret = receive_msg(topic_name, subscriber_args.ret_id, &receive_msg_ret);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
 }
