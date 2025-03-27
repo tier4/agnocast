@@ -391,7 +391,6 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
 
-//
 void test_case_receive_msg_transient_local_sub_qos_smaller_than_publish_num_smaller_than_pub_qos(
   struct kunit * test)
 {
@@ -432,6 +431,7 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_publish_num_smal
   KUNIT_EXPECT_EQ(
     test, get_latest_received_entry_id(TOPIC_NAME, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
+  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], ret_addr);
 }
