@@ -1,5 +1,5 @@
-AGNOCAST_VERSION := $(shell cat $(src)/version.txt 2>/dev/null || echo "unknown")
-ccflags-y += -Wall -Werror -DAGNOCAST_VERSION='"$(AGNOCAST_VERSION)"'
+VERSION := $(shell cat $(src)/version.txt 2>/dev/null || echo "unknown")
+ccflags-y += -Wall -Werror -DVERSION='"$(VERSION)"'
 
 ifneq ($(KUNIT_BUILD),y)
   obj-m := agnocast.o
