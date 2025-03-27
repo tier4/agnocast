@@ -69,6 +69,21 @@ install(
   DESTINATION include
 )
 
+find_package(Python3 REQUIRED)
+
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
+  OUTPUT_VARIABLE PACKAGE_VERSION
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/agnocast/agnocast_version.hpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/agnocast/agnocast_version.hpp
+)
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+
 if(BUILD_TESTING)
   # For gmock-global
   include(FetchContent)
