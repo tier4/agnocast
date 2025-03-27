@@ -10,8 +10,6 @@
 #include <cstdint>
 #include <mutex>
 
-constexpr int DECIMAL_RADIX = 10;
-
 namespace agnocast
 {
 
