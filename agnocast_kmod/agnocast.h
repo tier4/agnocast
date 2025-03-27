@@ -117,6 +117,11 @@ union ioctl_new_shm_args {
   uint64_t ret_addr;
 };
 
+struct ioctl_get_version_args
+{
+  char ret_version[VERSION_BUFFER_LEN];
+};
+
 union ioctl_get_subscriber_num_args {
   struct name_info topic_name;
   uint32_t ret_subscriber_num;
