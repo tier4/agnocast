@@ -130,7 +130,8 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_PUBLISH_MSG_CMD _IOW(0xA6, 6, union ioctl_publish_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOW(0xA6, 7, union ioctl_take_msg_args)
 #define AGNOCAST_NEW_SHM_CMD _IOW(0xA6, 8, union ioctl_new_shm_args)
-#define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW(0xA6, 9, union ioctl_get_subscriber_num_args)
+#define AGNOCAST_GET_VERSION_CMD _IOW(0xA6, 9, struct ioctl_get_version_args)
+#define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOW(0xA6, 10, union ioctl_get_subscriber_num_args)
 
 // ================================================
 // ros2cli ioctls
