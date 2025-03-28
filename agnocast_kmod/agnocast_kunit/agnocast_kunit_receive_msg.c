@@ -673,6 +673,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   const pid_t publisher_pid = 1000;
   pid_t subscriber_pid = 2000;
   const uint32_t qos_depth = 1;
+  const bool is_transient_local = false;
 
   union ioctl_new_shm_args new_shm_args;
   ret = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
@@ -683,7 +684,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
     char topic_name[50];
     snprintf(topic_name, sizeof(topic_name), "/kunit_test_topic%d", i);
     ret = publisher_add(
-      topic_name, NODE_NAME, publisher_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+      topic_name, NODE_NAME, publisher_pid, qos_depth, is_transient_local, &publisher_args);
     KUNIT_ASSERT_EQ(test, ret, 0);
     for (int j = 0; j < MAX_SUBSCRIBER_NUM; j++) {
       if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
@@ -693,7 +694,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
       KUNIT_ASSERT_EQ(test, ret, 0);
 
       ret = subscriber_add(
-        topic_name, NODE_NAME, subscriber_pid++, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
+        topic_name, NODE_NAME, subscriber_pid++, qos_depth, is_transient_local, IS_TAKE_SUB,
         &subscriber_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
       union ioctl_receive_msg_args receive_msg_ret;
@@ -704,14 +705,14 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   }
   const char * topic_name = "/kunit_test_topic_1000";
   ret = publisher_add(
-    topic_name, NODE_NAME, publisher_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+    topic_name, NODE_NAME, publisher_pid, qos_depth, is_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), MAX_PROCESS_NUM_PER_MEMPOOL);
 
   ret = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
   ret = subscriber_add(
-    topic_name, NODE_NAME, subscriber_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
+    topic_name, NODE_NAME, subscriber_pid, qos_depth, is_transient_local, IS_TAKE_SUB,
     &subscriber_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
