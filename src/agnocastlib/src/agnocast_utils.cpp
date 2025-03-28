@@ -11,12 +11,30 @@ rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 
 void validate_ld_preload()
 {
-  const char * ld_preload = getenv("LD_PRELOAD");
+  const char * ld_preload_cstr = getenv("LD_PRELOAD");
   if (
-    ld_preload == nullptr || (std::strstr(ld_preload, "libagnocast_heaphook.so:") == nullptr &&
-                              std::strstr(ld_preload, ":libagnocast_heaphook.so") == nullptr)) {
-    RCLCPP_ERROR(logger, "LD_PRELOAD is not set to `libagnocast_heaphook.so:$LD_PRELOAD`");
+    ld_preload_cstr == nullptr ||
+    std::strstr(ld_preload_cstr, "libagnocast_heaphook.so") == nullptr) {
+    RCLCPP_ERROR(logger, "libagnocast_heaphook.so not found in LD_PRELOAD.");
     exit(EXIT_FAILURE);
+  }
+
+  std::string ld_preload(ld_preload_cstr);
+  std::vector<std::string> paths;
+  std::string::size_type start = 0;
+  std::string::size_type end;
+
+  while ((end = ld_preload.find(':', start)) != std::string::npos) {
+    paths.push_back(ld_preload.substr(start, end - start));
+    start = end + 1;
+  }
+  paths.push_back(ld_preload.substr(start));
+
+  if (paths.size() == 1) {
+    RCLCPP_WARN(
+      logger,
+      "Pre-existing shared libraries in LD_PRELOAD may have been overwritten by "
+      "libagnocast_heaphook.so");
   }
 }
 
