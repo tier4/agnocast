@@ -83,7 +83,7 @@ def generate_test_description():
                 output='screen',
                 additional_env={
                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
-                    'MEMPOOL_SIZE': '134217728',
+                    'AGNOCAST_MEMPOOL_SIZE': '134217728',
                 }
             )
         ]
@@ -138,7 +138,7 @@ def generate_test_description():
                 output='screen',
                 additional_env={
                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
-                    'MEMPOOL_SIZE': '134217728',
+                    'AGNOCAST_MEMPOOL_SIZE': '134217728',
                 }
             )
         )

@@ -143,12 +143,12 @@ fn init_tlsf() -> Mutex<TlsfType> {
         )
     }
 
-    let mempool_size_env: String = std::env::var("MEMPOOL_SIZE").unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: MEMPOOL_SIZE", error);
+    let mempool_size_env: String = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
+        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
     });
 
     let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: MEMPOOL_SIZE", error);
+        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
     });
 
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
@@ -185,7 +185,7 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
     let mut tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
 
     let ptr: std::ptr::NonNull<u8> = tlsf.allocate(layout).unwrap_or_else(|| {
-        panic!("[ERROR] [Agnocast] memory allocation failed: use larger MEMPOOL_SIZE");
+        panic!("[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE");
     });
 
     ptr.as_ptr() as *mut c_void
@@ -203,7 +203,7 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
         tlsf.reallocate(ptr, layout).unwrap_or_else(|| {
-            panic!("[ERROR] [Agnocast] memory allocation failed: use larger MEMPOOL_SIZE");
+            panic!("[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE");
         })
     };
 

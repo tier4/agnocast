@@ -17,11 +17,11 @@ target_include_directories(target_library PRIVATE
 )
 ```
 
-For launch.xml ( `MEMPOOL_SIZE` can be configured based on how much the process will consume heap memory, see [shared memory](./docs/shared_memory.md) for more detail.):
+For launch.xml ( `AGNOCAST_MEMPOOL_SIZE` can be configured based on how much the process will consume heap memory, see [shared memory](./docs/shared_memory.md) for more detail.):
 
 ```xml
 <env name="LD_PRELOAD" value="libagnocast_heaphook.so"/>
-<env name="MEMPOOL_SIZE" value="134217728"/>  <!-- 128MB -->
+<env name="AGNOCAST_MEMPOOL_SIZE" value="134217728"/>  <!-- 128MB -->
 ```
 
 For packages.xml:
