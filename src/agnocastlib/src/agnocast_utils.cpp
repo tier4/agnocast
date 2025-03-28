@@ -22,7 +22,7 @@ void validate_ld_preload()
   std::string ld_preload(ld_preload_cstr);
   std::vector<std::string> paths;
   std::string::size_type start = 0;
-  std::string::size_type end;
+  std::string::size_type end = 0;
 
   while ((end = ld_preload.find(':', start)) != std::string::npos) {
     paths.push_back(ld_preload.substr(start, end - start));
