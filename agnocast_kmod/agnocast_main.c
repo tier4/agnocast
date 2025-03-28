@@ -12,6 +12,7 @@
 #include <linux/spinlock.h>
 #include <linux/statfs.h>
 #include <linux/version.h>
+#include <net/net_namespace.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -32,6 +33,7 @@ static DEFINE_MUTEX(global_mutex);
 #define PUB_INFO_HASH_BITS 3
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
+#define NET_NS_HASH_BITS 2
 
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
@@ -45,6 +47,16 @@ static DEFINE_MUTEX(global_mutex);
 #ifndef KUNIT_BUILD
 static int (*do_unlinkat)(int, struct filename *);
 #endif
+
+struct net_namespace
+{
+  uint16_t id;
+  struct net * net_ns;
+  struct hlist_node node;
+};
+
+static uint16_t current_net_ns_id = 0;
+DEFINE_HASHTABLE(net_ns_htable, NET_NS_HASH_BITS);
 
 struct process_info
 {
@@ -107,6 +119,58 @@ struct entry_node
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
+
+static struct net_namespace * find_net_namespace(struct net * net_ns)
+{
+  struct net_namespace * net_namespace_entry;
+  unsigned long hash_val = hash_min((uint64_t)net_ns, NET_NS_HASH_BITS);
+
+  hash_for_each_possible(net_ns_htable, net_namespace_entry, node, hash_val)
+  {
+    if (net_eq(net_ns, net_namespace_entry->net_ns)) return net_namespace_entry;
+  }
+
+  return NULL;
+}
+
+static uint16_t insert_net_namespace(struct net * net_ns)
+{
+  struct net_namespace * new_net_namespace = kmalloc(sizeof(struct net_namespace), GFP_KERNEL);
+  if (!new_net_namespace) {
+    dev_warn(agnocast_device, "kmalloc failed. (insert_net_namespace)\n");
+    return -ENOMEM;
+  }
+
+  new_net_namespace->id = current_net_ns_id++;
+  new_net_namespace->net_ns = net_ns;
+  INIT_HLIST_NODE(&new_net_namespace->node);
+  uint32_t hash_val = hash_min((uint64_t)net_ns, NET_NS_HASH_BITS);
+  hash_add(net_ns_htable, &new_net_namespace->node, hash_val);
+
+  return new_net_namespace->id;
+}
+
+static char * convert_topic_name_to_global(const char * topic_name)
+{
+  int global_topic_name_len = strlen(topic_name) + 7;
+  char * global_topic_name =
+    kmalloc(global_topic_name_len, GFP_KERNEL);  // 7 = 5 (net_ns_id max char len) + 1 (':') + 1
+                                                 // ('\n')
+
+  struct net_namespace * net_namespace_entry;
+  struct net * net_ns = current->nsproxy->net_ns;
+  net_namespace_entry = find_net_namespace(net_ns);
+
+  if (net_namespace_entry) {
+    snprintf(
+      global_topic_name, global_topic_name_len, "%u:%s", net_namespace_entry->id, topic_name);
+  } else {
+    uint16_t net_ns_id = insert_net_namespace(net_ns);
+    snprintf(global_topic_name, global_topic_name_len, "%u:%s", net_ns_id, topic_name);
+  }
+
+  return global_topic_name;
+}
 
 static unsigned long get_topic_hash(const char * str)
 {
