@@ -51,7 +51,7 @@ The restriction for the name is the same as the shared memory.
 
 ## How virtual addresses are decided?
 
-Any process which joins Agnocast has to set `MEMPOOL_SIZE` as an environment variable.
+Any process which joins Agnocast has to set `AGNOCAST_MEMPOOL_SIZE` as an environment variable.
 The passed value is aligned to 100kB.
 
 ## Known issues
