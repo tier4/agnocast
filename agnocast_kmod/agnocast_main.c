@@ -64,7 +64,6 @@ struct publisher_info
   uint32_t qos_depth;
   bool qos_is_transient_local;
   uint32_t entries_num;
-  bool exited;
   struct hlist_node node;
 };
 
@@ -338,7 +337,6 @@ static int insert_publisher_info(
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
-  (*new_info)->exited = false;
   INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &(*new_info)->node, hash_val);
@@ -858,16 +856,13 @@ static int set_publisher_shm_info(
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
-    if (pub_info->exited || subscriber_pid == pub_info->pid) {
+    if (subscriber_pid == pub_info->pid) {
       continue;
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
     if (!proc_info) {
-      dev_warn(
-        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-        pub_info->pid);
-      return -ESRCH;
+      continue;
     }
 
     int ret = reference_memory(proc_info->mempool_entry, subscriber_pid);
@@ -1569,8 +1564,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
-      goto return_EFAULT;
   } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1583,8 +1576,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
-      goto return_EFAULT;
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1964,7 +1955,9 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
         if (pub_info->id == en->publisher_id) {
-          if (pub_info->exited) publisher_exited = true;
+          if (!find_process_info(pub_info->pid)) {
+            publisher_exited = true;
+          }
           break;
         }
       }
@@ -1992,7 +1985,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     if (pub_info->pid != pid) continue;
 
     const topic_local_id_t publisher_id = pub_info->id;
-    pub_info->exited = true;
 
     struct rb_root * root = &wrapper->topic.entries;
     struct rb_node * node = rb_first(root);
