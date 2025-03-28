@@ -1080,6 +1080,21 @@ int receive_msg(
       break;
     }
 
+    const struct publisher_info * pub_info = find_publisher_info(wrapper, en->publisher_id);
+    if (!pub_info) {
+      dev_warn(
+        agnocast_device,
+        "Unreachable: corresponding publisher(id=%d) not found for entry(id=%lld) in "
+        "topic(topic_name=%s). (receive_msg)\n",
+        en->publisher_id, en->entry_id, topic_name);
+      return -ENODATA;
+    }
+
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      continue;
+    }
+
     int ret = increment_sub_rc(en, subscriber_id);
     if (ret < 0) {
       return ret;
@@ -1180,15 +1195,33 @@ int take_msg(
   struct rb_node * node = rb_last(&wrapper->topic.entries);
   while (node && searched_count < sub_info->qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
+    node = rb_prev(node);
+
     if (!allow_same_message && en->entry_id == sub_info->latest_received_entry_id) {
       break;  // Don't take the same message if it's not allowed
     }
+
     if (en->entry_id < sub_info->latest_received_entry_id) {
       break;  // Never take any messages that are older than the most recently received
     }
+
+    const struct publisher_info * pub_info = find_publisher_info(wrapper, en->publisher_id);
+    if (!pub_info) {
+      dev_warn(
+        agnocast_device,
+        "Unreachable: corresponding publisher(id=%d) not found for entry(id=%lld) in "
+        "topic(topic_name=%s). (take_msg)\n",
+        en->publisher_id, en->entry_id, topic_name);
+      return -ENODATA;
+    }
+
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      continue;
+    }
+
     candidate_en = en;
     searched_count++;
-    node = rb_prev(node);
   }
 
   if (candidate_en) {
