@@ -52,6 +52,7 @@ struct net_namespace
 {
   uint16_t id;
   struct net * net_ns;
+  uint32_t reference_count;
   struct hlist_node node;
 };
 
@@ -60,6 +61,9 @@ DEFINE_HASHTABLE(net_ns_htable, NET_NS_HASH_BITS);
 
 struct process_info
 {
+#ifndef KUNIT_BUILD
+  uint16_t net_ns_id;
+#endif
   pid_t pid;
   uint64_t shm_size;
   struct mempool_entry * mempool_entry;
@@ -103,6 +107,9 @@ struct topic_struct
 
 struct topic_wrapper
 {
+#ifndef KUNIT_BUILD
+  uint16_t net_ns_id;
+#endif
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
@@ -143,33 +150,12 @@ static uint16_t insert_net_namespace(struct net * net_ns)
 
   new_net_namespace->id = current_net_ns_id++;
   new_net_namespace->net_ns = net_ns;
+  new_net_namespace->reference_count = 1;
   INIT_HLIST_NODE(&new_net_namespace->node);
   uint32_t hash_val = hash_min((uint64_t)net_ns, NET_NS_HASH_BITS);
   hash_add(net_ns_htable, &new_net_namespace->node, hash_val);
 
   return new_net_namespace->id;
-}
-
-static char * convert_topic_name_to_global(const char * topic_name)
-{
-  int global_topic_name_len = strlen(topic_name) + 7;
-  char * global_topic_name =
-    kmalloc(global_topic_name_len, GFP_KERNEL);  // 7 = 5 (net_ns_id max char len) + 1 (':') + 1
-                                                 // ('\n')
-
-  struct net_namespace * net_namespace_entry;
-  struct net * net_ns = current->nsproxy->net_ns;
-  net_namespace_entry = find_net_namespace(net_ns);
-
-  if (net_namespace_entry) {
-    snprintf(
-      global_topic_name, global_topic_name_len, "%u:%s", net_namespace_entry->id, topic_name);
-  } else {
-    uint16_t net_ns_id = insert_net_namespace(net_ns);
-    snprintf(global_topic_name, global_topic_name_len, "%u:%s", net_ns_id, topic_name);
-  }
-
-  return global_topic_name;
 }
 
 static unsigned long get_topic_hash(const char * str)
@@ -185,7 +171,16 @@ static struct topic_wrapper * find_topic(const char * topic_name)
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
+#ifdef KUNIT_BUILD
     if (strcmp(entry->key, topic_name) == 0) return entry;
+#else
+    struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+    if (!net_namespace_entry) {
+      return NULL;
+    }
+    if (entry->net_ns_id == net_namespace_entry->id && strcmp(entry->key, topic_name) == 0)
+      return entry;
+#endif
   }
 
   return NULL;
@@ -205,6 +200,26 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
       topic_name);
     return -ENOMEM;
   }
+
+#ifndef KUNIT_BUILD
+  struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+  if (!NULL) {
+    dev_warn(
+      agnocast_device, "UNreachable: Failed to find a net_namespace. (add_topic)\n", topic_name);
+    return -ENXIO;
+  }
+  /* OR
+  struct process_info * proc_info = find_process_info(current->pid);
+  if (!NULL) {
+    dev_warn(
+      agnocast_device, "Unreachable: Failed to find a proc_info (pid=%d). (add_topic)\n",
+      );
+    return -ESRCH;
+  }
+  */
+  (*wrapper)->net_ns_id = net_namespace_entry->id;
+  net_namespace_entry->reference_count++;
+#endif
 
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
   if (!(*wrapper)->key) {
@@ -678,11 +693,21 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
 {
   mutex_lock(&global_mutex);
 
+#ifndef KUNIT_BUILD
+  struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+  uint16_t net_ns_id = net_namespace_entry->id;
+#endif
+
   int used_size = 0;
   struct process_info * proc_info;
   int bkt_proc_info;
   hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
   {
+#ifndef KUNIT_BUILD
+    if (net_ns_id != proc_info->net_ns_id) {
+      continue;
+    }
+#endif
     used_size += scnprintf(
       buf + used_size, PAGE_SIZE - used_size, "process: pid=%u, addr=%llu, size=%llu\n",
       proc_info->pid, proc_info->mempool_entry->addr, proc_info->shm_size);
@@ -693,6 +718,11 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
     int bkt_topic;
     hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
     {
+#ifndef KUNIT_BUILD
+      if (net_ns_id != wrapper->net_ns_id) {
+        continue;
+      }
+#endif
       struct publisher_info * pub_info;
       int bkt_pub_info;
       hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
@@ -707,6 +737,11 @@ static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * att
 
     hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
     {
+#ifndef KUNIT_BUILD
+      if (net_ns_id != wrapper->net_ns_id) {
+        continue;
+      }
+#endif
       struct subscriber_info * sub_info;
       int bkt_sub_info;
       hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -744,11 +779,21 @@ static ssize_t show_topics(struct kobject * kobj, struct kobj_attribute * attr, 
 {
   mutex_lock(&global_mutex);
 
+#ifndef KUNIT_BUILD
+  struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+  uint16_t net_ns_id = net_namespace_entry->id;
+#endif
+
   int used_size = 0;
   struct topic_wrapper * wrapper;
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    if (net_ns_id == wrapper->net_ns_id) {
+      continue;
+    }
+#endif
     used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "topic: %s\n", wrapper->key);
     used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
 
@@ -817,6 +862,11 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
 {
   mutex_lock(&global_mutex);
 
+#ifndef KUNIT_BUILD
+  struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+  uint16_t net_ns_id = net_namespace_entry->id;
+#endif
+
   int used_size = 0;
   int ret;
 
@@ -832,6 +882,11 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    if (net_ns_id == wrapper->net_ns_id) {
+      continue;
+    }
+#endif
     if (strncmp(debug_topic_name, wrapper->key, strlen(wrapper->key)) != 0) continue;
 
     ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
@@ -1384,6 +1439,12 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+    if (wrapper->net_ns_id != net_namespace_entry->id) {
+      continue;
+    }
+#endif
     if (topic_num >= MAX_TOPIC_NUM) {
       dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
       return -ENOBUFS;
@@ -1414,6 +1475,12 @@ static int get_node_subscriber_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+    if (wrapper->net_ns_id != net_namespace_entry->id) {
+      continue;
+    }
+#endif
     struct subscriber_info * sub_info;
     int bkt_sub_info;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -1453,6 +1520,12 @@ static int get_node_publisher_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
+    if (wrapper->net_ns_id != net_namespace_entry->id) {
+      continue;
+    }
+#endif
     struct publisher_info * pub_info;
     int bkt_pub_info;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
@@ -2138,6 +2211,32 @@ static void unlink_shm(const pid_t pid)
     dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (unlink_shm)\n", ret);
   }
 }
+
+void pre_handler_net_namespace(struct proccess_info * proc_info)
+{
+  struct net_namespace * net_namespace_entry;
+  struct hlist_node * node;
+
+  hlist_for_each_entry(net_namespace_entry, net_ns_htable, node)
+  {
+    if (net_namespace_entry->id == proc_info->net_ns_id) {
+      if (net_namespace->reference_count > 0) {
+        net_namespace->reference_count--;
+      } else {
+        dev_info(
+          agnocast_device,
+          "Unreachable: net_namespace reference count is already zero when process (pid=%d) exits. "
+          "(pre_handler_net_namespace)\n",
+          pid);
+      }
+
+      if (net_namespace->reference_count == 0) {
+        hash_del(&net_namespace->node);
+        kfree(net_namespace);
+      }
+    }
+  }
+}
 #endif
 
 void process_exit_cleanup(const pid_t pid)
@@ -2150,6 +2249,9 @@ void process_exit_cleanup(const pid_t pid)
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
     if (proc_info->pid == pid) {
+#ifndef KUNIT_BUILD
+      pre_handler_net_namespace(proc_info);
+#endif
       hash_del(&proc_info->node);
       kfree(proc_info);
       agnocast_related = true;
