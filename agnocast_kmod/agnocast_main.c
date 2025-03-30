@@ -134,6 +134,7 @@ static struct net_namespace * find_net_namespace(struct net * net_ns)
 
   hash_for_each_possible(net_ns_htable, net_namespace_entry, node, hash_val)
   {
+    printk("find_net_namespace net_ns:%lx", (unsigned long)net_ns);
     if (net_eq(net_ns, net_namespace_entry->net_ns)) return net_namespace_entry;
   }
 
@@ -147,6 +148,8 @@ static uint16_t insert_net_namespace(struct net * net_ns)
     dev_warn(agnocast_device, "kmalloc failed. (insert_net_namespace)\n");
     return -ENOMEM;
   }
+
+  printk("insert_net_namespace net_ns:%lx", (unsigned long)net_ns);
 
   new_net_namespace->id = current_net_ns_id++;
   new_net_namespace->net_ns = net_ns;
@@ -203,9 +206,8 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
 
 #ifndef KUNIT_BUILD
   struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
-  if (!NULL) {
-    dev_warn(
-      agnocast_device, "UNreachable: Failed to find a net_namespace. (add_topic)\n", topic_name);
+  if (!net_namespace_entry) {
+    dev_warn(agnocast_device, "UNreachable: Failed to find a net_namespace. (add_topic)\n");
     return -ENXIO;
   }
   /* OR
@@ -1391,6 +1393,17 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     return -ENOMEM;
   }
 
+#ifndef KUNIT_BUILD
+  struct net * net_ns = current->nsproxy->net_ns;
+  struct net_namespace * net_namespace_entry = find_net_namespace(net_ns);
+  if (!net_namespace_entry) {
+    uint16_t net_ns_id = insert_net_namespace(net_ns);
+    new_proc_info->net_ns_id = net_ns_id;
+  } else {
+    new_proc_info->net_ns_id = net_namespace_entry->id;
+  }
+#endif
+
   new_proc_info->pid = pid;
   new_proc_info->shm_size = shm_size;
 
@@ -2212,27 +2225,27 @@ static void unlink_shm(const pid_t pid)
   }
 }
 
-void pre_handler_net_namespace(struct proccess_info * proc_info)
+static void pre_handler_net_namespace(struct process_info * proc_info)
 {
   struct net_namespace * net_namespace_entry;
   struct hlist_node * node;
 
-  hlist_for_each_entry(net_namespace_entry, net_ns_htable, node)
+  hlist_for_each_entry_safe(net_namespace_entry, node, net_ns_htable, node)
   {
     if (net_namespace_entry->id == proc_info->net_ns_id) {
-      if (net_namespace->reference_count > 0) {
-        net_namespace->reference_count--;
+      if (net_namespace_entry->reference_count > 0) {
+        net_namespace_entry->reference_count--;
       } else {
         dev_info(
           agnocast_device,
           "Unreachable: net_namespace reference count is already zero when process (pid=%d) exits. "
           "(pre_handler_net_namespace)\n",
-          pid);
+          proc_info->pid);
       }
 
-      if (net_namespace->reference_count == 0) {
-        hash_del(&net_namespace->node);
-        kfree(net_namespace);
+      if (net_namespace_entry->reference_count == 0) {
+        hash_del(&net_namespace_entry->node);
+        kfree(net_namespace_entry);
       }
     }
   }
