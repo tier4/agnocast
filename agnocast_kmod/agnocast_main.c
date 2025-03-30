@@ -220,7 +220,6 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
   }
   */
   (*wrapper)->net_ns_id = net_namespace_entry->id;
-  net_namespace_entry->reference_count++;
 #endif
 
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
@@ -792,7 +791,7 @@ static ssize_t show_topics(struct kobject * kobj, struct kobj_attribute * attr, 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (net_ns_id == wrapper->net_ns_id) {
+    if (net_ns_id != wrapper->net_ns_id) {
       continue;
     }
 #endif
@@ -1401,6 +1400,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     new_proc_info->net_ns_id = net_ns_id;
   } else {
     new_proc_info->net_ns_id = net_namespace_entry->id;
+    net_namespace_entry->reference_count++;
   }
 #endif
 
