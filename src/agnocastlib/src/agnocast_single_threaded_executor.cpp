@@ -11,6 +11,12 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options, int next_exec_timeout_ms)
 : agnocast::AgnocastExecutor(options), next_exec_timeout_ms_(next_exec_timeout_ms)
 {
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(
+    agnocast_construct_executor, static_cast<const void *>(this),
+    "agnocast_single_threaded_executor");
+#endif
+
   const int next_exec_timeout_ms_threshold = 500;  // Rough value
   if (next_exec_timeout_ms_ > next_exec_timeout_ms_threshold) {
     RCLCPP_WARN(

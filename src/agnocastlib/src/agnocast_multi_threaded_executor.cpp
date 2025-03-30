@@ -20,6 +20,11 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
   ros2_next_exec_timeout_(ros2_next_exec_timeout),
   agnocast_next_exec_timeout_ms_(agnocast_next_exec_timeout_ms)
 {
+#ifdef TRACETOOLS_LTTNG_ENABLED
+  TRACEPOINT(
+    agnocast_construct_executor, static_cast<const void *>(this),
+    "agnocast_multi_threaded_executor");
+#endif
 }
 
 void MultiThreadedAgnocastExecutor::validate_callback_group(
