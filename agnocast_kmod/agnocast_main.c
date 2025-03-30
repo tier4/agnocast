@@ -97,6 +97,8 @@ struct topic_struct
   struct rb_root entries;
   DECLARE_HASHTABLE(pub_info_htable, PUB_INFO_HASH_BITS);
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
+  topic_local_id_t current_pubsub_id;
+  int64_t current_entry_id;
 };
 
 struct topic_wrapper
@@ -104,8 +106,6 @@ struct topic_wrapper
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
-  topic_local_id_t current_pubsub_id;
-  int64_t current_entry_id;
 };
 
 struct entry_node
@@ -215,11 +215,11 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
     return -ENOMEM;
   }
 
-  (*wrapper)->current_pubsub_id = 0;
-  (*wrapper)->current_entry_id = 0;
   (*wrapper)->topic.entries = RB_ROOT;
   hash_init((*wrapper)->topic.pub_info_htable);
   hash_init((*wrapper)->topic.sub_info_htable);
+  (*wrapper)->topic.current_pubsub_id = 0;
+  (*wrapper)->topic.current_entry_id = 0;
   hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
 
   dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
@@ -292,8 +292,8 @@ static int insert_subscriber_info(
     return -ENOMEM;
   }
 
-  const topic_local_id_t new_id = wrapper->current_pubsub_id;
-  wrapper->current_pubsub_id++;
+  const topic_local_id_t new_id = wrapper->topic.current_pubsub_id;
+  wrapper->topic.current_pubsub_id++;
 
   (*new_info)->id = new_id;
   (*new_info)->pid = subscriber_pid;
@@ -302,7 +302,7 @@ static int insert_subscriber_info(
   if (qos_is_transient_local) {
     (*new_info)->latest_received_entry_id = -1;
   } else {
-    (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+    (*new_info)->latest_received_entry_id = wrapper->topic.current_entry_id++;
   }
   (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
@@ -392,8 +392,8 @@ static int insert_publisher_info(
     return -ENOMEM;
   }
 
-  const topic_local_id_t new_id = wrapper->current_pubsub_id;
-  wrapper->current_pubsub_id++;
+  const topic_local_id_t new_id = wrapper->topic.current_pubsub_id;
+  wrapper->topic.current_pubsub_id++;
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
@@ -586,7 +586,7 @@ static int insert_message_entry(
     return -ENOMEM;
   }
 
-  new_node->entry_id = wrapper->current_entry_id++;
+  new_node->entry_id = wrapper->topic.current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   new_node->referencing_ids[0] = pub_info->id;
