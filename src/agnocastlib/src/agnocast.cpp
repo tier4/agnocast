@@ -227,7 +227,7 @@ void * initialize_agnocast(
   new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed");
+    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
