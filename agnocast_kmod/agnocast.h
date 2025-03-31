@@ -187,13 +187,11 @@ union ioctl_topic_info_args {
 #define EXIT_QUEUE_SIZE (1U << EXIT_QUEUE_SIZE_BITS)
 
 void agnocast_init_mutexes(void);
-int agnocast_init_sysfs(void);
 void agnocast_init_device(void);
 int agnocast_init_kthread(void);
 int agnocast_init_kprobe(void);
 
 void agnocast_exit_free_data(void);
-void agnocast_exit_sysfs(void);
 void agnocast_exit_kthread(void);
 void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
