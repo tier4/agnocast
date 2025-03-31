@@ -118,43 +118,23 @@ DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 // PIDs in its data structures and source code. Therefore, functions called from the ioctl entry
 // point should convert between global and local PIDs at both the beginning and the end of
 // execution.
-static pid_t convert_pid_to_global(pid_t local_pid)
-{
-  struct pid * pid_struct;
-  pid_t global_pid = -1;
-
-  rcu_read_lock();
-
-  pid_struct = find_vpid(local_pid);
-  if (!pid_struct) {
-    dev_err(agnocast_device, "Internal error: Invalid PID %d (covnert_pid_to_global)\n", local_pid);
-    goto out;
-  }
-
-  global_pid = pid_nr_ns(pid_struct, &init_pid_ns);
-
-out:
-  rcu_read_unlock();
-  return global_pid;
-}
-
 static pid_t convert_pid_to_local(pid_t global_pid)
 {
-  struct pid * pid_struct;
-  pid_t local_pid = -1;
-
   rcu_read_lock();
 
-  pid_struct = find_pid_ns(global_pid, &init_pid_ns);
+  struct pid * pid_struct = find_pid_ns(global_pid, &init_pid_ns);
   if (!pid_struct) {
-    dev_err(agnocast_device, "Internal error: Invalid PID %d (convert_pid_to_local)\n", global_pid);
-    goto out;
+    dev_err(
+      agnocast_device, "Cannot convert global pid=%d to local pid (convert_pid_to_local)\n",
+      global_pid);
+    rcu_read_unlock();
+    return -1;
   }
 
-  local_pid = pid_vnr(pid_struct);
+  const pid_t local_pid = pid_vnr(pid_struct);
 
-out:
   rcu_read_unlock();
+
   return local_pid;
 }
 #endif
@@ -634,7 +614,6 @@ static struct process_info * find_process_info(const pid_t pid)
   return NULL;
 }
 
-
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
   struct publisher_shm_info * pub_shm_info)
@@ -684,7 +663,16 @@ static int set_publisher_shm_info(
       return -ENOBUFS;
     }
 
+#ifndef KUNIT_BUILD
+    const pid_t local_pid = convert_pid_to_local(pub_info->pid);
+    if (local_pid == -1) {
+      return -ESRCH;
+    }
+    pub_shm_info->publisher_pids[publisher_num] = local_pid;
+#else
     pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+#endif
+
     pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
     pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
     publisher_num++;
@@ -696,57 +684,36 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  const char * topic_name, const char * node_name, const pid_t subscriber_pid_arg,
+  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
   union ioctl_subscriber_args * ioctl_ret)
 {
-  int ret = 0;
-  ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-
-#ifdef KUNIT_BUILD
-  const pid_t subscriber_pid = subscriber_pid_arg;
-#else
-  const pid_t subscriber_pid = convert_pid_to_global(subscriber_pid_arg);
-#endif
+  int ret;
 
   struct topic_wrapper * wrapper;
   ret = add_topic(topic_name, &wrapper);
   if (ret < 0) {
-    goto out;
+    return ret;
   }
 
   struct subscriber_info * sub_info;
   ret = insert_subscriber_info(
     wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub, &sub_info);
   if (ret < 0) {
-    goto out;
+    return ret;
   }
 
   ioctl_ret->ret_id = sub_info->id;
 
-out:
-#ifndef KUNIT_BUILD
-  for (uint32_t i = 0; i < ioctl_ret->ret_pub_shm_info.publisher_num; i++) {
-    ioctl_ret->ret_pub_shm_info.publisher_pids[i] =
-      convert_pid_to_local(ioctl_ret->ret_pub_shm_info.publisher_pids[i]);
-  }
-#endif
-
-  return ret;
+  return 0;
 }
 
 int publisher_add(
-  const char * topic_name, const char * node_name, const pid_t publisher_pid_arg,
+  const char * topic_name, const char * node_name, const pid_t publisher_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
-
-#ifdef KUNIT_BUILD
-  const pid_t publisher_pid = publisher_pid_arg;
-#else
-  const pid_t publisher_pid = convert_pid_to_global(publisher_pid_arg);
-#endif
 
   struct topic_wrapper * wrapper;
   ret = add_topic(topic_name, &wrapper);
@@ -861,14 +828,13 @@ int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
-  int ret = 0;
+  int ret;
   ioctl_ret->ret_pub_shm_info.publisher_num = 0;
 
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
-    ret = -EINVAL;
-    goto out;
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -878,8 +844,7 @@ int receive_msg(
       "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
       "(receive_msg)\n",
       subscriber_id, topic_name);
-    ret = -EINVAL;
-    goto out;
+    return -EINVAL;
   }
 
   // Receive msg
@@ -909,9 +874,9 @@ int receive_msg(
       continue;
     }
 
-    int ret = increment_sub_rc(en, subscriber_id);
+    ret = increment_sub_rc(en, subscriber_id);
     if (ret < 0) {
-      goto out;
+      return ret;
     }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
@@ -927,25 +892,17 @@ int receive_msg(
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-    goto out;
+    return 0;
   }
 
   ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
   if (ret < 0) {
-    goto out;
+    return ret;
   }
 
   sub_info->need_mmap_update = false;
 
-out:
-#ifndef KUNIT_BUILD
-  for (uint32_t i = 0; i < ioctl_ret->ret_pub_shm_info.publisher_num; i++) {
-    ioctl_ret->ret_pub_shm_info.publisher_pids[i] =
-      convert_pid_to_local(ioctl_ret->ret_pub_shm_info.publisher_pids[i]);
-  }
-#endif
-
-  return ret;
+  return 0;
 }
 
 int publish_msg(
@@ -1001,7 +958,7 @@ int take_msg(
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
     ret = -EINVAL;
-    goto out;
+    return ret;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -1010,7 +967,7 @@ int take_msg(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
       subscriber_id, topic_name);
     ret = -EINVAL;
-    goto out;
+    return ret;
   }
 
   // These remains 0 if no message is found to take.
@@ -1054,7 +1011,7 @@ int take_msg(
   if (candidate_en) {
     ret = increment_sub_rc(candidate_en, subscriber_id);
     if (ret < 0) {
-      goto out;
+      return ret;
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
@@ -1066,34 +1023,22 @@ int take_msg(
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-    goto out;
+    return ret;
   }
 
   ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
   if (ret < 0) {
-    goto out;
+    return ret;
   }
 
   sub_info->need_mmap_update = false;
 
-out:
-#ifndef KUNIT_BUILD
-  for (uint32_t i = 0; i < ioctl_ret->ret_pub_shm_info.publisher_num; i++) {
-    ioctl_ret->ret_pub_shm_info.publisher_pids[i] =
-      convert_pid_to_local(ioctl_ret->ret_pub_shm_info.publisher_pids[i]);
-  }
-#endif
-
-  return ret;
+  return 0;
 }
 
-int new_shm_addr(const pid_t pid_arg, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
-#ifdef KUNIT_BUILD
-  const pid_t pid = pid_arg;
-#else
-  const pid_t pid = convert_pid_to_global(pid_arg);
-#endif
+  dev_warn(agnocast_device, "new_shm_addr: pid=%d, shm_size=%llu\n", pid, shm_size);
 
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
@@ -1379,6 +1324,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 {
   mutex_lock(&global_mutex);
   int ret = 0;
+  const pid_t pid = current->pid;
+  dev_warn(agnocast_device, "agnocast_ioctl: pid=%d, same=%d\n", pid, cmd == AGNOCAST_NEW_SHM_CMD);
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
@@ -1399,8 +1346,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = subscriber_add(
-      topic_name_buf, node_name_buf, sub_args.subscriber_pid, sub_args.qos_depth,
-      sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
+      topic_name_buf, node_name_buf, pid, sub_args.qos_depth, sub_args.qos_is_transient_local,
+      sub_args.is_take_sub, &sub_args);
     if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
@@ -1422,8 +1369,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[pub_args.node_name.len] = '\0';
     ret = publisher_add(
-      topic_name_buf, node_name_buf, pub_args.publisher_pid, pub_args.qos_depth,
-      pub_args.qos_is_transient_local, &pub_args);
+      topic_name_buf, node_name_buf, pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
+      &pub_args);
     if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
@@ -1498,7 +1445,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     union ioctl_new_shm_args new_shm_args;
     if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
       goto return_EFAULT;
-    ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
+    ret = new_shm_addr(pid, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
