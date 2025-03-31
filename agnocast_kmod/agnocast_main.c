@@ -124,7 +124,7 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   struct pid * pid_struct = find_pid_ns(global_pid, &init_pid_ns);
   if (!pid_struct) {
-    dev_err(
+    dev_warn(
       agnocast_device, "Cannot convert global pid=%d to local pid (convert_pid_to_local)\n",
       global_pid);
     rcu_read_unlock();
@@ -828,9 +828,6 @@ int receive_msg(
   const char * topic_name, const topic_local_id_t subscriber_id,
   union ioctl_receive_msg_args * ioctl_ret)
 {
-  int ret;
-  ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
@@ -874,7 +871,7 @@ int receive_msg(
       continue;
     }
 
-    ret = increment_sub_rc(en, subscriber_id);
+    int ret = increment_sub_rc(en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -895,7 +892,7 @@ int receive_msg(
     return 0;
   }
 
-  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
   if (ret < 0) {
     return ret;
   }
@@ -951,14 +948,10 @@ int take_msg(
   const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret)
 {
-  int ret = 0;
-  ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-
   struct topic_wrapper * wrapper = find_topic(topic_name);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
-    ret = -EINVAL;
-    return ret;
+    return -EINVAL;
   }
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
@@ -966,8 +959,7 @@ int take_msg(
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (take_msg)\n",
       subscriber_id, topic_name);
-    ret = -EINVAL;
-    return ret;
+    return -EINVAL;
   }
 
   // These remains 0 if no message is found to take.
@@ -1009,7 +1001,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    ret = increment_sub_rc(candidate_en, subscriber_id);
+    int ret = increment_sub_rc(candidate_en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -1023,10 +1015,10 @@ int take_msg(
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
-    return ret;
+    return 0;
   }
 
-  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
   if (ret < 0) {
     return ret;
   }
@@ -1038,8 +1030,6 @@ int take_msg(
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
-  dev_warn(agnocast_device, "new_shm_addr: pid=%d, shm_size=%llu\n", pid, shm_size);
-
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
       agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
@@ -1325,7 +1315,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   const pid_t pid = current->pid;
-  dev_warn(agnocast_device, "agnocast_ioctl: pid=%d, same=%d\n", pid, cmd == AGNOCAST_NEW_SHM_CMD);
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
