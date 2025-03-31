@@ -46,9 +46,6 @@ static int agnocast_test_suite_init(struct kunit_suite * test_suite)
 
   agnocast_init_mutexes();
 
-  ret = agnocast_init_sysfs();
-  if (ret < 0) return ret;
-
   agnocast_init_device();
 
   ret = agnocast_init_kthread();
@@ -64,7 +61,6 @@ static int agnocast_test_suite_init(struct kunit_suite * test_suite)
 
 static void agnocast_test_suite_exit(struct kunit_suite * test_suite)
 {
-  agnocast_exit_sysfs();
   agnocast_exit_kthread();
   agnocast_exit_kprobe();
   agnocast_exit_device();
