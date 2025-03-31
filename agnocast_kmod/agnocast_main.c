@@ -2126,7 +2126,7 @@ static void unlink_shm(const pid_t pid)
 }
 #endif
 
-void process_exit_cleanup(const struct exit_process_info exit_process)
+void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
   struct process_info * proc_info;
