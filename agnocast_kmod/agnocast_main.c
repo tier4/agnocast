@@ -111,13 +111,8 @@ struct entry_node
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
 #ifndef KUNIT_BUILD
-// When running a ROS 2 App inside a container, the host and container may have different PID
-// namespaces. The kernel module has only two entry points: the do_exit handler and ioctl. The
-// do_exit handler operates in the global PID namespace, whereas the PID passed as an argument to
-// ioctl belongs to the local PID namespace. The kernel module should be designed to handle global
-// PIDs in its data structures and source code. Therefore, functions called from the ioctl entry
-// point should convert between global and local PIDs at both the beginning and the end of
-// execution.
+// Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
+// Thus, PIDs must be converted from global to local before they are passed from kernel to user.
 static pid_t convert_pid_to_local(pid_t global_pid)
 {
   rcu_read_lock();

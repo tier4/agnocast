@@ -13,7 +13,7 @@ typedef int32_t topic_local_id_t;
 struct publisher_shm_info
 {
   uint32_t publisher_num;
-  pid_t publisher_pids[MAX_PUBLISHER_NUM];
+  pid_t publisher_pids[MAX_PUBLISHER_NUM];  // Must be local PIDs, not global PIDs
   uint64_t shm_addrs[MAX_PUBLISHER_NUM];
   uint64_t shm_sizes[MAX_PUBLISHER_NUM];
 };
