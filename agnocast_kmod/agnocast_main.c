@@ -1314,7 +1314,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 {
   mutex_lock(&global_mutex);
   int ret = 0;
-  const pid_t pid = current->pid;
+  const pid_t pid = current->tgid;
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;

@@ -53,7 +53,6 @@ class Publisher
 {
   topic_local_id_t id_ = -1;
   std::string topic_name_;
-  pid_t publisher_pid_;
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> opened_mqs_;
   PublisherOptions options_;
 
@@ -71,8 +70,7 @@ public:
   Publisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
-  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-    publisher_pid_(getpid())
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
     rclcpp::PublisherOptions pub_options;
     pub_options.qos_overriding_options = options.qos_overriding_options;
