@@ -22,8 +22,8 @@ static struct class * agnocast_class;
 static struct device * agnocast_device;
 static DEFINE_MUTEX(global_mutex);
 
-#ifndef AGNOCAST_VERSION
-#define AGNOCAST_VERSION "unknown"
+#ifndef VERSION
+#define VERSION "unknown"
 #endif
 
 // =========================================
@@ -66,7 +66,6 @@ struct publisher_info
   uint32_t qos_depth;
   bool qos_is_transient_local;
   uint32_t entries_num;
-  bool exited;
   struct hlist_node node;
 };
 
@@ -88,6 +87,8 @@ struct topic_struct
   struct rb_root entries;
   DECLARE_HASHTABLE(pub_info_htable, PUB_INFO_HASH_BITS);
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
+  topic_local_id_t current_pubsub_id;
+  int64_t current_entry_id;
 };
 
 struct topic_wrapper
@@ -95,8 +96,6 @@ struct topic_wrapper
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
-  topic_local_id_t current_pubsub_id;
-  int64_t current_entry_id;
 };
 
 struct entry_node
@@ -203,11 +202,11 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
     return -ENOMEM;
   }
 
-  (*wrapper)->current_pubsub_id = 0;
-  (*wrapper)->current_entry_id = 0;
   (*wrapper)->topic.entries = RB_ROOT;
   hash_init((*wrapper)->topic.pub_info_htable);
   hash_init((*wrapper)->topic.sub_info_htable);
+  (*wrapper)->topic.current_pubsub_id = 0;
+  (*wrapper)->topic.current_entry_id = 0;
   hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
 
   dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
@@ -280,8 +279,8 @@ static int insert_subscriber_info(
     return -ENOMEM;
   }
 
-  const topic_local_id_t new_id = wrapper->current_pubsub_id;
-  wrapper->current_pubsub_id++;
+  const topic_local_id_t new_id = wrapper->topic.current_pubsub_id;
+  wrapper->topic.current_pubsub_id++;
 
   (*new_info)->id = new_id;
   (*new_info)->pid = subscriber_pid;
@@ -290,7 +289,7 @@ static int insert_subscriber_info(
   if (qos_is_transient_local) {
     (*new_info)->latest_received_entry_id = -1;
   } else {
-    (*new_info)->latest_received_entry_id = wrapper->current_entry_id++;
+    (*new_info)->latest_received_entry_id = wrapper->topic.current_entry_id++;
   }
   (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
@@ -380,8 +379,8 @@ static int insert_publisher_info(
     return -ENOMEM;
   }
 
-  const topic_local_id_t new_id = wrapper->current_pubsub_id;
-  wrapper->current_pubsub_id++;
+  const topic_local_id_t new_id = wrapper->topic.current_pubsub_id;
+  wrapper->topic.current_pubsub_id++;
 
   (*new_info)->id = new_id;
   (*new_info)->pid = publisher_pid;
@@ -389,7 +388,6 @@ static int insert_publisher_info(
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
   (*new_info)->entries_num = 0;
-  (*new_info)->exited = false;
   INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, PUB_INFO_HASH_BITS);
   hash_add(wrapper->topic.pub_info_htable, &(*new_info)->node, hash_val);
@@ -575,7 +573,7 @@ static int insert_message_entry(
     return -ENOMEM;
   }
 
-  new_node->entry_id = wrapper->current_entry_id++;
+  new_node->entry_id = wrapper->topic.current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   new_node->referencing_ids[0] = pub_info->id;
@@ -636,298 +634,26 @@ static struct process_info * find_process_info(const pid_t pid)
   return NULL;
 }
 
-// =========================================
-// "/sys/module/agnocast/status/*"
-
-// NOTE:
-//  show_xx may overflow when used more than PAGE_SIZE.
-//  The implementations have few error-handling.
-
-// Example
-//
-// $ sudo cat /sys/module/agnocast/status/process_list
-// process: pid=123, addr=4398046511104, size=67108864
-//  publisher
-//   /my_dynamic_topic
-//   /my_static_topic
-//  subscription
-//
-// process: pid=456, addr=4398180728832, size=16777216
-//  publisher
-//  subscription
-//   /my_dynamic_topic
-//   /my_static_topic
-//
-// process: pid=789, addr=4398113619968, size=67108864
-//  publisher
-//   /my_dynamic_topic
-//  subscription
-//   /my_static_topic
-static ssize_t show_processes(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
-{
-  mutex_lock(&global_mutex);
-
-  int used_size = 0;
-  struct process_info * proc_info;
-  int bkt_proc_info;
-  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
-  {
-    used_size += scnprintf(
-      buf + used_size, PAGE_SIZE - used_size, "process: pid=%u, addr=%llu, size=%llu\n",
-      proc_info->pid, proc_info->mempool_entry->addr, proc_info->shm_size);
-
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher\n");
-
-    struct topic_wrapper * wrapper;
-    int bkt_topic;
-    hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-    {
-      struct publisher_info * pub_info;
-      int bkt_pub_info;
-      hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-      {
-        if (proc_info->pid == pub_info->pid) {
-          used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
-        }
-      }
-    }
-
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription\n");
-
-    hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-    {
-      struct subscriber_info * sub_info;
-      int bkt_sub_info;
-      hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
-      {
-        if (proc_info->pid == sub_info->pid) {
-          used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "  %s\n", wrapper->key);
-        }
-      }
-    }
-
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
-  }
-
-  if (used_size >= PAGE_SIZE) {
-    dev_warn(agnocast_device, "Exceeding PAGE_SIZE. Truncating output...\n");
-    mutex_unlock(&global_mutex);
-    return -ENOSPC;
-  }
-
-  mutex_unlock(&global_mutex);
-  return used_size;
-}
-
-// Example
-//
-// $ sudo cat /sys/module/agnocast/status/topic_list
-// topic: /my_dynamic_topic
-//  publisher: 15198, 15171,
-//  subscription: 15237,
-//
-// topic: /my_static_topic
-//  publisher: 15171,
-//  subscription: 15237, 15198,
-static ssize_t show_topics(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
-{
-  mutex_lock(&global_mutex);
-
-  int used_size = 0;
-  struct topic_wrapper * wrapper;
-  int bkt_topic;
-  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-  {
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "topic: %s\n", wrapper->key);
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
-
-    struct publisher_info * pub_info;
-    int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-    {
-      used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", pub_info->pid);
-    }
-
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n");
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " subscription:");
-
-    struct subscriber_info * sub_info;
-    int bkt_sub_info;
-    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
-    {
-      used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", sub_info->pid);
-    }
-
-    used_size += scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n\n");
-  }
-
-  if (used_size >= PAGE_SIZE) {
-    dev_warn(agnocast_device, "Exceeding PAGE_SIZE. Truncating output...\n");
-    mutex_unlock(&global_mutex);
-    return -ENOSPC;
-  }
-
-  mutex_unlock(&global_mutex);
-  return used_size;
-}
-
-static char * debug_topic_name;
-
-// Example
-// $ echo "/my_dynamic_topic" | sudo tee /sys/module/agnocast/status/topic_info
-static ssize_t store_topic_name(
-  struct kobject * kobj, struct kobj_attribute * attr, const char * buf, size_t count)
-{
-  mutex_lock(&global_mutex);
-
-  if (debug_topic_name) {
-    kfree(debug_topic_name);
-  }
-
-  debug_topic_name = kstrdup(buf, GFP_KERNEL);
-  if (!debug_topic_name) {
-    dev_warn(agnocast_device, "kstrdup failed\n");
-  }
-
-  mutex_unlock(&global_mutex);
-  return count;
-}
-
-// Example
-//
-// $ sudo cat /sys/module/agnocast/status/topic_info
-// topic: /my_dynamic_topic
-//  publisher: 9495, 9468,
-//  subscription: 9534,
-//  entries:
-//   time=123456, topic_local_id=0, addr=4398118383424, referencing=[9534,]
-//   time=123457, topic_local_id=1, addr=4398051231552, referencing=[]
-static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
-{
-  mutex_lock(&global_mutex);
-
-  int used_size = 0;
-  int ret;
-
-  ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "topic: %s", debug_topic_name);
-  used_size += ret;
-
-  if (!debug_topic_name) {
-    mutex_unlock(&global_mutex);
-    return ret;
-  }
-
-  struct topic_wrapper * wrapper;
-  int bkt_topic;
-  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-  {
-    if (strncmp(debug_topic_name, wrapper->key, strlen(wrapper->key)) != 0) continue;
-
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " publisher:");
-    used_size += ret;
-
-    struct publisher_info * pub_info;
-    int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-    {
-      ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", pub_info->pid);
-      used_size += ret;
-    }
-
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n subscription:");
-    used_size += ret;
-
-    struct subscriber_info * sub_info;
-    int bkt_sub_info;
-    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
-    {
-      ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, " %d,", sub_info->pid);
-      used_size += ret;
-    }
-
-    ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "\n entries:\n");
-    used_size += ret;
-
-    struct rb_root * root = &wrapper->topic.entries;
-    struct rb_node * node;
-    for (node = rb_first(root); node; node = rb_next(node)) {
-      struct entry_node * en = container_of(node, struct entry_node, node);
-
-      ret = scnprintf(
-        buf + used_size, PAGE_SIZE - used_size,
-        "  entry_id=%lld, topic_local_id=%u, addr=%lld, referencing=[", en->entry_id,
-        en->publisher_id, en->msg_virtual_address);
-      used_size += ret;
-
-      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-        if (en->referencing_ids[i] == -1) break;
-
-        ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "%u,", en->referencing_ids[i]);
-        used_size += ret;
-      }
-
-      ret = scnprintf(buf + used_size, PAGE_SIZE - used_size, "]\n");
-      used_size += ret;
-    }
-  }
-
-  if (used_size >= PAGE_SIZE) {
-    dev_warn(agnocast_device, "Exceeding PAGE_SIZE. Truncating output...\n");
-    mutex_unlock(&global_mutex);
-    return -ENOSPC;
-  }
-
-  mutex_unlock(&global_mutex);
-  return used_size;
-}
-
-static struct kobject * status_kobj;
-static struct kobj_attribute process_attribute = __ATTR(process_list, 0444, show_processes, NULL);
-static struct kobj_attribute topics_attribute = __ATTR(topic_list, 0444, show_topics, NULL);
-static struct kobj_attribute topic_info_attribute =
-  __ATTR(topic_info, 0644, show_topic_info, store_topic_name);
-
-static struct attribute * attrs[] = {
-  &process_attribute.attr,
-  &topics_attribute.attr,
-  &topic_info_attribute.attr,
-  NULL,
-};
-
-static struct attribute_group attribute_group = {
-  .attrs = attrs,
-};
 
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
   struct publisher_shm_info * pub_shm_info)
 {
-  struct process_info * sub_proc_info = find_process_info(subscriber_pid);
-  if (!sub_proc_info) {
-    dev_warn(
-      agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-      subscriber_pid);
-    return -ESRCH;
-  }
-
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
   hash_for_each(wrapper->topic.pub_info_htable, bkt, pub_info, node)
   {
-    if (pub_info->exited || sub_proc_info->pid == pub_info->pid) {
+    if (subscriber_pid == pub_info->pid) {
       continue;
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
     if (!proc_info) {
-      dev_warn(
-        agnocast_device, "Process Info (pid=%d) not found. (set_publisher_shm_info)\n",
-        pub_info->pid);
-      return -ESRCH;
+      continue;
     }
 
-    int ret = reference_memory(proc_info->mempool_entry, sub_proc_info->pid);
+    int ret = reference_memory(proc_info->mempool_entry, subscriber_pid);
     if (ret < 0) {
       if (ret == -EEXIST) {
         continue;
@@ -936,14 +662,14 @@ static int set_publisher_shm_info(
           agnocast_device,
           "Process (pid=%d)'s memory pool is already full (MAX_PROCESS_NUM_PER_MEMPOOL=%d), so no "
           "new mapping from pid=%d can be created. (set_publisher_shm_info)\n",
-          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, sub_proc_info->pid);
+          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, subscriber_pid);
         return ret;
       } else {
         dev_warn(
           agnocast_device,
           "Unreachable: process (pid=%d) failed to reference memory of (pid=%d). "
           "(set_publisher_shm_info)\n",
-          sub_proc_info->pid, pub_info->pid);
+          subscriber_pid, pub_info->pid);
         return ret;
       }
     }
@@ -954,7 +680,7 @@ static int set_publisher_shm_info(
         "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
         "that can be returned at once in a call from this subscriber process (topic_name=%s, "
         "subscriber_pid=%d). (set_publisher_shm_info)\n",
-        wrapper->key, sub_proc_info->pid);
+        wrapper->key, subscriber_pid);
       return -ENOBUFS;
     }
 
@@ -1168,7 +894,22 @@ int receive_msg(
       break;
     }
 
-    ret = increment_sub_rc(en, subscriber_id);
+    const struct publisher_info * pub_info = find_publisher_info(wrapper, en->publisher_id);
+    if (!pub_info) {
+      dev_warn(
+        agnocast_device,
+        "Unreachable: corresponding publisher(id=%d) not found for entry(id=%lld) in "
+        "topic(topic_name=%s). (receive_msg)\n",
+        en->publisher_id, en->entry_id, topic_name);
+      return -ENODATA;
+    }
+
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      continue;
+    }
+
+    int ret = increment_sub_rc(en, subscriber_id);
     if (ret < 0) {
       goto out;
     }
@@ -1281,15 +1022,33 @@ int take_msg(
   struct rb_node * node = rb_last(&wrapper->topic.entries);
   while (node && searched_count < sub_info->qos_depth) {
     struct entry_node * en = container_of(node, struct entry_node, node);
+    node = rb_prev(node);
+
     if (!allow_same_message && en->entry_id == sub_info->latest_received_entry_id) {
       break;  // Don't take the same message if it's not allowed
     }
+
     if (en->entry_id < sub_info->latest_received_entry_id) {
       break;  // Never take any messages that are older than the most recently received
     }
+
+    const struct publisher_info * pub_info = find_publisher_info(wrapper, en->publisher_id);
+    if (!pub_info) {
+      dev_warn(
+        agnocast_device,
+        "Unreachable: corresponding publisher(id=%d) not found for entry(id=%lld) in "
+        "topic(topic_name=%s). (take_msg)\n",
+        en->publisher_id, en->entry_id, topic_name);
+      return -ENODATA;
+    }
+
+    const struct process_info * proc_info = find_process_info(pub_info->pid);
+    if (!proc_info) {
+      continue;
+    }
+
     candidate_en = en;
     searched_count++;
-    node = rb_prev(node);
   }
 
   if (candidate_en) {
@@ -1372,6 +1131,13 @@ int new_shm_addr(const pid_t pid_arg, uint64_t shm_size, union ioctl_new_shm_arg
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
+  return 0;
+}
+
+static int get_version(struct ioctl_get_version_args * ioctl_ret)
+{
+  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
+
   return 0;
 }
 
@@ -1672,8 +1438,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
-      goto return_EFAULT;
   } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1686,8 +1450,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
-    if (copy_to_user((struct ioctl_update_entry_args __user *)arg, &entry_args, sizeof(entry_args)))
-      goto return_EFAULT;
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1738,6 +1500,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
+    struct ioctl_get_version_args get_version_args;
+    ret = get_version(&get_version_args);
+    if (copy_to_user(
+          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;
@@ -2061,7 +1829,9 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
         if (pub_info->id == en->publisher_id) {
-          if (pub_info->exited) publisher_exited = true;
+          if (!find_process_info(pub_info->pid)) {
+            publisher_exited = true;
+          }
           break;
         }
       }
@@ -2089,7 +1859,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
     if (pub_info->pid != pid) continue;
 
     const topic_local_id_t publisher_id = pub_info->id;
-    pub_info->exited = true;
 
     struct rb_root * root = &wrapper->topic.entries;
     struct rb_node * node = rb_first(root);
@@ -2331,22 +2100,6 @@ void agnocast_init_mutexes(void)
   mutex_init(&global_mutex);
 }
 
-int agnocast_init_sysfs(void)
-{
-  status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
-  if (!status_kobj) {
-    return -ENOMEM;
-  }
-
-  int ret = sysfs_create_group(status_kobj, &attribute_group);
-  if (ret) {
-    // Decrement reference count
-    kobject_put(status_kobj);
-  }
-
-  return 0;
-}
-
 void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
@@ -2402,9 +2155,6 @@ static int agnocast_init(void)
 
   agnocast_init_mutexes();
 
-  ret = agnocast_init_sysfs();
-  if (ret < 0) return ret;
-
   agnocast_init_device();
 
   ret = agnocast_init_kthread();
@@ -2415,7 +2165,7 @@ static int agnocast_init(void)
 
   init_memory_allocator();
 
-  dev_info(agnocast_device, "Agnocast installed! v%s\n", AGNOCAST_VERSION);
+  dev_info(agnocast_device, "Agnocast installed! v%s\n", VERSION);
   return 0;
 }
 #endif
@@ -2482,12 +2232,6 @@ void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-void agnocast_exit_sysfs(void)
-{
-  // Decrement reference count
-  kobject_put(status_kobj);
-}
-
 void agnocast_exit_kthread(void)
 {
   wake_up_interruptible(&worker_wait);
@@ -2509,7 +2253,6 @@ void agnocast_exit_device(void)
 #ifndef KUNIT_BUILD
 static void agnocast_exit(void)
 {
-  agnocast_exit_sysfs();
   agnocast_exit_kthread();
   agnocast_exit_kprobe();
 

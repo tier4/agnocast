@@ -69,6 +69,21 @@ install(
   DESTINATION include
 )
 
+find_package(Python3 REQUIRED)
+
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
+  OUTPUT_VARIABLE PACKAGE_VERSION
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/agnocast/agnocast_version.hpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/agnocast/agnocast_version.hpp
+)
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+
 if(BUILD_TESTING)
   # For gmock-global
   include(FetchContent)
@@ -120,7 +135,7 @@ if(BUILD_TESTING)
     test/integration/test_agnocast_heaphook.cpp)
   target_link_libraries(test_integration_agnocast_heaphook agnocast)
   set_tests_properties(test_integration_agnocast_heaphook PROPERTIES
-    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe;LD_PRELOAD=${CMAKE_INSTALL_PREFIX}/lib/libinitialize_shutdown_mock.so:${CMAKE_INSTALL_PREFIX}/lib/libagnocast_heaphook.so:;MEMPOOL_SIZE=1000000")
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe;LD_PRELOAD=${CMAKE_INSTALL_PREFIX}/lib/libinitialize_shutdown_mock.so:${CMAKE_INSTALL_PREFIX}/lib/libagnocast_heaphook.so:;AGNOCAST_MEMPOOL_SIZE=1000000")
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
