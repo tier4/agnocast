@@ -2307,22 +2307,6 @@ void agnocast_init_mutexes(void)
   mutex_init(&global_mutex);
 }
 
-int agnocast_init_sysfs(void)
-{
-  status_kobj = kobject_create_and_add("status", &THIS_MODULE->mkobj.kobj);
-  if (!status_kobj) {
-    return -ENOMEM;
-  }
-
-  int ret = sysfs_create_group(status_kobj, &attribute_group);
-  if (ret) {
-    // Decrement reference count
-    kobject_put(status_kobj);
-  }
-
-  return 0;
-}
-
 void agnocast_init_device(void)
 {
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
@@ -2377,9 +2361,6 @@ static int agnocast_init(void)
   int ret;
 
   agnocast_init_mutexes();
-
-  ret = agnocast_init_sysfs();
-  if (ret < 0) return ret;
 
   agnocast_init_device();
 
@@ -2458,12 +2439,6 @@ void agnocast_exit_free_data(void)
   mutex_unlock(&global_mutex);
 }
 
-void agnocast_exit_sysfs(void)
-{
-  // Decrement reference count
-  kobject_put(status_kobj);
-}
-
 void agnocast_exit_kthread(void)
 {
   wake_up_interruptible(&worker_wait);
@@ -2485,7 +2460,6 @@ void agnocast_exit_device(void)
 #ifndef KUNIT_BUILD
 static void agnocast_exit(void)
 {
-  agnocast_exit_sysfs();
   agnocast_exit_kthread();
   agnocast_exit_kprobe();
 
