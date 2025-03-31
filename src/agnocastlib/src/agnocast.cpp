@@ -211,7 +211,7 @@ void * initialize_agnocast(
 
   struct ioctl_get_version_args get_version_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION_CMD, &get_version_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -227,7 +227,7 @@ void * initialize_agnocast(
   new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed");
+    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
