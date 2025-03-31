@@ -33,7 +33,6 @@ static DEFINE_MUTEX(global_mutex);
 #define PUB_INFO_HASH_BITS 3
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
-#define NET_NS_HASH_BITS 2
 
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
@@ -710,7 +709,7 @@ static ssize_t show_topics(struct kobject * kobj, struct kobj_attribute * attr, 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (neq_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
       continue;
     }
 #endif
@@ -798,7 +797,7 @@ static ssize_t show_topic_info(struct kobject * kobj, struct kobj_attribute * at
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (neq_eq(current->ns_proxy->net_ns, wrapper->net_ns)) {
+    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
       continue;
     }
 #endif
@@ -1355,7 +1354,6 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    struct net_namespace * net_namespace_entry = find_net_namespace(current->nsproxy->net_ns);
     if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
       continue;
     }
