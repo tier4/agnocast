@@ -221,10 +221,7 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  const pid_t pid = getpid();
-
   union ioctl_new_shm_args new_shm_args = {};
-  new_shm_args.pid = pid;
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
@@ -232,7 +229,7 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  return map_writable_area(pid, new_shm_args.ret_addr, shm_size);
+  return map_writable_area(getpid(), new_shm_args.ret_addr, shm_size);
 }
 
 static void shutdown_agnocast()

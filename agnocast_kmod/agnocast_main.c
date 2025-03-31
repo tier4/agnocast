@@ -8,6 +8,8 @@
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
 #include <linux/namei.h>
+#include <linux/pid.h>
+#include <linux/rcupdate.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/spinlock.h>
 #include <linux/statfs.h>
@@ -107,6 +109,30 @@ struct entry_node
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
+
+#ifndef KUNIT_BUILD
+// Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
+// Thus, PIDs must be converted from global to local before they are passed from kernel to user.
+static pid_t convert_pid_to_local(pid_t global_pid)
+{
+  rcu_read_lock();
+
+  struct pid * pid_struct = find_pid_ns(global_pid, &init_pid_ns);
+  if (!pid_struct) {
+    dev_warn(
+      agnocast_device, "Cannot convert global pid=%d to local pid (convert_pid_to_local)\n",
+      global_pid);
+    rcu_read_unlock();
+    return -1;
+  }
+
+  const pid_t local_pid = pid_vnr(pid_struct);
+
+  rcu_read_unlock();
+
+  return local_pid;
+}
+#endif
 
 static unsigned long get_topic_hash(const char * str)
 {
@@ -583,8 +609,6 @@ static struct process_info * find_process_info(const pid_t pid)
   return NULL;
 }
 
-// =========================================
-// /dev/agnocast
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
   struct publisher_shm_info * pub_shm_info)
@@ -634,7 +658,16 @@ static int set_publisher_shm_info(
       return -ENOBUFS;
     }
 
+#ifndef KUNIT_BUILD
+    const pid_t local_pid = convert_pid_to_local(pub_info->pid);
+    if (local_pid == -1) {
+      return -ESRCH;
+    }
+    pub_shm_info->publisher_pids[publisher_num] = local_pid;
+#else
     pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+#endif
+
     pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
     pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
     publisher_num++;
@@ -1276,6 +1309,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 {
   mutex_lock(&global_mutex);
   int ret = 0;
+  const pid_t pid = current->tgid;
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
@@ -1296,8 +1330,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = subscriber_add(
-      topic_name_buf, node_name_buf, sub_args.subscriber_pid, sub_args.qos_depth,
-      sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
+      topic_name_buf, node_name_buf, pid, sub_args.qos_depth, sub_args.qos_is_transient_local,
+      sub_args.is_take_sub, &sub_args);
     if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
@@ -1319,8 +1353,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[pub_args.node_name.len] = '\0';
     ret = publisher_add(
-      topic_name_buf, node_name_buf, pub_args.publisher_pid, pub_args.qos_depth,
-      pub_args.qos_is_transient_local, &pub_args);
+      topic_name_buf, node_name_buf, pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
+      &pub_args);
     if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
@@ -1395,7 +1429,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     union ioctl_new_shm_args new_shm_args;
     if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
       goto return_EFAULT;
-    ret = new_shm_addr(new_shm_args.pid, new_shm_args.shm_size, &new_shm_args);
+    ret = new_shm_addr(pid, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_VERSION_CMD) {

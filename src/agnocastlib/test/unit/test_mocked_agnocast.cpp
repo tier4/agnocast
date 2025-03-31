@@ -16,9 +16,8 @@ MOCK_GLOBAL_FUNC3(
   decrement_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
 MOCK_GLOBAL_FUNC3(
   increment_rc_mock, void(const std::string &, const topic_local_id_t, const int64_t));
-MOCK_GLOBAL_FUNC3(
-  initialize_publisher_mock,
-  topic_local_id_t(const pid_t, const std::string &, const rclcpp::QoS &));
+MOCK_GLOBAL_FUNC2(
+  initialize_publisher_mock, topic_local_id_t(const std::string &, const rclcpp::QoS &));
 MOCK_GLOBAL_FUNC5(
   publish_core_mock, union ioctl_publish_args(
                        const void *, const std::string &, const topic_local_id_t, const uint64_t,
@@ -35,10 +34,10 @@ void increment_rc(const std::string & tn, const topic_local_id_t sub_id, const i
   increment_rc_mock(tn, sub_id, entry_id);
 }
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name,
-  [[maybe_unused]] const std::string & node_name, const rclcpp::QoS & qos)
+  const std::string & topic_name, [[maybe_unused]] const std::string & node_name,
+  const rclcpp::QoS & qos)
 {
-  return initialize_publisher_mock(publisher_pid, topic_name, qos);
+  return initialize_publisher_mock(topic_name, qos);
 }
 union ioctl_publish_args publish_core(
   const void * publisher_handle, const std::string & topic_name,
@@ -63,8 +62,7 @@ protected:
     dummy_tn = "/dummy";
     pid = getpid();
     node = std::make_shared<rclcpp::Node>("dummy_node");
-    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, dummy_tn, _))
-      .Times(1);
+    EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(dummy_tn, _)).Times(1);
     dummy_publisher =
       agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qos);
   }
@@ -114,7 +112,7 @@ TEST_F(AgnocastPublisherTest, test_publish_different_message)
   std::string diff_dummy_tn = "/dummy2";
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(dummy_tn, _, _)).Times(1);
   EXPECT_GLOBAL_CALL(decrement_rc_mock, decrement_rc_mock(diff_dummy_tn, _, _)).Times(1);
-  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(pid, diff_dummy_tn, _))
+  EXPECT_GLOBAL_CALL(initialize_publisher_mock, initialize_publisher_mock(diff_dummy_tn, _))
     .Times(1);
   EXPECT_GLOBAL_CALL(publish_core_mock, publish_core_mock(_, dummy_tn, _, _, _)).Times(0);
 
