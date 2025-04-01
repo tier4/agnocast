@@ -29,13 +29,11 @@ void decrement_borrowed_publisher_num()
 }
 
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
-  const rclcpp::QoS & qos)
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos)
 {
   validate_ld_preload();
 
   union ioctl_publisher_args pub_args = {};
-  pub_args.publisher_pid = publisher_pid;
   pub_args.topic_name = {topic_name.c_str(), topic_name.size()};
   pub_args.node_name = {node_name.c_str(), node_name.size()};
   pub_args.qos_depth = qos.depth();

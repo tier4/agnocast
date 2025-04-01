@@ -35,7 +35,6 @@ union ioctl_subscriber_args {
   {
     struct name_info topic_name;
     struct name_info node_name;
-    pid_t subscriber_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
     bool is_take_sub;
@@ -54,7 +53,6 @@ union ioctl_publisher_args {
   {
     struct name_info topic_name;
     struct name_info node_name;
-    pid_t publisher_pid;
     uint32_t qos_depth;
     bool qos_is_transient_local;
   };
@@ -131,17 +129,10 @@ union ioctl_take_msg_args {
 };
 #pragma GCC diagnostic pop
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_new_shm_args {
-  struct
-  {
-    pid_t pid;
-    uint64_t shm_size;
-  };
+  uint64_t shm_size;
   uint64_t ret_addr;
 };
-#pragma GCC diagnostic pop
 
 struct ioctl_get_version_args
 {

@@ -27,8 +27,7 @@ namespace agnocast
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
-  const pid_t publisher_pid, const std::string & topic_name, const std::string & node_name,
-  const rclcpp::QoS & qos);
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
 union ioctl_publish_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -54,7 +53,6 @@ class Publisher
 {
   topic_local_id_t id_ = -1;
   std::string topic_name_;
-  pid_t publisher_pid_;
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> opened_mqs_;
   PublisherOptions options_;
 
@@ -72,8 +70,7 @@ public:
   Publisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
-  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-    publisher_pid_(getpid())
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
     rclcpp::PublisherOptions pub_options;
     pub_options.qos_overriding_options = options.qos_overriding_options;
@@ -95,8 +92,7 @@ public:
       options_.do_always_ros2_publish = false;
     }
 
-    id_ = initialize_publisher(
-      publisher_pid_, topic_name_, node->get_fully_qualified_name(), actual_qos);
+    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
