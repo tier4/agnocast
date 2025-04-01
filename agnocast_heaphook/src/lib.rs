@@ -494,9 +494,10 @@ mod tests {
         // Arrange
         let start = MEMPOOL_START.load(Ordering::SeqCst);
         let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let malloc_size = 1024;
 
         // Act
-        let ptr = malloc(1024);
+        let ptr = malloc(malloc_size);
 
         // Assert
         assert!(!ptr.is_null(), "allocated memory should not be null");
@@ -505,7 +506,7 @@ mod tests {
             "allocated memory should be within pool bounds"
         );
         assert!(
-            ptr as usize + 1024 <= end,
+            ptr as usize + malloc_size <= end,
             "allocated memory should be within pool bounds"
         );
 
