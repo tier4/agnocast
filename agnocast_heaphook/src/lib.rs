@@ -10,6 +10,7 @@ use std::{
     },
 };
 
+#[cfg(not(test))]
 extern "C" {
     fn initialize_agnocast(
         size: usize,
@@ -133,6 +134,7 @@ type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: OnceLock<Mutex<TlsfType>> = OnceLock::new();
 
+#[cfg(not(test))]
 fn init_tlsf() -> Mutex<TlsfType> {
     let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
 
@@ -259,6 +261,7 @@ fn tlsf_deallocate_wrapped(ptr: usize) {
     tlsf_deallocate(original_start_addr_ptr);
 }
 
+#[cfg(not(test))]
 fn should_use_original_func() -> bool {
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return true;
@@ -427,4 +430,99 @@ pub extern "C" fn valloc(_size: usize) -> *mut c_void {
 #[no_mangle]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
     panic!("[ERROR] [Agnocast] pvalloc is not supported");
+}
+
+#[cfg(test)]
+fn init_tlsf() -> Mutex<TlsfType> {
+    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
+    if result != 0 {
+        panic!(
+            "[ERROR] [Agnocast] agnocast_heaphook internal error: pthread_atfork failed: {}",
+            std::io::Error::from_raw_os_error(result)
+        )
+    }
+
+    let mempool_size: usize = 1024 * 1024; // 1MB
+    let mempool_ptr: *mut c_void = 0x8B000000000 as *mut c_void;
+    let pool: &mut [MaybeUninit<u8>] = unsafe {
+        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
+    };
+
+    let shm_fd = unsafe {
+        libc::shm_open(
+            CStr::from_bytes_with_nul(b"/agnocast_test\0")
+                .unwrap()
+                .as_ptr(),
+            libc::O_CREAT | libc::O_RDWR,
+            0o600,
+        )
+    };
+    if shm_fd < 0 {
+        panic!(
+            "[ERROR] [Agnocast] shm_open failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    let result = unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+    if result < 0 {
+        panic!(
+            "[ERROR] [Agnocast] ftruncate failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    let mmap_ptr = unsafe {
+        libc::mmap(
+            mempool_ptr,
+            mempool_size,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED | libc::MAP_FIXED_NOREPLACE,
+            shm_fd,
+            0,
+        )
+    };
+    if mmap_ptr == libc::MAP_FAILED {
+        panic!(
+            "[ERROR] [Agnocast] mmap failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
+    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
+
+    let mut tlsf: TlsfType = Tlsf::new();
+    tlsf.insert_free_block(pool);
+
+    Mutex::new(tlsf)
+}
+
+#[cfg(test)]
+fn should_use_original_func() -> bool {
+    IS_FORKED_CHILD.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_malloc_normal() {
+        let ptr = malloc(1024);
+        assert!(!ptr.is_null());
+
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        assert!(
+            ptr as usize >= start,
+            "allocated memory should be within pool bounds"
+        );
+        assert!(
+            ptr as usize + 1024 <= end,
+            "allocated memory should be within pool bounds"
+        );
+
+        unsafe { free(ptr) };
+    }
 }
