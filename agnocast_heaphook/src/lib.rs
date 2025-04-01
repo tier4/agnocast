@@ -442,34 +442,47 @@ fn init_tlsf() -> Mutex<TlsfType> {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
 
-    let mmap_ptr = unsafe {
-        let shm_fd = libc::shm_open(
+    let shm_fd = unsafe {
+        libc::shm_open(
             CStr::from_bytes_with_nul(b"/agnocast_test\0")
                 .unwrap()
                 .as_ptr(),
             libc::O_CREAT | libc::O_RDWR,
             0o600,
-        );
+        )
+    };
+    if shm_fd == -1 {
+        panic!("libc::shm_open failed");
+    }
 
-        libc::ftruncate(shm_fd, mempool_size as libc::off_t);
+    if unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) } == -1 {
+        panic!("libc::ftruncate failed");
+    }
 
-        let ret = libc::mmap(
+    let mmap_ptr = unsafe {
+        libc::mmap(
             mempool_ptr,
             mempool_size,
             libc::PROT_READ | libc::PROT_WRITE,
             libc::MAP_SHARED | libc::MAP_FIXED_NOREPLACE,
             shm_fd,
             0,
-        );
+        )
+    };
+    if mmap_ptr == libc::MAP_FAILED {
+        panic!("libc::mmap failed");
+    }
 
+    if unsafe {
         libc::shm_unlink(
             CStr::from_bytes_with_nul(b"/agnocast_test\0")
                 .unwrap()
                 .as_ptr(),
-        );
-
-        ret
-    };
+        )
+    } == -1
+    {
+        panic!("libc::shm_unlink failed");
+    }
 
     MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
