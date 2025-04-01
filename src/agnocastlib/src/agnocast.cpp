@@ -145,7 +145,7 @@ void * map_area(
 {
   const std::string shm_name = create_shm_name(pid);
 
-  int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
+  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
   const int shm_mode = 0666;
   int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
   if (shm_fd == -1) {
