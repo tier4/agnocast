@@ -89,6 +89,7 @@ Although Agnocast includes cleanup procedures for resources like shared memory a
 ```bash
 rm /dev/shm/agnocast@*
 rm /dev/mqueue/agnocast@*
+rm /dev/mqueue/agnocast_to_ros2@*
 ```
 
 ---
