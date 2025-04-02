@@ -10,7 +10,6 @@ use std::{
     },
 };
 
-#[cfg(not(test))]
 extern "C" {
     fn initialize_agnocast(
         size: usize,
@@ -32,7 +31,6 @@ type LibcStartMainType = unsafe extern "C" fn(
     rtld_fini: unsafe extern "C" fn(),
     stack_end: *const c_void,
 ) -> c_int;
-
 static ORIGINAL_LIBC_START_MAIN: OnceLock<LibcStartMainType> = OnceLock::new();
 
 fn init_original_libc_start_main() -> LibcStartMainType {
@@ -124,7 +122,6 @@ static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
 
-#[cfg(not(test))]
 extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
