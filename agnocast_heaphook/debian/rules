@@ -4,6 +4,9 @@ export CARGO_HOME=$(CURDIR)/.cargo
 override_dh_auto_build:
 	cargo build --release
 
+override_dh_auto_clean:
+	cargo clean
+
 override_dh_auto_install:
 	# Do nothing here; installation will be handled by debhelper using debian/install
 	true
