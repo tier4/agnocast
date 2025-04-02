@@ -1,3 +1,40 @@
+agnocast-kmod (2.0.0-1) jammy; urgency=medium
+
+  * feat(kmod): separate topic_name namespace based on network namespace (#583 <https://github.com/tier4/agnocast/issues/583>)
+  * feat(kmod): allow local pid namespace (#540 <https://github.com/tier4/agnocast/issues/540>)
+  * fix: remove agnocast sysfs (#588 <https://github.com/tier4/agnocast/issues/588>)
+  * refactor(kmod): Move current_pubsub_id & current_entry_id to topic_struct (#584 <https://github.com/tier4/agnocast/issues/584>)
+  * fix(kmod): bug when receive/take msgs after publisher exits (#579 <https://github.com/tier4/agnocast/issues/579>)
+  * fix(kmod): kunit build error (#577 <https://github.com/tier4/agnocast/issues/577>)
+  * feat(kmod): add transient local kunit test for receive_msg (#568 <https://github.com/tier4/agnocast/issues/568>)
+  * refactor(kmod): unified magic number for ioctl (#569 <https://github.com/tier4/agnocast/issues/569>)
+  * fix(kmod): remove pub_info->exited (#570 <https://github.com/tier4/agnocast/issues/570>)
+  * feat: check version consistency (#557 <https://github.com/tier4/agnocast/issues/557>)
+  * feat(kmod): add kunit test for too many mapping processes in take_msg and receive_msg (#567 <https://github.com/tier4/agnocast/issues/567>)
+  * fix(kmod): remove unncessary find_process_info (#566 <https://github.com/tier4/agnocast/issues/566>)
+  * test(kmod): add missing test case for do_exit (#565 <https://github.com/tier4/agnocast/issues/565>)
+  * test(kmod): add do_exit test cases (#559 <https://github.com/tier4/agnocast/issues/559>)
+  * test(kmod): add missing test case for receive_msg (#564 <https://github.com/tier4/agnocast/issues/564>)
+  * fix(kmod): refactor kunit helper functions (#562 <https://github.com/tier4/agnocast/issues/562>)
+  * fix(kmod): fix publish_msg return value (#558 <https://github.com/tier4/agnocast/issues/558>)
+  * fix(kmod): use larger EXIT_QUEUE_SIZE (#556 <https://github.com/tier4/agnocast/issues/556>)
+  * feat(kmod): get kmod version (#553 <https://github.com/tier4/agnocast/issues/553>)
+  * fix(kmod): use larger hashtable for pub/sub (#555 <https://github.com/tier4/agnocast/issues/555>)
+  * test(kmod): add kunit tests for do_exit (#537 <https://github.com/tier4/agnocast/issues/537>)
+  * fix(kmod): restore take_msg tests for publisher_shm_info (#552 <https://github.com/tier4/agnocast/issues/552>)
+  * fix: do shm_unlink in kernel module (#536 <https://github.com/tier4/agnocast/issues/536>)
+  * fix(kmod): restore receive_msg tests for publisher_shm_info (#550 <https://github.com/tier4/agnocast/issues/550>)
+  * fix(kmod): restore decrement_rc kunit test (#549 <https://github.com/tier4/agnocast/issues/549>)
+  * fix(kmod): remove publisher reference on publisher exit (#546 <https://github.com/tier4/agnocast/issues/546>)
+  * feat: handle transient local callbacks in executor (#520 <https://github.com/tier4/agnocast/issues/520>)
+  * fix: pass string length along with its pointer (#534 <https://github.com/tier4/agnocast/issues/534>)
+  * test: add decrement_rc kunit tests (#509 <https://github.com/tier4/agnocast/issues/509>)
+  * fix(kmod): remove invalid test (#533 <https://github.com/tier4/agnocast/issues/533>)
+  * test(kmod): add increment_rc negative tests (#525 <https://github.com/tier4/agnocast/issues/525>)
+  * test(kmod): add kunit test for take_msg (#519 <https://github.com/tier4/agnocast/issues/519>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Wed, 02 Apr 2025 17:36:22 +0900
+
 agnocast-kmod (1.0.2-1) jammy; urgency=medium
 
   * fix: unify topic add (`#523 <https://github.com/tier4/agnocast/issues/523>`_)
