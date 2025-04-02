@@ -451,13 +451,8 @@ fn init_tlsf() -> Mutex<TlsfType> {
             0o600,
         )
     };
-    if shm_fd == -1 {
-        panic!("libc::shm_open failed");
-    }
 
-    if unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) } == -1 {
-        panic!("libc::ftruncate failed");
-    }
+    unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
 
     let mmap_ptr = unsafe {
         libc::mmap(
@@ -469,20 +464,14 @@ fn init_tlsf() -> Mutex<TlsfType> {
             0,
         )
     };
-    if mmap_ptr == libc::MAP_FAILED {
-        panic!("libc::mmap failed");
-    }
 
-    if unsafe {
+    unsafe {
         libc::shm_unlink(
             CStr::from_bytes_with_nul(b"/agnocast_test\0")
                 .unwrap()
                 .as_ptr(),
         )
-    } == -1
-    {
-        panic!("libc::shm_unlink failed");
-    }
+    };
 
     MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
