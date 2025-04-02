@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/statfs.h>
 #include <linux/version.h>
+#include <net/net_namespace.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -93,6 +94,9 @@ struct topic_struct
 
 struct topic_wrapper
 {
+#ifndef KUNIT_BUILD
+  struct net * net_ns;  // For use in separating topic namespaces when using containers.
+#endif
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
@@ -147,7 +151,12 @@ static struct topic_wrapper * find_topic(const char * topic_name)
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
+#ifdef KUNIT_BUILD
     if (strcmp(entry->key, topic_name) == 0) return entry;
+#else
+    if (net_eq(entry->net_ns, current->nsproxy->net_ns) && strcmp(entry->key, topic_name) == 0)
+      return entry;
+#endif
   }
 
   return NULL;
@@ -167,6 +176,10 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
       topic_name);
     return -ENOMEM;
   }
+
+#ifndef KUNIT_BUILD
+  (*wrapper)->net_ns = current->nsproxy->net_ns;
+#endif
 
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
   if (!(*wrapper)->key) {
@@ -1091,6 +1104,11 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+      continue;
+    }
+#endif
     if (topic_num >= MAX_TOPIC_NUM) {
       dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
       return -ENOBUFS;
@@ -1121,6 +1139,11 @@ static int get_node_subscriber_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+      continue;
+    }
+#endif
     struct subscriber_info * sub_info;
     int bkt_sub_info;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -1160,6 +1183,11 @@ static int get_node_publisher_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
+#ifndef KUNIT_BUILD
+    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+      continue;
+    }
+#endif
     struct publisher_info * pub_info;
     int bkt_pub_info;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
