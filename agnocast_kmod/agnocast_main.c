@@ -95,7 +95,7 @@ struct topic_struct
 struct topic_wrapper
 {
 #ifndef KUNIT_BUILD
-  struct net * net_ns;
+  struct net * net_ns; // For use in separating topic namespaces when using containers.
 #endif
   char * key;
   struct topic_struct topic;
