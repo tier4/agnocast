@@ -92,7 +92,10 @@ public:
 #endif
   }
 
-  ~Subscription() { remove_mq(mq_subscription); }
+  ~Subscription()
+  {
+    remove_mq(mq_subscription);
+  }
 };
 
 template <typename MessageT>
@@ -172,7 +175,9 @@ public:
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
+  // `takeData()` is remaining for backward compatibility.
   const agnocast::ipc_shared_ptr<const MessageT> takeData() { return subscriber_->take(true); };
+  const agnocast::ipc_shared_ptr<const MessageT> take_data() { return subscriber_->take(true); };
 };
 
 }  // namespace agnocast
