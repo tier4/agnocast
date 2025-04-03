@@ -2,6 +2,9 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.0.1 (2025-04-03)
+------------------
+
 2.0.0 (2025-04-02)
 ------------------
 * refactor(test): not to use gmock-global (`#592 <https://github.com/tier4/agnocast/issues/592>`_)

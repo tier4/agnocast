@@ -4,7 +4,7 @@ package_name = 'ros2agnocast'
 
 setup(
     name=package_name,
-    version='2.0.0',
+    version='2.0.1',
     packages=find_packages(),
     data_files=[
         ('share/' + package_name, ['package.xml']),

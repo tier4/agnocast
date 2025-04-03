@@ -2,6 +2,9 @@
 Changelog for package agnocast_ioctl_wrapper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.0.1 (2025-04-03)
+------------------
+
 2.0.0 (2025-04-02)
 ------------------
 * refactor(kmod): unified magic number for ioctl (`#569 <https://github.com/tier4/agnocast/issues/569>`_)
