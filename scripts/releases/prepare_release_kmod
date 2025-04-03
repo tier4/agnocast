@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 
 cp -r agnocast_kmod agnocast-kmod-${VERSION}
 tar czf agnocast-kmod_${VERSION}.orig.tar.gz agnocast-kmod-${VERSION}
