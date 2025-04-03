@@ -92,10 +92,7 @@ public:
 #endif
   }
 
-  ~Subscription()
-  {
-    remove_mq(mq_subscription);
-  }
+  ~Subscription() { remove_mq(mq_subscription); }
 };
 
 template <typename MessageT>
