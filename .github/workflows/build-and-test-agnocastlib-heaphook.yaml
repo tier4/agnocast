@@ -125,6 +125,12 @@ jobs:
         cargo build --release
         cd ..
         cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib
+
+    - name: Unit test for agnocast_heaphook
+      if: steps.check_diff_heaphook.outputs.heaphook_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        cargo test
     
     - name: Test for agnocast_heaphook
       if: steps.check_diff_heaphook.outputs.heaphook_changed == 'true'
