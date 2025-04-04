@@ -47,6 +47,7 @@ static DEFINE_MUTEX(global_mutex);
 
 #ifndef KUNIT_BUILD
 static int (*do_unlinkat)(int, struct filename *);
+static struct filename * (*getname_kernel_kmod)(char *);
 #endif
 
 struct process_info
@@ -1864,7 +1865,7 @@ static void unlink_shm(const pid_t pid)
   char filename_buffer[32];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
   scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
 
-  struct filename * filename = getname_kernel(filename_buffer);
+  struct filename * filename = getname_kernel_kmod(filename_buffer);
   if (!filename) {
     dev_warn(agnocast_device, "getname_kernel failed. (unlink_shm)\n");
   }
@@ -2029,19 +2030,33 @@ static int check_dev_shm_available(void)
 /* Look up and set do_unlinkat using kprobe */
 static int setup_for_unlink_shm(void)
 {
-  struct kprobe kp_do_unlinkat;
+  // Register kprobe for getname_kernel
+  struct kprobe kp_getname_kernel;
+  memset(&kp_getname_kernel, 0, sizeof(struct kprobe));
+  kp_getname_kernel.symbol_name = "getname_kernel";
 
+  int ret = register_kprobe(&kp_getname_kernel);
+  if (ret < 0) {
+    dev_warn(
+      agnocast_device,
+      "register_kprobe for getname_kernel failed, returned %d. (setup_for_unlink_shm)\n", ret);
+    return ret;
+  }
+  getname_kernel_kmod = (struct filename * (*)(char *)) kp_getname_kernel.addr;
+  unregister_kprobe(&kp_getname_kernel);
+
+  // Register kprobe for do_unlinkat
+  struct kprobe kp_do_unlinkat;
   memset(&kp_do_unlinkat, 0, sizeof(struct kprobe));
   kp_do_unlinkat.symbol_name = "do_unlinkat";
 
-  int ret = register_kprobe(&kp_do_unlinkat);
+  ret = register_kprobe(&kp_do_unlinkat);
   if (ret < 0) {
     dev_warn(
       agnocast_device,
       "register_kprobe for do_unlinkat failed, returned %d. (setup_for_unlink_shm)\n", ret);
     return ret;
   }
-
   do_unlinkat = (int (*)(int, struct filename *))kp_do_unlinkat.addr;
   unregister_kprobe(&kp_do_unlinkat);
 
