@@ -2042,7 +2042,7 @@ static int setup_for_unlink_shm(void)
       "register_kprobe for getname_kernel failed, returned %d. (setup_for_unlink_shm)\n", ret);
     return ret;
   }
-  getname_kernel_kmod = (struct filename * (*)(char *))kp_getname_kernel.addr;
+  getname_kernel_kmod = (struct filename * (*)(char *)) kp_getname_kernel.addr;
   unregister_kprobe(&kp_getname_kernel);
 
   // Register kprobe for do_unlinkat
