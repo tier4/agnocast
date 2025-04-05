@@ -193,6 +193,31 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+void call_unlink_periodically()
+{
+  while (true) {
+    sleep(1);
+    struct ioctl_get_exit_process_args get_exit_process_args = {};
+    if (ioctl(agnocast_fd, AGNOCAST_GET_EXIT_PROCESS_CMD, &get_exit_process_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_EXIT_PROCESS_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    int i = 0;
+    while (get_exit_process_args.pids[i]) {
+      const std::string shm_name = create_shm_name(get_exit_process_args.pids[i]);
+      shm_unlink(shm_name);
+    }
+
+    if (get_exit_process_args.daemon_exit) {
+      break;
+    }
+  }
+
+  exit(0);
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -219,6 +244,28 @@ void * initialize_agnocast(
   if (!is_version_consistent(heaphook_version_ptr, heaphook_version_str_len, get_version_args)) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  struct ioctl_check_unlink_daemon_args check_unlink_daemon_args = {};
+  if (ioctl(agocast_fd, AGNOCAST_CHECK_UNLINK_DAEMON_CMD, &check_unlink_daemon_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_CHECK_UNLINK_DAEMON_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  if (!check_unlink_daemon_args.exist) {
+    pid_t pid;
+    pid = fork();
+
+    if (pid < 0) {
+      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+
+    // Create a daemon process for shm_unlink
+    if (pid == 0) {
+      call_unlink_periodically();
+    }
   }
 
   union ioctl_new_shm_args new_shm_args = {};

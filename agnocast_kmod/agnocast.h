@@ -8,6 +8,7 @@
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
+#define MAX_EXIT_PROCESS_NUM 10    // Maximum number of pids of exited process for unlink daemon
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -121,6 +122,17 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+struct ioctl_check_unlink_daemon_args
+{
+  bool exist;
+};
+
+struct ioctl_get_exit_process_args
+{
+  bool daemon_exit;  // This field won't be set to true if the 'pids' array contains any elements.
+  pid_t pids[MAX_EXIT_PROCESS_NUM];
+};
+
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOWR(0xA6, 2, union ioctl_publisher_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
@@ -131,6 +143,8 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_NEW_SHM_CMD _IOWR(0xA6, 8, union ioctl_new_shm_args)
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 9, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
+#define AGNOCAST_CHECK_UNLINK_DAEMON_CMD _IOR(0xA6, 11, struct ioctl_check_unlink_daemon_args)
+#define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 12, struct ioctl_get_exit_process_args)
 
 // ================================================
 // ros2cli ioctls
