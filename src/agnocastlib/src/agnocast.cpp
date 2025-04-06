@@ -205,12 +205,12 @@ void call_unlink_periodically()
     }
 
     int i = 0;
-    while (get_exit_process_args.pids[i]) {
-      const std::string shm_name = create_shm_name(get_exit_process_args.pids[i]);
-      shm_unlink(shm_name);
+    while (get_exit_process_args.ret_pids[i]) {
+      const std::string shm_name = create_shm_name(get_exit_process_args.ret_pids[i]);
+      shm_unlink(shm_name.c_str());
     }
 
-    if (get_exit_process_args.daemon_exit) {
+    if (get_exit_process_args.ret_daemon_exit) {
       break;
     }
   }
@@ -247,13 +247,13 @@ void * initialize_agnocast(
   }
 
   struct ioctl_check_unlink_daemon_args check_unlink_daemon_args = {};
-  if (ioctl(agocast_fd, AGNOCAST_CHECK_UNLINK_DAEMON_CMD, &check_unlink_daemon_args) < 0) {
+  if (ioctl(agnocast_fd, AGNOCAST_CHECK_UNLINK_DAEMON_CMD, &check_unlink_daemon_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_CHECK_UNLINK_DAEMON_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  if (!check_unlink_daemon_args.exist) {
+  if (!check_unlink_daemon_args.ret_exist) {
     pid_t pid;
     pid = fork();
 

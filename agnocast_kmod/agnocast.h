@@ -8,7 +8,7 @@
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
-#define MAX_EXIT_PROCESS_NUM 10    // Maximum number of pids of exited process for unlink daemon
+#define MAX_EXIT_PROCESS_NUM 16    // Maximum number of pids of exited process for unlink daemon
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -124,13 +124,14 @@ union ioctl_get_subscriber_num_args {
 
 struct ioctl_check_unlink_daemon_args
 {
-  bool exist;
+  bool ret_exist;
 };
 
 struct ioctl_get_exit_process_args
 {
-  bool daemon_exit;  // This field won't be set to true if the 'pids' array contains any elements.
-  pid_t pids[MAX_EXIT_PROCESS_NUM];
+  bool ret_daemon_exit;  // This field won't be set to true if the 'pids' array contains any elements.
+  uint32_t ret_exit_process_num;
+  pid_t ret_pids[MAX_EXIT_PROCESS_NUM];
 };
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
