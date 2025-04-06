@@ -57,7 +57,9 @@ DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 struct process_info_for_exit
 {
   bool exited;
+#ifndef KUNIT_BUILD
   pid_t local_pid;
+#endif
   pid_t global_pid;
   struct ipc_namespace * ipc_ns;
   struct process_info_for_exit * next;
@@ -1047,7 +1049,6 @@ int take_msg(
   return 0;
 }
 
-#ifndef KUNIT_BUILD
 static int add_new_proc_info_for_exit(pid_t pid)
 {
   struct process_info_for_exit * new_proc_info_for_exit =
@@ -1059,7 +1060,9 @@ static int add_new_proc_info_for_exit(pid_t pid)
 
   new_proc_info_for_exit->exited = false;
   new_proc_info_for_exit->global_pid = pid;
+#ifndef KUNIT_BUILD
   new_proc_info_for_exit->local_pid = convert_pid_to_local(pid);
+#endif
   new_proc_info_for_exit->ipc_ns = current->nsproxy->ipc_ns;
   new_proc_info_for_exit->next = proc_info_for_exit_root.next;
 
@@ -1067,7 +1070,6 @@ static int add_new_proc_info_for_exit(pid_t pid)
 
   return 0;
 }
-#endif
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
 {
@@ -1106,12 +1108,10 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
-#ifndef KUNIT_BUILD
   int ret = add_new_proc_info_for_exit(pid);
   if (ret < 0) {
     return ret;
   }
-#endif
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
   return 0;
@@ -1164,14 +1164,23 @@ static int get_exit_process(struct ioctl_get_exit_process_args * ioctl_ret)
   ioctl_ret->ret_exit_process_num = 0;
   struct process_info_for_exit * proc_info_for_exit = proc_info_for_exit_root.next;
   while (proc_info_for_exit) {
-    if (proc_info_for_exit->ipc_ns == current->nsproxy->ipc_ns && proc_info_for_exit->exited) {
-      ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_exit->local_pid;
-      ioctl_ret->ret_exit_process_num++;
+    if (proc_info_for_exit->ipc_ns != current->nsproxy->ipc_ns || !proc_info_for_exit->exited) {
+      proc_info_for_exit = proc_info_for_exit->next;
+      continue;
     }
+
+#ifndef KUNIT_BUILD
+    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_exit->local_pid;
+#else
+    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_exit->global_pid;
+#endif
+    ioctl_ret->ret_exit_process_num++;
+    struct proc_info_for_exit * temp = proc_info_for_exit;
+    proc_info_for_exit = proc_info_for_exit.next;
+    free(temp);
     if (ioctl_ret->ret_exit_process_num == MAX_EXIT_PROCESS_NUM) {
       break;
     }
-    proc_info_for_exit = proc_info_for_exit->next;
   }
 
   return 0;
