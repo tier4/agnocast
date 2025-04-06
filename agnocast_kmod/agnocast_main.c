@@ -14,7 +14,6 @@
 #include <linux/spinlock.h>
 #include <linux/statfs.h>
 #include <linux/version.h>
-#include <net/net_namespace.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -58,6 +57,13 @@ struct process_info
   struct hlist_node node;
 };
 
+struct process_info_for_exit
+{
+  pid_t local_pid;
+  struct ipc_namespace * ipc_ns;
+  struct process_info_for_exit * next;
+}
+
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 
 struct publisher_info
@@ -96,7 +102,7 @@ struct topic_struct
 struct topic_wrapper
 {
 #ifndef KUNIT_BUILD
-  struct net * net_ns;  // For use in separating topic namespaces when using containers.
+  struct ipc_namespace * ipc_ns;  // For use in separating topic namespaces when using containers.
 #endif
   char * key;
   struct topic_struct topic;
@@ -137,6 +143,11 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   return local_pid;
 }
+
+static int ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
+{
+  return ipc_ns1 == ipc_ns2;
+}
 #endif
 
 static unsigned long get_topic_hash(const char * str)
@@ -155,7 +166,7 @@ static struct topic_wrapper * find_topic(const char * topic_name)
 #ifdef KUNIT_BUILD
     if (strcmp(entry->key, topic_name) == 0) return entry;
 #else
-    if (net_eq(entry->net_ns, current->nsproxy->net_ns) && strcmp(entry->key, topic_name) == 0)
+    if (ipc_eq(entry->ipc_ns, current->nsproxy->ipc_ns) && strcmp(entry->key, topic_name) == 0)
       return entry;
 #endif
   }
@@ -179,7 +190,7 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
   }
 
 #ifndef KUNIT_BUILD
-  (*wrapper)->net_ns = current->nsproxy->net_ns;
+  (*wrapper)->ipc_ns = current->nsproxy->ipc_ns;
 #endif
 
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
@@ -1097,6 +1108,28 @@ int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_a
   return 0;
 }
 
+static int check_unlink_daemon_exist(struct ioctl_check_unlink_deamon_args * ioctl_ret)
+{
+  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
+  {
+#ifndef KUNIT_BUILD
+    if (ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
+      return true;
+    } else {
+      continue;
+    }
+#endif
+
+    return true;
+  }
+
+  return false;
+}
+
+static int get_exit_process(struct ioctl_exit_process * ioctl_ret)
+{
+}
+
 int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 {
   uint32_t topic_num = 0;
@@ -1106,7 +1139,7 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
@@ -1141,7 +1174,7 @@ static int get_node_subscriber_topics(
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
@@ -1185,7 +1218,7 @@ static int get_node_publisher_topics(
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
@@ -1484,6 +1517,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_CHECK_UNLINK_DAEMON_CMD) {
+    struct ioctl_check_unlink_daemon_args check_unlink_daemon_args;
+    ret = checK_unlink_deamon_exist(&check_unlink_daemon_args);
+    if (copy_to_user(
+          (struct ioctl_check_unlink_daemon_args __user *)arg, &check_unlink_daemon_args,
+          sizeof(check_unlink_daemon_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
+    struct ioctl_get_exit_process_args get_exit_process_args;
+    ret = get_exit_process(&get_exit_process_args);
+    if (copy_to_user(
+          (struct ioctl_get_exit_process_args __user *)arg, &get_exit_process_args,
+          sizeof(get_exit_process_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_TOPIC_LIST_CMD) {
     union ioctl_topic_list_args topic_list_args;
