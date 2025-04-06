@@ -137,7 +137,7 @@ static pid_t convert_pid_to_local(pid_t global_pid)
   return local_pid;
 }
 
-static int ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
+static bool ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
 {
   return ipc_ns1 == ipc_ns2;
 }
