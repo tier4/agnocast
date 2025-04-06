@@ -195,6 +195,18 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 
 void call_unlink_periodically()
 {
+  struct sigaction sa;
+
+  sa.sa_handler = SIG_IGN;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+
+  if (sigaction(SIGINT, &sa, NULL) == -1) {
+    RCLCPP_ERROR(logger, "sigaction failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   while (true) {
     sleep(1);
     struct ioctl_get_exit_process_args get_exit_process_args = {};
@@ -204,13 +216,14 @@ void call_unlink_periodically()
       exit(EXIT_FAILURE);
     }
 
-    int i = 0;
-    while (get_exit_process_args.ret_pids[i]) {
+    uint32_t i = 0;
+    while (i < get_exit_process_args.ret_exit_process_num) {
       const std::string shm_name = create_shm_name(get_exit_process_args.ret_pids[i]);
       shm_unlink(shm_name.c_str());
+      i++;
     }
 
-    if (get_exit_process_args.ret_daemon_exit) {
+    if (get_exit_process_args.ret_daemon_should_exit) {
       break;
     }
   }
@@ -265,6 +278,8 @@ void * initialize_agnocast(
     // Create a daemon process for shm_unlink
     if (pid == 0) {
       call_unlink_periodically();
+    } else {
+      RCLCPP_INFO(logger, "daemon pid: %d", pid);
     }
   }
 

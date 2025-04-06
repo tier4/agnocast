@@ -152,7 +152,7 @@ struct ioctl_check_unlink_daemon_args
 
 struct ioctl_get_exit_process_args
 {
-  bool ret_daemon_exit;
+  bool ret_daemon_should_exit;
   uint32_t ret_exit_process_num;
   pid_t ret_pids[MAX_EXIT_PROCESS_NUM];
 };
