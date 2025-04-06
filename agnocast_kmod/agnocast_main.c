@@ -1050,7 +1050,8 @@ int take_msg(
 #ifndef KUNIT_BUILD
 static int add_new_proc_info_for_exit(pid_t pid)
 {
-  struct process_info_for_exit * new_proc_info_for_exit = kmalloc(sizeof(struct process_info_for_exit), GFP_KERNEL);
+  struct process_info_for_exit * new_proc_info_for_exit =
+    kmalloc(sizeof(struct process_info_for_exit), GFP_KERNEL);
   if (!new_proc_info_for_exit) {
     dev_warn(agnocast_device, "kmalloc failed. (add_new_proc_info_for_exit)\n");
     return -ENOMEM;
@@ -1972,8 +1973,8 @@ void process_exit_cleanup(const pid_t pid)
   struct process_info_for_exit * proc_info_for_exit = proc_info_for_exit_root.next;
   while (proc_info_for_exit) {
     if (proc_info_for_exit->global_pid == pid) {
-        proc_info_for_exit->exited = true;
-        break;
+      proc_info_for_exit->exited = true;
+      break;
     }
     proc_info_for_exit = proc_info_for_exit->next;
   }
