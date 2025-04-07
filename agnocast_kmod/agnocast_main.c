@@ -1194,7 +1194,8 @@ static int get_exit_process(struct ioctl_get_exit_process_args * ioctl_ret)
   return 0;
 }
 
-int get_topic_list(const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args)
+int get_topic_list(
+  const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args)
 {
   uint32_t topic_num = 0;
 
