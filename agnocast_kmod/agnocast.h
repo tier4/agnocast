@@ -9,7 +9,7 @@
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
-#define MAX_UNLINK_PROCESS_NUM 16    // Maximum number of pids of exited process for unlink daemon
+#define MAX_UNLINK_PROCESS_NUM 16  // Maximum number of pids of exited process for unlink daemon
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -237,7 +237,9 @@ int take_msg(
   const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret);
 
-int new_shm_addr(const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
+int new_shm_addr(
+  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
+  union ioctl_new_shm_args * ioctl_ret);
 
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
