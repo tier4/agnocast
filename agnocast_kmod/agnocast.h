@@ -1,5 +1,6 @@
 #pragma once
 
+#include <linux/ipc_namespace.h>
 #include <linux/types.h>
 
 #define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
@@ -206,38 +207,44 @@ void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
 int subscriber_add(
-  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
-  union ioctl_subscriber_args * ioctl_ret);
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
+  const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
+  const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
 
 int publisher_add(
-  const char * topic_name, const char * node_name, const pid_t publisher_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
+  const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret);
 
 int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
+  const int64_t entry_id);
 
 int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
+  const int64_t entry_id);
 
 int receive_msg(
-  const char * topic_name, const topic_local_id_t subscriber_id,
-  union ioctl_receive_msg_args * ioctl_ret);
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret);
 
 int publish_msg(
-  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  union ioctl_publish_args * ioctl_ret);
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
+  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret);
 
 int take_msg(
-  const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret);
 
 int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
 
-int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret);
+int get_subscriber_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_subscriber_num_args * ioctl_ret);
 
-int get_topic_list(union ioctl_topic_list_args * topic_list_args);
+int get_topic_list(
+  const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
 void process_exit_cleanup(const pid_t pid);
 
@@ -249,13 +256,22 @@ void enqueue_exit_pid(const pid_t pid);
 #ifdef KUNIT_BUILD
 int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
-int get_topic_entries_num(const char * topic_name);
-int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id);
-bool is_in_topic_entries(const char * topic_name, int64_t entry_id);
-int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_local_id_t pubsub_id);
-bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id);
-int get_publisher_num(const char * topic_name);
-bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id);
+int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
+int64_t get_latest_received_entry_id(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id);
+bool is_in_topic_entries(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, int64_t entry_id);
+int get_entry_rc(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const int64_t entry_id,
+  const topic_local_id_t pubsub_id);
+bool is_in_subscriber_htable(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id);
+int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
+bool is_in_publisher_htable(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t publisher_id);
 int get_topic_num(void);
-bool is_in_topic_htable(const char * topic_name);
+bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ipc_ns);
 #endif

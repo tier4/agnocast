@@ -103,9 +103,8 @@ struct topic_struct
 
 struct topic_wrapper
 {
-#ifndef KUNIT_BUILD
-  struct ipc_namespace * ipc_ns;  // For use in separating topic namespaces when using containers.
-#endif
+  const struct ipc_namespace *
+    ipc_ns;  // For use in separating topic namespaces when using containers.
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
@@ -158,27 +157,24 @@ static unsigned long get_topic_hash(const char * str)
   return hash_min(hash, TOPIC_HASH_BITS);
 }
 
-static struct topic_wrapper * find_topic(const char * topic_name)
+static struct topic_wrapper * find_topic(
+  const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   struct topic_wrapper * entry;
   unsigned long hash_val = get_topic_hash(topic_name);
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
-#ifdef KUNIT_BUILD
-    if (strcmp(entry->key, topic_name) == 0) return entry;
-#else
-    if (ipc_eq(entry->ipc_ns, current->nsproxy->ipc_ns) && strcmp(entry->key, topic_name) == 0)
-      return entry;
-#endif
+    if (ipc_eq(entry->ipc_ns, ipc_ns) && strcmp(entry->key, topic_name) == 0) return entry;
   }
 
   return NULL;
 }
 
-static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
+static int add_topic(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, struct topic_wrapper ** wrapper)
 {
-  *wrapper = find_topic(topic_name);
+  *wrapper = find_topic(topic_name, ipc_ns);
   if (*wrapper) {
     return 0;
   }
@@ -191,10 +187,7 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
     return -ENOMEM;
   }
 
-#ifndef KUNIT_BUILD
-  (*wrapper)->ipc_ns = current->nsproxy->ipc_ns;
-#endif
-
+  (*wrapper)->ipc_ns = ipc_ns;
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
   if (!(*wrapper)->key) {
     dev_warn(
@@ -486,9 +479,10 @@ static struct entry_node * find_message_entry(
 }
 
 int increment_message_entry_rc(
-  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
+  const int64_t entry_id)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
@@ -524,9 +518,10 @@ int increment_message_entry_rc(
 }
 
 int decrement_message_entry_rc(
-  const char * topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
+  const int64_t entry_id)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
@@ -706,14 +701,14 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  const char * topic_name, const char * node_name, const pid_t subscriber_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
-  union ioctl_subscriber_args * ioctl_ret)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
+  const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
+  const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
   int ret;
 
   struct topic_wrapper * wrapper;
-  ret = add_topic(topic_name, &wrapper);
+  ret = add_topic(topic_name, ipc_ns, &wrapper);
   if (ret < 0) {
     return ret;
   }
@@ -731,14 +726,14 @@ int subscriber_add(
 }
 
 int publisher_add(
-  const char * topic_name, const char * node_name, const pid_t publisher_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
+  const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret)
 {
   int ret;
 
   struct topic_wrapper * wrapper;
-  ret = add_topic(topic_name, &wrapper);
+  ret = add_topic(topic_name, ipc_ns, &wrapper);
   if (ret < 0) {
     return ret;
   }
@@ -847,10 +842,10 @@ static int release_msgs_to_meet_depth(
 }
 
 int receive_msg(
-  const char * topic_name, const topic_local_id_t subscriber_id,
-  union ioctl_receive_msg_args * ioctl_ret)
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
     return -EINVAL;
@@ -925,10 +920,10 @@ int receive_msg(
 }
 
 int publish_msg(
-  const char * topic_name, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  union ioctl_publish_args * ioctl_ret)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
+  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publish_msg)\n", topic_name);
     return -EINVAL;
@@ -967,10 +962,11 @@ int publish_msg(
 }
 
 int take_msg(
-  const char * topic_name, const topic_local_id_t subscriber_id, bool allow_same_message,
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (take_msg)\n", topic_name);
     return -EINVAL;
@@ -1126,9 +1122,11 @@ static int get_version(struct ioctl_get_version_args * ioctl_ret)
   return 0;
 }
 
-int get_subscriber_num(const char * topic_name, union ioctl_get_subscriber_num_args * ioctl_ret)
+int get_subscriber_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_subscriber_num_args * ioctl_ret)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
     ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
   } else {
@@ -1196,7 +1194,7 @@ static int get_exit_process(struct ioctl_get_exit_process_args * ioctl_ret)
   return 0;
 }
 
-int get_topic_list(union ioctl_topic_list_args * topic_list_args)
+int get_topic_list(const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args)
 {
   uint32_t topic_num = 0;
 
@@ -1204,11 +1202,10 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   int bkt_topic;
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
-#ifndef KUNIT_BUILD
-    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
+    if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
-#endif
+
     if (topic_num >= MAX_TOPIC_NUM) {
       dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
       return -ENOBUFS;
@@ -1230,7 +1227,8 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
 }
 
 static int get_node_subscriber_topics(
-  const char * node_name, union ioctl_node_info_args * node_info_args)
+  const struct ipc_namespace * ipc_ns, const char * node_name,
+  union ioctl_node_info_args * node_info_args)
 {
   uint32_t topic_num = 0;
 
@@ -1239,11 +1237,9 @@ static int get_node_subscriber_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
-#ifndef KUNIT_BUILD
-    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
+    if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
-#endif
     struct subscriber_info * sub_info;
     int bkt_sub_info;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -1274,7 +1270,8 @@ static int get_node_subscriber_topics(
 }
 
 static int get_node_publisher_topics(
-  const char * node_name, union ioctl_node_info_args * node_info_args)
+  const struct ipc_namespace * ipc_ns, const char * node_name,
+  union ioctl_node_info_args * node_info_args)
 {
   uint32_t topic_num = 0;
 
@@ -1283,11 +1280,9 @@ static int get_node_publisher_topics(
 
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
-#ifndef KUNIT_BUILD
-    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
+    if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
-#endif
     struct publisher_info * pub_info;
     int bkt_pub_info;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
@@ -1318,11 +1313,12 @@ static int get_node_publisher_topics(
 }
 
 static int get_topic_subscriber_info(
-  const char * topic_name, union ioctl_topic_info_args * topic_info_args)
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_topic_info_args * topic_info_args)
 {
   topic_info_args->ret_topic_info_ret_num = 0;
 
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return 0;
   }
@@ -1376,11 +1372,12 @@ static int get_topic_subscriber_info(
 }
 
 static int get_topic_publisher_info(
-  const char * topic_name, union ioctl_topic_info_args * topic_info_args)
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_topic_info_args * topic_info_args)
 {
   topic_info_args->ret_topic_info_ret_num = 0;
 
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return 0;
   }
@@ -1438,6 +1435,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   const pid_t pid = current->tgid;
+  struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
@@ -1458,8 +1456,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = subscriber_add(
-      topic_name_buf, node_name_buf, pid, sub_args.qos_depth, sub_args.qos_is_transient_local,
-      sub_args.is_take_sub, &sub_args);
+      topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
+      sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
     if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
@@ -1481,8 +1479,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     node_name_buf[pub_args.node_name.len] = '\0';
     ret = publisher_add(
-      topic_name_buf, node_name_buf, pid, pub_args.qos_depth, pub_args.qos_is_transient_local,
-      &pub_args);
+      topic_name_buf, ipc_ns, node_name_buf, pid, pub_args.qos_depth,
+      pub_args.qos_is_transient_local, &pub_args);
     if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
@@ -1496,7 +1494,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret = increment_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
+    ret =
+      increment_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
   } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1508,7 +1507,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret = decrement_message_entry_rc(topic_name_buf, entry_args.pubsub_id, entry_args.entry_id);
+    ret =
+      decrement_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -1521,7 +1521,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           receive_msg_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[receive_msg_args.topic_name.len] = '\0';
-    ret = receive_msg(topic_name_buf, receive_msg_args.subscriber_id, &receive_msg_args);
+    ret = receive_msg(topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, &receive_msg_args);
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto return_EFAULT;
@@ -1536,7 +1536,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     topic_name_buf[publish_args.topic_name.len] = '\0';
     ret = publish_msg(
-      topic_name_buf, publish_args.publisher_id, publish_args.msg_virtual_address, &publish_args);
+      topic_name_buf, ipc_ns, publish_args.publisher_id, publish_args.msg_virtual_address,
+      &publish_args);
     if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
@@ -1549,8 +1550,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           topic_name_buf, (char __user *)take_args.topic_name.ptr, take_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[take_args.topic_name.len] = '\0';
-    ret =
-      take_msg(topic_name_buf, take_args.subscriber_id, take_args.allow_same_message, &take_args);
+    ret = take_msg(
+      topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, &take_args);
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_NEW_SHM_CMD) {
@@ -1579,7 +1580,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           get_subscriber_num_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_subscriber_num(topic_name_buf, &get_subscriber_num_args);
+    ret = get_subscriber_num(topic_name_buf, ipc_ns, &get_subscriber_num_args);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
@@ -1603,7 +1604,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
       goto return_EFAULT;
-    ret = get_topic_list(&topic_list_args);
+    ret = get_topic_list(ipc_ns, &topic_list_args);
     if (copy_to_user(
           (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
       goto return_EFAULT;
@@ -1620,7 +1621,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_info_sub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[node_info_sub_args.node_name.len] = '\0';
-    ret = get_node_subscriber_topics(node_name_buf, &node_info_sub_args);
+    ret = get_node_subscriber_topics(ipc_ns, node_name_buf, &node_info_sub_args);
     if (copy_to_user(
           (union ioctl_node_info_args __user *)arg, &node_info_sub_args,
           sizeof(node_info_sub_args)))
@@ -1638,7 +1639,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_info_pub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[node_info_pub_args.node_name.len] = '\0';
-    ret = get_node_publisher_topics(node_name_buf, &node_info_pub_args);
+    ret = get_node_publisher_topics(ipc_ns, node_name_buf, &node_info_pub_args);
     if (copy_to_user(
           (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
           sizeof(node_info_pub_args)))
@@ -1656,7 +1657,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           topic_info_sub_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[topic_info_sub_args.topic_name.len] = '\0';
-    ret = get_topic_subscriber_info(topic_name_buf, &topic_info_sub_args);
+    ret = get_topic_subscriber_info(topic_name_buf, ipc_ns, &topic_info_sub_args);
     if (copy_to_user(
           (union ioctl_topic_info_args __user *)arg, &topic_info_sub_args,
           sizeof(topic_info_sub_args)))
@@ -1674,7 +1675,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           topic_info_pub_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[topic_info_pub_args.topic_name.len] = '\0';
-    ret = get_topic_publisher_info(topic_name_buf, &topic_info_pub_args);
+    ret = get_topic_publisher_info(topic_name_buf, ipc_ns, &topic_info_pub_args);
     if (copy_to_user(
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
@@ -1724,9 +1725,9 @@ bool is_in_proc_info_htable(const pid_t pid)
   return false;
 }
 
-int get_topic_entries_num(const char * topic_name)
+int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return 0;
   }
@@ -1740,9 +1741,10 @@ int get_topic_entries_num(const char * topic_name)
   return count;
 }
 
-bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
+bool is_in_topic_entries(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, int64_t entry_id)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return false;
   }
@@ -1754,9 +1756,11 @@ bool is_in_topic_entries(const char * topic_name, int64_t entry_id)
   return true;
 }
 
-int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_local_id_t pubsub_id)
+int get_entry_rc(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const int64_t entry_id,
+  const topic_local_id_t pubsub_id)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return -1;
   }
@@ -1775,9 +1779,11 @@ int get_entry_rc(const char * topic_name, const int64_t entry_id, const topic_lo
   return 0;
 }
 
-int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_id_t subscriber_id)
+int64_t get_latest_received_entry_id(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id)
 {
-  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  const struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return -1;
   }
@@ -1789,9 +1795,11 @@ int64_t get_latest_received_entry_id(const char * topic_name, const topic_local_
   return sub_info->latest_received_entry_id;
 }
 
-bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t subscriber_id)
+bool is_in_subscriber_htable(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id)
 {
-  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  const struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return false;
   }
@@ -1802,18 +1810,19 @@ bool is_in_subscriber_htable(const char * topic_name, const topic_local_id_t sub
   return true;
 }
 
-int get_publisher_num(const char * topic_name)
+int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name);
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return 0;
   }
   return get_size_pub_info_htable(wrapper);
 }
 
-bool is_in_publisher_htable(const char * topic_name, const topic_local_id_t publisher_id)
+bool is_in_publisher_htable(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id)
 {
-  const struct topic_wrapper * wrapper = find_topic(topic_name);
+  const struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     return false;
   }
@@ -1836,9 +1845,9 @@ int get_topic_num(void)
   return count;
 }
 
-bool is_in_topic_htable(const char * topic_name)
+bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
-  return find_topic(topic_name) != NULL;
+  return find_topic(topic_name, ipc_ns) != NULL;
 }
 
 #endif

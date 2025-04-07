@@ -18,8 +18,8 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
-    topic_name, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
-    &subscriber_args);
+    topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
+    qos_is_transient_local, is_take_sub, &subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -34,7 +34,8 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
 
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
-    topic_name, node_name, publisher_pid, qos_depth, qos_is_transient_local, &publisher_args);
+    topic_name, current->nsproxy->ipc_ns, node_name, publisher_pid, qos_depth,
+    qos_is_transient_local, &publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -46,7 +47,7 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
   setup_one_subscriber(test, topic_name);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
+  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
@@ -60,7 +61,7 @@ void test_case_get_subscriber_num_many(struct kunit * test)
   }
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
+  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, MAX_SUBSCRIBER_NUM);
@@ -75,8 +76,8 @@ void test_case_get_subscriber_num_different_topic(struct kunit * test)
 
   union ioctl_get_subscriber_num_args subscriber_num_args1;
   union ioctl_get_subscriber_num_args subscriber_num_args2;
-  int ret1 = get_subscriber_num(topic_name1, &subscriber_num_args1);
-  int ret2 = get_subscriber_num(topic_name2, &subscriber_num_args2);
+  int ret1 = get_subscriber_num(topic_name1, current->nsproxy->ipc_ns, &subscriber_num_args1);
+  int ret2 = get_subscriber_num(topic_name2, current->nsproxy->ipc_ns, &subscriber_num_args2);
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -91,7 +92,7 @@ void test_case_get_subscriber_num_with_exit(struct kunit * test)
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
   process_exit_cleanup(subscriber_pid);
-  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
+  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
@@ -103,7 +104,7 @@ void test_case_get_subscriber_num_no_subscriber(struct kunit * test)
   setup_one_publisher(test, topic_name);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, &subscriber_num_args);
+  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);

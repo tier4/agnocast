@@ -29,18 +29,19 @@ void test_case_subscriber_add_normal(struct kunit * test)
 
   // Act
   int ret = subscriber_add(
-    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
-    &subscriber_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
+    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   union ioctl_get_subscriber_num_args get_subscriber_num_args;
-  get_subscriber_num(TOPIC_NAME, &get_subscriber_num_args);
+  get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_subscriber_num_args);
   KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 0);
-  KUNIT_EXPECT_TRUE(test, is_in_subscriber_htable(TOPIC_NAME, subscriber_args.ret_id));
+  KUNIT_EXPECT_TRUE(
+    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id));
   KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME));
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
 }
 
 void test_case_subscriber_add_invalid_qos(struct kunit * test)
@@ -53,8 +54,8 @@ void test_case_subscriber_add_invalid_qos(struct kunit * test)
 
   // Act
   int ret = subscriber_add(
-    TOPIC_NAME, NODE_NAME, subscriber_pid, invalid_qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
-    &subscriber_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, invalid_qos_depth,
+    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -70,14 +71,14 @@ void test_case_subscriber_add_too_many_subscribers(struct kunit * test)
   for (uint32_t i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
     union ioctl_subscriber_args subscriber_args;
     subscriber_add(
-      TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
-      &subscriber_args);
+      TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
+      QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
   }
 
   // Act
   int ret = subscriber_add(
-    TOPIC_NAME, NODE_NAME, subscriber_pid, qos_depth, QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB,
-    &subscriber_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
+    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
