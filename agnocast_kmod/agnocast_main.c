@@ -14,7 +14,6 @@
 #include <linux/spinlock.h>
 #include <linux/statfs.h>
 #include <linux/version.h>
-#include <net/net_namespace.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -96,7 +95,7 @@ struct topic_struct
 struct topic_wrapper
 {
 #ifndef KUNIT_BUILD
-  struct net * net_ns;  // For use in separating topic namespaces when using containers.
+  struct ipc_namespace * ipc_ns;  // For use in separating topic namespaces when using containers.
 #endif
   char * key;
   struct topic_struct topic;
@@ -137,6 +136,11 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   return local_pid;
 }
+
+static bool ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
+{
+  return ipc_ns1 == ipc_ns2;
+}
 #endif
 
 static unsigned long get_topic_hash(const char * str)
@@ -155,7 +159,7 @@ static struct topic_wrapper * find_topic(const char * topic_name)
 #ifdef KUNIT_BUILD
     if (strcmp(entry->key, topic_name) == 0) return entry;
 #else
-    if (net_eq(entry->net_ns, current->nsproxy->net_ns) && strcmp(entry->key, topic_name) == 0)
+    if (ipc_eq(entry->ipc_ns, current->nsproxy->ipc_ns) && strcmp(entry->key, topic_name) == 0)
       return entry;
 #endif
   }
@@ -179,7 +183,7 @@ static int add_topic(const char * topic_name, struct topic_wrapper ** wrapper)
   }
 
 #ifndef KUNIT_BUILD
-  (*wrapper)->net_ns = current->nsproxy->net_ns;
+  (*wrapper)->ipc_ns = current->nsproxy->ipc_ns;
 #endif
 
   (*wrapper)->key = kstrdup(topic_name, GFP_KERNEL);
@@ -1106,7 +1110,7 @@ int get_topic_list(union ioctl_topic_list_args * topic_list_args)
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
@@ -1141,7 +1145,7 @@ static int get_node_subscriber_topics(
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
@@ -1185,7 +1189,7 @@ static int get_node_publisher_topics(
   hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
   {
 #ifndef KUNIT_BUILD
-    if (!net_eq(current->nsproxy->net_ns, wrapper->net_ns)) {
+    if (!ipc_eq(current->nsproxy->ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
 #endif
