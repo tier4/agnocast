@@ -272,6 +272,6 @@ int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_
 bool is_in_publisher_htable(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t publisher_id);
-int get_topic_num(void);
+int get_topic_num(const struct ipc_namespace * ipc_ns);
 bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ipc_ns);
 #endif
