@@ -1725,14 +1725,16 @@ bool is_in_publisher_htable(
   return true;
 }
 
-int get_topic_num(void)
+int get_topic_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct topic_wrapper * wrapper;
   int bkt_wrapper;
   hash_for_each(topic_hashtable, bkt_wrapper, wrapper, node)
   {
-    count++;
+    if (ipc_eq(wrapper->ipc_ns, ipc_ns)) {
+      count++;
+    }
   }
   return count;
 }
