@@ -192,12 +192,12 @@ void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
 int subscriber_add(
-  const char * topic_name, struct ipc_namespace * ipc_ns, const char * node_name,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
 
 int publisher_add(
-  const char * topic_name, struct ipc_namespace * ipc_ns, const char * node_name,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret);
 
@@ -243,7 +243,8 @@ int get_proc_info_htable_size(void);
 bool is_in_proc_info_htable(const pid_t pid);
 int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 int64_t get_latest_received_entry_id(
-  const char * topic_name, struct ipc_namespace * ipc_ns, const topic_local_id_t subscriber_id);
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id);
 bool is_in_topic_entries(
   const char * topic_name, const struct ipc_namespace * ipc_ns, int64_t entry_id);
 int get_entry_rc(

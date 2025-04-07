@@ -248,7 +248,7 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_released_num, MAX_RELEASE_NUM);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 0);
-  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name), 2);
+  KUNIT_EXPECT_EQ(test, get_topic_entries_num(topic_name, current->nsproxy->ipc_ns), 2);
 }
 
 void test_case_publish_msg_ret_one_subscriber(struct kunit * test)

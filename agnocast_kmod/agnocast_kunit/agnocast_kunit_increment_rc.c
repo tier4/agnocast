@@ -86,7 +86,7 @@ void test_case_increment_rc_without_topic(struct kunit * test)
   const char * invalid_topic_name = "/kunit_test_topic_dummy";
 
   // Act
-  int ret = increment_message_entry_rc(invalid_topic_name, current->nxproxy->ipc_ns 0, 0);
+  int ret = increment_message_entry_rc(invalid_topic_name, current->nsproxy->ipc_ns, 0, 0);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);

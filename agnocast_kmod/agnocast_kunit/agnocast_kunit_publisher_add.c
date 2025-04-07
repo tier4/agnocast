@@ -26,7 +26,7 @@ void test_case_publisher_add_normal(struct kunit * test)
   KUNIT_EXPECT_TRUE(
     test, is_in_publisher_htable(topic_name, current->nsproxy->ipc_ns, publisher_args.ret_id));
   KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name, current->nsproxy->ipc_ns));
 }
 
 void test_case_publisher_add_many(struct kunit * test)
@@ -47,7 +47,7 @@ void test_case_publisher_add_many(struct kunit * test)
   KUNIT_EXPECT_EQ(test, publisher_args.ret_id, publisher_num - 1);
   KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name, current->nsproxy->ipc_ns), publisher_num);
   KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name, current->nsproxy->ipc_ns));
 }
 
 void test_case_publisher_add_too_many(struct kunit * test)
@@ -67,5 +67,5 @@ void test_case_publisher_add_too_many(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
   KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name, current->nsproxy->ipc_ns), MAX_PUBLISHER_NUM);
   KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
-  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name));
+  KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name, current->nsproxy->ipc_ns));
 }

@@ -756,7 +756,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1));
   KUNIT_ASSERT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2));
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_EQ(
     test,
     get_entry_rc(

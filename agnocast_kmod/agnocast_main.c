@@ -93,9 +93,8 @@ struct topic_struct
 
 struct topic_wrapper
 {
-#ifndef KUNIT_BUILD
-  struct ipc_namespace * ipc_ns;  // For use in separating topic namespaces when using containers.
-#endif
+  const struct ipc_namespace *
+    ipc_ns;  // For use in separating topic namespaces when using containers.
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
@@ -135,12 +134,12 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   return local_pid;
 }
+#endif
 
 static int ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
 {
   return ipc_ns1 == ipc_ns2;
 }
-#endif
 
 static unsigned long get_topic_hash(const char * str)
 {
@@ -156,18 +155,14 @@ static struct topic_wrapper * find_topic(
 
   hash_for_each_possible(topic_hashtable, entry, node, hash_val)
   {
-#ifdef KUNIT_BUILD
-    if (strcmp(entry->key, topic_name) == 0) return entry;
-#else
     if (ipc_eq(entry->ipc_ns, ipc_ns) && strcmp(entry->key, topic_name) == 0) return entry;
-#endif
   }
 
   return NULL;
 }
 
 static int add_topic(
-  const char * topic_name, struct ipc_namespace * ipc_ns, struct topic_wrapper ** wrapper)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, struct topic_wrapper ** wrapper)
 {
   *wrapper = find_topic(topic_name, ipc_ns);
   if (*wrapper) {
@@ -696,7 +691,7 @@ static int set_publisher_shm_info(
 }
 
 int subscriber_add(
-  const char * topic_name, struct ipc_namespace * ipc_ns, const char * node_name,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
 {
@@ -721,7 +716,7 @@ int subscriber_add(
 }
 
 int publisher_add(
-  const char * topic_name, struct ipc_namespace * ipc_ns, const char * node_name,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   union ioctl_publisher_args * ioctl_ret)
 {

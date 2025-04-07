@@ -19,7 +19,7 @@ static void setup_one_subscriber(
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, subscriber_pid, qos_depth, is_transient_local,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth, is_transient_local,
     IS_TAKE_SUB, &subscriber_args);
   *subscriber_id = subscriber_args.ret_id;
 
@@ -37,7 +37,7 @@ static void setup_one_publisher(
 
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, publisher_pid, qos_depth, is_transient_local,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, qos_depth, is_transient_local,
     &publisher_args);
   *publisher_id = publisher_args.ret_id;
 
@@ -55,7 +55,7 @@ void test_case_take_msg_no_topic(struct kunit * test)
 
   // Act
   int ret = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, is_transient_local, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, is_transient_local, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -78,7 +78,7 @@ void test_case_take_msg_no_subscriber(struct kunit * test)
 
   // Act
   int ret = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -99,7 +99,7 @@ void test_case_take_msg_no_publish_nothing_to_take(struct kunit * test)
 
   // Act
   int ret = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -126,7 +126,7 @@ void test_case_take_msg_take_one(struct kunit * test)
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -134,13 +134,13 @@ void test_case_take_msg_take_one(struct kunit * test)
 
   // Act
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -166,11 +166,11 @@ void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kuni
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   union ioctl_publish_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   const bool allow_same_message = true;
@@ -178,13 +178,13 @@ void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kuni
 
   // Act
   int ret3 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret1.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -210,30 +210,30 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
   const bool allow_same_message = true;
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
   int ret3 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret1.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret1.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -259,24 +259,24 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
   const bool allow_same_message = false;
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret1.ret_entry_id);
 
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
   int ret3 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -304,11 +304,11 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   union ioctl_publish_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   const bool allow_same_message = true;
@@ -316,13 +316,13 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
 
   // Act
   int ret3 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret2.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -349,7 +349,7 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -357,13 +357,13 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
 
   // Act
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -391,12 +391,12 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
   for (int i = 0; i < MAX_QOS_DEPTH; i++) {
     union ioctl_publish_args ioctl_publish_msg_ret;
     int ret = publish_msg(
-      TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + i, &ioctl_publish_msg_ret);
+      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, &ioctl_publish_msg_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + MAX_QOS_DEPTH + 1,
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + MAX_QOS_DEPTH + 1,
     &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
@@ -405,13 +405,13 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
 
   // Act
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -438,13 +438,13 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   for (int i = 0; i < MAX_QOS_DEPTH - 1; i++) {
     union ioctl_publish_args ioctl_publish_msg_ret;
     int ret = publish_msg(
-      TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
@@ -453,13 +453,13 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
 
   // Act
   int ret3 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -480,7 +480,7 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
 
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   topic_local_id_t subscriber_id;
@@ -495,7 +495,7 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
 
   // Act
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -519,17 +519,17 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_publish_args ioctl_publish_msg_ret3;
   int ret3 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret3);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret3);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   topic_local_id_t subscriber_id;
@@ -544,13 +544,13 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
 
   // Act
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret3.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -572,12 +572,12 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   topic_local_id_t subscriber_id;
@@ -592,13 +592,13 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
 
   // Act
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret2.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -619,12 +619,12 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
 
   union ioctl_publish_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   topic_local_id_t subscriber_id;
@@ -639,13 +639,13 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
 
   // Act
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_entry_id, ioctl_publish_msg_ret1.ret_entry_id);
   KUNIT_EXPECT_EQ(
-    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id),
+    test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_take_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
@@ -677,7 +677,7 @@ void test_case_take_msg_one_new_pub(struct kunit * test)
 
   // Act
   int ret = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -698,13 +698,13 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   union ioctl_subscriber_args subscriber_args;
   const uint32_t subscriber_qos_depth = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, pid, subscriber_qos_depth,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, subscriber_qos_depth,
     publisher_transient_local, IS_TAKE_SUB, &subscriber_args);
 
   union ioctl_publisher_args publisher_args;
   const uint32_t publisher_qos_depth = 10;
   int ret3 = publisher_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, pid, publisher_qos_depth,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, publisher_qos_depth,
     publisher_transient_local, &publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -715,7 +715,7 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
 
   // Act
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_args.ret_id, allow_same_message,
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id, allow_same_message,
     &ioctl_take_msg_ret);
 
   // Assert
@@ -742,14 +742,14 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
   const uint32_t publisher_qos_depth1 = 10;
   const bool publisher_transient_local1 = true;
   int ret2 = publisher_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, publisher_pid, publisher_qos_depth1,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, publisher_qos_depth1,
     publisher_transient_local1, &publisher_args1);
 
   union ioctl_publisher_args publisher_args2;
   const uint32_t publisher_qos_depth2 = 1;
   const bool publisher_transient_local2 = true;
   int ret3 = publisher_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, publisher_pid, publisher_qos_depth2,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, publisher_qos_depth2,
     publisher_transient_local2, &publisher_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -760,7 +760,7 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
 
   // Act
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id, allow_same_message, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -781,13 +781,13 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   union ioctl_subscriber_args subscriber_args1;
   const uint32_t subscriber_qos_depth1 = 10;
   int ret2 = subscriber_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, subscriber_pid, subscriber_qos_depth1,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, subscriber_qos_depth1,
     is_transient_local, IS_TAKE_SUB, &subscriber_args1);
 
   union ioctl_subscriber_args subscriber_args2;
   const uint32_t subscriber_qos_depth2 = 1;
   int ret3 = subscriber_add(
-    TOPIC_NAME, current->nsproxy->ipc_nsNODE_NAME, subscriber_pid, subscriber_qos_depth2,
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, subscriber_qos_depth2,
     is_transient_local, IS_TAKE_SUB, &subscriber_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -803,7 +803,7 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
   const bool allow_same_message = true;
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_args1.ret_id, allow_same_message,
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args1.ret_id, allow_same_message,
     &ioctl_take_msg_ret);
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
@@ -813,7 +813,7 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
 
   // Act
   int ret5 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_args2.ret_id, allow_same_message,
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args2.ret_id, allow_same_message,
     &ioctl_take_msg_ret);
 
   // Assert
@@ -837,7 +837,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   uint64_t msg_addr = 0x1000;
   union ioctl_publish_args ioctl_publish_msg_ret;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id, msg_addr, &ioctl_publish_msg_ret);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, &ioctl_publish_msg_ret);
 
   topic_local_id_t subscriber_id1;
   const pid_t subscriber_pid1 = 2000;
@@ -845,7 +845,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
   int ret2 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id1, allow_same_message, &ioctl_take_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1, allow_same_message, &ioctl_take_msg_ret1);
 
   enqueue_exit_pid(publisher_pid);
 
@@ -858,7 +858,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   union ioctl_get_subscriber_num_args ioctl_get_subscriber_num_ret;
   int ret3 =
-    get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns & ioctl_get_subscriber_num_ret);
+    get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns,  & ioctl_get_subscriber_num_ret);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -868,29 +868,29 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
   KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
-  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME));
-  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME), 1);
-  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_nspublisher_id));
+  KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
+  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
+  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
   KUNIT_ASSERT_EQ(test, ioctl_get_subscriber_num_ret.ret_subscriber_num, 2);
   KUNIT_ASSERT_TRUE(
-    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id1));
+    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1));
   KUNIT_ASSERT_TRUE(
-    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id2));
-  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME), 1);
+    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2));
+  KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_EQ(
     test,
     get_entry_rc(
-      TOPIC_NAME, current->nsproxy->ipc_nsioctl_publish_msg_ret.ret_entry_id, publisher_id),
+      TOPIC_NAME, current->nsproxy->ipc_ns, ioctl_publish_msg_ret.ret_entry_id, publisher_id),
     0);
   KUNIT_ASSERT_EQ(
     test,
     get_entry_rc(
-      TOPIC_NAME, current->nsproxy->ipc_nsioctl_publish_msg_ret.ret_entry_id, subscriber_id1),
+      TOPIC_NAME, current->nsproxy->ipc_ns, ioctl_publish_msg_ret.ret_entry_id, subscriber_id1),
     1);
   KUNIT_ASSERT_EQ(
     test,
     get_entry_rc(
-      TOPIC_NAME, current->nsproxy->ipc_nsioctl_publish_msg_ret.ret_entry_id, subscriber_id2),
+      TOPIC_NAME, current->nsproxy->ipc_ns, ioctl_publish_msg_ret.ret_entry_id, subscriber_id2),
     0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_addr, msg_addr);
@@ -901,7 +901,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   // Act
   union ioctl_take_msg_args ioctl_take_msg_ret2;
   int ret4 = take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_nssubscriber_id2, allow_same_message, &ioctl_take_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
