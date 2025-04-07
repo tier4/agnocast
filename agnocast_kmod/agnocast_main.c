@@ -96,7 +96,6 @@ struct topic_wrapper
 {
   const struct ipc_namespace *
     ipc_ns;  // For use in separating topic namespaces when using containers.
-  struct ipc_namespace * ipc_ns;  // For use in separating topic namespaces when using containers.
   char * key;
   struct topic_struct topic;
   struct hlist_node node;
@@ -136,14 +135,9 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 
   return local_pid;
 }
-
-static bool ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
-{
-  return ipc_ns1 == ipc_ns2;
-}
 #endif
 
-static int ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
+static bool ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
 {
   return ipc_ns1 == ipc_ns2;
 }
