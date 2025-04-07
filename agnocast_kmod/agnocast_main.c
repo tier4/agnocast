@@ -34,7 +34,7 @@ static DEFINE_MUTEX(global_mutex);
 #define PUB_INFO_HASH_BITS 3
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
-#define PROC_INFO_FOR_EXIT_HASH_BITS 10
+#define PROC_INFO_FOR_UNLINK_HASH_BITS 10
 
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
@@ -55,7 +55,7 @@ struct process_info
 
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 
-struct process_info_for_exit
+struct process_info_for_unlink
 {
   bool exited;
 #ifndef KUNIT_BUILD
@@ -66,7 +66,7 @@ struct process_info_for_exit
   struct hlist_node node;
 };
 
-DEFINE_HASHTABLE(proc_info_for_exit_htable, PROC_INFO_FOR_EXIT_HASH_BITS);
+DEFINE_HASHTABLE(proc_info_for_unlink_htable, PROC_INFO_FOR_UNLINK_HASH_BITS);
 
 struct publisher_info
 {
@@ -1046,25 +1046,25 @@ int take_msg(
   return 0;
 }
 
-static int add_new_proc_info_for_exit(const pid_t pid, const struct ipc_namespace * ipc_ns)
+static int add_new_proc_info_for_unlink(const pid_t pid, const struct ipc_namespace * ipc_ns)
 {
-  struct process_info_for_exit * new_proc_info_for_exit =
-    kmalloc(sizeof(struct process_info_for_exit), GFP_KERNEL);
-  if (!new_proc_info_for_exit) {
-    dev_warn(agnocast_device, "kmalloc failed. (add_new_proc_info_for_exit)\n");
+  struct process_info_for_unlink * new_proc_info_for_unlink =
+    kmalloc(sizeof(struct process_info_for_unlink), GFP_KERNEL);
+  if (!new_proc_info_for_unlink) {
+    dev_warn(agnocast_device, "kmalloc failed. (add_new_proc_info_for_unlink)\n");
     return -ENOMEM;
   }
 
-  new_proc_info_for_exit->exited = false;
-  new_proc_info_for_exit->global_pid = pid;
+  new_proc_info_for_unlink->exited = false;
+  new_proc_info_for_unlink->global_pid = pid;
 #ifndef KUNIT_BUILD
-  new_proc_info_for_exit->local_pid = convert_pid_to_local(pid);
+  new_proc_info_for_unlink->local_pid = convert_pid_to_local(pid);
 #endif
-  new_proc_info_for_exit->ipc_ns = ipc_ns;
+  new_proc_info_for_unlink->ipc_ns = ipc_ns;
 
-  INIT_HLIST_NODE(&new_proc_info_for_exit->node);
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
-  hash_add(proc_info_for_exit_htable, &new_proc_info_for_exit->node, hash_val);
+  INIT_HLIST_NODE(&new_proc_info_for_unlink->node);
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
+  hash_add(proc_info_for_unlink_htable, &new_proc_info_for_unlink->node, hash_val);
 
   return 0;
 }
@@ -1108,7 +1108,7 @@ int new_shm_addr(
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
-  int ret = add_new_proc_info_for_exit(pid, ipc_ns);
+  int ret = add_new_proc_info_for_unlink(pid, ipc_ns);
   if (ret < 0) {
     return ret;
   }
@@ -1140,11 +1140,11 @@ int get_subscriber_num(
 
 static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
 {
-  struct process_info_for_exit * proc_info_for_exit;
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
-  hash_for_each_possible(proc_info_for_exit_htable, proc_info_for_exit, node, hash_val)
+  struct process_info_for_unlink * proc_info_for_unlink;
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
+  hash_for_each_possible(proc_info_for_unlink_htable, proc_info_for_unlink, node, hash_val)
   {
-    if (ipc_eq(ipc_ns, proc_info_for_exit->ipc_ns)) {
+    if (ipc_eq(ipc_ns, proc_info_for_unlink->ipc_ns)) {
       printk("check_daemon_necessity true");
       return true;
     }
@@ -1167,24 +1167,25 @@ static int get_exit_process(
   printk("get_exit_process");
 
   ioctl_ret->ret_exit_process_num = 0;
-  struct process_info_for_exit * proc_info_for_exit;
+  struct process_info_for_unlink * proc_info_for_unlink;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
-  hash_for_each_possible_safe(proc_info_for_exit_htable, proc_info_for_exit, tmp, node, hash_val)
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
+  hash_for_each_possible_safe(
+    proc_info_for_unlink_htable, proc_info_for_unlink, tmp, node, hash_val)
   {
-    if (!ipc_eq(proc_info_for_exit->ipc_ns, ipc_ns) || !proc_info_for_exit->exited) {
-      printk("process id:%d", proc_info_for_exit->global_pid);
+    if (!ipc_eq(proc_info_for_unlink->ipc_ns, ipc_ns) || !proc_info_for_unlink->exited) {
+      printk("process id:%d", proc_info_for_unlink->global_pid);
       continue;
     }
 
 #ifndef KUNIT_BUILD
-    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_exit->local_pid;
-    printk("get_exit_process:%d", proc_info_for_exit->local_pid);
+    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_unlink->local_pid;
+    printk("get_exit_process:%d", proc_info_for_unlink->local_pid);
 #else
-    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_exit->global_pid;
+    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_unlink->global_pid;
 #endif
-    hash_del(&proc_info_for_exit->node);
-    kfree(proc_info_for_exit);
+    hash_del(&proc_info_for_unlink->node);
+    kfree(proc_info_for_unlink);
     ioctl_ret->ret_exit_process_num++;
     if (ioctl_ret->ret_exit_process_num == MAX_EXIT_PROCESS_NUM) {
       break;
@@ -2001,12 +2002,12 @@ void process_exit_cleanup(const pid_t pid)
     }
   }
 
-  struct process_info_for_exit * proc_info_for_exit;
-  int bkt_proc_info_for_exit;
-  hash_for_each(proc_info_for_exit_htable, bkt_proc_info_for_exit, proc_info_for_exit, node)
+  struct process_info_for_unlink * proc_info_for_unlink;
+  int bkt_proc_info_for_unlink;
+  hash_for_each(proc_info_for_unlink_htable, bkt_proc_info_for_unlink, proc_info_for_unlink, node)
   {
-    if (proc_info_for_exit->global_pid == pid) {
-      proc_info_for_exit->exited = true;
+    if (proc_info_for_unlink->global_pid == pid) {
+      proc_info_for_unlink->exited = true;
       break;
     }
   }
