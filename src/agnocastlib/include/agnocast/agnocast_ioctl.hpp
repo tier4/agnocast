@@ -13,7 +13,7 @@ namespace agnocast
 #define MAX_QOS_DEPTH 10         // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3        // Maximum number of entries that can be released at one ioctl
 #define VERSION_BUFFER_LEN 32    // Maximum size of version number represented as a string
-#define MAX_EXIT_PROCESS_NUM 16  // Maximum number of pids of exited process for unlink daemon
+#define MAX_UNLINK_PROCESS_NUM 16  // Maximum number of pids of exited process for unlink daemon
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info

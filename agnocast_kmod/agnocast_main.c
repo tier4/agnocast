@@ -1187,7 +1187,7 @@ static int get_exit_process(
     hash_del(&proc_info_for_unlink->node);
     kfree(proc_info_for_unlink);
     ioctl_ret->ret_exit_process_num++;
-    if (ioctl_ret->ret_exit_process_num == MAX_EXIT_PROCESS_NUM) {
+    if (ioctl_ret->ret_exit_process_num == MAX_UNLINK_PROCESS_NUM) {
       break;
     }
   }
