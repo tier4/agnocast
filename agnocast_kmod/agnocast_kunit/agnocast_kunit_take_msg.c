@@ -125,8 +125,8 @@ void test_case_take_msg_take_one(struct kunit * test)
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -209,8 +209,8 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
@@ -258,8 +258,8 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
@@ -348,8 +348,8 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -437,8 +437,8 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   for (int i = 0; i < MAX_QOS_DEPTH - 1; i++) {
@@ -479,8 +479,8 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   topic_local_id_t subscriber_id;
@@ -836,8 +836,8 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   uint64_t msg_addr = 0x1000;
   union ioctl_publish_args ioctl_publish_msg_ret;
-  int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, &ioctl_publish_msg_ret);
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, &ioctl_publish_msg_ret);
 
   topic_local_id_t subscriber_id1;
   const pid_t subscriber_pid1 = 2000;
@@ -858,7 +858,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   union ioctl_get_subscriber_num_args ioctl_get_subscriber_num_ret;
   int ret3 =
-    get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns,  & ioctl_get_subscriber_num_ret);
+    get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns, &ioctl_get_subscriber_num_ret);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -870,7 +870,8 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
-  KUNIT_ASSERT_TRUE(test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
+  KUNIT_ASSERT_TRUE(
+    test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
   KUNIT_ASSERT_EQ(test, ioctl_get_subscriber_num_ret.ret_subscriber_num, 2);
   KUNIT_ASSERT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1));
