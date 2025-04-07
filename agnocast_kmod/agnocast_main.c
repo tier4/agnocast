@@ -62,7 +62,7 @@ struct process_info_for_exit
   pid_t local_pid;
 #endif
   pid_t global_pid;
-  struct ipc_namespace * ipc_ns;
+  const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
 };
 

@@ -237,7 +237,7 @@ int take_msg(
   const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret);
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
+int new_shm_addr(const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
 
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
