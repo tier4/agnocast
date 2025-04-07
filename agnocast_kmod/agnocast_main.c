@@ -1046,7 +1046,7 @@ int take_msg(
   return 0;
 }
 
-static int add_new_proc_info_for_exit(pid_t pid)
+static int add_new_proc_info_for_exit(const pid_t pid, const struct ipc_namespace * ipc_ns)
 {
   struct process_info_for_exit * new_proc_info_for_exit =
     kmalloc(sizeof(struct process_info_for_exit), GFP_KERNEL);
@@ -1060,16 +1060,18 @@ static int add_new_proc_info_for_exit(pid_t pid)
 #ifndef KUNIT_BUILD
   new_proc_info_for_exit->local_pid = convert_pid_to_local(pid);
 #endif
-  new_proc_info_for_exit->ipc_ns = current->nsproxy->ipc_ns;
+  new_proc_info_for_exit->ipc_ns = ipc_ns;
 
   INIT_HLIST_NODE(&new_proc_info_for_exit->node);
-  uint32_t hash_val = hash_min((uint64_t)current->nsproxy->ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
   hash_add(proc_info_for_exit_htable, &new_proc_info_for_exit->node, hash_val);
 
   return 0;
 }
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+int new_shm_addr(
+  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
+  union ioctl_new_shm_args * ioctl_ret)
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
@@ -1106,7 +1108,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
-  int ret = add_new_proc_info_for_exit(pid);
+  int ret = add_new_proc_info_for_exit(pid, ipc_ns);
   if (ret < 0) {
     return ret;
   }
@@ -1136,13 +1138,13 @@ int get_subscriber_num(
   return 0;
 }
 
-static bool check_daemon_necessity(void)
+static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
 {
   struct process_info_for_exit * proc_info_for_exit;
-  uint32_t hash_val = hash_min((uint64_t)current->nsproxy->ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
   hash_for_each_possible(proc_info_for_exit_htable, proc_info_for_exit, node, hash_val)
   {
-    if (ipc_eq(current->nsproxy->ipc_ns, proc_info_for_exit->ipc_ns)) {
+    if (ipc_eq(ipc_ns, proc_info_for_exit->ipc_ns)) {
       printk("check_daemon_necessity true");
       return true;
     }
@@ -1152,25 +1154,25 @@ static bool check_daemon_necessity(void)
   return false;
 }
 
-static int check_unlink_daemon_exist(struct ioctl_check_unlink_daemon_args * ioctl_ret)
+static int check_unlink_daemon_exist(
+  const struct ipc_namespace * ipc_ns, struct ioctl_check_unlink_daemon_args * ioctl_ret)
 {
-  ioctl_ret->ret_exist = check_daemon_necessity();
+  ioctl_ret->ret_exist = check_daemon_necessity(ipc_ns);
   return 0;
 }
 
-static int get_exit_process(struct ioctl_get_exit_process_args * ioctl_ret)
+static int get_exit_process(
+  const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
 {
   printk("get_exit_process");
 
   ioctl_ret->ret_exit_process_num = 0;
   struct process_info_for_exit * proc_info_for_exit;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min((uint64_t)current->nsproxy->ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
+  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_EXIT_HASH_BITS);
   hash_for_each_possible_safe(proc_info_for_exit_htable, proc_info_for_exit, tmp, node, hash_val)
   {
-    if (
-      !ipc_eq(proc_info_for_exit->ipc_ns, current->nsproxy->ipc_ns) ||
-      !proc_info_for_exit->exited) {
+    if (!ipc_eq(proc_info_for_exit->ipc_ns, ipc_ns) || !proc_info_for_exit->exited) {
       printk("process id:%d", proc_info_for_exit->global_pid);
       continue;
     }
@@ -1190,7 +1192,7 @@ static int get_exit_process(struct ioctl_get_exit_process_args * ioctl_ret)
   }
 
   printk("exit_process_num:%d", ioctl_ret->ret_exit_process_num);
-  ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity();
+  ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);
   return 0;
 }
 
@@ -1559,7 +1561,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     union ioctl_new_shm_args new_shm_args;
     if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
       goto return_EFAULT;
-    ret = new_shm_addr(pid, new_shm_args.shm_size, &new_shm_args);
+    ret = new_shm_addr(pid, ipc_ns, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
@@ -1588,14 +1590,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_CHECK_UNLINK_DAEMON_CMD) {
     struct ioctl_check_unlink_daemon_args check_unlink_daemon_args;
-    ret = check_unlink_daemon_exist(&check_unlink_daemon_args);
+    ret = check_unlink_daemon_exist(ipc_ns, &check_unlink_daemon_args);
     if (copy_to_user(
           (struct ioctl_check_unlink_daemon_args __user *)arg, &check_unlink_daemon_args,
           sizeof(check_unlink_daemon_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
     struct ioctl_get_exit_process_args get_exit_process_args;
-    ret = get_exit_process(&get_exit_process_args);
+    ret = get_exit_process(ipc_ns, &get_exit_process_args);
     if (copy_to_user(
           (struct ioctl_get_exit_process_args __user *)arg, &get_exit_process_args,
           sizeof(get_exit_process_args)))
