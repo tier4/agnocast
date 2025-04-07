@@ -146,7 +146,7 @@ static pid_t convert_pid_to_local(pid_t global_pid)
 }
 #endif
 
-static int ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
+static bool ipc_eq(const struct ipc_namespace * ipc_ns1, const struct ipc_namespace * ipc_ns2)
 {
   return ipc_ns1 == ipc_ns2;
 }
@@ -1439,7 +1439,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   mutex_lock(&global_mutex);
   int ret = 0;
   const pid_t pid = current->tgid;
-  struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
+  const struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
 
   if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
     union ioctl_subscriber_args sub_args;
@@ -1837,14 +1837,16 @@ bool is_in_publisher_htable(
   return true;
 }
 
-int get_topic_num(void)
+int get_topic_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct topic_wrapper * wrapper;
   int bkt_wrapper;
   hash_for_each(topic_hashtable, bkt_wrapper, wrapper, node)
   {
-    count++;
+    if (ipc_eq(wrapper->ipc_ns, ipc_ns)) {
+      count++;
+    }
   }
   return count;
 }
