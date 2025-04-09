@@ -746,7 +746,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
   KUNIT_ASSERT_FALSE(test, is_in_proc_info_htable(publisher_pid));
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
-  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_TRUE(

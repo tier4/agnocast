@@ -40,7 +40,7 @@ void test_case_subscriber_add_normal(struct kunit * test)
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 0);
   KUNIT_EXPECT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id));
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
 }
 
