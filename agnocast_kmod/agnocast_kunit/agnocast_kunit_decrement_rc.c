@@ -14,18 +14,18 @@ static void setup_one_publisher(
 {
   const pid_t PUBLISHER_PID = 2000;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(PUBLISHER_PID, PAGE_SIZE, &new_shm_args);
-  union ioctl_publisher_args publisher_args;
-  int ret2 = publisher_add(
+  union ioctl_get_new_shm_args get_new_shm_args;
+  int ret1 = get_new_shm_addr(PUBLISHER_PID, PAGE_SIZE, &get_new_shm_args);
+  union ioctl_add_publisher_args add_publisher_args;
+  int ret2 = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, PUBLISHER_PID, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+    QOS_IS_TRANSIENT_LOCAL, &add_publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  *ret_addr = new_shm_args.ret_addr;
-  *ret_publisher_id = publisher_args.ret_id;
+  *ret_addr = get_new_shm_args.ret_addr;
+  *ret_publisher_id = add_publisher_args.ret_id;
 }
 
 void test_case_decrement_rc_no_topic(struct kunit * test)
@@ -60,17 +60,17 @@ void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret0 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_args);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret0, 0);
   int ret1 = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_args.ret_entry_id);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   // Act
   int ret_sut = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_args.ret_entry_id);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret_sut, -EINVAL);
@@ -85,20 +85,20 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_args);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   // Act
   int ret_sut = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_args.ret_entry_id);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret_sut, 0);
   KUNIT_EXPECT_EQ(
     test,
-    get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, publish_args.ret_entry_id, ret_publisher_id),
+    get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id, ret_publisher_id),
     0);
 }
 
@@ -111,34 +111,34 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret1 =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_args);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const pid_t subscriber_pid = 1000;
-  union ioctl_new_shm_args new_shm_args;
-  int ret2 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_get_new_shm_args get_new_shm_args;
+  int ret2 = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  union ioctl_subscriber_args subscriber_args;
-  int ret3 = subscriber_add(
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret3 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, false, &subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, false, &add_subscriber_args);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   int ret4 = increment_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id, publish_args.ret_entry_id);
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, publish_msg_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret4, 0);
 
   // Act
   int ret_sut = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id, publish_args.ret_entry_id);
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, publish_msg_args.ret_entry_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret_sut, 0);
   KUNIT_EXPECT_EQ(
     test,
-    get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, publish_args.ret_entry_id, ret_publisher_id),
+    get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id, ret_publisher_id),
     1);
 }

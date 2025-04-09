@@ -16,10 +16,10 @@ static const bool IS_TAKE_SUB = false;
 
 static void setup_processes(struct kunit * test, const int process_num)
 {
-  union ioctl_new_shm_args ioctl_ret;
+  union ioctl_get_new_shm_args ioctl_ret;
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
-    int ret = new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
+    int ret = get_new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
     KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(pid));
   }
@@ -28,8 +28,8 @@ static void setup_processes(struct kunit * test, const int process_num)
 
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {
-  union ioctl_new_shm_args ioctl_ret;
-  int ret = new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
+  union ioctl_get_new_shm_args ioctl_ret;
+  int ret = get_new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(pid));
@@ -39,46 +39,46 @@ static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 
 static topic_local_id_t setup_one_publisher(struct kunit * test, const pid_t publisher_pid)
 {
-  union ioctl_publisher_args publisher_args;
-  int ret = publisher_add(
+  union ioctl_add_publisher_args add_publisher_args;
+  int ret = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, &publisher_args);
+    QOS_IS_TRANSIENT_LOCAL, &add_publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_ASSERT_TRUE(
-    test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_args.ret_id));
+    test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, add_publisher_args.ret_id));
 
-  return publisher_args.ret_id;
+  return add_publisher_args.ret_id;
 }
 
 static topic_local_id_t setup_one_subscriber(struct kunit * test, const pid_t subscriber_pid)
 {
-  union ioctl_subscriber_args subscriber_args;
-  int ret = subscriber_add(
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_ASSERT_TRUE(
-    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id));
+    test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id));
 
-  return subscriber_args.ret_id;
+  return add_subscriber_args.ret_id;
 }
 
 static uint64_t setup_one_entry(
   struct kunit * test, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address)
 {
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &publish_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(
-    test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, publish_args.ret_entry_id));
+    test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id));
 
-  return publish_args.ret_entry_id;
+  return publish_msg_args.ret_entry_id;
 }
 
 void test_case_do_exit(struct kunit * test)

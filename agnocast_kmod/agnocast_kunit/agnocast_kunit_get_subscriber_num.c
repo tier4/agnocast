@@ -13,13 +13,13 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
 {
   subscriber_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_get_new_shm_args get_new_shm_args;
+  int ret1 = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
 
-  union ioctl_subscriber_args subscriber_args;
-  int ret2 = subscriber_add(
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret2 = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
-    qos_is_transient_local, is_take_sub, &subscriber_args);
+    qos_is_transient_local, is_take_sub, &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -29,13 +29,13 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
 {
   publisher_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_get_new_shm_args get_new_shm_args;
+  int ret1 = get_new_shm_addr(publisher_pid, PAGE_SIZE, &get_new_shm_args);
 
-  union ioctl_publisher_args publisher_args;
-  int ret2 = publisher_add(
+  union ioctl_add_publisher_args add_publisher_args;
+  int ret2 = add_publisher(
     topic_name, current->nsproxy->ipc_ns, node_name, publisher_pid, qos_depth,
-    qos_is_transient_local, &publisher_args);
+    qos_is_transient_local, &add_publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);

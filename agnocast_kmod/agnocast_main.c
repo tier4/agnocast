@@ -553,7 +553,7 @@ int decrement_message_entry_rc(
 
 static int insert_message_entry(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
-  union ioctl_publish_args * ioctl_ret)
+  union ioctl_publish_msg_args * ioctl_ret)
 {
   struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   if (!new_node) {
@@ -691,10 +691,10 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-int subscriber_add(
+int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret)
 {
   int ret;
 
@@ -716,10 +716,10 @@ int subscriber_add(
   return 0;
 }
 
-int publisher_add(
+int add_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  union ioctl_publisher_args * ioctl_ret)
+  union ioctl_add_publisher_args * ioctl_ret)
 {
   int ret;
 
@@ -751,7 +751,7 @@ int publisher_add(
 
 static int release_msgs_to_meet_depth(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info,
-  union ioctl_publish_args * ioctl_ret)
+  union ioctl_publish_msg_args * ioctl_ret)
 {
   ioctl_ret->ret_released_num = 0;
 
@@ -912,7 +912,7 @@ int receive_msg(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
+  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
@@ -1037,23 +1037,23 @@ int take_msg(
   return 0;
 }
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+int get_new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_get_new_shm_args * ioctl_ret)
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (get_new_shm_addr)\n", shm_size,
       PAGE_SIZE);
     return -EINVAL;
   }
 
   if (find_process_info(pid)) {
-    dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (get_new_shm_addr)\n", pid);
     return -EINVAL;
   }
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (get_new_shm_addr)\n");
     return -ENOMEM;
   }
 
@@ -1064,7 +1064,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
   if (!new_proc_info->mempool_entry) {
     dev_warn(
       agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (new_shm_addr)\n", pid,
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (get_new_shm_addr)\n", pid,
       shm_size);
     kfree(new_proc_info);
     return -ENOMEM;
@@ -1343,11 +1343,24 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   const pid_t pid = current->tgid;
   const struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
 
-  if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
-    union ioctl_subscriber_args sub_args;
+  if (cmd == AGNOCAST_GET_VERSION_CMD) {
+    struct ioctl_get_version_args get_version_args;
+    ret = get_version(&get_version_args);
+    if (copy_to_user(
+          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_NEW_SHM_CMD) {
+    union ioctl_get_new_shm_args get_new_shm_args;
+    if (copy_from_user(&get_new_shm_args, (union ioctl_get_new_shm_args __user *)arg, sizeof(get_new_shm_args)))
+      goto return_EFAULT;
+    ret = get_new_shm_addr(pid, get_new_shm_args.shm_size, &get_new_shm_args);
+    if (copy_to_user((union ioctl_get_new_shm_args __user *)arg, &get_new_shm_args, sizeof(get_new_shm_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
+    union ioctl_add_subscriber_args sub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     char node_name_buf[NODE_NAME_BUFFER_SIZE];
-    if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
+    if (copy_from_user(&sub_args, (union ioctl_add_subscriber_args __user *)arg, sizeof(sub_args)))
       goto return_EFAULT;
     if (
       sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
@@ -1361,16 +1374,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_name_buf, (char __user *)sub_args.node_name.ptr, sub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[sub_args.node_name.len] = '\0';
-    ret = subscriber_add(
+    ret = add_subscriber(
       topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
       sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
-    if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
+    if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
-    union ioctl_publisher_args pub_args;
+  } else if (cmd == AGNOCAST_ADD_PUBLISHER_CMD) {
+    union ioctl_add_publisher_args pub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     char node_name_buf[NODE_NAME_BUFFER_SIZE];
-    if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
+    if (copy_from_user(&pub_args, (union ioctl_add_publisher_args __user *)arg, sizeof(pub_args)))
       goto return_EFAULT;
     if (
       pub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
@@ -1384,10 +1397,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_name_buf, (char __user *)pub_args.node_name.ptr, pub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[pub_args.node_name.len] = '\0';
-    ret = publisher_add(
+    ret = add_publisher(
       topic_name_buf, ipc_ns, node_name_buf, pid, pub_args.qos_depth,
       pub_args.qos_is_transient_local, &pub_args);
-    if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
+    if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
@@ -1432,19 +1445,19 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
-    union ioctl_publish_args publish_args;
+    union ioctl_publish_msg_args publish_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-    if (copy_from_user(&publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args)))
+    if (copy_from_user(&publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
       goto return_EFAULT;
-    if (publish_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    if (publish_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
     if (copy_from_user(
-          topic_name_buf, (char __user *)publish_args.topic_name.ptr, publish_args.topic_name.len))
+          topic_name_buf, (char __user *)publish_msg_args.topic_name.ptr, publish_msg_args.topic_name.len))
       goto return_EFAULT;
-    topic_name_buf[publish_args.topic_name.len] = '\0';
+    topic_name_buf[publish_msg_args.topic_name.len] = '\0';
     ret = publish_msg(
-      topic_name_buf, ipc_ns, publish_args.publisher_id, publish_args.msg_virtual_address,
-      &publish_args);
-    if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
+      topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
+      &publish_msg_args);
+    if (copy_to_user((union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
@@ -1459,19 +1472,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = take_msg(
       topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, &take_args);
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
-      goto return_EFAULT;
-  } else if (cmd == AGNOCAST_NEW_SHM_CMD) {
-    union ioctl_new_shm_args new_shm_args;
-    if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
-      goto return_EFAULT;
-    ret = new_shm_addr(pid, new_shm_args.shm_size, &new_shm_args);
-    if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
-      goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
-    struct ioctl_get_version_args get_version_args;
-    ret = get_version(&get_version_args);
-    if (copy_to_user(
-          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;

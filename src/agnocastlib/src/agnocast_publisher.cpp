@@ -43,12 +43,12 @@ topic_local_id_t initialize_publisher(
 {
   validate_ld_preload();
 
-  union ioctl_publisher_args pub_args = {};
+  union ioctl_add_publisher_args pub_args = {};
   pub_args.topic_name = {topic_name.c_str(), topic_name.size()};
   pub_args.node_name = {node_name.c_str(), node_name.size()};
   pub_args.qos_depth = qos.depth();
   pub_args.qos_is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-  if (ioctl(agnocast_fd, AGNOCAST_PUBLISHER_ADD_CMD, &pub_args) < 0) {
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PUBLISHER_CMD, &pub_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISHER_ADD_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -57,16 +57,16 @@ topic_local_id_t initialize_publisher(
   return pub_args.ret_id;
 }
 
-union ioctl_publish_args publish_core(
+union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
 {
-  union ioctl_publish_args publish_args = {};
-  publish_args.topic_name = {topic_name.c_str(), topic_name.size()};
-  publish_args.publisher_id = publisher_id;
-  publish_args.msg_virtual_address = msg_virtual_address;
-  if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_args) < 0) {
+  union ioctl_publish_msg_args publish_msg_args = {};
+  publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};
+  publish_msg_args.publisher_id = publisher_id;
+  publish_msg_args.msg_virtual_address = msg_virtual_address;
+  if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_msg_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -75,11 +75,11 @@ union ioctl_publish_args publish_core(
 #ifdef TRACETOOLS_LTTNG_ENABLED
   TRACEPOINT(
     agnocast_publish, publisher_handle, reinterpret_cast<const void *>(msg_virtual_address),
-    publish_args.ret_entry_id);
+    publish_msg_args.ret_entry_id);
 #endif
 
-  for (uint32_t i = 0; i < publish_args.ret_subscriber_num; i++) {
-    const topic_local_id_t subscriber_id = publish_args.ret_subscriber_ids[i];
+  for (uint32_t i = 0; i < publish_msg_args.ret_subscriber_num; i++) {
+    const topic_local_id_t subscriber_id = publish_msg_args.ret_subscriber_ids[i];
 
     const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
     mqd_t mq = 0;
@@ -127,7 +127,7 @@ union ioctl_publish_args publish_core(
     }
   }
 
-  return publish_args;
+  return publish_msg_args;
 }
 
 uint32_t get_subscription_count_core(const std::string & topic_name)

@@ -1,7 +1,7 @@
 #pragma once
 #include <kunit/test.h>
 
-#define TEST_CASES_NEW_SHM                                                          \
+#define TEST_CASES_GET_NEW_SHM                                                      \
   KUNIT_CASE(test_case_new_shm_normal), KUNIT_CASE(test_case_new_shm_many),         \
     KUNIT_CASE(test_case_new_shm_not_aligned), KUNIT_CASE(test_case_new_shm_twice), \
     KUNIT_CASE(test_case_new_shm_too_big), KUNIT_CASE(test_case_new_shm_too_many)
