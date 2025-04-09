@@ -1035,6 +1035,22 @@ int take_msg(
   return 0;
 }
 
+static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
+{
+  struct process_info * proc_info;
+  int bkt;
+  hash_for_each(proc_info_htable, bkt, proc_info, node)
+  {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
+      printk("check_daemon_necessity true");
+      return true;
+    }
+  }
+
+  printk("check_daemon_necessity false");
+  return false;
+}
+
 int new_shm_addr(
   const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
   union ioctl_new_shm_args * ioctl_ret)
@@ -1050,6 +1066,7 @@ int new_shm_addr(
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
     return -EINVAL;
   }
+  ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
@@ -1105,29 +1122,6 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
-  return 0;
-}
-
-static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
-{
-  struct process_info * proc_info;
-  int bkt;
-  hash_for_each(proc_info_htable, bkt, proc_info, node)
-  {
-    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
-      printk("check_daemon_necessity true");
-      return true;
-    }
-  }
-
-  printk("check_daemon_necessity false");
-  return false;
-}
-
-static int check_unlink_daemon_exist(
-  const struct ipc_namespace * ipc_ns, struct ioctl_check_unlink_daemon_args * ioctl_ret)
-{
-  ioctl_ret->ret_exist = check_daemon_necessity(ipc_ns);
   return 0;
 }
 
@@ -1553,13 +1547,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
-      goto return_EFAULT;
-  } else if (cmd == AGNOCAST_CHECK_UNLINK_DAEMON_CMD) {
-    struct ioctl_check_unlink_daemon_args check_unlink_daemon_args;
-    ret = check_unlink_daemon_exist(ipc_ns, &check_unlink_daemon_args);
-    if (copy_to_user(
-          (struct ioctl_check_unlink_daemon_args __user *)arg, &check_unlink_daemon_args,
-          sizeof(check_unlink_daemon_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
     struct ioctl_get_exit_process_args get_exit_process_args;

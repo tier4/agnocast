@@ -19,18 +19,6 @@ std::mutex shm_fds_mtx;
 
 void call_unlink_periodically()
 {
-  // struct sigaction sa;
-
-  // sa.sa_handler = SIG_IGN;
-  // sigemptyset(&sa.sa_mask);
-  // sa.sa_flags = 0;
-
-  // if (sigaction(SIGINT, &sa, NULL) == -1) {
-  // RCLCPP_ERROR(logger, "sigaction failed: %s", strerror(errno));
-  // close(agnocast_fd);
-  // exit(EXIT_FAILURE);
-  //}
-
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
     exit(EXIT_FAILURE);
@@ -58,33 +46,6 @@ void call_unlink_periodically()
   }
 
   exit(0);
-}
-
-void init_unlink_daemon()
-{
-  struct ioctl_check_unlink_daemon_args check_unlink_daemon_args = {};
-  if (ioctl(agnocast_fd, AGNOCAST_CHECK_UNLINK_DAEMON_CMD, &check_unlink_daemon_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_CHECK_UNLINK_DAEMON_CMD failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  if (!check_unlink_daemon_args.ret_exist) {
-    pid_t pid;
-    pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      exit(EXIT_FAILURE);
-    }
-
-    // Create a daemon process for shm_unlink
-    if (pid == 0) {
-      call_unlink_periodically();
-    } else {  // for DEBUG
-      RCLCPP_INFO(logger, "daemon pid: %d", pid);
-    }
-  }
 }
 
 struct semver
@@ -292,15 +253,29 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
-  init_unlink_daemon();
-
   union ioctl_new_shm_args new_shm_args = {};
   new_shm_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
+  if (!new_shm_args.ret_unlink_daemon_exist) {
+    pid_t pid;
+    pid = fork();
+
+    if (pid < 0) {
+      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+      call_unlink_periodically();
+    } else {  // for DEBUG
+      RCLCPP_INFO(logger, "daemon pid: %d", pid);
+    }
   }
 
   return map_writable_area(getpid(), new_shm_args.ret_addr, shm_size);
