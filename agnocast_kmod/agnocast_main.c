@@ -1042,12 +1042,10 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
   hash_for_each(proc_info_htable, bkt, proc_info, node)
   {
     if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
-      printk("check_daemon_necessity true");
       return true;
     }
   }
 
-  printk("check_daemon_necessity false");
   return false;
 }
 
@@ -1128,8 +1126,6 @@ int get_subscriber_num(
 static int get_exit_process(
   const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
 {
-  printk("get_exit_process");
-
   ioctl_ret->ret_exit_process_num = 0;
   struct process_info * proc_info;
   int bkt;
@@ -1137,12 +1133,10 @@ static int get_exit_process(
   hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
   {
     if (!ipc_eq(proc_info->ipc_ns, ipc_ns) || !proc_info->exited) {
-      printk("process id:%d", proc_info->global_pid);
       continue;
     }
 
     ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info->local_pid;
-    printk("get_exit_process:%d", proc_info->local_pid);
     hash_del(&proc_info->node);
     kfree(proc_info);
     ioctl_ret->ret_exit_process_num++;
@@ -1151,7 +1145,6 @@ static int get_exit_process(
     }
   }
 
-  printk("exit_process_num:%d", ioctl_ret->ret_exit_process_num);
   ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);
   return 0;
 }

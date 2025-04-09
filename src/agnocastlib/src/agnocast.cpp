@@ -273,8 +273,6 @@ void * initialize_agnocast(
 
     if (pid == 0) {
       call_unlink_periodically();
-    } else {  // for DEBUG
-      RCLCPP_INFO(logger, "daemon pid: %d", pid);
     }
   }
 
