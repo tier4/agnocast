@@ -1862,7 +1862,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
         if (pub_info->id == en->publisher_id) {
-          struct process_info * proc_info = find_process_info(pub_info->pid);
+          const struct process_info * proc_info = find_process_info(pub_info->pid);
           if (!proc_info || proc_info->exited) {
             publisher_exited = true;
           }
