@@ -1041,8 +1041,8 @@ int get_new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_get_new_shm
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (get_new_shm_addr)\n", shm_size,
-      PAGE_SIZE);
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (get_new_shm_addr)\n",
+      shm_size, PAGE_SIZE);
     return -EINVAL;
   }
 
@@ -1351,10 +1351,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_NEW_SHM_CMD) {
     union ioctl_get_new_shm_args get_new_shm_args;
-    if (copy_from_user(&get_new_shm_args, (union ioctl_get_new_shm_args __user *)arg, sizeof(get_new_shm_args)))
+    if (copy_from_user(
+          &get_new_shm_args, (union ioctl_get_new_shm_args __user *)arg, sizeof(get_new_shm_args)))
       goto return_EFAULT;
     ret = get_new_shm_addr(pid, get_new_shm_args.shm_size, &get_new_shm_args);
-    if (copy_to_user((union ioctl_get_new_shm_args __user *)arg, &get_new_shm_args, sizeof(get_new_shm_args)))
+    if (copy_to_user(
+          (union ioctl_get_new_shm_args __user *)arg, &get_new_shm_args, sizeof(get_new_shm_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
     union ioctl_add_subscriber_args sub_args;
@@ -1447,17 +1449,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
     union ioctl_publish_msg_args publish_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-    if (copy_from_user(&publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
+    if (copy_from_user(
+          &publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
       goto return_EFAULT;
     if (publish_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
     if (copy_from_user(
-          topic_name_buf, (char __user *)publish_msg_args.topic_name.ptr, publish_msg_args.topic_name.len))
+          topic_name_buf, (char __user *)publish_msg_args.topic_name.ptr,
+          publish_msg_args.topic_name.len))
       goto return_EFAULT;
     topic_name_buf[publish_msg_args.topic_name.len] = '\0';
     ret = publish_msg(
       topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
       &publish_msg_args);
-    if (copy_to_user((union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
+    if (copy_to_user(
+          (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
