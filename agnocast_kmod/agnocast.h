@@ -254,8 +254,8 @@ void enqueue_exit_pid(const pid_t pid);
 // helper functions for KUnit test
 
 #ifdef KUNIT_BUILD
-int get_proc_info_htable_size(void);
-bool is_in_proc_info_htable(const pid_t pid);
+int get_alive_proc_num(void);
+bool is_proc_exit(const pid_t pid);
 int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 int64_t get_latest_received_entry_id(
   const char * topic_name, const struct ipc_namespace * ipc_ns,

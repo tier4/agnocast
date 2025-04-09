@@ -13,7 +13,7 @@ static const bool IS_TAKE_SUB = false;
 static void setup_process(struct kunit * test, const pid_t pid)
 {
   union ioctl_new_shm_args new_shm_args;
-  int ret = new_shm_addr(pid, PAGE_SIZE, &new_shm_args);
+  int ret = new_shm_addr(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &new_shm_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
@@ -24,8 +24,8 @@ void test_case_subscriber_add_normal(struct kunit * test)
   const pid_t subscriber_pid = 1000;
   const uint32_t qos_depth = 1;
   setup_process(test, subscriber_pid);
-  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 1);
-  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid));
+  KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 1);
+  KUNIT_ASSERT_FALSE(test, is_proc_exit(subscriber_pid));
 
   // Act
   int ret = subscriber_add(
@@ -40,7 +40,7 @@ void test_case_subscriber_add_normal(struct kunit * test)
   KUNIT_EXPECT_EQ(test, subscriber_args.ret_id, 0);
   KUNIT_EXPECT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_args.ret_id));
-  KUNIT_EXPECT_EQ(test, get_topic_num(), 1);
+  KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
 }
 
