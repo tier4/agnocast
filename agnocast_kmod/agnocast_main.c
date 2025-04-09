@@ -34,7 +34,6 @@ static DEFINE_MUTEX(global_mutex);
 #define PUB_INFO_HASH_BITS 3
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
-#define PROC_INFO_FOR_UNLINK_HASH_BITS 10
 
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
@@ -47,26 +46,16 @@ static DEFINE_MUTEX(global_mutex);
 
 struct process_info
 {
-  pid_t pid;
+  bool exited;
+  pid_t global_pid;
   uint64_t shm_size;
   struct mempool_entry * mempool_entry;
-  struct hlist_node node;
-};
-
-DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
-
-struct process_info_for_unlink
-{
-  bool exited;
-#ifndef KUNIT_BUILD
   pid_t local_pid;
-#endif
-  pid_t global_pid;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
 };
 
-DEFINE_HASHTABLE(proc_info_for_unlink_htable, PROC_INFO_FOR_UNLINK_HASH_BITS);
+DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
 
 struct publisher_info
 {
@@ -623,7 +612,7 @@ static struct process_info * find_process_info(const pid_t pid)
   uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
   {
-    if (proc_info->pid == pid) {
+    if (proc_info->global_pid == pid) {
       return proc_info;
     }
   }
@@ -645,7 +634,7 @@ static int set_publisher_shm_info(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -884,7 +873,7 @@ int receive_msg(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -1010,7 +999,7 @@ int take_msg(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -1046,29 +1035,6 @@ int take_msg(
   return 0;
 }
 
-static int add_new_proc_info_for_unlink(const pid_t pid, const struct ipc_namespace * ipc_ns)
-{
-  struct process_info_for_unlink * new_proc_info_for_unlink =
-    kmalloc(sizeof(struct process_info_for_unlink), GFP_KERNEL);
-  if (!new_proc_info_for_unlink) {
-    dev_warn(agnocast_device, "kmalloc failed. (add_new_proc_info_for_unlink)\n");
-    return -ENOMEM;
-  }
-
-  new_proc_info_for_unlink->exited = false;
-  new_proc_info_for_unlink->global_pid = pid;
-#ifndef KUNIT_BUILD
-  new_proc_info_for_unlink->local_pid = convert_pid_to_local(pid);
-#endif
-  new_proc_info_for_unlink->ipc_ns = ipc_ns;
-
-  INIT_HLIST_NODE(&new_proc_info_for_unlink->node);
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
-  hash_add(proc_info_for_unlink_htable, &new_proc_info_for_unlink->node, hash_val);
-
-  return 0;
-}
-
 int new_shm_addr(
   const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
   union ioctl_new_shm_args * ioctl_ret)
@@ -1091,7 +1057,8 @@ int new_shm_addr(
     return -ENOMEM;
   }
 
-  new_proc_info->pid = pid;
+  new_proc_info->exited = false;
+  new_proc_info->global_pid = pid;
   new_proc_info->shm_size = shm_size;
 
   new_proc_info->mempool_entry = assign_memory(pid, shm_size);
@@ -1104,14 +1071,17 @@ int new_shm_addr(
     return -ENOMEM;
   }
 
-  INIT_HLIST_NODE(&new_proc_info->node);
-  uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
-  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
+#ifndef KUNIT_BUILD
+  new_proc_info->local_pid = convert_pid_to_local(pid);
+#else
+  new_proc_info->local_pid = pid;
+#endif
 
-  int ret = add_new_proc_info_for_unlink(pid, ipc_ns);
-  if (ret < 0) {
-    return ret;
-  }
+  new_proc_info->ipc_ns = ipc_ns;
+
+  INIT_HLIST_NODE(&new_proc_info->node);
+  uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
+  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
   return 0;
@@ -1140,11 +1110,11 @@ int get_subscriber_num(
 
 static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
 {
-  struct process_info_for_unlink * proc_info_for_unlink;
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
-  hash_for_each_possible(proc_info_for_unlink_htable, proc_info_for_unlink, node, hash_val)
+  struct process_info * proc_info;
+  int bkt;
+  hash_for_each(proc_info_htable, bkt, proc_info, node)
   {
-    if (ipc_eq(ipc_ns, proc_info_for_unlink->ipc_ns)) {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
       printk("check_daemon_necessity true");
       return true;
     }
@@ -1167,25 +1137,20 @@ static int get_exit_process(
   printk("get_exit_process");
 
   ioctl_ret->ret_exit_process_num = 0;
-  struct process_info_for_unlink * proc_info_for_unlink;
+  struct process_info * proc_info;
+  int bkt;
   struct hlist_node * tmp;
-  uint32_t hash_val = hash_min((uint64_t)ipc_ns, PROC_INFO_FOR_UNLINK_HASH_BITS);
-  hash_for_each_possible_safe(
-    proc_info_for_unlink_htable, proc_info_for_unlink, tmp, node, hash_val)
+  hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
   {
-    if (!ipc_eq(proc_info_for_unlink->ipc_ns, ipc_ns) || !proc_info_for_unlink->exited) {
-      printk("process id:%d", proc_info_for_unlink->global_pid);
+    if (!ipc_eq(proc_info->ipc_ns, ipc_ns) || !proc_info->exited) {
+      printk("process id:%d", proc_info->global_pid);
       continue;
     }
 
-#ifndef KUNIT_BUILD
-    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_unlink->local_pid;
-    printk("get_exit_process:%d", proc_info_for_unlink->local_pid);
-#else
-    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info_for_unlink->global_pid;
-#endif
-    hash_del(&proc_info_for_unlink->node);
-    kfree(proc_info_for_unlink);
+    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info->local_pid;
+    printk("get_exit_process:%d", proc_info->local_pid);
+    hash_del(&proc_info->node);
+    kfree(proc_info);
     ioctl_ret->ret_exit_process_num++;
     if (ioctl_ret->ret_exit_process_num == MAX_UNLINK_PROCESS_NUM) {
       break;
@@ -1722,7 +1687,7 @@ bool is_in_proc_info_htable(const pid_t pid)
   struct process_info * proc_info;
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
   {
-    if (proc_info->pid == pid) {
+    if (proc_info->global_pid == pid) {
       return true;
     }
   }
@@ -1917,7 +1882,8 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
         if (pub_info->id == en->publisher_id) {
-          if (!find_process_info(pub_info->pid)) {
+          struct process_info * proc_info = find_process_info(pub_info->pid);
+          if (!proc_info || proc_info->exited) {
             publisher_exited = true;
           }
           break;
@@ -1996,20 +1962,9 @@ void process_exit_cleanup(const pid_t pid)
   bool agnocast_related = false;
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
-    if (proc_info->pid == pid) {
-      hash_del(&proc_info->node);
-      kfree(proc_info);
+    if (proc_info->global_pid == pid) {
+      proc_info->exited = true;
       agnocast_related = true;
-      break;
-    }
-  }
-
-  struct process_info_for_unlink * proc_info_for_unlink;
-  int bkt_proc_info_for_unlink;
-  hash_for_each(proc_info_for_unlink_htable, bkt_proc_info_for_unlink, proc_info_for_unlink, node)
-  {
-    if (proc_info_for_unlink->global_pid == pid) {
-      proc_info_for_unlink->exited = true;
       break;
     }
   }

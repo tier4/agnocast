@@ -154,7 +154,7 @@ struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
   uint32_t ret_exit_process_num;
-  pid_t ret_pids[MAX_EXIT_PROCESS_NUM];
+  pid_t ret_pids[MAX_UNLINK_PROCESS_NUM];
 };
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)

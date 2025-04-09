@@ -19,15 +19,20 @@ std::mutex shm_fds_mtx;
 
 void call_unlink_periodically()
 {
-  struct sigaction sa;
+  // struct sigaction sa;
 
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
+  // sa.sa_handler = SIG_IGN;
+  // sigemptyset(&sa.sa_mask);
+  // sa.sa_flags = 0;
 
-  if (sigaction(SIGINT, &sa, NULL) == -1) {
-    RCLCPP_ERROR(logger, "sigaction failed: %s", strerror(errno));
-    close(agnocast_fd);
+  // if (sigaction(SIGINT, &sa, NULL) == -1) {
+  // RCLCPP_ERROR(logger, "sigaction failed: %s", strerror(errno));
+  // close(agnocast_fd);
+  // exit(EXIT_FAILURE);
+  //}
+
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
@@ -76,7 +81,7 @@ void init_unlink_daemon()
     // Create a daemon process for shm_unlink
     if (pid == 0) {
       call_unlink_periodically();
-    } else {
+    } else {  // for DEBUG
       RCLCPP_INFO(logger, "daemon pid: %d", pid);
     }
   }
@@ -286,6 +291,9 @@ void * initialize_agnocast(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
+  init_unlink_daemon();
 
   union ioctl_new_shm_args new_shm_args = {};
   new_shm_args.shm_size = shm_size;
