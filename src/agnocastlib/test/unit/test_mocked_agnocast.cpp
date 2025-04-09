@@ -75,6 +75,7 @@ TEST_F(AgnocastPublisherTest, test_publish_normal)
 
   // Assert
   EXPECT_EQ(publish_core_mock_called_count, 1);
+  EXPECT_EQ(agnocast_get_borrowed_publisher_num(), 0);
 }
 
 TEST_F(AgnocastPublisherTest, test_publish_null_message)
@@ -114,6 +115,21 @@ TEST_F(AgnocastPublisherTest, test_publish_different_message)
   EXPECT_EXIT(
     dummy_publisher->publish(std::move(diff_message)), ::testing::ExitedWithCode(EXIT_FAILURE),
     "Invalid message to publish.");
+}
+
+TEST_F(AgnocastPublisherTest, test_publish_loan_num_and_pub_num_mismatch)
+{
+  // Arrange
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  message.reset();  // This simulates the early return.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> next_message =
+    dummy_publisher->borrow_loaned_message();
+
+  // Act
+  dummy_publisher->publish(std::move(next_message));
+
+  // Assert
+  EXPECT_EQ(agnocast_get_borrowed_publisher_num(), 0);
 }
 
 // =========================================
