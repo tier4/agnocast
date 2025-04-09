@@ -48,9 +48,9 @@ struct process_info
 {
   bool exited;
   pid_t global_pid;
+  pid_t local_pid;
   uint64_t shm_size;
   struct mempool_entry * mempool_entry;
-  pid_t local_pid;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
 };
@@ -1074,6 +1074,11 @@ int new_shm_addr(
 
   new_proc_info->exited = false;
   new_proc_info->global_pid = pid;
+#ifndef KUNIT_BUILD
+  new_proc_info->local_pid = convert_pid_to_local(pid);
+#else
+  new_proc_info->local_pid = pid;
+#endif
   new_proc_info->shm_size = shm_size;
 
   new_proc_info->mempool_entry = assign_memory(pid, shm_size);
@@ -1085,12 +1090,6 @@ int new_shm_addr(
     kfree(new_proc_info);
     return -ENOMEM;
   }
-
-#ifndef KUNIT_BUILD
-  new_proc_info->local_pid = convert_pid_to_local(pid);
-#else
-  new_proc_info->local_pid = pid;
-#endif
 
   new_proc_info->ipc_ns = ipc_ns;
 

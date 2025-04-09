@@ -17,7 +17,7 @@ int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
 
-void call_unlink_periodically()
+void poll_for_unlink()
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
@@ -272,7 +272,7 @@ void * initialize_agnocast(
     }
 
     if (pid == 0) {
-      call_unlink_periodically();
+      poll_for_unlink();
     }
   }
 
