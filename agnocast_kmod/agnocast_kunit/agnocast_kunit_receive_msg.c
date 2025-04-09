@@ -616,7 +616,8 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], get_new_shm_args.ret_addr);
+  KUNIT_EXPECT_EQ(
+    test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], get_new_shm_args.ret_addr);
 }
 
 void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
@@ -746,7 +747,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
   KUNIT_ASSERT_FALSE(test, is_in_proc_info_htable(publisher_pid));
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid1));
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid2));
-  KUNIT_ASSERT_EQ(test, get_topic_num(), 1);
+  KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_TRUE(
@@ -826,8 +827,8 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
         is_transient_local, IS_TAKE_SUB, &add_subscriber_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
       union ioctl_receive_msg_args receive_msg_ret;
-      ret =
-        receive_msg(topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_ret);
+      ret = receive_msg(
+        topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_ret);
       KUNIT_ASSERT_EQ(test, ret, 0);
       mmap_process_num++;
     }
@@ -848,7 +849,8 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
 
   // Act
   union ioctl_receive_msg_args receive_msg_ret;
-  ret = receive_msg(topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_ret);
+  ret =
+    receive_msg(topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
