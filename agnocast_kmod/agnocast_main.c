@@ -2,17 +2,11 @@
 #include "agnocast_memory_allocator.h"
 
 #include <linux/device.h>
-#include <linux/fs.h>
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
-#include <linux/namei.h>
-#include <linux/pid.h>
-#include <linux/rcupdate.h>
 #include <linux/slab.h>  // kmalloc, kfree
-#include <linux/spinlock.h>
-#include <linux/statfs.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
