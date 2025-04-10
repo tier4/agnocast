@@ -29,7 +29,7 @@ struct ioctl_get_version_args
   char ret_version[VERSION_BUFFER_LEN];
 };
 
-union ioctl_get_new_shm_args {
+union ioctl_add_process_args {
   uint64_t shm_size;
   uint64_t ret_addr;
 };
@@ -123,7 +123,7 @@ union ioctl_get_subscriber_num_args {
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
-#define AGNOCAST_GET_NEW_SHM_CMD _IOWR(0xA6, 2, union ioctl_get_new_shm_args)
+#define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
 #define AGNOCAST_ADD_PUBLISHER_CMD _IOWR(0xA6, 4, union ioctl_add_publisher_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 5, struct ioctl_update_entry_args)
@@ -191,7 +191,7 @@ void agnocast_exit_kthread(void);
 void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
-int get_new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_get_new_shm_args * ioctl_ret);
+int add_process(const pid_t pid, uint64_t shm_size, union ioctl_add_process_args * ioctl_ret);
 
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,

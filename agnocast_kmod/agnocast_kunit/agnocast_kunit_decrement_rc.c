@@ -14,8 +14,8 @@ static void setup_one_publisher(
 {
   const pid_t PUBLISHER_PID = 2000;
 
-  union ioctl_get_new_shm_args get_new_shm_args;
-  int ret1 = get_new_shm_addr(PUBLISHER_PID, PAGE_SIZE, &get_new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(PUBLISHER_PID, PAGE_SIZE, &add_process_args);
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, PUBLISHER_PID, QOS_DEPTH,
@@ -24,7 +24,7 @@ static void setup_one_publisher(
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  *ret_addr = get_new_shm_args.ret_addr;
+  *ret_addr = add_process_args.ret_addr;
   *ret_publisher_id = add_publisher_args.ret_id;
 }
 
@@ -118,8 +118,8 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const pid_t subscriber_pid = 1000;
-  union ioctl_get_new_shm_args get_new_shm_args;
-  int ret2 = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret2 = add_process(subscriber_pid, PAGE_SIZE, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_add_subscriber_args add_subscriber_args;
