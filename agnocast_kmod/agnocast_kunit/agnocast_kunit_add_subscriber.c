@@ -13,7 +13,7 @@ static const bool IS_TAKE_SUB = false;
 static void setup_process(struct kunit * test, const pid_t pid)
 {
   union ioctl_add_process_args add_process_args;
-  int ret = add_process(pid, PAGE_SIZE, &add_process_args);
+  int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 
@@ -24,8 +24,8 @@ void test_case_add_subscriber_normal(struct kunit * test)
   const pid_t subscriber_pid = 1000;
   const uint32_t qos_depth = 1;
   setup_process(test, subscriber_pid);
-  KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), 1);
-  KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(subscriber_pid));
+  KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 1);
+  KUNIT_ASSERT_FALSE(test, is_proc_exited(subscriber_pid));
 
   // Act
   int ret = add_subscriber(
