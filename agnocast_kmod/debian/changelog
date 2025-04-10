@@ -46,10 +46,10 @@ agnocast-kmod (1.0.2-1) jammy; urgency=medium
   * fix: init entry_id used in take_msg (`#521 <https://github.com/tier4/agnocast/issues/521>`_)
   * refactor: fix errno in take_msg (`#517 <https://github.com/tier4/agnocast/issues/517>`_)
   * test: add kunit test for receive_msg (`#498 <https://github.com/tier4/agnocast/issues/498>`_)
-  * test: add add_subscriber kunit test for too many mmap (`#514 <https://github.com/tier4/agnocast/issues/514>`_)
+  * test: add subscriber_add kunit test for too many mmap (`#514 <https://github.com/tier4/agnocast/issues/514>`_)
   * fix: skip transient_local procedures on take subscriber addition (`#512 <https://github.com/tier4/agnocast/issues/512>`_)
   * refactor: rename receive function and fix to appropriate errno (`#497 <https://github.com/tier4/agnocast/issues/497>`_)
-  * test: add add_subscriber kunit tests (`#506 <https://github.com/tier4/agnocast/issues/506>`_)
+  * test: add subscriber_add kunit tests (`#506 <https://github.com/tier4/agnocast/issues/506>`_)
   * fix: remove too much dmesg on kunit test (`#510 <https://github.com/tier4/agnocast/issues/510>`_)
   * fix: fix get_topic_entries_num bug (`#507 <https://github.com/tier4/agnocast/issues/507>`_)
 
