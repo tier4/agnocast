@@ -16,10 +16,10 @@ static const bool IS_TAKE_SUB = false;
 
 static void setup_processes(struct kunit * test, const int process_num)
 {
-  union ioctl_get_new_shm_args ioctl_ret;
+  union ioctl_add_process_args ioctl_ret;
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
-    int ret = get_new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
+    int ret = add_process(pid, PAGE_SIZE, &ioctl_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
     KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(pid));
   }
@@ -28,8 +28,8 @@ static void setup_processes(struct kunit * test, const int process_num)
 
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {
-  union ioctl_get_new_shm_args ioctl_ret;
-  int ret = get_new_shm_addr(pid, PAGE_SIZE, &ioctl_ret);
+  union ioctl_add_process_args ioctl_ret;
+  int ret = add_process(pid, PAGE_SIZE, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_proc_info_htable(pid));

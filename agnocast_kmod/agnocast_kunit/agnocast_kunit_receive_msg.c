@@ -14,8 +14,8 @@ static void setup_one_subscriber(
   struct kunit * test, pid_t subscriber_pid, uint32_t qos_depth, bool is_transient_local,
   topic_local_id_t * subscriber_id)
 {
-  union ioctl_get_new_shm_args get_new_shm_args;
-  int ret1 = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(subscriber_pid, PAGE_SIZE, &add_process_args);
 
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
@@ -31,9 +31,9 @@ static void setup_one_publisher(
   struct kunit * test, pid_t publisher_pid, uint32_t qos_depth, bool is_transient_local,
   topic_local_id_t * publisher_id, uint64_t * ret_addr)
 {
-  union ioctl_get_new_shm_args get_new_shm_args;
-  int ret1 = get_new_shm_addr(publisher_pid, PAGE_SIZE, &get_new_shm_args);
-  *ret_addr = get_new_shm_args.ret_addr;
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(publisher_pid, PAGE_SIZE, &add_process_args);
+  *ret_addr = add_process_args.ret_addr;
 
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = add_publisher(
@@ -549,9 +549,9 @@ void test_case_receive_msg_pubsub_in_same_process(struct kunit * test)
   // Arrange
   const bool is_transient_local = false;
 
-  union ioctl_get_new_shm_args get_new_shm_args;
+  union ioctl_add_process_args add_process_args;
   const pid_t pid = 1000;
-  int ret1 = get_new_shm_addr(pid, PAGE_SIZE, &get_new_shm_args);
+  int ret1 = add_process(pid, PAGE_SIZE, &add_process_args);
   union ioctl_add_subscriber_args add_subscriber_args;
   const uint32_t subscriber_qos_depth = 10;
   int ret2 = add_subscriber(
@@ -589,9 +589,9 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
-  union ioctl_get_new_shm_args get_new_shm_args;
+  union ioctl_add_process_args add_process_args;
   const pid_t publisher_pid = 1000;
-  int ret1 = get_new_shm_addr(publisher_pid, PAGE_SIZE, &get_new_shm_args);
+  int ret1 = add_process(publisher_pid, PAGE_SIZE, &add_process_args);
   union ioctl_add_publisher_args add_publisher_args1;
   const uint32_t publisher_qos_depth = 10;
   int ret2 = add_publisher(
@@ -617,7 +617,7 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_num, 1);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_pub_shm_info.publisher_pids[0], publisher_pid);
   KUNIT_EXPECT_EQ(
-    test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], get_new_shm_args.ret_addr);
+    test, ioctl_receive_msg_ret.ret_pub_shm_info.shm_addrs[0], add_process_args.ret_addr);
 }
 
 void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
@@ -625,9 +625,9 @@ void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
   // Arrange
   const bool is_transient_local = false;
 
-  union ioctl_get_new_shm_args get_new_shm_args;
+  union ioctl_add_process_args add_process_args;
   const pid_t subscriber_pid = 2000;
-  int ret1 = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
+  int ret1 = add_process(subscriber_pid, PAGE_SIZE, &add_process_args);
   union ioctl_add_subscriber_args add_subscriber_args1;
   const uint32_t subscriber_qos_depth1 = 10;
   int ret2 = add_subscriber(
@@ -803,8 +803,8 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   const uint32_t qos_depth = 1;
   const bool is_transient_local = false;
 
-  union ioctl_get_new_shm_args get_new_shm_args;
-  ret = get_new_shm_addr(publisher_pid, PAGE_SIZE, &get_new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  ret = add_process(publisher_pid, PAGE_SIZE, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   int mmap_process_num = 1;
@@ -819,7 +819,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
       if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
         break;
       }
-      ret = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
+      ret = add_process(subscriber_pid, PAGE_SIZE, &add_process_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
 
       ret = add_subscriber(
@@ -840,7 +840,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_EQ(test, get_proc_info_htable_size(), MAX_PROCESS_NUM_PER_MEMPOOL);
 
-  ret = get_new_shm_addr(subscriber_pid, PAGE_SIZE, &get_new_shm_args);
+  ret = add_process(subscriber_pid, PAGE_SIZE, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
   ret = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth, is_transient_local,

@@ -8,7 +8,7 @@ else
   ifeq ($(CONFIG_KUNIT)$(CONFIG_GCOV_KERNEL),yy)
     obj-m := agnocast_kunit.o
 	agnocast_kunit-objs := agnocast_kunit_main.o agnocast_main.o agnocast_memory_allocator.o\
-	  agnocast_kunit/agnocast_kunit_get_new_shm.o \
+	  agnocast_kunit/agnocast_kunit_add_process.o \
 	  agnocast_kunit/agnocast_kunit_add_subscriber.o \
 	  agnocast_kunit/agnocast_kunit_add_publisher.o \
 	  agnocast_kunit/agnocast_kunit_increment_rc.o \

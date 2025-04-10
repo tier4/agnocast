@@ -221,15 +221,15 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  union ioctl_get_new_shm_args get_new_shm_args = {};
-  get_new_shm_args.shm_size = shm_size;
-  if (ioctl(agnocast_fd, AGNOCAST_GET_NEW_SHM_CMD, &get_new_shm_args) < 0) {
+  union ioctl_add_process_args add_process_args = {};
+  add_process_args.shm_size = shm_size;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  return map_writable_area(getpid(), get_new_shm_args.ret_addr, shm_size);
+  return map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
 }
 
 static void shutdown_agnocast()

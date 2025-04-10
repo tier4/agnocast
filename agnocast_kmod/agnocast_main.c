@@ -1037,23 +1037,23 @@ int take_msg(
   return 0;
 }
 
-int get_new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_get_new_shm_args * ioctl_ret)
+int add_process(const pid_t pid, uint64_t shm_size, union ioctl_add_process_args * ioctl_ret)
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (get_new_shm_addr)\n",
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process_addr)\n",
       shm_size, PAGE_SIZE);
     return -EINVAL;
   }
 
   if (find_process_info(pid)) {
-    dev_warn(agnocast_device, "Process (pid=%d) already exists. (get_new_shm_addr)\n", pid);
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process_addr)\n", pid);
     return -EINVAL;
   }
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (get_new_shm_addr)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (add_process_addr)\n");
     return -ENOMEM;
   }
 
@@ -1064,7 +1064,7 @@ int get_new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_get_new_shm
   if (!new_proc_info->mempool_entry) {
     dev_warn(
       agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (get_new_shm_addr)\n", pid,
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process_addr)\n", pid,
       shm_size);
     kfree(new_proc_info);
     return -ENOMEM;
@@ -1349,14 +1349,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_to_user(
           (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_NEW_SHM_CMD) {
-    union ioctl_get_new_shm_args get_new_shm_args;
+  } else if (cmd == AGNOCAST_ADD_PROCESS_CMD) {
+    union ioctl_add_process_args add_process_args;
     if (copy_from_user(
-          &get_new_shm_args, (union ioctl_get_new_shm_args __user *)arg, sizeof(get_new_shm_args)))
+          &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
       goto return_EFAULT;
-    ret = get_new_shm_addr(pid, get_new_shm_args.shm_size, &get_new_shm_args);
+    ret = add_process(pid, add_process_args.shm_size, &add_process_args);
     if (copy_to_user(
-          (union ioctl_get_new_shm_args __user *)arg, &get_new_shm_args, sizeof(get_new_shm_args)))
+          (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
     union ioctl_add_subscriber_args sub_args;
