@@ -27,21 +27,21 @@ void poll_for_unlink()
 
   while (true) {
     sleep(1);
-    struct ioctl_get_exit_process_args get_exit_process_args = {};
-    if (ioctl(agnocast_fd, AGNOCAST_GET_EXIT_PROCESS_CMD, &get_exit_process_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_GET_EXIT_PROCESS_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
 
-    uint32_t i = 0;
-    while (i < get_exit_process_args.ret_exit_process_num) {
-      const std::string shm_name = create_shm_name(get_exit_process_args.ret_pids[i]);
+    do {
+      struct ioctl_get_exit_process_args get_exit_process_args = {};
+      if (ioctl(agnocast_fd, AGNOCAST_GET_EXIT_PROCESS_CMD, &get_exit_process_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_GET_EXIT_PROCESS_CMD failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
       shm_unlink(shm_name.c_str());
-      i++;
-    }
+    } while (get_exit_process_args.ret_pid > 0)
 
-    if (get_exit_process_args.ret_daemon_should_exit) {
+      if (get_exit_process_args.ret_daemon_should_exit)
+    {
       break;
     }
   }

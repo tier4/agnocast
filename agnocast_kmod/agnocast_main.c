@@ -1125,7 +1125,7 @@ int get_subscriber_num(
 static int get_exit_process(
   const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
 {
-  ioctl_ret->ret_exit_process_num = 0;
+  ioctl_ret->ret_pid = -1;
   struct process_info * proc_info;
   int bkt;
   struct hlist_node * tmp;
@@ -1135,13 +1135,9 @@ static int get_exit_process(
       continue;
     }
 
-    ioctl_ret->ret_pids[ioctl_ret->ret_exit_process_num] = proc_info->local_pid;
+    ioctl_ret->ret_pid = proc_info->local_pid;
     hash_del(&proc_info->node);
     kfree(proc_info);
-    ioctl_ret->ret_exit_process_num++;
-    if (ioctl_ret->ret_exit_process_num == MAX_UNLINK_PROCESS_NUM) {
-      break;
-    }
   }
 
   ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);

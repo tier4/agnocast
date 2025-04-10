@@ -8,12 +8,11 @@
 namespace agnocast
 {
 
-#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
-#define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
-#define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
-#define MAX_UNLINK_PROCESS_NUM 16  // Maximum number of pids of exited process for unlink daemon
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
+#define VERSION_BUFFER_LEN 32  // Maximum size of version number represented as a string
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
@@ -155,8 +154,7 @@ union ioctl_get_subscriber_num_args {
 struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
-  uint32_t ret_exit_process_num;
-  pid_t ret_pids[MAX_UNLINK_PROCESS_NUM];
+  pid_t ret_pid;
 };
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
