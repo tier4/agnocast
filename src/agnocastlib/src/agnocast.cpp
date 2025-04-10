@@ -270,7 +270,6 @@ void * initialize_agnocast(
     if (pid < 0) {
       RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
       close(agnocast_fd);
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
       exit(EXIT_FAILURE);
     }
 
