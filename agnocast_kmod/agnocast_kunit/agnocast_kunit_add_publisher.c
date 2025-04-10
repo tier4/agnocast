@@ -24,7 +24,7 @@ void test_case_add_publisher_normal(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_publisher_num(topic_name, current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(test, add_publisher_args.ret_id, 0);
   KUNIT_EXPECT_TRUE(
-    test, is_in_publisher_htable(topic_name, current->nsproxy->ipc_ns, publisher_args.ret_id));
+    test, is_in_publisher_htable(topic_name, current->nsproxy->ipc_ns, add_publisher_args.ret_id));
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(topic_name, current->nsproxy->ipc_ns));
 }
