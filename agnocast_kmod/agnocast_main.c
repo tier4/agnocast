@@ -44,16 +44,14 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of topic info ret
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
-#ifndef KUNIT_BUILD
-static int (*do_unlinkat)(int, struct filename *);
-static struct filename * (*getname_kernel_kmod)(char *);
-#endif
-
 struct process_info
 {
-  pid_t pid;
+  bool exited;
+  pid_t global_pid;
+  pid_t local_pid;
   uint64_t shm_size;
   struct mempool_entry * mempool_entry;
+  const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
 };
 
@@ -614,7 +612,7 @@ static struct process_info * find_process_info(const pid_t pid)
   uint32_t hash_val = hash_min(pid, PROC_INFO_HASH_BITS);
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
   {
-    if (proc_info->pid == pid) {
+    if (proc_info->global_pid == pid) {
       return proc_info;
     }
   }
@@ -636,7 +634,7 @@ static int set_publisher_shm_info(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -875,7 +873,7 @@ int receive_msg(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -1001,7 +999,7 @@ int take_msg(
     }
 
     const struct process_info * proc_info = find_process_info(pub_info->pid);
-    if (!proc_info) {
+    if (!proc_info || proc_info->exited) {
       continue;
     }
 
@@ -1037,7 +1035,23 @@ int take_msg(
   return 0;
 }
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret)
+static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
+{
+  struct process_info * proc_info;
+  int bkt;
+  hash_for_each(proc_info_htable, bkt, proc_info, node)
+  {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+int new_shm_addr(
+  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
+  union ioctl_new_shm_args * ioctl_ret)
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
@@ -1050,6 +1064,7 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
     return -EINVAL;
   }
+  ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
@@ -1057,7 +1072,13 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     return -ENOMEM;
   }
 
-  new_proc_info->pid = pid;
+  new_proc_info->exited = false;
+  new_proc_info->global_pid = pid;
+#ifndef KUNIT_BUILD
+  new_proc_info->local_pid = convert_pid_to_local(pid);
+#else
+  new_proc_info->local_pid = pid;
+#endif
   new_proc_info->shm_size = shm_size;
 
   new_proc_info->mempool_entry = assign_memory(pid, shm_size);
@@ -1070,8 +1091,10 @@ int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * 
     return -ENOMEM;
   }
 
+  new_proc_info->ipc_ns = ipc_ns;
+
   INIT_HLIST_NODE(&new_proc_info->node);
-  uint32_t hash_val = hash_min(new_proc_info->pid, PROC_INFO_HASH_BITS);
+  uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
@@ -1096,6 +1119,29 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
+  return 0;
+}
+
+static int get_exit_process(
+  const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
+{
+  ioctl_ret->ret_pid = -1;
+  struct process_info * proc_info;
+  int bkt;
+  struct hlist_node * tmp;
+  hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
+  {
+    if (!ipc_eq(proc_info->ipc_ns, ipc_ns) || !proc_info->exited) {
+      continue;
+    }
+
+    ioctl_ret->ret_pid = proc_info->local_pid;
+    hash_del(&proc_info->node);
+    kfree(proc_info);
+    break;
+  }
+
+  ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);
   return 0;
 }
 
@@ -1464,7 +1510,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     union ioctl_new_shm_args new_shm_args;
     if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
       goto return_EFAULT;
-    ret = new_shm_addr(pid, new_shm_args.shm_size, &new_shm_args);
+    ret = new_shm_addr(pid, ipc_ns, new_shm_args.shm_size, &new_shm_args);
     if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
@@ -1490,6 +1536,13 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
+    struct ioctl_get_exit_process_args get_exit_process_args;
+    ret = get_exit_process(ipc_ns, &get_exit_process_args);
+    if (copy_to_user(
+          (struct ioctl_get_exit_process_args __user *)arg, &get_exit_process_args,
+          sizeof(get_exit_process_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_TOPIC_LIST_CMD) {
     union ioctl_topic_list_args topic_list_args;
@@ -1593,25 +1646,31 @@ return_EINVAL:
 
 #ifdef KUNIT_BUILD
 
-int get_proc_info_htable_size(void)
+int get_alive_proc_num(void)
 {
   int count = 0;
   struct process_info * proc_info;
   int bkt_proc_info;
   hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
   {
-    count++;
+    if (!proc_info->exited) {
+      count++;
+    }
   }
   return count;
 }
 
-bool is_in_proc_info_htable(const pid_t pid)
+bool is_proc_exited(const pid_t pid)
 {
   struct process_info * proc_info;
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
   {
-    if (proc_info->pid == pid) {
-      return true;
+    if (proc_info->global_pid == pid) {
+      if (proc_info->exited) {
+        return true;
+      } else {
+        return false;
+      }
     }
   }
   return false;
@@ -1805,7 +1864,8 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
       {
         if (pub_info->id == en->publisher_id) {
-          if (!find_process_info(pub_info->pid)) {
+          const struct process_info * proc_info = find_process_info(pub_info->pid);
+          if (!proc_info || proc_info->exited) {
             publisher_exited = true;
           }
           break;
@@ -1875,24 +1935,6 @@ static struct task_struct * worker_task;
 static DECLARE_WAIT_QUEUE_HEAD(worker_wait);
 static int has_new_pid = false;
 
-#ifndef KUNIT_BUILD
-static void unlink_shm(const pid_t pid)
-{
-  char filename_buffer[32];  // Larger enough than when pid is 4,194,304 (Linux default pid_max).
-  scnprintf(filename_buffer, sizeof(filename_buffer), "/dev/shm/agnocast@%d", pid);
-
-  struct filename * filename = getname_kernel_kmod(filename_buffer);
-  if (!filename) {
-    dev_warn(agnocast_device, "getname_kernel failed. (unlink_shm)\n");
-  }
-
-  int ret = do_unlinkat(AT_FDCWD, filename);
-  if (ret < 0) {
-    dev_warn(agnocast_device, "do_unlinkat failed, returned:%d. (unlink_shm)\n", ret);
-  }
-}
-#endif
-
 void process_exit_cleanup(const pid_t pid)
 {
   // Quickly determine if it is an Agnocast-related process.
@@ -1902,19 +1944,15 @@ void process_exit_cleanup(const pid_t pid)
   bool agnocast_related = false;
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
-    if (proc_info->pid == pid) {
-      hash_del(&proc_info->node);
-      kfree(proc_info);
+    if (proc_info->global_pid == pid) {
+      // This proc_info will be removed from proc_info_htable later by the unlink daemon.
+      proc_info->exited = true;
       agnocast_related = true;
       break;
     }
   }
 
   if (!agnocast_related) return;
-
-#ifndef KUNIT_BUILD
-  unlink_shm(pid);
-#endif
 
   free_memory(pid);
 
@@ -2018,73 +2056,6 @@ static struct kprobe kp_do_exit = {
   .pre_handler = pre_handler_do_exit,
 };
 
-#ifndef KUNIT_BUILD
-static int check_dev_shm_available(void)
-{
-  struct path path;
-  struct kstatfs st;
-  int ret = kern_path("/dev/shm/", LOOKUP_FOLLOW, &path);
-  if (ret < 0) {
-    return ret;
-  }
-
-  ret = vfs_statfs(&path, &st);
-  if (ret < 0) {
-    return ret;
-  }
-
-  if (st.f_type != TMPFS_MAGIC) {  // TMPFS_MAGIC has the same value as SHMFS_SUPER_MAGIC in glibc.
-    dev_warn(
-      agnocast_device,
-      "/dev/shm cannot be used as shared memory file system.(check_dev_shm_availability)\n");
-    return -ECANCELED;
-  }
-
-  return 0;
-}
-
-/* Look up and set do_unlinkat using kprobe */
-static int setup_for_unlink_shm(void)
-{
-  // Register kprobe for getname_kernel
-  struct kprobe kp_getname_kernel;
-  memset(&kp_getname_kernel, 0, sizeof(struct kprobe));
-  kp_getname_kernel.symbol_name = "getname_kernel";
-
-  int ret = register_kprobe(&kp_getname_kernel);
-  if (ret < 0) {
-    dev_warn(
-      agnocast_device,
-      "register_kprobe for getname_kernel failed, returned %d. (setup_for_unlink_shm)\n", ret);
-    return ret;
-  }
-  getname_kernel_kmod = (struct filename * (*)(char *)) kp_getname_kernel.addr;
-  unregister_kprobe(&kp_getname_kernel);
-
-  // Register kprobe for do_unlinkat
-  struct kprobe kp_do_unlinkat;
-  memset(&kp_do_unlinkat, 0, sizeof(struct kprobe));
-  kp_do_unlinkat.symbol_name = "do_unlinkat";
-
-  ret = register_kprobe(&kp_do_unlinkat);
-  if (ret < 0) {
-    dev_warn(
-      agnocast_device,
-      "register_kprobe for do_unlinkat failed, returned %d. (setup_for_unlink_shm)\n", ret);
-    return ret;
-  }
-  do_unlinkat = (int (*)(int, struct filename *))kp_do_unlinkat.addr;
-  unregister_kprobe(&kp_do_unlinkat);
-
-  ret = check_dev_shm_available();
-  if (ret < 0) {
-    return ret;
-  }
-
-  return 0;
-}
-#endif
-
 void agnocast_init_mutexes(void)
 {
   mutex_init(&global_mutex);
@@ -2127,13 +2098,6 @@ int agnocast_init_kprobe(void)
       ret);
     return ret;
   }
-
-#ifndef KUNIT_BUILD
-  ret = setup_for_unlink_shm();
-  if (ret < 0) {
-    return ret;
-  }
-#endif
 
   return 0;
 }

@@ -16,6 +16,41 @@ namespace agnocast
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
+
+void poll_for_unlink()
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  while (true) {
+    sleep(1);
+
+    struct ioctl_get_exit_process_args get_exit_process_args = {};
+    do {
+      get_exit_process_args = {};
+      if (ioctl(agnocast_fd, AGNOCAST_GET_EXIT_PROCESS_CMD, &get_exit_process_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_GET_EXIT_PROCESS_CMD failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      if (get_exit_process_args.ret_pid > 0) {
+        const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
+        shm_unlink(shm_name.c_str());
+      }
+    } while (get_exit_process_args.ret_pid > 0);
+
+    if (get_exit_process_args.ret_daemon_should_exit) {
+      break;
+    }
+  }
+
+  exit(0);
+}
+
 struct semver
 {
   int major;
@@ -227,6 +262,21 @@ void * initialize_agnocast(
     RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
+  if (!new_shm_args.ret_unlink_daemon_exist) {
+    pid_t pid = fork();
+
+    if (pid < 0) {
+      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+      poll_for_unlink();
+    }
   }
 
   return map_writable_area(getpid(), new_shm_args.ret_addr, shm_size);

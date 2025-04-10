@@ -129,10 +129,17 @@ union ioctl_take_msg_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_new_shm_args {
   uint64_t shm_size;
-  uint64_t ret_addr;
+  struct
+  {
+    uint64_t ret_addr;
+    bool ret_unlink_daemon_exist;
+  };
 };
+#pragma GCC diagnostic pop
 
 struct ioctl_get_version_args
 {
@@ -142,6 +149,12 @@ struct ioctl_get_version_args
 union ioctl_get_subscriber_num_args {
   struct name_info topic_name;
   uint32_t ret_subscriber_num;
+};
+
+struct ioctl_get_exit_process_args
+{
+  bool ret_daemon_should_exit;
+  pid_t ret_pid;
 };
 
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
@@ -154,5 +167,6 @@ union ioctl_get_subscriber_num_args {
 #define AGNOCAST_NEW_SHM_CMD _IOWR(0xA6, 8, union ioctl_new_shm_args)
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 9, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
+#define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
 
 }  // namespace agnocast
