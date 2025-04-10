@@ -1142,8 +1142,6 @@ static int get_exit_process(
   }
 
   ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);
-  if (ioctl_ret->ret_daemon_should_exit) {
-  }
   return 0;
 }
 
