@@ -33,6 +33,7 @@ void decrement_borrowed_publisher_num()
     RCLCPP_ERROR(
       logger,
       "The number of publish() called exceeds the number of borrow_loaned_message() called.");
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
   borrowed_publisher_num--;
