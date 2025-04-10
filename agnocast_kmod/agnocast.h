@@ -255,7 +255,7 @@ void enqueue_exit_pid(const pid_t pid);
 
 #ifdef KUNIT_BUILD
 int get_alive_proc_num(void);
-bool is_proc_exit(const pid_t pid);
+bool is_proc_exited(const pid_t pid);
 int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 int64_t get_latest_received_entry_id(
   const char * topic_name, const struct ipc_namespace * ipc_ns,

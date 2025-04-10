@@ -1663,7 +1663,7 @@ int get_alive_proc_num(void)
   return count;
 }
 
-bool is_proc_exit(const pid_t pid)
+bool is_proc_exited(const pid_t pid)
 {
   struct process_info * proc_info;
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
