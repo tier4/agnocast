@@ -1945,8 +1945,8 @@ void process_exit_cleanup(const pid_t pid)
   hash_for_each_possible_safe(proc_info_htable, proc_info, tmp, node, hash_val)
   {
     if (proc_info->global_pid == pid) {
-      proc_info->exited =
-        true;  // This proc_info will be removed from proc_info_htable later by the unlink daemon.
+      // This proc_info will be removed from proc_info_htable later by the unlink daemon.
+      proc_info->exited = true;
       agnocast_related = true;
       break;
     }
