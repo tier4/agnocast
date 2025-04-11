@@ -704,7 +704,6 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
   return false;
 }
 
-
 int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
   union ioctl_add_process_args * ioctl_ret)
