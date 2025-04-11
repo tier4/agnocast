@@ -28,7 +28,7 @@ namespace agnocast
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
-union ioctl_publish_args publish_core(
+union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs);
@@ -193,13 +193,13 @@ public:
 
     decrement_borrowed_publisher_num();
 
-    const union ioctl_publish_args publish_args =
+    const union ioctl_publish_msg_args publish_msg_args =
       publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
 
-    message.set_entry_id(publish_args.ret_entry_id);
+    message.set_entry_id(publish_msg_args.ret_entry_id);
 
-    for (uint32_t i = 0; i < publish_args.ret_released_num; i++) {
-      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_args.ret_released_addrs[i]);
+    for (uint32_t i = 0; i < publish_msg_args.ret_released_num; i++) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_msg_args.ret_released_addrs[i]);
       delete release_ptr;
     }
 

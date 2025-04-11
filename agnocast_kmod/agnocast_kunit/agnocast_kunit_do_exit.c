@@ -16,10 +16,10 @@ static const bool IS_TAKE_SUB = false;
 
 static void setup_processes(struct kunit * test, const int process_num)
 {
-  union ioctl_new_shm_args ioctl_ret;
+  union ioctl_add_process_args ioctl_ret;
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
-    int ret = new_shm_addr(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
+    int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
     KUNIT_ASSERT_FALSE(test, is_proc_exited(pid));
   }
@@ -28,8 +28,8 @@ static void setup_processes(struct kunit * test, const int process_num)
 
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {
-  union ioctl_new_shm_args ioctl_ret;
-  int ret = new_shm_addr(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
+  union ioctl_add_process_args ioctl_ret;
+  int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_FALSE(test, is_proc_exited(pid));
@@ -70,15 +70,15 @@ static topic_local_id_t setup_one_subscriber(struct kunit * test, const pid_t su
 static uint64_t setup_one_entry(
   struct kunit * test, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address)
 {
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &publish_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(
-    test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, publish_args.ret_entry_id));
+    test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id));
 
-  return publish_args.ret_entry_id;
+  return publish_msg_args.ret_entry_id;
 }
 
 void test_case_do_exit(struct kunit * test)

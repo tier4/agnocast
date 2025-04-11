@@ -12,8 +12,8 @@ static const bool IS_TAKE_SUB = false;
 
 static void setup_process(struct kunit * test, const pid_t pid)
 {
-  union ioctl_new_shm_args new_shm_args;
-  int ret = new_shm_addr(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 }
 

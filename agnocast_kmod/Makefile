@@ -15,7 +15,7 @@ else
 	  agnocast_kunit/agnocast_kunit_receive_msg.o \
 	  agnocast_kunit/agnocast_kunit_publish_msg.o \
 	  agnocast_kunit/agnocast_kunit_take_msg.o \
-	  agnocast_kunit/agnocast_kunit_new_shm.o \
+	  agnocast_kunit/agnocast_kunit_add_process.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
 	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage

@@ -551,7 +551,7 @@ int decrement_message_entry_rc(
 
 static int insert_message_entry(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
-  union ioctl_publish_args * ioctl_ret)
+  union ioctl_publish_msg_args * ioctl_ret)
 {
   struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
   if (!new_node) {
@@ -749,7 +749,7 @@ int publisher_add(
 
 static int release_msgs_to_meet_depth(
   struct topic_wrapper * wrapper, struct publisher_info * pub_info,
-  union ioctl_publish_args * ioctl_ret)
+  union ioctl_publish_msg_args * ioctl_ret)
 {
   ioctl_ret->ret_released_num = 0;
 
@@ -910,7 +910,7 @@ int receive_msg(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret)
+  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
@@ -1049,26 +1049,26 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
   return false;
 }
 
-int new_shm_addr(
+int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
-  union ioctl_new_shm_args * ioctl_ret)
+  union ioctl_add_process_args * ioctl_ret)
 {
   if (shm_size % PAGE_SIZE != 0) {
     dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (new_shm_addr)\n", shm_size,
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process)\n", shm_size,
       PAGE_SIZE);
     return -EINVAL;
   }
 
   if (find_process_info(pid)) {
-    dev_warn(agnocast_device, "Process (pid=%d) already exists. (new_shm_addr)\n", pid);
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
     return -EINVAL;
   }
   ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (new_shm_addr)\n");
+    dev_warn(agnocast_device, "kmalloc failed. (add_process)\n");
     return -ENOMEM;
   }
 
@@ -1085,8 +1085,7 @@ int new_shm_addr(
   if (!new_proc_info->mempool_entry) {
     dev_warn(
       agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (new_shm_addr)\n", pid,
-      shm_size);
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process)\n", pid, shm_size);
     kfree(new_proc_info);
     return -ENOMEM;
   }
@@ -1478,19 +1477,22 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
-    union ioctl_publish_args publish_args;
+    union ioctl_publish_msg_args publish_msg_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-    if (copy_from_user(&publish_args, (union ioctl_publish_args __user *)arg, sizeof(publish_args)))
-      goto return_EFAULT;
-    if (publish_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
     if (copy_from_user(
-          topic_name_buf, (char __user *)publish_args.topic_name.ptr, publish_args.topic_name.len))
+          &publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
       goto return_EFAULT;
-    topic_name_buf[publish_args.topic_name.len] = '\0';
+    if (publish_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)publish_msg_args.topic_name.ptr,
+          publish_msg_args.topic_name.len))
+      goto return_EFAULT;
+    topic_name_buf[publish_msg_args.topic_name.len] = '\0';
     ret = publish_msg(
-      topic_name_buf, ipc_ns, publish_args.publisher_id, publish_args.msg_virtual_address,
-      &publish_args);
-    if (copy_to_user((union ioctl_publish_args __user *)arg, &publish_args, sizeof(publish_args)))
+      topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
+      &publish_msg_args);
+    if (copy_to_user(
+          (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
@@ -1506,12 +1508,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, &take_args);
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_NEW_SHM_CMD) {
-    union ioctl_new_shm_args new_shm_args;
-    if (copy_from_user(&new_shm_args, (union ioctl_new_shm_args __user *)arg, sizeof(new_shm_args)))
+  } else if (cmd == AGNOCAST_ADD_PROCESS_CMD) {
+    union ioctl_add_process_args add_process_args;
+    if (copy_from_user(
+          &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
       goto return_EFAULT;
-    ret = new_shm_addr(pid, ipc_ns, new_shm_args.shm_size, &new_shm_args);
-    if (copy_to_user((union ioctl_new_shm_args __user *)arg, &new_shm_args, sizeof(new_shm_args)))
+    ret = add_process(pid, ipc_ns, add_process_args.shm_size, &add_process_args);
+    if (copy_to_user(
+          (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
     struct ioctl_get_version_args get_version_args;
