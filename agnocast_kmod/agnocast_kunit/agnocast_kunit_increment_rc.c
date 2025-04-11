@@ -17,9 +17,9 @@ static void setup_one_publisher(
 {
   publisher_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
-  *ret_addr = new_shm_args.ret_addr;
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  *ret_addr = add_process_args.ret_addr;
 
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
@@ -35,8 +35,8 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
 {
   subscriber_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
@@ -54,13 +54,13 @@ static void setup_one_entry(
   uint64_t ret_addr;
   setup_one_publisher(test, publisher_id, &ret_addr);
 
-  union ioctl_publish_args publish_args;
+  union ioctl_publish_msg_args publish_msg_args;
   int ret =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, *publisher_id, ret_addr, &publish_args);
+    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, *publisher_id, ret_addr, &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
 
-  *entry_id = publish_args.ret_entry_id;
+  *entry_id = publish_msg_args.ret_entry_id;
 }
 
 void test_case_increment_rc(struct kunit * test)

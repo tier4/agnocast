@@ -75,7 +75,7 @@ union ioctl_receive_msg_args {
   };
 };
 
-union ioctl_publish_args {
+union ioctl_publish_msg_args {
   struct
   {
     struct name_info topic_name;
@@ -107,9 +107,13 @@ union ioctl_take_msg_args {
   };
 };
 
-union ioctl_new_shm_args {
+union ioctl_add_process_args {
   uint64_t shm_size;
-  uint64_t ret_addr;
+  struct
+  {
+    uint64_t ret_addr;
+    bool ret_unlink_daemon_exist;
+  };
 };
 
 struct ioctl_get_version_args
@@ -122,16 +126,23 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+struct ioctl_get_exit_process_args
+{
+  bool ret_daemon_should_exit;
+  pid_t ret_pid;
+};
+
 #define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
 #define AGNOCAST_PUBLISHER_ADD_CMD _IOWR(0xA6, 2, union ioctl_publisher_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW(0xA6, 4, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOWR(0xA6, 5, union ioctl_receive_msg_args)
-#define AGNOCAST_PUBLISH_MSG_CMD _IOWR(0xA6, 6, union ioctl_publish_args)
+#define AGNOCAST_PUBLISH_MSG_CMD _IOWR(0xA6, 6, union ioctl_publish_msg_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 7, union ioctl_take_msg_args)
-#define AGNOCAST_NEW_SHM_CMD _IOWR(0xA6, 8, union ioctl_new_shm_args)
+#define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 8, union ioctl_add_process_args)
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 9, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
+#define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
 
 // ================================================
 // ros2cli ioctls
@@ -215,14 +226,16 @@ int receive_msg(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_args * ioctl_ret);
+  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret);
 
 int take_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, bool allow_same_message,
   union ioctl_take_msg_args * ioctl_ret);
 
-int new_shm_addr(const pid_t pid, uint64_t shm_size, union ioctl_new_shm_args * ioctl_ret);
+int add_process(
+  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
+  union ioctl_add_process_args * ioctl_ret);
 
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
@@ -239,8 +252,8 @@ void enqueue_exit_pid(const pid_t pid);
 // helper functions for KUnit test
 
 #ifdef KUNIT_BUILD
-int get_proc_info_htable_size(void);
-bool is_in_proc_info_htable(const pid_t pid);
+int get_alive_proc_num(void);
+bool is_proc_exited(const pid_t pid);
 int get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 int64_t get_latest_received_entry_id(
   const char * topic_name, const struct ipc_namespace * ipc_ns,

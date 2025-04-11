@@ -28,12 +28,12 @@ topic_local_id_t initialize_publisher(const std::string &, const std::string &, 
 {
   return 0;  // Dummy value
 }
-union ioctl_publish_args publish_core(
+union ioctl_publish_msg_args publish_core(
   const void *, const std::string &, const topic_local_id_t, const uint64_t,
   std::unordered_map<std::string, std::tuple<mqd_t, bool>> &)
 {
   publish_core_mock_called_count++;
-  return ioctl_publish_args{};  // Dummy value
+  return ioctl_publish_msg_args{};  // Dummy value
 }
 }  // namespace agnocast
 

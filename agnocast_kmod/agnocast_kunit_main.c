@@ -1,9 +1,9 @@
 #include "agnocast.h"
+#include "agnocast_kunit/agnocast_kunit_add_process.h"
 #include "agnocast_kunit/agnocast_kunit_decrement_rc.h"
 #include "agnocast_kunit/agnocast_kunit_do_exit.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_increment_rc.h"
-#include "agnocast_kunit/agnocast_kunit_new_shm.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
 #include "agnocast_kunit/agnocast_kunit_publisher_add.h"
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
@@ -23,7 +23,7 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_RECEIVE_MSG,
   TEST_CASES_PUBLISH_MSG,
   TEST_CASES_TAKE_MSG,
-  TEST_CASES_NEW_SHM,
+  TEST_CASES_ADD_PROCESS,
   TEST_CASES_GET_SUBSCRIBER_NUM,
   TEST_CASES_DO_EXIT,
   {},

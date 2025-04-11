@@ -16,8 +16,8 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
 {
   subscriber_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
@@ -34,9 +34,9 @@ static void setup_one_publisher(
 {
   publisher_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
-  *ret_addr = new_shm_args.ret_addr;
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  *ret_addr = add_process_args.ret_addr;
 
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
@@ -54,7 +54,7 @@ void test_case_publish_msg_no_topic(struct kunit * test)
   // Arrange
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
-  union ioctl_publish_args ioctl_publish_ret;
+  union ioctl_publish_msg_args ioctl_publish_ret;
 
   // Act
   int ret = publish_msg(
@@ -73,7 +73,7 @@ void test_case_publish_msg_no_publisher(struct kunit * test)
 
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
-  union ioctl_publish_args ioctl_publish_msg_ret;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
   // Act
   int ret = publish_msg(
@@ -91,7 +91,7 @@ void test_case_publish_msg_simple_publish_without_any_release(struct kunit * tes
   uint64_t ret_addr;
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
-  union ioctl_publish_args ioctl_publish_msg_ret;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
   // Act
   int ret = publish_msg(
@@ -116,7 +116,7 @@ void test_case_publish_msg_different_publisher_no_release(struct kunit * test)
   setup_one_publisher(test, &publisher_id1, &ret_addr1);
   setup_one_publisher(test, &publisher_id2, &ret_addr2);
 
-  union ioctl_publish_args ioctl_publish_msg_ret1;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
     topic_name, current->nsproxy->ipc_ns, publisher_id1, ret_addr1, &ioctl_publish_msg_ret1);
   int ret2 = decrement_message_entry_rc(
@@ -124,7 +124,7 @@ void test_case_publish_msg_different_publisher_no_release(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  union ioctl_publish_args ioctl_publish_msg_ret2;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret2;
 
   // Act
   int ret3 = publish_msg(
@@ -152,12 +152,12 @@ void test_case_publish_msg_referenced_node_not_released(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
-  union ioctl_publish_args ioctl_publish_msg_ret1;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
     topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  union ioctl_publish_args ioctl_publish_msg_ret2;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret2;
 
   // Act
   int ret2 = publish_msg(
@@ -185,7 +185,7 @@ void test_case_publish_msg_single_release_return(struct kunit * test)
   uint64_t ret_addr;
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
-  union ioctl_publish_args ioctl_publish_msg_ret1;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret1;
   int ret1 = publish_msg(
     topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
   int ret2 = decrement_message_entry_rc(
@@ -193,7 +193,7 @@ void test_case_publish_msg_single_release_return(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
-  union ioctl_publish_args ioctl_publish_msg_ret2;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret2;
 
   // Act
   int ret3 = publish_msg(
@@ -224,7 +224,7 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
 
   int64_t entry_ids[MAX_RELEASE_NUM + 1];
   for (int i = 0; i < MAX_RELEASE_NUM + 1; i++) {
-    union ioctl_publish_args ioctl_publish_msg_ret;
+    union ioctl_publish_msg_args ioctl_publish_msg_ret;
     int ret = publish_msg(
       topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, &ioctl_publish_msg_ret);
     entry_ids[i] = ioctl_publish_msg_ret.ret_entry_id;
@@ -238,7 +238,7 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
-  union ioctl_publish_args ioctl_publish_msg_ret;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
   // Act
   int ret = publish_msg(
@@ -259,7 +259,7 @@ void test_case_publish_msg_ret_one_subscriber(struct kunit * test)
   setup_one_publisher(test, &publisher_id, &ret_addr);
   setup_one_subscriber(test, &subscriber_id);
 
-  union ioctl_publish_args ioctl_publish_msg_ret;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
   // Act
   int ret = publish_msg(
@@ -284,7 +284,7 @@ void test_case_publish_msg_ret_many_subscribers(struct kunit * test)
     setup_one_subscriber(test, &subscriber_id);
   }
 
-  union ioctl_publish_args ioctl_publish_msg_ret;
+  union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
   // Act
   int ret = publish_msg(

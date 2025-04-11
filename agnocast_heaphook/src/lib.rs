@@ -134,7 +134,7 @@ type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: OnceLock<Mutex<TlsfType>> = OnceLock::new();
 
 #[cfg(not(test))]
-fn init_tlsf() -> Mutex<TlsfType> {
+fn init_tlsf() {
     let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
 
     if result != 0 {
@@ -172,7 +172,9 @@ fn init_tlsf() -> Mutex<TlsfType> {
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
 
-    Mutex::new(tlsf)
+    if let Err(_) = TLSF.set(Mutex::new(tlsf)) {
+        panic!("[ERROR] [Agnocast] TLSF is already initialized.");
+    }
 }
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
@@ -183,7 +185,7 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
         );
     });
 
-    let mut tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
 
     let ptr: std::ptr::NonNull<u8> = tlsf.allocate(layout).unwrap_or_else(|| {
         panic!("[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE");
@@ -200,7 +202,7 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
         );
     });
 
-    let mut tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
 
     let new_ptr: std::ptr::NonNull<u8> = unsafe {
         tlsf.reallocate(ptr, layout).unwrap_or_else(|| {
@@ -212,7 +214,7 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 }
 
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
-    let mut tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
     unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
 }
 
@@ -287,10 +289,7 @@ pub unsafe extern "C" fn __libc_start_main(
     rtld_fini: unsafe extern "C" fn(),
     stack_end: *const c_void,
 ) -> c_int {
-    // Acquire the lock to initialize TLSF.
-    {
-        let _tlsf = TLSF.get_or_init(init_tlsf).lock().unwrap();
-    }
+    init_tlsf();
 
     (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
         main, argc, argv, init, fini, rtld_fini, stack_end,
@@ -432,7 +431,7 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 }
 
 #[cfg(test)]
-fn init_tlsf() -> Mutex<TlsfType> {
+fn init_tlsf() {
     let mempool_size: usize = 1024 * 1024;
     let mempool_ptr: *mut c_void = 0x8B000000000 as *mut c_void;
     let pool: &mut [MaybeUninit<u8>] = unsafe {
@@ -476,7 +475,7 @@ fn init_tlsf() -> Mutex<TlsfType> {
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
 
-    Mutex::new(tlsf)
+    TLSF.set(Mutex::new(tlsf));
 }
 
 #[cfg(test)]

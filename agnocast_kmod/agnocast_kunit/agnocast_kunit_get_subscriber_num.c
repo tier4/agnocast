@@ -13,8 +13,8 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
 {
   subscriber_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(subscriber_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
   union ioctl_subscriber_args subscriber_args;
   int ret2 = subscriber_add(
@@ -29,8 +29,8 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
 {
   publisher_pid++;
 
-  union ioctl_new_shm_args new_shm_args;
-  int ret1 = new_shm_addr(publisher_pid, PAGE_SIZE, &new_shm_args);
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
   union ioctl_publisher_args publisher_args;
   int ret2 = publisher_add(
