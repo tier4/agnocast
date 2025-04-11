@@ -689,6 +689,64 @@ static int set_publisher_shm_info(
   return 0;
 }
 
+static int get_version(struct ioctl_get_version_args * ioctl_ret)
+{
+  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
+
+  return 0;
+}
+
+int add_process(
+  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
+  union ioctl_add_process_args * ioctl_ret)
+{
+  if (shm_size % PAGE_SIZE != 0) {
+    dev_warn(
+      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process)\n", shm_size,
+      PAGE_SIZE);
+    return -EINVAL;
+  }
+
+  if (find_process_info(pid)) {
+    dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
+    return -EINVAL;
+  }
+  ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
+
+  struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
+  if (!new_proc_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (add_process)\n");
+    return -ENOMEM;
+  }
+
+  new_proc_info->exited = false;
+  new_proc_info->global_pid = pid;
+#ifndef KUNIT_BUILD
+  new_proc_info->local_pid = convert_pid_to_local(pid);
+#else
+  new_proc_info->local_pid = pid;
+#endif
+  new_proc_info->shm_size = shm_size;
+
+  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
+  if (!new_proc_info->mempool_entry) {
+    dev_warn(
+      agnocast_device,
+      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process)\n", pid, shm_size);
+    kfree(new_proc_info);
+    return -ENOMEM;
+  }
+
+  new_proc_info->ipc_ns = ipc_ns;
+
+  INIT_HLIST_NODE(&new_proc_info->node);
+  uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
+  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
+
+  ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
+  return 0;
+}
+
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
@@ -830,6 +888,48 @@ static int release_msgs_to_meet_depth(
   return 0;
 }
 
+int publish_msg(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
+  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publish_msg)\n", topic_name);
+    return -EINVAL;
+  }
+
+  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    dev_warn(
+      agnocast_device, "Publisher (id=%d) not found in the topic (topic_name=%s). (publish_msg)\n",
+      publisher_id, topic_name);
+    return -EINVAL;
+  }
+
+  int ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
+  if (ret < 0) {
+    return ret;
+  }
+
+  ret = release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret);
+  if (ret < 0) {
+    return ret;
+  }
+
+  int subscriber_num = 0;
+  struct subscriber_info * sub_info;
+  int bkt_sub_info;
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
+  {
+    if (sub_info->is_take_sub) continue;
+    ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
+    subscriber_num++;
+  }
+  ioctl_ret->ret_subscriber_num = subscriber_num;
+
+  return 0;
+}
+
 int receive_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret)
@@ -904,48 +1004,6 @@ int receive_msg(
   }
 
   sub_info->need_mmap_update = false;
-
-  return 0;
-}
-
-int publish_msg(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
-  if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (publish_msg)\n", topic_name);
-    return -EINVAL;
-  }
-
-  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
-  if (!pub_info) {
-    dev_warn(
-      agnocast_device, "Publisher (id=%d) not found in the topic (topic_name=%s). (publish_msg)\n",
-      publisher_id, topic_name);
-    return -EINVAL;
-  }
-
-  int ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
-  if (ret < 0) {
-    return ret;
-  }
-
-  ret = release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret);
-  if (ret < 0) {
-    return ret;
-  }
-
-  int subscriber_num = 0;
-  struct subscriber_info * sub_info;
-  int bkt_sub_info;
-  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
-  {
-    if (sub_info->is_take_sub) continue;
-    ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
-    subscriber_num++;
-  }
-  ioctl_ret->ret_subscriber_num = subscriber_num;
 
   return 0;
 }
@@ -1047,64 +1105,6 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
   }
 
   return false;
-}
-
-int add_process(
-  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
-  union ioctl_add_process_args * ioctl_ret)
-{
-  if (shm_size % PAGE_SIZE != 0) {
-    dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process)\n", shm_size,
-      PAGE_SIZE);
-    return -EINVAL;
-  }
-
-  if (find_process_info(pid)) {
-    dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
-    return -EINVAL;
-  }
-  ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
-
-  struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
-  if (!new_proc_info) {
-    dev_warn(agnocast_device, "kmalloc failed. (add_process)\n");
-    return -ENOMEM;
-  }
-
-  new_proc_info->exited = false;
-  new_proc_info->global_pid = pid;
-#ifndef KUNIT_BUILD
-  new_proc_info->local_pid = convert_pid_to_local(pid);
-#else
-  new_proc_info->local_pid = pid;
-#endif
-  new_proc_info->shm_size = shm_size;
-
-  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
-  if (!new_proc_info->mempool_entry) {
-    dev_warn(
-      agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process)\n", pid, shm_size);
-    kfree(new_proc_info);
-    return -ENOMEM;
-  }
-
-  new_proc_info->ipc_ns = ipc_ns;
-
-  INIT_HLIST_NODE(&new_proc_info->node);
-  uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
-  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
-
-  ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
-  return 0;
-}
-
-static int get_version(struct ioctl_get_version_args * ioctl_ret)
-{
-  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
-
-  return 0;
 }
 
 int get_subscriber_num(
@@ -1388,7 +1388,22 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   const pid_t pid = current->tgid;
   const struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
 
-  if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
+  if (cmd == AGNOCAST_GET_VERSION_CMD) {
+    struct ioctl_get_version_args get_version_args;
+    ret = get_version(&get_version_args);
+    if (copy_to_user(
+          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_ADD_PROCESS_CMD) {
+    union ioctl_add_process_args add_process_args;
+    if (copy_from_user(
+          &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
+      goto return_EFAULT;
+    ret = add_process(pid, ipc_ns, add_process_args.shm_size, &add_process_args);
+    if (copy_to_user(
+          (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
     union ioctl_add_subscriber_args sub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     char node_name_buf[NODE_NAME_BUFFER_SIZE];
@@ -1507,21 +1522,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = take_msg(
       topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, &take_args);
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
-      goto return_EFAULT;
-  } else if (cmd == AGNOCAST_ADD_PROCESS_CMD) {
-    union ioctl_add_process_args add_process_args;
-    if (copy_from_user(
-          &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
-      goto return_EFAULT;
-    ret = add_process(pid, ipc_ns, add_process_args.shm_size, &add_process_args);
-    if (copy_to_user(
-          (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
-      goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_VERSION_CMD) {
-    struct ioctl_get_version_args get_version_args;
-    ret = get_version(&get_version_args);
-    if (copy_to_user(
-          (struct ioctl_get_version_args __user *)arg, &get_version_args, sizeof(get_version_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;
