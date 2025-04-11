@@ -1,7 +1,7 @@
 #pragma once
 #include <kunit/test.h>
 
-#define TEST_CASES_add_publisher                                                        \
+#define TEST_CASES_ADD_PUBLISHER                                                        \
   KUNIT_CASE(test_case_add_publisher_normal), KUNIT_CASE(test_case_add_publisher_many), \
     KUNIT_CASE(test_case_add_publisher_too_many)
 

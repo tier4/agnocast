@@ -1,7 +1,7 @@
 #pragma once
 #include <kunit/test.h>
 
-#define TEST_CASES_add_subscriber                                                                \
+#define TEST_CASES_ADD_SUBSCRIBER                                                                \
   KUNIT_CASE(test_case_add_subscriber_normal), KUNIT_CASE(test_case_add_subscriber_invalid_qos), \
     KUNIT_CASE(test_case_add_subscriber_too_many_subscribers)
 

@@ -16,8 +16,8 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct kunit_case agnocast_test_cases[] = {
-  TEST_CASES_add_subscriber,
-  TEST_CASES_add_publisher,
+  TEST_CASES_ADD_SUBSCRIBER,
+  TEST_CASES_ADD_PUBLISHER,
   TEST_CASES_INCREMENT_RC,
   TEST_CASES_DECREMENT_RC,
   TEST_CASES_RECEIVE_MSG,
