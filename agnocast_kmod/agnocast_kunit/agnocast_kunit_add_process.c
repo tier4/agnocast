@@ -1,4 +1,4 @@
-#include "agnocast_kunit_new_shm.h"
+#include "agnocast_kunit_add_process.h"
 
 #include "../agnocast.h"
 
@@ -7,7 +7,7 @@
 static pid_t pid = 1000;
 static const int max_process_num = 1000 + 100 + 10;
 
-void test_case_new_shm_normal(struct kunit * test)
+void test_case_add_process_normal(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
@@ -20,7 +20,7 @@ void test_case_new_shm_normal(struct kunit * test)
   KUNIT_EXPECT_FALSE(test, is_proc_exited(local_pid));
 }
 
-void test_case_new_shm_many(struct kunit * test)
+void test_case_add_process_many(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
@@ -48,7 +48,7 @@ void test_case_new_shm_many(struct kunit * test)
   }
 }
 
-void test_case_new_shm_not_aligned(struct kunit * test)
+void test_case_add_process_not_aligned(struct kunit * test)
 {
   uint64_t local_pid = pid++;
   union ioctl_add_process_args args;
@@ -57,7 +57,7 @@ void test_case_new_shm_not_aligned(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
-void test_case_new_shm_twice(struct kunit * test)
+void test_case_add_process_twice(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
@@ -72,7 +72,7 @@ void test_case_new_shm_twice(struct kunit * test)
   KUNIT_EXPECT_FALSE(test, is_proc_exited(local_pid));
 }
 
-void test_case_new_shm_too_big(struct kunit * test)
+void test_case_add_process_too_big(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
@@ -86,7 +86,7 @@ void test_case_new_shm_too_big(struct kunit * test)
   KUNIT_EXPECT_FALSE(test, is_proc_exited(local_pid));
 }
 
-void test_case_new_shm_too_many(struct kunit * test)
+void test_case_add_process_too_many(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
