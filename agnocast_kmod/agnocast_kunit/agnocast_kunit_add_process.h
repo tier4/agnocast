@@ -1,7 +1,7 @@
 #pragma once
 #include <kunit/test.h>
 
-#define TEST_CASES_NEW_SHM                                                                  \
+#define TEST_CASES_ADD_PROCESS                                                                  \
   KUNIT_CASE(test_case_add_process_normal), KUNIT_CASE(test_case_add_process_many),         \
     KUNIT_CASE(test_case_add_process_not_aligned), KUNIT_CASE(test_case_add_process_twice), \
     KUNIT_CASE(test_case_add_process_too_big), KUNIT_CASE(test_case_add_process_too_many)
