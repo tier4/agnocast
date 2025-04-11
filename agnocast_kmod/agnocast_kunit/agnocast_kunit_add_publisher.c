@@ -1,5 +1,6 @@
-#include "../agnocast.h"
 #include "agnocast_kunit_add_publisher.h"
+
+#include "../agnocast.h"
 
 #include <kunit/test.h>
 

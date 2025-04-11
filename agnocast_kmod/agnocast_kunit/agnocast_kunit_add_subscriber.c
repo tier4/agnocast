@@ -1,6 +1,7 @@
+#include "agnocast_kunit_add_subscriber.h"
+
 #include "../agnocast.h"
 #include "../agnocast_memory_allocator.h"
-#include "agnocast_kunit_add_subscriber.h"
 
 #include <kunit/test.h>
 
