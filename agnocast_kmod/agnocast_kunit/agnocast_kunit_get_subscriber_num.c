@@ -16,10 +16,10 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
   union ioctl_add_process_args add_process_args;
   int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
-  union ioctl_subscriber_args subscriber_args;
-  int ret2 = subscriber_add(
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret2 = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
-    qos_is_transient_local, is_take_sub, &subscriber_args);
+    qos_is_transient_local, is_take_sub, &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -32,10 +32,10 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
   union ioctl_add_process_args add_process_args;
   int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
-  union ioctl_publisher_args publisher_args;
-  int ret2 = publisher_add(
+  union ioctl_add_publisher_args add_publisher_args;
+  int ret2 = add_publisher(
     topic_name, current->nsproxy->ipc_ns, node_name, publisher_pid, qos_depth,
-    qos_is_transient_local, &publisher_args);
+    qos_is_transient_local, &add_publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);

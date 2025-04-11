@@ -1,13 +1,13 @@
 #include "agnocast.h"
 #include "agnocast_kunit/agnocast_kunit_add_process.h"
+#include "agnocast_kunit/agnocast_kunit_add_publisher.h"
+#include "agnocast_kunit/agnocast_kunit_add_subscriber.h"
 #include "agnocast_kunit/agnocast_kunit_decrement_rc.h"
 #include "agnocast_kunit/agnocast_kunit_do_exit.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_increment_rc.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
-#include "agnocast_kunit/agnocast_kunit_publisher_add.h"
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
-#include "agnocast_kunit/agnocast_kunit_subscriber_add.h"
 #include "agnocast_kunit/agnocast_kunit_take_msg.h"
 #include "agnocast_memory_allocator.h"
 
@@ -16,8 +16,8 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct kunit_case agnocast_test_cases[] = {
-  TEST_CASES_SUBSCRIBER_ADD,
-  TEST_CASES_PUBLISHER_ADD,
+  TEST_CASES_add_subscriber,
+  TEST_CASES_add_publisher,
   TEST_CASES_INCREMENT_RC,
   TEST_CASES_DECREMENT_RC,
   TEST_CASES_RECEIVE_MSG,

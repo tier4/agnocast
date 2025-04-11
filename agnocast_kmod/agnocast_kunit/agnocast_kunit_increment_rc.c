@@ -21,11 +21,11 @@ static void setup_one_publisher(
   int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
   *ret_addr = add_process_args.ret_addr;
 
-  union ioctl_publisher_args publisher_args;
-  int ret2 = publisher_add(
+  union ioctl_add_publisher_args add_publisher_args;
+  int ret2 = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, &publisher_args);
-  *publisher_id = publisher_args.ret_id;
+    QOS_IS_TRANSIENT_LOCAL, &add_publisher_args);
+  *publisher_id = add_publisher_args.ret_id;
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -38,11 +38,11 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
   union ioctl_add_process_args add_process_args;
   int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
 
-  union ioctl_subscriber_args subscriber_args;
-  int ret2 = subscriber_add(
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret2 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &subscriber_args);
-  *subscriber_id = subscriber_args.ret_id;
+    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+  *subscriber_id = add_subscriber_args.ret_id;
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);

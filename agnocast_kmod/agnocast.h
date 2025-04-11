@@ -24,7 +24,7 @@ struct name_info
   uint64_t len;
 };
 
-union ioctl_subscriber_args {
+union ioctl_add_subscriber_args {
   struct
   {
     struct name_info topic_name;
@@ -39,7 +39,7 @@ union ioctl_subscriber_args {
   };
 };
 
-union ioctl_publisher_args {
+union ioctl_add_publisher_args {
   struct
   {
     struct name_info topic_name;
@@ -132,8 +132,8 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
-#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
-#define AGNOCAST_PUBLISHER_ADD_CMD _IOWR(0xA6, 2, union ioctl_publisher_args)
+#define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 1, union ioctl_add_subscriber_args)
+#define AGNOCAST_ADD_PUBLISHER_CMD _IOWR(0xA6, 2, union ioctl_add_publisher_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW(0xA6, 4, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOWR(0xA6, 5, union ioctl_receive_msg_args)
@@ -202,15 +202,15 @@ void agnocast_exit_kthread(void);
 void agnocast_exit_kprobe(void);
 void agnocast_exit_device(void);
 
-int subscriber_add(
+int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret);
+  const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret);
 
-int publisher_add(
+int add_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  union ioctl_publisher_args * ioctl_ret);
+  union ioctl_add_publisher_args * ioctl_ret);
 
 int increment_message_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
