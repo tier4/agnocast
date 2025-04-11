@@ -30,7 +30,7 @@ struct name_info
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_subscriber_args {
+union ioctl_add_subscriber_args {
   struct
   {
     struct name_info topic_name;
@@ -48,7 +48,7 @@ union ioctl_subscriber_args {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_publisher_args {
+union ioctl_add_publisher_args {
   struct
   {
     struct name_info topic_name;
@@ -157,8 +157,8 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
-#define AGNOCAST_SUBSCRIBER_ADD_CMD _IOWR(0xA6, 1, union ioctl_subscriber_args)
-#define AGNOCAST_PUBLISHER_ADD_CMD _IOWR(0xA6, 2, union ioctl_publisher_args)
+#define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 1, union ioctl_add_subscriber_args)
+#define AGNOCAST_ADD_PUBLISHER_CMD _IOWR(0xA6, 2, union ioctl_add_publisher_args)
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW(0xA6, 4, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOWR(0xA6, 5, union ioctl_receive_msg_args)

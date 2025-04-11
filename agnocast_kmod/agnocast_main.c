@@ -689,10 +689,10 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-int subscriber_add(
+int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool is_take_sub, union ioctl_subscriber_args * ioctl_ret)
+  const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret)
 {
   int ret;
 
@@ -714,10 +714,10 @@ int subscriber_add(
   return 0;
 }
 
-int publisher_add(
+int add_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  union ioctl_publisher_args * ioctl_ret)
+  union ioctl_add_publisher_args * ioctl_ret)
 {
   int ret;
 
@@ -1388,11 +1388,11 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   const pid_t pid = current->tgid;
   const struct ipc_namespace * ipc_ns = current->nsproxy->ipc_ns;
 
-  if (cmd == AGNOCAST_SUBSCRIBER_ADD_CMD) {
-    union ioctl_subscriber_args sub_args;
+  if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
+    union ioctl_add_subscriber_args sub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     char node_name_buf[NODE_NAME_BUFFER_SIZE];
-    if (copy_from_user(&sub_args, (union ioctl_subscriber_args __user *)arg, sizeof(sub_args)))
+    if (copy_from_user(&sub_args, (union ioctl_add_subscriber_args __user *)arg, sizeof(sub_args)))
       goto return_EFAULT;
     if (
       sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
@@ -1406,16 +1406,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_name_buf, (char __user *)sub_args.node_name.ptr, sub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[sub_args.node_name.len] = '\0';
-    ret = subscriber_add(
+    ret = add_subscriber(
       topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
       sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
-    if (copy_to_user((union ioctl_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
+    if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_PUBLISHER_ADD_CMD) {
-    union ioctl_publisher_args pub_args;
+  } else if (cmd == AGNOCAST_ADD_PUBLISHER_CMD) {
+    union ioctl_add_publisher_args pub_args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     char node_name_buf[NODE_NAME_BUFFER_SIZE];
-    if (copy_from_user(&pub_args, (union ioctl_publisher_args __user *)arg, sizeof(pub_args)))
+    if (copy_from_user(&pub_args, (union ioctl_add_publisher_args __user *)arg, sizeof(pub_args)))
       goto return_EFAULT;
     if (
       pub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
@@ -1429,10 +1429,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           node_name_buf, (char __user *)pub_args.node_name.ptr, pub_args.node_name.len))
       goto return_EFAULT;
     node_name_buf[pub_args.node_name.len] = '\0';
-    ret = publisher_add(
+    ret = add_publisher(
       topic_name_buf, ipc_ns, node_name_buf, pid, pub_args.qos_depth,
       pub_args.qos_is_transient_local, &pub_args);
-    if (copy_to_user((union ioctl_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
+    if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;

@@ -9,23 +9,23 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
-union ioctl_subscriber_args SubscriptionBase::initialize(
+union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
-  union ioctl_subscriber_args subscriber_args = {};
-  subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
-  subscriber_args.node_name = {node_name.c_str(), node_name.size()};
-  subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
-  subscriber_args.qos_is_transient_local =
+  union ioctl_add_subscriber_args add_subscriber_args = {};
+  add_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+  add_subscriber_args.node_name = {node_name.c_str(), node_name.size()};
+  add_subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
+  add_subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-  subscriber_args.is_take_sub = is_take_sub;
-  if (ioctl(agnocast_fd, AGNOCAST_SUBSCRIBER_ADD_CMD, &subscriber_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_SUBSCRIBER_ADD_CMD failed: %s", strerror(errno));
+  add_subscriber_args.is_take_sub = is_take_sub;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_SUBSCRIBER_CMD, &add_subscriber_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_SUBSCRIBER_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  return subscriber_args;
+  return add_subscriber_args;
 }
 
 mqd_t open_mq_for_subscription(
