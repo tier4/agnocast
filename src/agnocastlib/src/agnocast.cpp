@@ -256,16 +256,16 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  union ioctl_new_shm_args new_shm_args = {};
-  new_shm_args.shm_size = shm_size;
-  if (ioctl(agnocast_fd, AGNOCAST_NEW_SHM_CMD, &new_shm_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_NEW_SHM_CMD failed: %s", strerror(errno));
+  union ioctl_add_process_args add_process_args = {};
+  add_process_args.shm_size = shm_size;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
-  if (!new_shm_args.ret_unlink_daemon_exist) {
+  if (!add_process_args.ret_unlink_daemon_exist) {
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -279,7 +279,7 @@ void * initialize_agnocast(
     }
   }
 
-  return map_writable_area(getpid(), new_shm_args.ret_addr, shm_size);
+  return map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
 }
 
 static void shutdown_agnocast()

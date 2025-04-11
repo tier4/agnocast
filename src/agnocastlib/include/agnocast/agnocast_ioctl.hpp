@@ -93,7 +93,7 @@ union ioctl_receive_msg_args {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_publish_args {
+union ioctl_publish_msg_args {
   struct
   {
     struct name_info topic_name;
@@ -131,7 +131,7 @@ union ioctl_take_msg_args {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_new_shm_args {
+union ioctl_add_process_args {
   uint64_t shm_size;
   struct
   {
@@ -162,9 +162,9 @@ struct ioctl_get_exit_process_args
 #define AGNOCAST_INCREMENT_RC_CMD _IOW(0xA6, 3, struct ioctl_update_entry_args)
 #define AGNOCAST_DECREMENT_RC_CMD _IOW(0xA6, 4, struct ioctl_update_entry_args)
 #define AGNOCAST_RECEIVE_MSG_CMD _IOWR(0xA6, 5, union ioctl_receive_msg_args)
-#define AGNOCAST_PUBLISH_MSG_CMD _IOWR(0xA6, 6, union ioctl_publish_args)
+#define AGNOCAST_PUBLISH_MSG_CMD _IOWR(0xA6, 6, union ioctl_publish_msg_args)
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 7, union ioctl_take_msg_args)
-#define AGNOCAST_NEW_SHM_CMD _IOWR(0xA6, 8, union ioctl_new_shm_args)
+#define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 8, union ioctl_add_process_args)
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 9, struct ioctl_get_version_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
