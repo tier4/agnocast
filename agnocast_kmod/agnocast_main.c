@@ -690,6 +690,20 @@ static int get_version(struct ioctl_get_version_args * ioctl_ret)
   return 0;
 }
 
+static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
+{
+  struct process_info * proc_info;
+  int bkt;
+  hash_for_each(proc_info_htable, bkt, proc_info, node)
+  {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
   union ioctl_add_process_args * ioctl_ret)
@@ -1085,20 +1099,6 @@ int take_msg(
   sub_info->need_mmap_update = false;
 
   return 0;
-}
-
-static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
-{
-  struct process_info * proc_info;
-  int bkt;
-  hash_for_each(proc_info_htable, bkt, proc_info, node)
-  {
-    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 int get_subscriber_num(
