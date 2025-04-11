@@ -8,14 +8,14 @@ else
   ifeq ($(CONFIG_KUNIT)$(CONFIG_GCOV_KERNEL),yy)
     obj-m := agnocast_kunit.o
 	agnocast_kunit-objs := agnocast_kunit_main.o agnocast_main.o agnocast_memory_allocator.o\
+	  agnocast_kunit/agnocast_kunit_add_process.o \
 	  agnocast_kunit/agnocast_kunit_add_subscriber.o \
 	  agnocast_kunit/agnocast_kunit_add_publisher.o \
 	  agnocast_kunit/agnocast_kunit_increment_rc.o \
 	  agnocast_kunit/agnocast_kunit_decrement_rc.o \
-	  agnocast_kunit/agnocast_kunit_receive_msg.o \
 	  agnocast_kunit/agnocast_kunit_publish_msg.o \
+	  agnocast_kunit/agnocast_kunit_receive_msg.o \
 	  agnocast_kunit/agnocast_kunit_take_msg.o \
-	  agnocast_kunit/agnocast_kunit_add_process.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
 	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage
