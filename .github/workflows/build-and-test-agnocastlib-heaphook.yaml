@@ -25,6 +25,7 @@ jobs:
     - name: Check for .cpp or .hpp file changes
       id: check_diff_cpp
       run: |
+        set -e
         if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
             | grep -qE '(agnocastlib|agnocast_ioctl_wrapper)/.*\.(cpp|hpp)$'; then
           echo "cpp_changed=true" >> $GITHUB_OUTPUT
@@ -35,6 +36,7 @@ jobs:
     - name: Check for agnocast_heaphook changes
       id: check_diff_heaphook
       run: |
+        set -e
         if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
             | grep -q '^agnocast_heaphook/'; then
           echo "heaphook_changed=true" >> $GITHUB_OUTPUT
@@ -125,6 +127,12 @@ jobs:
         cargo build --release
         cd ..
         cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib
+
+    - name: Unit test for agnocast_heaphook
+      if: steps.check_diff_heaphook.outputs.heaphook_changed == 'true'
+      run: |
+        cd agnocast_heaphook
+        cargo test
     
     - name: Test for agnocast_heaphook
       if: steps.check_diff_heaphook.outputs.heaphook_changed == 'true'

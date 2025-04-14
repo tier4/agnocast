@@ -89,6 +89,7 @@ Although Agnocast includes cleanup procedures for resources like shared memory a
 ```bash
 rm /dev/shm/agnocast@*
 rm /dev/mqueue/agnocast@*
+rm /dev/mqueue/agnocast_to_ros2@*
 ```
 
 ---
@@ -151,7 +152,7 @@ A custom kernel with the following CONFIG enabled is required to run KUnit Test 
 If booting with the custom kernel, the following script can be used to run unit tests on kernel modules and generate coverage reports.
 
 ```bash
-bash script/run_kunit
+bash scripts/run_kunit
 ```
 
 You can also use [pre-commit](#setup-pre-commit)

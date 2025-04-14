@@ -1,11 +1,22 @@
 #!/usr/bin/make -f
 export CARGO_HOME=$(CURDIR)/.cargo
 
+override_dh_auto_configure:
+	# No configure step needed for this Cargo-based package
+	true
+
 override_dh_auto_build:
 	cargo build --release
 
+override_dh_auto_clean:
+	cargo clean
+
 override_dh_auto_install:
-	# Do nothing here; installation will be handled by debhelper using debian/install
+	# Installation is handled by debhelper via debian/install
+	true
+
+override_dh_auto_test:
+	# Skipping tests during package build
 	true
 
 %:

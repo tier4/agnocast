@@ -2,6 +2,33 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.0.1 (2025-04-03)
+------------------
+
+2.0.0 (2025-04-02)
+------------------
+* refactor(test): not to use gmock-global (`#592 <https://github.com/tier4/agnocast/issues/592>`_)
+* feat(kmod): allow local pid namespace (`#540 <https://github.com/tier4/agnocast/issues/540>`_)
+* fix(agnocastlib): tidy up error messages (`#590 <https://github.com/tier4/agnocast/issues/590>`_)
+* Revert "fix(agnocastlib): unify the target name with the project name… (`#587 <https://github.com/tier4/agnocast/issues/587>`_)
+* fix(agnocastlib): unify the target name with the project name (`#585 <https://github.com/tier4/agnocast/issues/585>`_)
+* feat: add agnocast_construct_executor tracepoints (`#586 <https://github.com/tier4/agnocast/issues/586>`_)
+* fix(agnocastlib): fix validate_ld_preload (`#581 <https://github.com/tier4/agnocast/issues/581>`_)
+* fix: use AGNOCAST prefix for MEMPOOL_SIZE (`#580 <https://github.com/tier4/agnocast/issues/580>`_)
+* refactor(kmod): unified magic number for ioctl (`#569 <https://github.com/tier4/agnocast/issues/569>`_)
+* fix(test): suppress warning for unused variable (`#571 <https://github.com/tier4/agnocast/issues/571>`_)
+* feat: check version consistency (`#557 <https://github.com/tier4/agnocast/issues/557>`_)
+* test: infrastructure for agnocast-heaphook tests (`#554 <https://github.com/tier4/agnocast/issues/554>`_)
+* fix(agnocastlib): update the take function type to match the original (`#561 <https://github.com/tier4/agnocast/issues/561>`_)
+* fix: do shm_unlink in kernel module (`#536 <https://github.com/tier4/agnocast/issues/536>`_)
+* feat: handle transient local callbacks in executor (`#520 <https://github.com/tier4/agnocast/issues/520>`_)
+* fix: pass string length along with its pointer (`#534 <https://github.com/tier4/agnocast/issues/534>`_)
+* refactor: rename symbols related to integration tests (`#543 <https://github.com/tier4/agnocast/issues/543>`_)
+* test: add callback group validation into integration test (`#542 <https://github.com/tier4/agnocast/issues/542>`_)
+* fix(component container): enable parameter passing (`#538 <https://github.com/tier4/agnocast/issues/538>`_)
+* test: fix error & fail workflow when git diff is failed (`#541 <https://github.com/tier4/agnocast/issues/541>`_)
+* fix(agnocastlib): close mqs that are no longer needed (`#476 <https://github.com/tier4/agnocast/issues/476>`_)
+
 1.0.2 (2025-03-14)
 ------------------
 * improve(MultiThreadedAgnocastExecutor): remove unnecessary check (`#530 <https://github.com/tier4/agnocast/issues/530>`_)

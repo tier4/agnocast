@@ -48,7 +48,7 @@ class SubscriptionBase
 protected:
   topic_local_id_t id_;
   const std::string topic_name_;
-  union ioctl_subscriber_args initialize(
+  union ioctl_add_subscriber_args initialize(
     const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name);
 
 public:
@@ -69,10 +69,10 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
-    union ioctl_subscriber_args subscriber_args =
+    union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
-    id_ = subscriber_args.ret_id;
+    id_ = add_subscriber_args.ret_id;
 
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription);
     auto node_base = node->get_node_base_interface();
@@ -117,10 +117,10 @@ public:
       dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
 #endif
 
-    union ioctl_subscriber_args subscriber_args =
+    union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, true, node->get_fully_qualified_name());
 
-    id_ = subscriber_args.ret_id;
+    id_ = add_subscriber_args.ret_id;
   }
 
   agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
@@ -172,7 +172,9 @@ public:
     subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
   };
 
+  // `takeData()` is remaining for backward compatibility.
   const agnocast::ipc_shared_ptr<const MessageT> takeData() { return subscriber_->take(true); };
+  const agnocast::ipc_shared_ptr<const MessageT> take_data() { return subscriber_->take(true); };
 };
 
 }  // namespace agnocast

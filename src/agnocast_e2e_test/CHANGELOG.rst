@@ -2,6 +2,14 @@
 Changelog for package agnocast_e2e_test
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.0.1 (2025-04-03)
+------------------
+
+2.0.0 (2025-04-02)
+------------------
+* fix: use AGNOCAST prefix for MEMPOOL_SIZE (`#580 <https://github.com/tier4/agnocast/issues/580>`_)
+* fix: e2e test in restricted environments in terms of the number of cores (`#539 <https://github.com/tier4/agnocast/issues/539>`_)
+
 1.0.2 (2025-03-14)
 ------------------
 * feat: add validation if agnocast cb and ros2 cb belong to same MutuallyExclusive cbg in MultiThreadedAgnocastExecutor (`#515 <https://github.com/tier4/agnocast/issues/515>`_)

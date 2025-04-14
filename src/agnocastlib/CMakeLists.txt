@@ -85,16 +85,6 @@ configure_file(
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 if(BUILD_TESTING)
-  # For gmock-global
-  include(FetchContent)
-  FetchContent_Declare(
-    gmock-global
-    GIT_REPOSITORY https://github.com/apriorit/gmock-global.git
-    GIT_TAG        master
-  )
-  FetchContent_MakeAvailable(gmock-global)
-  include_directories(${gmock-global_SOURCE_DIR}/include)
-
   find_package(ament_cmake_gmock REQUIRED)
   
   # Unit tests
@@ -103,7 +93,7 @@ if(BUILD_TESTING)
     test/unit/test_agnocast_subscription.cpp
     test/unit/test_mocked_agnocast.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
-  target_link_libraries(test_unit_${PROJECT_NAME} gmock-global agnocast)
+  target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )

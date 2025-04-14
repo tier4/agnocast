@@ -19,7 +19,7 @@ There are three invocations for shared memory related procedures.
 Each process linked with Agnocast opens a shared memory, which is writable only for the process.
 When a process first calls malloc or other memory related functions, Agnocast starts and the shared memory is opened in the following steps:
 
-1. get an allocatable area through `AGNOCAST_NEW_SHM_CMD` ioctl.
+1. get an allocatable area through `AGNOCAST_ADD_PROCESS_CMD` ioctl.
 2. open a writable shared memory on the allocatable area, with `shm_open`, `ftruncate` and `mmap` system calls.
 3. create a thread and open a message queue so that the process can recognize a emergence of a new publisher later.
 
@@ -28,7 +28,7 @@ When a process first calls malloc or other memory related functions, Agnocast st
 When a process calls `create_publisher` for a topic `T`, the shared memory of the process should be mapped by processes which have a subscription for `T`.
 Thus the following procedures are executed:
 
-1. The publisher process gets the information about subscribers already registered for the topic `T` through `AGNOCAST_PUBLISHER_ADD_CMD` ioctl.
+1. The publisher process gets the information about subscribers already registered for the topic `T` through `AGNOCAST_ADD_PUBLISHER_CMD` ioctl.
 2. The publisher process opens a message queue and send the shared memory information in order to notify the subscribers already created for the topic `T` that a new publisher is registered.
 3. The subscriber process receives the message and maps the publisher's shared memory area with a read-only privilege.
 
@@ -36,7 +36,7 @@ Thus the following procedures are executed:
 
 When a process calls `create_subscription` for topic `T`, then the process maps the corresponding publisher's shared memory area with a read-only privilege in the following steps:
 
-1. get the information about the publishers for the topic `T` through `AGNOCAST_SUBSCRIBER_ADD_CMD` ioctl.
+1. get the information about the publishers for the topic `T` through `AGNOCAST_ADD_SUBSCRIBER_CMD` ioctl.
 2. map the publisher's shared memories with a read-only privilege.
 
 ### Naming rule and restrictions
