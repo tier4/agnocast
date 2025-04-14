@@ -510,4 +510,47 @@ mod tests {
 
         unsafe { free(ptr) };
     }
+
+    #[test]
+    fn test_calloc_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let elements = 4;
+        let element_size = 256;
+        let calloc_size = elements * element_size;
+
+        // Act
+        let ptr = calloc(elements, element_size);
+
+        // Assert
+        assert!(!ptr.is_null(), "calloc must not return NULL");
+        assert!(
+            ptr as usize >= start,
+            "calloc returned memory below the memory pool start address"
+        );
+        assert!(
+            ptr as usize + calloc_size <= end,
+            "calloc allocated memory exceeds the memory pool end address"
+        );
+
+        unsafe {
+            for i in 0..calloc_size {
+                let byte = *((ptr as *const u8).add(i));
+                assert_eq!(byte, 0, "memory should be zero-initialized");
+            }
+            let start_addr_ptr = *((ptr as usize - POINTER_SIZE) as *const usize);
+            assert!(
+                start_addr_ptr >= start && start_addr_ptr < end,
+                "stored original address should be within memory pool"
+            );
+            assert_eq!(
+                ptr as usize,
+                start_addr_ptr + ALIGNMENT,
+                "address calculation should match implementation"
+            );
+        }
+
+        unsafe { free(ptr) };
+    }
 }
