@@ -12,5 +12,8 @@ tar czf agnocast-kmod-v${MAJOR_MINOR}_${VERSION}.orig.tar.gz agnocast-kmod-v${MA
 cd agnocast-kmod-v${MAJOR_MINOR}-${VERSION}
 debuild -S -sa
 
+# When re-upload with a next release number
+# debuild -S -sd
+
 cd ..
 rm -rf agnocast-kmod-v${MAJOR_MINOR}-${VERSION}

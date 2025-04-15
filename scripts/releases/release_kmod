@@ -3,7 +3,7 @@ set -eux
 
 MAJOR_MINOR="2.0"
 PATCH="1"
-RELEASE="1"
+RELEASE="2"
 
 VERSION="${MAJOR_MINOR}.${PATCH}"
 CHANGES_FILE="agnocast-kmod-v${MAJOR_MINOR}_${VERSION}-${RELEASE}_source.changes"

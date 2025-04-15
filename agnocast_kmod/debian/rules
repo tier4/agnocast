@@ -1,13 +1,14 @@
 #!/usr/bin/make -f
 
+PACKAGE = agnocast-kmod-v2.1
 VERSION = $(shell cat $(CURDIR)/version.txt)
 
 %:
 	dh $@ --with dkms
 
 override_dh_auto_install:
-	mkdir -p $(CURDIR)/debian/agnocast-kmod/usr/src/agnocast-$(VERSION)
-	rsync -av --exclude='debian' ./ $(CURDIR)/debian/agnocast-kmod/usr/src/agnocast-$(VERSION)/
+	mkdir -p $(CURDIR)/debian/$(PACKAGE)/usr/src/agnocast-$(VERSION)
+	rsync -av --exclude='debian' ./ $(CURDIR)/debian/$(PACKAGE)/usr/src/agnocast-$(VERSION)/
 
 override_dh_auto_build:
 	@echo "Skipping build due to DKMS."
