@@ -2,6 +2,17 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix(agnocastlib): add O_EXCL for shm_open flag (`#595 <https://github.com/tier4/agnocast/issues/595>`_)
+* refactor(kmod): reorder ioctl command (`#615 <https://github.com/tier4/agnocast/issues/615>`_)
+* refactor(kmod): change command name to add_publisher/subscriber (`#614 <https://github.com/tier4/agnocast/issues/614>`_)
+* refactor(kmod): change command name from new_shm to add_process (`#613 <https://github.com/tier4/agnocast/issues/613>`_)
+* fix: do shm_unlink with daemon process for each ipc_ns (`#602 <https://github.com/tier4/agnocast/issues/602>`_)
+* fix(agnocastlib): close agnocast fd when exit (`#610 <https://github.com/tier4/agnocast/issues/610>`_)
+* fix(Publisher): workaround for only calling borrow_loaned_message() (`#605 <https://github.com/tier4/agnocast/issues/605>`_)
+* feat(TakeSubscription): add take_data (`#598 <https://github.com/tier4/agnocast/issues/598>`_)
+
 2.0.1 (2025-04-03)
 ------------------
 
