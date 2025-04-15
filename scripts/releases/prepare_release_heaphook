@@ -12,5 +12,8 @@ tar czf agnocast-heaphook-v${MAJOR_MINOR}_${VERSION}.orig.tar.gz agnocast-heapho
 cd agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
 debuild -S -sa
 
+# When re-upload with a next release number
+# debuild -S -sd
+
 cd ..
 rm -rf agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
