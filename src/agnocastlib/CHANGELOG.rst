@@ -2,8 +2,8 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.0 (2025-04-15)
+------------------
 * fix(agnocastlib): add O_EXCL for shm_open flag (`#595 <https://github.com/tier4/agnocast/issues/595>`_)
 * refactor(kmod): reorder ioctl command (`#615 <https://github.com/tier4/agnocast/issues/615>`_)
 * refactor(kmod): change command name to add_publisher/subscriber (`#614 <https://github.com/tier4/agnocast/issues/614>`_)
