@@ -172,7 +172,7 @@ fn init_tlsf() {
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
 
-    if let Err(_) = TLSF.set(Mutex::new(tlsf)) {
+    if TLSF.set(Mutex::new(tlsf)).is_err() {
         panic!("[ERROR] [Agnocast] TLSF is already initialized.");
     }
 }
