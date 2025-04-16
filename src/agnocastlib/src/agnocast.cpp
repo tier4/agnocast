@@ -281,7 +281,6 @@ void * initialize_agnocast(
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {
-    RCLCPP_ERROR(logger, "map_writable_area failed");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
