@@ -180,7 +180,7 @@ void * map_area(
 {
   const std::string shm_name = create_shm_name(pid);
 
-  int oflag = writable ? O_CREAT | O_RDWR : O_RDONLY;
+  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
   const int shm_mode = 0666;
   int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
   if (shm_fd == -1) {
@@ -279,7 +279,12 @@ void * initialize_agnocast(
     }
   }
 
-  return map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  if (mempool_ptr == nullptr) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  return mempool_ptr;
 }
 
 static void shutdown_agnocast()

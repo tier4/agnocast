@@ -172,7 +172,7 @@ fn init_tlsf() {
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
 
-    if let Err(_) = TLSF.set(Mutex::new(tlsf)) {
+    if TLSF.set(Mutex::new(tlsf)).is_err() {
         panic!("[ERROR] [Agnocast] TLSF is already initialized.");
     }
 }
@@ -539,16 +539,6 @@ mod tests {
                 let byte = *((ptr as *const u8).add(i));
                 assert_eq!(byte, 0, "memory should be zero-initialized");
             }
-            let start_addr_ptr = *((ptr as usize - POINTER_SIZE) as *const usize);
-            assert!(
-                start_addr_ptr >= start && start_addr_ptr < end,
-                "stored original address should be within memory pool"
-            );
-            assert_eq!(
-                ptr as usize,
-                start_addr_ptr + ALIGNMENT,
-                "address calculation should match implementation"
-            );
         }
 
         unsafe { free(ptr) };

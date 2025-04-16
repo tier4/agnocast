@@ -1,3 +1,18 @@
+agnocast-kmod-v2.1 (2.1.0-2) jammy; urgency=medium
+
+  * fix(kmod): fix check_daemon_necessity defining location (#616 <https://github.com/tier4/agnocast/issues/616>)
+  * refactor(kmod): reorder ioctl command (#615 <https://github.com/tier4/agnocast/issues/615>)
+  * refactor(kmod): delete unnecessary header file (#611 <https://github.com/tier4/agnocast/issues/611>)
+  * refactor(kmod): change command name to add_publisher/subscriber (#614 <https://github.com/tier4/agnocast/issues/614>)
+  * refactor(kmod): change command name from new_shm to add_process (#613 <https://github.com/tier4/agnocast/issues/613>)
+  * fix: do shm_unlink with daemon process for each ipc_ns (#602 <https://github.com/tier4/agnocast/issues/602>)
+  * fix(kunit): get_topic_num wasn't updated in kunit test (#608 <https://github.com/tier4/agnocast/issues/608>)
+  * refactor(kmod): get ipc_ns in agnocast_ioctl (#603 <https://github.com/tier4/agnocast/issues/603>)
+  * fix(kmod): topic namespace based on ipc_ns not net_ns (#600 <https://github.com/tier4/agnocast/issues/600>)
+  * fix(kmod): support getname_kernel for linux kernel version below 6.2 (#599 <https://github.com/tier4/agnocast/issues/599>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Wed, 17 Apr 2025 00:02:00 +0900
+
 agnocast-kmod (2.0.1-1) jammy; urgency=medium
 
  -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Wed, 03 Apr 2025 00:47:22 +0900

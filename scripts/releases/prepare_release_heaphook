@@ -1,13 +1,19 @@
 #!/bin/bash
 set -eux
 
-VERSION="2.0.1"
+MAJOR_MINOR="2.1"
+PATCH="0"
 
-cp -r agnocast_heaphook agnocast-heaphook-${VERSION}
-tar czf agnocast-heaphook_${VERSION}.orig.tar.gz agnocast-heaphook-${VERSION}
+VERSION="${MAJOR_MINOR}.${PATCH}"
 
-cd agnocast-heaphook-${VERSION}
+cp -r agnocast_heaphook agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
+tar czf agnocast-heaphook-v${MAJOR_MINOR}_${VERSION}.orig.tar.gz agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
+
+cd agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
 debuild -S -sa
 
+# When re-upload with a next release number
+# debuild -S -sd
+
 cd ..
-rm -rf agnocast-heaphook-${VERSION}
+rm -rf agnocast-heaphook-v${MAJOR_MINOR}-${VERSION}
