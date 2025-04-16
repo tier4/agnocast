@@ -1,13 +1,19 @@
 #!/bin/bash
 set -eux
 
-VERSION="2.0.1"
+MAJOR_MINOR="2.1"
+PATCH="0"
 
-cp -r agnocast_kmod agnocast-kmod-${VERSION}
-tar czf agnocast-kmod_${VERSION}.orig.tar.gz agnocast-kmod-${VERSION}
+VERSION="${MAJOR_MINOR}.${PATCH}"
 
-cd agnocast-kmod-${VERSION}
+cp -r agnocast_kmod agnocast-kmod-v${MAJOR_MINOR}-${VERSION}
+tar czf agnocast-kmod-v${MAJOR_MINOR}_${VERSION}.orig.tar.gz agnocast-kmod-v${MAJOR_MINOR}-${VERSION}
+
+cd agnocast-kmod-v${MAJOR_MINOR}-${VERSION}
 debuild -S -sa
 
+# When re-upload with a next release number
+# debuild -S -sd
+
 cd ..
-rm -rf agnocast-kmod-${VERSION}
+rm -rf agnocast-kmod-v${MAJOR_MINOR}-${VERSION}

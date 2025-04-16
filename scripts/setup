@@ -10,4 +10,4 @@ rustup component add clippy rustfmt
 # agnocast-heaphook and agnocast-kmod
 sudo add-apt-repository ppa:t4-system-software/agnocast
 sudo apt update
-sudo apt install agnocast-heaphook agnocast-kmod
+sudo apt install agnocast-heaphook-v2.1 agnocast-kmod-v2.1
