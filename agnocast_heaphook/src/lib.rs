@@ -543,4 +543,48 @@ mod tests {
 
         unsafe { free(ptr) };
     }
+
+    #[test]
+    fn test_realloc_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let malloc_size = 512;
+        let realloc_size = 1024;
+
+        let ptr = malloc(malloc_size);
+        assert!(!ptr.is_null(), "allocated memory should not be null");
+
+        unsafe {
+            for i in 0..malloc_size {
+                *((ptr as *mut u8).add(i)) = (i % 255) as u8;
+            }
+        }
+
+        // Act
+        let new_ptr = unsafe { realloc(ptr, realloc_size) };
+
+        // Assert
+        assert!(!new_ptr.is_null(), "realloc must not return NULL");
+        assert!(
+            new_ptr as usize >= start,
+            "realloc returned memory below the memory pool start address"
+        );
+        assert!(
+            new_ptr as usize + realloc_size <= end,
+            "realloc allocated memory exceeds the memory pool end address"
+        );
+
+        unsafe {
+            for i in 0..malloc_size {
+                assert_eq!(
+                    *((new_ptr as *const u8).add(i)),
+                    (i % 255) as u8,
+                    "realloc should preserve original data"
+                );
+            }
+        }
+
+        unsafe { free(new_ptr) };
+    }
 }
