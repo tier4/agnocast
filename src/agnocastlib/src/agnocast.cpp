@@ -204,8 +204,8 @@ void * map_area(
 
   int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
   void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
-    0);
+    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED /*| MAP_FIXED_NOREPLACE*/,
+    shm_fd, 0);
 
   if (ret == MAP_FAILED) {
     RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));

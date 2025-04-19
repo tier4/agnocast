@@ -268,6 +268,10 @@ fn should_use_original_func() -> bool {
         return true;
     }
 
+    if TLSF.get().is_none() {
+        return true;
+    }
+
     unsafe {
         if agnocast_get_borrowed_publisher_num() == 0 {
             return true;
@@ -298,6 +302,8 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
+    ORIGINAL_FREE.get_or_init(init_original_free);
+
     if should_use_original_func() {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
