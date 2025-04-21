@@ -587,4 +587,37 @@ mod tests {
 
         unsafe { free(new_ptr) };
     }
+
+    #[test]
+    fn test_posix_memalign_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let alignment = 64;
+        let size = 512;
+        let mut ptr: *mut c_void = std::ptr::null_mut();
+
+        // Act
+        let r = posix_memalign(&mut ptr, alignment, size);
+
+        // Assert
+        assert_eq!(r, 0, "posix_memalign should return 0 on success");
+
+        assert!(!ptr.is_null(), "posix_memalign must not return NULL");
+        assert!(
+            ptr as usize >= start,
+            "posix_memalign returned memory below the memory pool start address"
+        );
+        assert!(
+            ptr as usize + size <= end,
+            "posix_memalign allocated memory exceeds the memory pool end address"
+        );
+        assert_eq!(
+            ptr as usize % alignment,
+            0,
+            "posix_memalign memory should be aligned to the specified boundary"
+        );
+
+        unsafe { free(ptr) };
+    }
 }
