@@ -12,7 +12,7 @@ static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
 void init_memory_allocator(void)
 {
-  // TODO(Ryuta Kambe): we assume that the address from 0x40000000000 to 0x4e4bfffffff is available
+  // TODO(Ryuta Kambe): we assume that the address from 0x40000000000 to 0x120FFFFFFFFF is available
   uint64_t addr = 0x40000000000;
 
   for (int i = 0; i < MEMPOOL_128MB_NUM; i++) {
