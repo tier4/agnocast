@@ -433,7 +433,7 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 #[cfg(test)]
 fn init_tlsf() {
     let mempool_size: usize = 1024 * 1024;
-    let mempool_ptr: *mut c_void = 0x8B000000000 as *mut c_void;
+    let mempool_ptr: *mut c_void = 0x121000000000 as *mut c_void;
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
