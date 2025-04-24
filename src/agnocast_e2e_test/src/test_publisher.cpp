@@ -30,7 +30,7 @@ class TestPublisher : public rclcpp::Node
       return false;
     }
 
-    sleep(2);  // HACK: wait subscribing transient local messages
+    sleep(5);  // HACK: wait subscribing transient local messages
     is_ready_ = true;
     return true;
   }
