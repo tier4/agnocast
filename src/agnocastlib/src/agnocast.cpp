@@ -200,6 +200,12 @@ void * map_area(
       close(agnocast_fd);
       return nullptr;
     }
+
+    if (fchmod(shm_fd, 0444) == -1) {
+      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
   }
 
   int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
