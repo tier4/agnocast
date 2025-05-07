@@ -5,7 +5,7 @@
 #include <kunit/test.h>
 
 static pid_t pid = 1000;
-static const int max_process_num = 1000 + 100 + 10;
+static const int max_process_num = 3000 + 300 + 30;
 
 void test_case_add_process_normal(struct kunit * test)
 {
