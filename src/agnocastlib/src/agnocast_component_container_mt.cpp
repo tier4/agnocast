@@ -15,23 +15,28 @@ int main(int argc, char * argv[])
     options.allow_undeclared_parameters(true);
     options.automatically_declare_parameters_from_overrides(true);
 
-    auto node = std::make_shared<rclcpp_components::ComponentManager>(
-      std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
+    auto temp_param_node = std::make_shared<rclcpp::Node>("temp_param_reader", options);
 
-    const size_t number_of_ros2_threads = node->get_parameter_or("number_of_ros2_threads", 0);
+    const size_t number_of_ros2_threads =
+      temp_param_node->get_parameter_or("number_of_ros2_threads", 0);
     const size_t number_of_agnocast_threads =
-      node->get_parameter_or("number_of_agnocast_threads", 0);
-    const bool yield_before_execute = node->get_parameter_or("yield_before_execute", false);
+      temp_param_node->get_parameter_or("number_of_agnocast_threads", 0);
+    const bool yield_before_execute =
+      temp_param_node->get_parameter_or("yield_before_execute", false);
     const nanoseconds ros2_next_exec_timeout_ns =
-      nanoseconds(node->get_parameter_or("ros2_next_exec_timeout_ms", 10) * 1000 * 1000);
+      nanoseconds(temp_param_node->get_parameter_or("ros2_next_exec_timeout_ms", 10) * 1000 * 1000);
     const int agnocast_next_exec_timeout_ms =
-      node->get_parameter_or("agnocast_next_exec_timeout_ms", 10);
+      temp_param_node->get_parameter_or("agnocast_next_exec_timeout_ms", 10);
+
+    temp_param_node.reset();
 
     auto executor = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, number_of_ros2_threads, number_of_agnocast_threads,
       yield_before_execute, ros2_next_exec_timeout_ns, agnocast_next_exec_timeout_ms);
 
-    node->set_executor(executor);
+    auto node = std::make_shared<rclcpp_components::ComponentManager>(
+      std::weak_ptr<rclcpp::Executor>(executor), "ComponentManager", options);
+
     executor->add_node(node);
     executor->spin();
 
