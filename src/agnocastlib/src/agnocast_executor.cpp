@@ -176,16 +176,16 @@ bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & a
 
   for (auto it = ready_agnocast_executables_.begin(); it != ready_agnocast_executables_.end();
        ++it) {
-    if (
-      it->callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive &&
-      !it->callback_group->can_be_taken_from().exchange(false)) {
-      continue;
-    }
-
     // If the executor->add_node() is not called for this callback_group, it will be nullptr.
     if (
       rclcpp::Executor::get_node_by_group(
         rclcpp::Executor::weak_groups_to_nodes_, it->callback_group) == nullptr) {
+      continue;
+    }
+
+    if (
+      it->callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive &&
+      !it->callback_group->can_be_taken_from().exchange(false)) {
       continue;
     }
 
