@@ -182,6 +182,13 @@ bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & a
       continue;
     }
 
+    // If the executor->add_node() is not called for this callback_group, it will be nullptr.
+    if (
+      rclcpp::Executor::get_node_by_group(
+        rclcpp::Executor::weak_groups_to_nodes_, it->callback_group) == nullptr) {
+      continue;
+    }
+
     agnocast_executable = *it;
     ready_agnocast_executables_.erase(it);
 
