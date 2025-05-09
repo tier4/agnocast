@@ -61,7 +61,7 @@ topic_local_id_t initialize_publisher(
 union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle /* for CARET */, const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
-  std::unordered_map<std::string, std::tuple<mqd_t, bool>> & opened_mqs)
+  std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> & opened_mqs)
 {
   union ioctl_publish_msg_args publish_msg_args = {};
   publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -81,23 +81,22 @@ union ioctl_publish_msg_args publish_core(
 
   for (uint32_t i = 0; i < publish_msg_args.ret_subscriber_num; i++) {
     const topic_local_id_t subscriber_id = publish_msg_args.ret_subscriber_ids[i];
-
-    const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
     mqd_t mq = 0;
-    if (opened_mqs.find(mq_name) != opened_mqs.end()) {
-      std::tuple<mqd_t, bool> & t = opened_mqs[mq_name];
+    if (opened_mqs.find(subscriber_id) != opened_mqs.end()) {
+      std::tuple<mqd_t, bool> & t = opened_mqs[subscriber_id];
       mq = std::get<0>(t);
       // The boolean in the tuple indicates whether the mq is used in this publication round.
       // An unused mq means that its corresponding subscribers have exited, so we close such mqs
       // later.
       std::get<1>(t) = true;
     } else {
+      const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
       mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
       if (mq == -1) {
         RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
         continue;
       }
-      opened_mqs.insert({mq_name, {mq, true}});
+      opened_mqs.insert({subscriber_id, {mq, true}});
     }
 
     struct MqMsgAgnocast mq_msg = {};

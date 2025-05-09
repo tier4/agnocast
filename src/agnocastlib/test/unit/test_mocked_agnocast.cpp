@@ -30,7 +30,7 @@ topic_local_id_t initialize_publisher(const std::string &, const std::string &, 
 }
 union ioctl_publish_msg_args publish_core(
   const void *, const std::string &, const topic_local_id_t, const uint64_t,
-  std::unordered_map<std::string, std::tuple<mqd_t, bool>> &)
+  std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> &)
 {
   publish_core_mock_called_count++;
   return ioctl_publish_msg_args{};  // Dummy value
