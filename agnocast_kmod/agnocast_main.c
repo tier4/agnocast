@@ -914,6 +914,19 @@ int publish_msg(
     return -EINVAL;
   }
 
+  struct process_info * proc_info = find_process_info(pub_info->pid);
+  if (!proc_info) {
+    dev_warn(agnocast_device, "Process (pid=%d) does not exist. (publish_msg)\n", pub_info->pid);
+    return -EINVAL;
+  }
+
+  uint64_t mempool_start = proc_info->mempool_entry->addr;
+  uint64_t mempool_end = mempool_start + proc_info->shm_size;
+  if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
+    dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (publish_msg)\n");
+    return -EINVAL;
+  }
+
   int ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
   if (ret < 0) {
     return ret;

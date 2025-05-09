@@ -714,7 +714,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
   const pid_t publisher_pid = 1000;
   setup_one_publisher(test, publisher_pid, qos_depth, is_transient_local, &publisher_id, &ret_addr);
 
-  uint64_t msg_addr = 0x1000;
+  uint64_t msg_addr = ret_addr;
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, &ioctl_publish_msg_ret);
