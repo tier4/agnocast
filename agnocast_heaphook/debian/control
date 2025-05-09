@@ -1,4 +1,4 @@
-Source: agnocast-heaphook-v2.1
+Source: agnocast-heaphook-v2.1.0
 Section: libs
 Priority: optional
 Maintainer: Takahiro Ishikawa-Aso <sykwer@gmail.com>
@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 13), cargo, rustc, dh-cargo
 Standards-Version: 4.6.1
 Homepage: https://github.com/tier4/agnocast
 
-Package: agnocast-heaphook-v2.1
+Package: agnocast-heaphook-v2.1.0
 Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: A heap runtime replacement for Agnocast.
