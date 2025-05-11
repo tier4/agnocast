@@ -16,7 +16,7 @@ namespace agnocast
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
-// To obtain shm info for the publisher process via ioctl(RECEIVE_MSG) and perform mmap atomically.
+// To obtain shm info of the publisher process via ioctl(RECEIVE_MSG) and perform mmap atomically.
 std::mutex mmap_mtx;
 void poll_for_unlink()
 {
