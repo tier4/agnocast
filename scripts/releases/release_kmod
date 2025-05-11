@@ -1,11 +1,9 @@
 #!/bin/bash
 set -eux
 
-MAJOR_MINOR="2.1"
-PATCH="0"
+VERSION="2.1.0"
 RELEASE="2"
 
-VERSION="${MAJOR_MINOR}.${PATCH}"
-CHANGES_FILE="agnocast-kmod-v${MAJOR_MINOR}_${VERSION}-${RELEASE}_source.changes"
+CHANGES_FILE="agnocast-kmod-v${VERSION}_${VERSION}-${RELEASE}_source.changes"
 
 dput ppa:t4-system-software/agnocast ${CHANGES_FILE}
