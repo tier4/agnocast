@@ -433,7 +433,7 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 #[cfg(test)]
 fn init_tlsf() {
     let mempool_size: usize = 1024 * 1024;
-    let mempool_ptr: *mut c_void = 0x8B000000000 as *mut c_void;
+    let mempool_ptr: *mut c_void = 0x121000000000 as *mut c_void;
     let pool: &mut [MaybeUninit<u8>] = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
@@ -509,5 +509,184 @@ mod tests {
         );
 
         unsafe { free(ptr) };
+    }
+
+    #[test]
+    fn test_calloc_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let elements = 4;
+        let element_size = 256;
+        let calloc_size = elements * element_size;
+
+        // Act
+        let ptr = calloc(elements, element_size);
+
+        // Assert
+        assert!(!ptr.is_null(), "calloc must not return NULL");
+        assert!(
+            ptr as usize >= start,
+            "calloc returned memory below the memory pool start address"
+        );
+        assert!(
+            ptr as usize + calloc_size <= end,
+            "calloc allocated memory exceeds the memory pool end address"
+        );
+
+        unsafe {
+            for i in 0..calloc_size {
+                let byte = *((ptr as *const u8).add(i));
+                assert_eq!(byte, 0, "memory should be zero-initialized");
+            }
+        }
+
+        unsafe { free(ptr) };
+    }
+
+    #[test]
+    fn test_realloc_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let malloc_size = 512;
+        let realloc_size = 1024;
+
+        let ptr = malloc(malloc_size);
+        assert!(!ptr.is_null(), "allocated memory should not be null");
+
+        unsafe {
+            for i in 0..malloc_size {
+                *((ptr as *mut u8).add(i)) = (i % 255) as u8;
+            }
+        }
+
+        // Act
+        let new_ptr = unsafe { realloc(ptr, realloc_size) };
+
+        // Assert
+        assert!(!new_ptr.is_null(), "realloc must not return NULL");
+        assert!(
+            new_ptr as usize >= start,
+            "realloc returned memory below the memory pool start address"
+        );
+        assert!(
+            new_ptr as usize + realloc_size <= end,
+            "realloc allocated memory exceeds the memory pool end address"
+        );
+
+        unsafe {
+            for i in 0..malloc_size {
+                assert_eq!(
+                    *((new_ptr as *const u8).add(i)),
+                    (i % 255) as u8,
+                    "realloc should preserve original data"
+                );
+            }
+        }
+
+        unsafe { free(new_ptr) };
+    }
+
+    #[test]
+    fn test_posix_memalign_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let alignment = 64;
+        let size = 512;
+        let mut ptr: *mut c_void = std::ptr::null_mut();
+
+        // Act
+        let r = posix_memalign(&mut ptr, alignment, size);
+
+        // Assert
+        assert_eq!(r, 0, "posix_memalign should return 0 on success");
+
+        assert!(!ptr.is_null(), "posix_memalign must not return NULL");
+        assert!(
+            ptr as usize >= start,
+            "posix_memalign returned memory below the memory pool start address"
+        );
+        assert!(
+            ptr as usize + size <= end,
+            "posix_memalign allocated memory exceeds the memory pool end address"
+        );
+        assert_eq!(
+            ptr as usize % alignment,
+            0,
+            "posix_memalign memory should be aligned to the specified boundary"
+        );
+
+        unsafe { free(ptr) };
+    }
+
+    #[test]
+    fn test_aligned_alloc() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
+        let sizes = [10, 32, 100, 512, 1000, 4096];
+
+        for &alignment in &alignments {
+            for &size in &sizes {
+                // Act
+                let ptr = aligned_alloc(alignment, size);
+
+                // Assert
+                assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
+
+                assert!(
+                    ptr as usize >= start,
+                    "aligned_alloc returned memory below the memory pool start address"
+                );
+
+                assert!(
+                    ptr as usize + size <= end,
+                    "aligned_alloc allocated memory exceeds the memory pool end address"
+                );
+                assert_eq!(
+                    ptr as usize % alignment,
+                    0,
+                    "aligned_alloc memory should be aligned to the specified boundary"
+                );
+                unsafe { free(ptr) };
+            }
+        }
+    }
+    #[test]
+    fn test_memalign_normal() {
+        // Arrange
+        let start = MEMPOOL_START.load(Ordering::SeqCst);
+        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
+        let sizes = [10, 32, 100, 512, 1000, 4096];
+
+        for &alignment in &alignments {
+            for &size in &sizes {
+                // Act
+                let ptr = memalign(alignment, size);
+
+                // Assert
+                assert!(!ptr.is_null(), "memalign must not return NULL");
+
+                assert!(
+                    ptr as usize >= start,
+                    "memalign returned memory below the memory pool start address"
+                );
+
+                assert!(
+                    ptr as usize + size <= end,
+                    "memalign allocated memory exceeds the memory pool end address"
+                );
+                assert_eq!(
+                    ptr as usize % alignment,
+                    0,
+                    "memalign memory should be aligned to the specified boundary"
+                );
+                unsafe { free(ptr) };
+            }
+        }
     }
 }

@@ -5,9 +5,9 @@
 // Maximum number of processes that can be mapped to a memory pool
 #define MAX_PROCESS_NUM_PER_MEMPOOL 32
 
-#define MEMPOOL_128MB_NUM 1000
-#define MEMPOOL_1GB_NUM 100
-#define MEMPOOL_8GB_NUM 10
+#define MEMPOOL_128MB_NUM 3000
+#define MEMPOOL_1GB_NUM 300
+#define MEMPOOL_8GB_NUM 30
 #define MEMPOOL_TOTAL_NUM (MEMPOOL_128MB_NUM + MEMPOOL_1GB_NUM + MEMPOOL_8GB_NUM)
 
 struct mempool_entry
