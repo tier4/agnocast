@@ -16,6 +16,24 @@ namespace agnocast
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
+std::mutex mmap_mtx;
+// mmap_mtx: Prevents a race condition and segfault between two threads
+// in a multithreaded executor using the same mqueue_fd.
+//
+// Race Scenario:
+// 1. Thread 1 (T1):
+//    - Calls epoll_wait(), mq_receive(), then ioctl(RECEIVE_CMD), initially obtaining
+//      publisher info (PID, shared memory address `shm_addr`).
+//    - Critical: OS context switch occurs *after* ioctl() but *before* T1 fully
+//      processes/maps `shm_addr`.
+// 2. Thread 2 (T2):
+//    - Calls epoll_wait(), mq_receive(), then ioctl(RECEIVE_CMD) on the same mqueue_fd,
+//      but does *not* receive publisher info (assuming it's already set up).
+//    - Proceeds to a callback which attempts to use `shm_addr`, leading to a SEGFAULT.
+//
+// Root Cause: T2's callback uses `shm_addr` that T1 fetched but hadn't initialized/mapped yet.
+// This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
+// info through to completing shared memory setup.
 
 void poll_for_unlink()
 {

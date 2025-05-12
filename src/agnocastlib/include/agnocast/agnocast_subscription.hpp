@@ -27,6 +27,8 @@
 namespace agnocast
 {
 
+extern std::mutex mmap_mtx;
+
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
 struct SubscriptionOptions
@@ -129,17 +131,22 @@ public:
     take_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
     take_args.subscriber_id = id_;
     take_args.allow_same_message = allow_same_message;
-    if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
 
-    for (uint32_t i = 0; i < take_args.ret_pub_shm_info.publisher_num; i++) {
-      const pid_t pid = take_args.ret_pub_shm_info.publisher_pids[i];
-      const uint64_t addr = take_args.ret_pub_shm_info.shm_addrs[i];
-      const uint64_t size = take_args.ret_pub_shm_info.shm_sizes[i];
-      map_read_only_area(pid, addr, size);
+    {
+      std::lock_guard<std::mutex> lock(mmap_mtx);
+
+      if (ioctl(agnocast_fd, AGNOCAST_TAKE_MSG_CMD, &take_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_TAKE_MSG_CMD failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      for (uint32_t i = 0; i < take_args.ret_pub_shm_info.publisher_num; i++) {
+        const pid_t pid = take_args.ret_pub_shm_info.publisher_pids[i];
+        const uint64_t addr = take_args.ret_pub_shm_info.shm_addrs[i];
+        const uint64_t size = take_args.ret_pub_shm_info.shm_sizes[i];
+        map_read_only_area(pid, addr, size);
+      }
     }
 
     if (take_args.ret_addr == 0) {

@@ -1,4 +1,4 @@
-agnocast-kmod-v2.1 (2.1.0-2) jammy; urgency=medium
+agnocast-kmod-v2.1.0 (2.1.0-2) jammy; urgency=medium
 
   * fix(kmod): fix check_daemon_necessity defining location (#616 <https://github.com/tier4/agnocast/issues/616>)
   * refactor(kmod): reorder ioctl command (#615 <https://github.com/tier4/agnocast/issues/615>)
