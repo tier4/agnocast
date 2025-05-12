@@ -1,4 +1,4 @@
-agnocast-heaphook-v2.1 (2.1.0-1) jammy; urgency=medium
+agnocast-heaphook-v2.1.0 (2.1.0-1) jammy; urgency=medium
 
   * refactor(heaphook): use set/get method for TLSF, not init_or_get (#606 <https://github.com/tier4/agnocast/issues/606>)
   * test(heaphook): add unit test (#594 <https://github.com/tier4/agnocast/issues/594>)

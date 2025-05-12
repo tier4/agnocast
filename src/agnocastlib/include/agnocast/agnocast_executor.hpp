@@ -6,6 +6,8 @@
 namespace agnocast
 {
 
+extern std::mutex mmap_mtx;
+
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
 struct AgnocastExecutable
