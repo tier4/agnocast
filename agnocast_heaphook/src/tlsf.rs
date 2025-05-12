@@ -3,10 +3,8 @@ use std::{
     alloc::Layout,
     mem::MaybeUninit,
     os::raw::c_void,
-    sync::{atomic::Ordering, Mutex, OnceLock},
+    sync::{Mutex, OnceLock},
 };
-
-use crate::{MEMPOOL_END, MEMPOOL_START};
 
 // FIXME: Add assert
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
@@ -19,103 +17,7 @@ type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 static TLSF: OnceLock<Mutex<TlsfType>> = OnceLock::new();
 
-#[cfg(test)]
-pub fn init_tlsf() {
-    use std::ffi::CStr;
-
-    let mempool_size: usize = 1024 * 1024;
-    let mempool_ptr: *mut c_void = 0x121000000000 as *mut c_void;
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
-
-    let shm_fd = unsafe {
-        libc::shm_open(
-            CStr::from_bytes_with_nul(b"/agnocast_test\0")
-                .unwrap()
-                .as_ptr(),
-            libc::O_CREAT | libc::O_RDWR,
-            0o600,
-        )
-    };
-
-    unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
-
-    let mmap_ptr = unsafe {
-        libc::mmap(
-            mempool_ptr,
-            mempool_size,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED | libc::MAP_FIXED_NOREPLACE,
-            shm_fd,
-            0,
-        )
-    };
-
-    unsafe {
-        libc::shm_unlink(
-            CStr::from_bytes_with_nul(b"/agnocast_test\0")
-                .unwrap()
-                .as_ptr(),
-        )
-    };
-
-    MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
-    MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
-
-    let mut tlsf: TlsfType = Tlsf::new();
-    tlsf.insert_free_block(pool);
-
-    TLSF.set(Mutex::new(tlsf));
-}
-
-#[cfg(not(test))]
-pub fn init_tlsf() {
-    use crate::post_fork_handler_in_child;
-    use std::{ffi::CString, os::raw::c_char};
-
-    extern "C" {
-        fn initialize_agnocast(
-            size: usize,
-            version: *const c_char,
-            version_str_length: usize,
-        ) -> *mut c_void;
-    }
-
-    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
-
-    if result != 0 {
-        panic!(
-            "[ERROR] [Agnocast] agnocast_heaphook internal error: pthread_atfork failed: {}",
-            std::io::Error::from_raw_os_error(result)
-        )
-    }
-
-    let mempool_size_env: String = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-    });
-
-    let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-    });
-
-    let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-    let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
-
-    let version = env!("CARGO_PKG_VERSION");
-    let c_version = CString::new(version).unwrap();
-
-    let mempool_ptr: *mut c_void = unsafe {
-        initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
-    };
-
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
-
-    MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
-    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
-
+pub fn init_tlsf(pool: &'static mut [MaybeUninit<u8>]) {
     let mut tlsf: TlsfType = Tlsf::new();
     tlsf.insert_free_block(pool);
 
