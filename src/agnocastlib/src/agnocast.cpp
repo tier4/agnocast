@@ -219,7 +219,8 @@ void * map_area(
       return nullptr;
     }
 
-    if (fchmod(shm_fd, 0444) == -1) {
+    const int new_shm_mode = 0444;
+    if (fchmod(shm_fd, new_shm_mode) == -1) {
       RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
       close(agnocast_fd);
       return nullptr;
