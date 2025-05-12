@@ -29,18 +29,23 @@ void AgnocastExecutor::receive_message(
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
-  if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
 
-  // Map the shared memory region with read permissions whenever a new publisher is discovered.
-  for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
-    const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
-    const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
-    const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
-    map_read_only_area(pid, addr, size);
+  {
+    std::lock_guard<std::mutex> lock(mmap_mtx);
+
+    if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    // Map the shared memory region with read permissions whenever a new publisher is discovered.
+    for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
+      const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
+      const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
+      const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
+      map_read_only_area(pid, addr, size);
+    }
   }
 
   // older messages first
