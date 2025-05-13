@@ -1,3 +1,12 @@
+agnocast-kmod-v2.1.1 (2.1.1-1) jammy; urgency=medium
+
+  * fix(kmod): add a boundary check for msg_virtual_address (#635 <https://github.com/tier4/agnocast/issues/635>)
+  * patch level ppa package (#624 <https://github.com/tier4/agnocast/issues/624>)
+  * fix(kunit): update the max process number (#636 <https://github.com/tier4/agnocast/issues/636>)
+  * fix(memory_allocator): increase mempoll size (#629 <https://github.com/tier4/agnocast/issues/629>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Tue, 13 May 2025 14:45:00 +0900
+
 agnocast-kmod-v2.1.0 (2.1.0-2) jammy; urgency=medium
 
   * fix(kmod): fix check_daemon_necessity defining location (#616 <https://github.com/tier4/agnocast/issues/616>)

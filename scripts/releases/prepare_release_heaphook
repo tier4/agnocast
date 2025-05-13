@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-VERSION="2.1.0"
+VERSION="2.1.1"
 
 cp -r agnocast_heaphook agnocast-heaphook-v${VERSION}-${VERSION}
 tar czf agnocast-heaphook-v${VERSION}_${VERSION}.orig.tar.gz agnocast-heaphook-v${VERSION}-${VERSION}
