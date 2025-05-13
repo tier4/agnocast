@@ -2,8 +2,8 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.1 (2025-05-13)
+------------------
 * fix(agnocastlib): forbit the reader processes from resizing shmem (`#632 <https://github.com/tier4/agnocast/issues/632>`_)
 * fix: add validation for add_node() (`#638 <https://github.com/tier4/agnocast/issues/638>`_)
 * fix: lock for atomically obtain shmem info via ioctl and do mmap (`#639 <https://github.com/tier4/agnocast/issues/639>`_)
