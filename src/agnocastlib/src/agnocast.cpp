@@ -218,6 +218,13 @@ void * map_area(
       close(agnocast_fd);
       return nullptr;
     }
+
+    const int new_shm_mode = 0444;
+    if (fchmod(shm_fd, new_shm_mode) == -1) {
+      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
   }
 
   int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
