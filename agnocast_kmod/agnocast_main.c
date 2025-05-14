@@ -1412,138 +1412,176 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
     union ioctl_add_subscriber_args sub_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     if (copy_from_user(&sub_args, (union ioctl_add_subscriber_args __user *)arg, sizeof(sub_args)))
       goto return_EFAULT;
     if (
       sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
       sub_args.node_name.len >= NODE_NAME_BUFFER_SIZE)
       goto return_EINVAL;
+    char * combined_buf = kmalloc(sub_args.topic_name.len + sub_args.node_name.len + 2, GFP_KERNEL);
+    if (!combined_buf) goto return_ENOMEM;
+    char * topic_name_buf = combined_buf;
+    char * node_name_buf = combined_buf + sub_args.topic_name.len + 1;
     if (copy_from_user(
-          topic_name_buf, (char __user *)sub_args.topic_name.ptr, sub_args.topic_name.len))
+          topic_name_buf, (char __user *)sub_args.topic_name.ptr, sub_args.topic_name.len)) {
+      kfree(combined_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[sub_args.topic_name.len] = '\0';
     if (copy_from_user(
-          node_name_buf, (char __user *)sub_args.node_name.ptr, sub_args.node_name.len))
+          node_name_buf, (char __user *)sub_args.node_name.ptr, sub_args.node_name.len)) {
+      kfree(combined_buf);
       goto return_EFAULT;
+    }
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = add_subscriber(
       topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
       sub_args.qos_is_transient_local, sub_args.is_take_sub, &sub_args);
+    kfree(combined_buf);
     if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_ADD_PUBLISHER_CMD) {
     union ioctl_add_publisher_args pub_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
-    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     if (copy_from_user(&pub_args, (union ioctl_add_publisher_args __user *)arg, sizeof(pub_args)))
       goto return_EFAULT;
     if (
       pub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE ||
       pub_args.node_name.len >= NODE_NAME_BUFFER_SIZE)
       goto return_EINVAL;
+    char * combined_buf = kmalloc(pub_args.topic_name.len + pub_args.node_name.len + 2, GFP_KERNEL);
+    if (!combined_buf) goto return_ENOMEM;
+    char * topic_name_buf = combined_buf;
+    char * node_name_buf = combined_buf + pub_args.topic_name.len + 1;
     if (copy_from_user(
-          topic_name_buf, (char __user *)pub_args.topic_name.ptr, pub_args.topic_name.len))
+          topic_name_buf, (char __user *)pub_args.topic_name.ptr, pub_args.topic_name.len)) {
+      kfree(combined_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[pub_args.topic_name.len] = '\0';
     if (copy_from_user(
-          node_name_buf, (char __user *)pub_args.node_name.ptr, pub_args.node_name.len))
+          node_name_buf, (char __user *)pub_args.node_name.ptr, pub_args.node_name.len)) {
+      kfree(combined_buf);
       goto return_EFAULT;
+    }
     node_name_buf[pub_args.node_name.len] = '\0';
     ret = add_publisher(
       topic_name_buf, ipc_ns, node_name_buf, pid, pub_args.qos_depth,
       pub_args.qos_is_transient_local, &pub_args);
+    kfree(combined_buf);
     if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(
           &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
       goto return_EFAULT;
     if (entry_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(entry_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
-          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len))
+          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret =
       increment_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
+    kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(
           &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
       goto return_EFAULT;
     if (entry_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(entry_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
-          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len))
+          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[entry_args.topic_name.len] = '\0';
     ret =
       decrement_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
+    kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(
           &receive_msg_args, (union ioctl_receive_msg_args __user *)arg, sizeof(receive_msg_args)))
       goto return_EFAULT;
     if (receive_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(receive_msg_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           topic_name_buf, (char __user *)receive_msg_args.topic_name.ptr,
-          receive_msg_args.topic_name.len))
+          receive_msg_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[receive_msg_args.topic_name.len] = '\0';
     ret = receive_msg(topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, &receive_msg_args);
+    kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
     union ioctl_publish_msg_args publish_msg_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(
           &publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
       goto return_EFAULT;
     if (publish_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(publish_msg_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           topic_name_buf, (char __user *)publish_msg_args.topic_name.ptr,
-          publish_msg_args.topic_name.len))
+          publish_msg_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[publish_msg_args.topic_name.len] = '\0';
     ret = publish_msg(
       topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
       &publish_msg_args);
+    kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
       goto return_EFAULT;
     if (take_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(take_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
-          topic_name_buf, (char __user *)take_args.topic_name.ptr, take_args.topic_name.len))
+          topic_name_buf, (char __user *)take_args.topic_name.ptr, take_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[take_args.topic_name.len] = '\0';
     ret = take_msg(
       topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, &take_args);
+    kfree(topic_name_buf);
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     if (copy_from_user(
           &get_subscriber_num_args, (union ioctl_get_subscriber_num_args __user *)arg,
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
     if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           topic_name_buf, (char __user *)get_subscriber_num_args.topic_name.ptr,
-          get_subscriber_num_args.topic_name.len))
+          get_subscriber_num_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
     ret = get_subscriber_num(topic_name_buf, ipc_ns, &get_subscriber_num_args);
+    kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
@@ -1565,73 +1603,88 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD) {
-    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     union ioctl_node_info_args node_info_sub_args;
     if (copy_from_user(
           &node_info_sub_args, (union ioctl_node_info_args __user *)arg,
           sizeof(node_info_sub_args)))
       goto return_EFAULT;
     if (node_info_sub_args.node_name.len >= NODE_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * node_name_buf = kmalloc(node_info_sub_args.node_name.len + 1, GFP_KERNEL);
+    if (!node_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           node_name_buf, (char __user *)node_info_sub_args.node_name.ptr,
-          node_info_sub_args.node_name.len))
+          node_info_sub_args.node_name.len)) {
+      kfree(node_name_buf);
       goto return_EFAULT;
+    }
     node_name_buf[node_info_sub_args.node_name.len] = '\0';
     ret = get_node_subscriber_topics(ipc_ns, node_name_buf, &node_info_sub_args);
+    kfree(node_name_buf);
     if (copy_to_user(
           (union ioctl_node_info_args __user *)arg, &node_info_sub_args,
           sizeof(node_info_sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD) {
-    char node_name_buf[NODE_NAME_BUFFER_SIZE];
     union ioctl_node_info_args node_info_pub_args;
     if (copy_from_user(
           &node_info_pub_args, (union ioctl_node_info_args __user *)arg,
           sizeof(node_info_pub_args)))
       goto return_EFAULT;
     if (node_info_pub_args.node_name.len >= NODE_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * node_name_buf = kmalloc(node_info_pub_args.node_name.len + 1, GFP_KERNEL);
+    if (!node_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           node_name_buf, (char __user *)node_info_pub_args.node_name.ptr,
-          node_info_pub_args.node_name.len))
+          node_info_pub_args.node_name.len)) {
+      kfree(node_name_buf);
       goto return_EFAULT;
+    }
     node_name_buf[node_info_pub_args.node_name.len] = '\0';
     ret = get_node_publisher_topics(ipc_ns, node_name_buf, &node_info_pub_args);
+    kfree(node_name_buf);
     if (copy_to_user(
           (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
           sizeof(node_info_pub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD) {
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     union ioctl_topic_info_args topic_info_sub_args;
     if (copy_from_user(
           &topic_info_sub_args, (union ioctl_topic_info_args __user *)arg,
           sizeof(topic_info_sub_args)))
       goto return_EFAULT;
     if (topic_info_sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(topic_info_sub_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           topic_name_buf, (char __user *)topic_info_sub_args.topic_name.ptr,
-          topic_info_sub_args.topic_name.len))
+          topic_info_sub_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[topic_info_sub_args.topic_name.len] = '\0';
     ret = get_topic_subscriber_info(topic_name_buf, ipc_ns, &topic_info_sub_args);
+    kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_topic_info_args __user *)arg, &topic_info_sub_args,
           sizeof(topic_info_sub_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD) {
-    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
     union ioctl_topic_info_args topic_info_pub_args;
     if (copy_from_user(
           &topic_info_pub_args, (union ioctl_topic_info_args __user *)arg,
           sizeof(topic_info_pub_args)))
       goto return_EFAULT;
-    if (topic_info_pub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(topic_info_pub_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
           topic_name_buf, (char __user *)topic_info_pub_args.topic_name.ptr,
-          topic_info_pub_args.topic_name.len))
+          topic_info_pub_args.topic_name.len)) {
+      kfree(topic_name_buf);
       goto return_EFAULT;
+    }
     topic_name_buf[topic_info_pub_args.topic_name.len] = '\0';
     ret = get_topic_publisher_info(topic_name_buf, ipc_ns, &topic_info_pub_args);
+    kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
@@ -1650,6 +1703,10 @@ return_EFAULT:
 return_EINVAL:
   mutex_unlock(&global_mutex);
   return -EINVAL;
+
+return_ENOMEM:
+  mutex_unlock(&global_mutex);
+  return -ENOMEM;
 }
 
 // =========================================
