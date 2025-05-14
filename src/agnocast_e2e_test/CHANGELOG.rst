@@ -2,6 +2,11 @@
 Changelog for package agnocast_e2e_test
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.1.1 (2025-05-13)
+------------------
+* fix(e2e_test): extend ready_delay waiting time (`#630 <https://github.com/tier4/agnocast/issues/630>`_)
+* fix(e2e test): extend waiting time for receiving transient local messages (`#628 <https://github.com/tier4/agnocast/issues/628>`_)
+
 2.1.0 (2025-04-15)
 ------------------
 
