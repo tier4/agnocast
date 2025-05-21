@@ -37,6 +37,9 @@ void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
+extern uint32_t gl;
+extern "C" uint32_t get_gl();
+extern "C" uint64_t get_gl_addr();
 extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
@@ -179,7 +182,12 @@ public:
   ipc_shared_ptr<MessageT> borrow_loaned_message()
   {
     increment_borrowed_publisher_num();
+    gl = 1;
+    printf("[agnocastlib] borrowed_publisher_num = %d\n", agnocast_get_borrowed_publisher_num());
+    printf("[agnocastlib] gl = %d\n", get_gl());
+    printf("[agnocastlib] gl_addr = %p\n", reinterpret_cast<void *>(get_gl_addr()));
     MessageT * ptr = new MessageT();
+    gl = 0;
     return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
   }
 

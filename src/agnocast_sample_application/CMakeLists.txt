@@ -5,8 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
+# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -22,6 +22,8 @@ ament_target_dependencies(talker rclcpp agnocastlib agnocast_sample_interfaces)
 target_include_directories(talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
+target_compile_options(talker PRIVATE -fsanitize=thread -fno-omit-frame-pointer -g)
+target_link_options(talker PRIVATE -fsanitize=thread)
 
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)

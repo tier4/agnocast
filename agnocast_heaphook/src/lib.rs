@@ -1,6 +1,7 @@
 use rlsf::Tlsf;
 use std::{
     alloc::Layout,
+    cell::Cell,
     ffi::{CStr, CString},
     mem::MaybeUninit,
     os::raw::{c_char, c_int, c_void},
@@ -17,6 +18,8 @@ extern "C" {
         version_str_length: usize,
     ) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
+    fn get_gl() -> u32;
+    fn get_gl_addr() -> u64;
 }
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
@@ -300,15 +303,50 @@ pub unsafe extern "C" fn __libc_start_main(
     )
 }
 
+thread_local! {
+    static HOOKED : Cell<bool> = const { Cell::new(false) };
+}
+
+static ADDR_PRINTED: AtomicBool = AtomicBool::new(false);
+
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
     ORIGINAL_FREE.get_or_init(init_original_free);
 
-    if should_use_original_func() {
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    tlsf_allocate_wrapped(0, size)
+    if TLSF.get().is_none() {
+        return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
+    }
+
+    HOOKED.with(|hooked: &Cell<bool>| {
+        if hooked.get() {
+            unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) }
+        } else {
+            hooked.set(true);
+
+            if unsafe { get_gl() } == 1 {
+                println!("[heaphook] gl = 1");
+            }
+
+            if !ADDR_PRINTED.load(Ordering::Relaxed) {
+                println!("[heaphook] gl_addr = 0x{:x}", unsafe { get_gl_addr() });
+                ADDR_PRINTED.store(true, Ordering::Relaxed);
+            }
+
+            let num = unsafe { agnocast_get_borrowed_publisher_num() };
+            let ret: *mut c_void = if num > 0 {
+                print!("[heaphook] borrowed_publisher_num = {}\n", num);
+                tlsf_allocate_wrapped(0, size)
+            } else {
+                unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) }
+            };
+            hooked.set(false);
+            ret
+        }
+    })
 }
 
 /// # Safety

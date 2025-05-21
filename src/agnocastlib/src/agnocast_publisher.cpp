@@ -5,6 +5,18 @@
 namespace agnocast
 {
 
+uint32_t gl = 0;
+
+extern "C" uint32_t get_gl()
+{
+  return gl;
+}
+
+extern "C" uint64_t get_gl_addr()
+{
+  return reinterpret_cast<uint64_t>(&gl);
+}
+
 thread_local uint32_t borrowed_publisher_num = 0;
 
 extern "C" uint32_t agnocast_get_borrowed_publisher_num()
