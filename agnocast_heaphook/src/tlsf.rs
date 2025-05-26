@@ -6,9 +6,8 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-// FIXME: Add assert
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
+const MIN_ALIGN: usize = 16;
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
@@ -27,11 +26,8 @@ pub fn init_tlsf(pool: &'static mut [MaybeUninit<u8>]) {
 }
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        panic!(
-            "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
-        );
+    let layout: Layout = Layout::from_size_align(size, 1).unwrap_or_else(|error| {
+        panic!("[ERROR] [Agnocast] {}: size={}", error, size);
     });
 
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
@@ -44,11 +40,8 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 }
 
 fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
-        panic!(
-            "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
-        );
+    let layout: Layout = Layout::from_size_align(size, 1).unwrap_or_else(|error| {
+        panic!("[ERROR] [Agnocast] {}: size={}", error, size);
     });
 
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
@@ -64,19 +57,26 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
+    unsafe { tlsf.deallocate(ptr, 1) }
 }
 
 pub fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
+    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+    let alignment = alignment.max(MIN_ALIGN);
+    debug_assert!(alignment.is_power_of_two());
+
     // return value from internal alloc
-    let start_addr: usize = tlsf_allocate(ALIGNMENT + size + alignment) as usize;
+    let start_addr: usize = tlsf_allocate(POINTER_SIZE + size + alignment) as usize;
 
     // aligned address returned to user
-    let aligned_addr: usize = if alignment == 0 {
-        start_addr + ALIGNMENT
-    } else {
-        start_addr + ALIGNMENT + alignment - ((start_addr + ALIGNMENT) % alignment)
-    };
+    //
+    // It is our responsibility to satisfy alignment constraints. While we could deglegate
+    // this responsibility to the TLSF allocator by using `Layout::align`, the Tlsf::{reallocate, deallocate}
+    // functons require the same alignment specified at allocation time. Therefore, in this case, we would
+    // need to remember the alignement.
+    let aligned_addr = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
+    debug_assert!(aligned_addr % alignment == 0);
 
     // store `start_addr`
     let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
@@ -92,8 +92,10 @@ pub fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
     // return value from internal alloc
-    let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
-    let aligned_addr: usize = start_addr + ALIGNMENT;
+    let alignment = MIN_ALIGN;
+    let start_addr: usize =
+        tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment) as usize;
+    let aligned_addr = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
 
     // store `start_addr`
     let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
