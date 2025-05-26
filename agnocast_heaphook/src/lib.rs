@@ -402,7 +402,7 @@ mod tests {
         let malloc_size = 1024;
 
         // Act
-        let ptr = malloc(malloc_size);
+        let ptr = unsafe { libc::malloc(malloc_size) };
 
         // Assert
         assert!(!ptr.is_null(), "allocated memory should not be null");
@@ -415,7 +415,7 @@ mod tests {
             "allocated memory should be within pool bounds"
         );
 
-        unsafe { free(ptr) };
+        unsafe { libc::free(ptr) };
     }
 
     #[test]
@@ -428,7 +428,7 @@ mod tests {
         let calloc_size = elements * element_size;
 
         // Act
-        let ptr = calloc(elements, element_size);
+        let ptr = unsafe { libc::calloc(elements, element_size) };
 
         // Assert
         assert!(!ptr.is_null(), "calloc must not return NULL");
@@ -448,7 +448,7 @@ mod tests {
             }
         }
 
-        unsafe { free(ptr) };
+        unsafe { libc::free(ptr) };
     }
 
     #[test]
@@ -459,7 +459,7 @@ mod tests {
         let malloc_size = 512;
         let realloc_size = 1024;
 
-        let ptr = malloc(malloc_size);
+        let ptr = unsafe { libc::malloc(malloc_size) };
         assert!(!ptr.is_null(), "allocated memory should not be null");
 
         unsafe {
@@ -469,7 +469,7 @@ mod tests {
         }
 
         // Act
-        let new_ptr = unsafe { realloc(ptr, realloc_size) };
+        let new_ptr = unsafe { libc::realloc(ptr, realloc_size) };
 
         // Assert
         assert!(!new_ptr.is_null(), "realloc must not return NULL");
@@ -492,7 +492,7 @@ mod tests {
             }
         }
 
-        unsafe { free(new_ptr) };
+        unsafe { libc::free(new_ptr) };
     }
 
     #[test]
@@ -505,7 +505,7 @@ mod tests {
         let mut ptr: *mut c_void = std::ptr::null_mut();
 
         // Act
-        let r = posix_memalign(&mut ptr, alignment, size);
+        let r = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
 
         // Assert
         assert_eq!(r, 0, "posix_memalign should return 0 on success");
@@ -525,7 +525,7 @@ mod tests {
             "posix_memalign memory should be aligned to the specified boundary"
         );
 
-        unsafe { free(ptr) };
+        unsafe { libc::free(ptr) };
     }
 
     #[test]
@@ -539,7 +539,7 @@ mod tests {
         for &alignment in &alignments {
             for &size in &sizes {
                 // Act
-                let ptr = aligned_alloc(alignment, size);
+                let ptr = unsafe { libc::aligned_alloc(alignment, size) };
 
                 // Assert
                 assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
@@ -558,7 +558,7 @@ mod tests {
                     0,
                     "aligned_alloc memory should be aligned to the specified boundary"
                 );
-                unsafe { free(ptr) };
+                unsafe { libc::free(ptr) };
             }
         }
     }
