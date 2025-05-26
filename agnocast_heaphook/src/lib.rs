@@ -1,4 +1,5 @@
 use std::{
+    alloc::Layout,
     ffi::{CStr, CString},
     mem::MaybeUninit,
     os::raw::{c_char, c_int, c_void},
@@ -193,7 +194,7 @@ pub unsafe extern "C" fn __libc_start_main(
     stack_end: *const c_void,
 ) -> c_int {
     let pool = init_agnocast_memory_pool();
-    tlsf::init_tlsf(pool);
+    tlsf::TLSF.init(pool);
 
     (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
         main, argc, argv, init, fini, rtld_fini, stack_end,
@@ -206,7 +207,10 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    tlsf::tlsf_allocate_wrapped(0, size)
+    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+    let layout = Layout::from_size_align(size, 16).unwrap();
+    tlsf::TLSF.alloc(layout) as _
 }
 
 /// # Safety
@@ -234,7 +238,7 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
     if allocated_by_original {
         (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
     } else {
-        tlsf::tlsf_deallocate_wrapped(ptr_addr);
+        tlsf::TLSF.dealloc(non_null_ptr);
     }
 }
 
@@ -244,11 +248,9 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
-    let ret: *mut c_void = tlsf::tlsf_allocate_wrapped(0, num * size);
-    unsafe {
-        std::ptr::write_bytes(ret, 0, num * size);
-    }
-    ret
+    // TODO: fix alignment?
+    let layout = Layout::from_size_align(num * size, 1).unwrap();
+    tlsf::TLSF.alloc_zeroed(layout) as _
 }
 
 /// # Safety
@@ -260,7 +262,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
             let addr = non_null_ptr.as_ptr() as usize;
             let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed)
                 || addr > MEMPOOL_END.load(Ordering::Relaxed);
-            (Some(addr), is_original)
+            (Some(non_null_ptr), is_original)
         } else {
             (None, false)
         };
@@ -276,15 +278,19 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
         return realloc_ret;
     }
 
+    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+    let new_layout = Layout::from_size_align(new_size, 16).unwrap();
+
     match ptr_addr {
         Some(addr) => {
             if allocated_by_original {
                 (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
             } else {
-                tlsf::tlsf_reallocate_wrapped(addr, new_size)
+                tlsf::TLSF.realloc(addr, new_layout) as _
             }
         }
-        None => tlsf::tlsf_allocate_wrapped(0, new_size),
+        None => tlsf::TLSF.alloc(new_layout) as _,
     }
 }
 
@@ -297,8 +303,8 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
             )
         };
     }
-
-    *memptr = tlsf::tlsf_allocate_wrapped(alignment, size);
+    let layout = Layout::from_size_align(size, alignment).unwrap();
+    *memptr = tlsf::TLSF.alloc(layout) as _;
     0
 }
 
@@ -309,8 +315,8 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
             (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
         };
     }
-
-    tlsf::tlsf_allocate_wrapped(alignment, size)
+    let layout = Layout::from_size_align(size, alignment).unwrap();
+    tlsf::TLSF.alloc(layout) as _
 }
 
 #[no_mangle]
@@ -320,8 +326,8 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
             (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
         };
     }
-
-    tlsf::tlsf_allocate_wrapped(alignment, size)
+    let layout = Layout::from_size_align(size, alignment).unwrap();
+    tlsf::TLSF.alloc(layout) as _
 }
 
 #[no_mangle]
