@@ -622,26 +622,31 @@ mod tests {
     }
 
     #[test]
-    fn test_aligned_alloc() {
+    fn test_aligned_alloc_normal() {
         // Arrange
         let start = MEMPOOL_START.load(Ordering::SeqCst);
         let end = MEMPOOL_END.load(Ordering::SeqCst);
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-        let sizes = [10, 32, 100, 512, 1000, 4096];
 
         for &alignment in &alignments {
+            let sizes = [
+                alignment,
+                alignment * 2,
+                alignment * 4,
+                alignment * 8,
+                alignment * 16,
+            ];
+
             for &size in &sizes {
                 // Act
                 let ptr = aligned_alloc(alignment, size);
 
                 // Assert
                 assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
-
                 assert!(
                     ptr as usize >= start,
                     "aligned_alloc returned memory below the memory pool start address"
                 );
-
                 assert!(
                     ptr as usize + size <= end,
                     "aligned_alloc allocated memory exceeds the memory pool end address"
