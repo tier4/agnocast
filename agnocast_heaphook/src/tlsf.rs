@@ -38,33 +38,32 @@ unsafe impl AgnocastHeapHookApi for TLSFAllocator {
         let layout = Layout::from_size_align(POINTER_SIZE + size + align, 1).unwrap();
 
         let mut tlsf = TLSF.inner.get().unwrap().lock().unwrap();
-        let start_addr = tlsf
+        let ptr = tlsf
             .allocate(layout)
             .unwrap_or_else(|| {
                 panic!(
                     "[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE"
                 );
             })
-            .as_ptr() as usize;
+            .as_ptr();
 
         // It is our responsibility to satisfy alignment constraints. While we could deglegate
         // this responsibility to the TLSF allocator by using `Layout::align`, the Tlsf::{reallocate, deallocate}
         // functons require the same alignment specified at allocation time. Therefore, in this case, we would
         // need to remember the alignement.
-        let aligned_addr = (start_addr + POINTER_SIZE + align - 1) & !(align - 1);
-        debug_assert!(aligned_addr % align == 0);
+        let aligned_ptr = ((ptr as usize + POINTER_SIZE + align - 1) & !(align - 1)) as *mut u8;
+        debug_assert!(aligned_ptr as usize % align == 0);
 
-        let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
-        unsafe { *start_addr_ptr = start_addr };
+        // store original pointer
+        *aligned_ptr.byte_sub(POINTER_SIZE).cast() = ptr as usize;
 
-        aligned_addr as _
+        aligned_ptr
     }
 
     unsafe fn dealloc(&self, ptr: NonNull<u8>) {
         let original_ptr =
             NonNull::new(unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() }).unwrap();
-        let mut tlsf: std::sync::MutexGuard<'_, Tlsf<'static, u32, u64, 28, 64>> =
-            TLSF.inner.get().unwrap().lock().unwrap();
+        let mut tlsf = TLSF.inner.get().unwrap().lock().unwrap();
         unsafe { tlsf.deallocate(original_ptr, 1) }
     }
 
@@ -77,7 +76,7 @@ unsafe impl AgnocastHeapHookApi for TLSFAllocator {
         let new_layout = Layout::from_size_align(POINTER_SIZE + size + align, 1).unwrap();
 
         let mut tlsf = TLSF.inner.get().unwrap().lock().unwrap();
-        let start_addr = unsafe {
+        let ptr = unsafe {
             tlsf.reallocate(original_ptr, new_layout)
                 .unwrap_or_else(|| {
                     panic!(
@@ -85,14 +84,19 @@ unsafe impl AgnocastHeapHookApi for TLSFAllocator {
                 );
                 })
         }
-        .as_ptr() as usize;
-        let aligned_addr = (start_addr + POINTER_SIZE + align - 1) & !(align - 1);
+        .as_ptr();
 
-        // store `start_addr`
-        let start_addr_ptr = (aligned_addr - POINTER_SIZE) as *mut usize;
-        unsafe { *start_addr_ptr = start_addr };
+        // It is our responsibility to satisfy alignment constraints. While we could deglegate
+        // this responsibility to the TLSF allocator by using `Layout::align`, the Tlsf::{reallocate, deallocate}
+        // functons require the same alignment specified at allocation time. Therefore, in this case, we would
+        // need to remember the alignement.
+        let aligned_ptr = ((ptr as usize + POINTER_SIZE + align - 1) & !(align - 1)) as *mut u8;
+        debug_assert!(aligned_ptr as usize % align == 0);
 
-        aligned_addr as _
+        // store original pointer
+        *aligned_ptr.byte_sub(POINTER_SIZE).cast() = ptr as usize;
+
+        aligned_ptr
     }
 }
 
