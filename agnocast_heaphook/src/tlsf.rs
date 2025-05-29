@@ -6,7 +6,7 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-use crate::AgnocastHeapHookApi;
+use crate::{global_agnocast_heaphook_allocator, AgnocastHeapHookApi};
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
@@ -16,6 +16,7 @@ type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
 type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
 
 pub static TLSF: TLSFAllocator = TLSFAllocator::new();
+global_agnocast_heaphook_allocator!(TLSF);
 
 pub struct TLSFAllocator {
     inner: OnceLock<Mutex<TlsfType>>,

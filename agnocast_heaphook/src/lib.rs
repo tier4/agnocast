@@ -201,166 +201,187 @@ unsafe trait AgnocastHeapHookApi {
     unsafe fn realloc(&self, ptr: NonNull<u8>, new_layout: Layout) -> *mut u8;
 }
 
-/// # Safety
-///
-#[no_mangle]
-pub unsafe extern "C" fn __libc_start_main(
-    main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
-    argc: c_int,
-    argv: *const *const u8,
-    init: unsafe extern "C" fn(),
-    fini: unsafe extern "C" fn(),
-    rtld_fini: unsafe extern "C" fn(),
-    stack_end: *const c_void,
-) -> c_int {
-    let pool = init_agnocast_memory_pool();
-    tlsf::TLSF.init(pool);
-
-    (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
-        main, argc, argv, init, fini, rtld_fini, stack_end,
-    )
-}
-
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 const MIN_ALIGN: usize = 16;
 
-#[no_mangle]
-pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if should_use_original_func() {
-        return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
-    }
+#[macro_export]
+macro_rules! global_agnocast_heaphook_allocator {
+    ($allocator:expr) => {
+        /// # Safety
+        ///
+        #[no_mangle]
+        pub unsafe extern "C" fn __libc_start_main(
+            main: unsafe extern "C" fn(
+                std::os::raw::c_int,
+                *const *const u8,
+            ) -> std::os::raw::c_int,
+            argc: std::os::raw::c_int,
+            argv: *const *const u8,
+            init: unsafe extern "C" fn(),
+            fini: unsafe extern "C" fn(),
+            rtld_fini: unsafe extern "C" fn(),
+            stack_end: *const std::os::raw::c_void,
+        ) -> std::os::raw::c_int {
+            let pool = crate::init_agnocast_memory_pool();
+            $allocator.init(pool);
 
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    let layout = Layout::from_size_align(size, MIN_ALIGN).unwrap();
-    unsafe { tlsf::TLSF.alloc(layout) as _ }
-}
-
-/// # Safety
-///
-#[no_mangle]
-pub unsafe extern "C" fn free(ptr: *mut c_void) {
-    let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
-        Some(ptr) => ptr,
-        None => return,
-    };
-
-    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
-        || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
-
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
-        // In the child processes, ignore the free operation to the shared memory
-        if !allocated_by_original {
-            return;
+            (*crate::ORIGINAL_LIBC_START_MAIN.get_or_init(crate::init_original_libc_start_main))(
+                main, argc, argv, init, fini, rtld_fini, stack_end,
+            )
         }
 
-        return (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
-    }
+        #[no_mangle]
+        pub extern "C" fn malloc(size: usize) -> *mut std::os::raw::c_void {
+            if crate::should_use_original_func() {
+                return unsafe {
+                    (*crate::ORIGINAL_MALLOC.get_or_init(crate::init_original_malloc))(size)
+                };
+            }
 
-    if allocated_by_original {
-        (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
-    } else {
-        tlsf::TLSF.dealloc(non_null_ptr);
-    }
-}
+            // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+            // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+            let layout = Layout::from_size_align(size, crate::MIN_ALIGN).unwrap();
+            unsafe { $allocator.alloc(layout) as _ }
+        }
 
-#[no_mangle]
-pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
-        return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
-    }
+        /// # Safety
+        ///
+        #[no_mangle]
+        pub unsafe extern "C" fn free(ptr: *mut std::os::raw::c_void) {
+            let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
+                Some(ptr) => ptr,
+                None => return,
+            };
 
-    // TODO: fix alignment?
-    let layout = Layout::from_size_align(num * size, 1).unwrap();
-    unsafe { tlsf::TLSF.alloc_zeroed(layout) as _ }
-}
+            let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
+            let allocated_by_original: bool = ptr_addr
+                < crate::MEMPOOL_START.load(std::sync::atomic::Ordering::Relaxed)
+                || ptr_addr > crate::MEMPOOL_END.load(std::sync::atomic::Ordering::Relaxed);
 
-/// # Safety
-///
-#[no_mangle]
-pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let (ptr_addr, allocated_by_original) =
-        if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
-            let addr = non_null_ptr.as_ptr() as usize;
-            let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed)
-                || addr > MEMPOOL_END.load(Ordering::Relaxed);
-            (Some(non_null_ptr), is_original)
-        } else {
-            (None, false)
-        };
+            if crate::IS_FORKED_CHILD.load(std::sync::atomic::Ordering::Relaxed) {
+                // In the child processes, ignore the free operation to the shared memory
+                if !allocated_by_original {
+                    return;
+                }
 
-    if should_use_original_func() {
-        // In the child processes, ignore the free operation to the shared memory
-        let realloc_ret: *mut c_void = if !allocated_by_original {
-            (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
-        } else {
-            (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
-        };
+                return (*crate::ORIGINAL_FREE.get_or_init(crate::init_original_free))(ptr);
+            }
 
-        return realloc_ret;
-    }
-
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    let new_layout = Layout::from_size_align(new_size, MIN_ALIGN).unwrap();
-
-    match ptr_addr {
-        Some(addr) => {
             if allocated_by_original {
-                (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
+                (*crate::ORIGINAL_FREE.get_or_init(crate::init_original_free))(ptr);
             } else {
-                tlsf::TLSF.realloc(addr, new_layout) as _
+                $allocator.dealloc(non_null_ptr);
             }
         }
-        None => tlsf::TLSF.alloc(new_layout) as _,
-    }
-}
 
-#[no_mangle]
-pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if should_use_original_func() {
-        return unsafe {
-            (*ORIGINAL_POSIX_MEMALIGN.get_or_init(init_original_posix_memalign))(
-                memptr, alignment, size,
-            )
-        };
-    }
-    let layout = Layout::from_size_align(size, alignment).unwrap();
-    *memptr = unsafe { tlsf::TLSF.alloc(layout) as _ };
-    0
-}
+        #[no_mangle]
+        pub extern "C" fn calloc(num: usize, size: usize) -> *mut std::os::raw::c_void {
+            if crate::should_use_original_func() {
+                return unsafe {
+                    (*crate::ORIGINAL_CALLOC.get_or_init(crate::init_original_calloc))(num, size)
+                };
+            }
 
-#[no_mangle]
-pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
-        return unsafe {
-            (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
-        };
-    }
-    let layout = Layout::from_size_align(size, alignment).unwrap();
-    unsafe { tlsf::TLSF.alloc(layout) as _ }
-}
+            // TODO: fix alignment?
+            let layout = Layout::from_size_align(num * size, 1).unwrap();
+            unsafe { $allocator.alloc_zeroed(layout) as _ }
+        }
 
-#[no_mangle]
-pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
-        return unsafe {
-            (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
-        };
-    }
-    let layout = Layout::from_size_align(size, alignment).unwrap();
-    unsafe { tlsf::TLSF.alloc(layout) as _ }
-}
+        /// # Safety
+        ///
+        #[no_mangle]
+        pub unsafe extern "C" fn realloc(
+            ptr: *mut std::os::raw::c_void,
+            new_size: usize,
+        ) -> *mut std::os::raw::c_void {
+            let (ptr_addr, allocated_by_original) =
+                if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
+                    let addr = non_null_ptr.as_ptr() as usize;
+                    let is_original = addr
+                        < crate::MEMPOOL_START.load(std::sync::atomic::Ordering::Relaxed)
+                        || addr > crate::MEMPOOL_END.load(std::sync::atomic::Ordering::Relaxed);
+                    (Some(non_null_ptr), is_original)
+                } else {
+                    (None, false)
+                };
 
-#[no_mangle]
-pub extern "C" fn valloc(_size: usize) -> *mut c_void {
-    panic!("[ERROR] [Agnocast] valloc is not supported");
-}
+            if crate::should_use_original_func() {
+                // In the child processes, ignore the free operation to the shared memory
+                let realloc_ret: *mut std::os::raw::c_void = if !allocated_by_original {
+                    (*crate::ORIGINAL_MALLOC.get_or_init(crate::init_original_malloc))(new_size)
+                } else {
+                    (*crate::ORIGINAL_REALLOC.get_or_init(crate::init_original_realloc))(
+                        ptr, new_size,
+                    )
+                };
 
-#[no_mangle]
-pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
-    panic!("[ERROR] [Agnocast] pvalloc is not supported");
+                return realloc_ret;
+            }
+
+            // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+            // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+            let new_layout = Layout::from_size_align(new_size, crate::MIN_ALIGN).unwrap();
+
+            match ptr_addr {
+                Some(addr) => {
+                    if allocated_by_original {
+                        (*crate::ORIGINAL_REALLOC.get_or_init(crate::init_original_realloc))(
+                            ptr, new_size,
+                        )
+                    } else {
+                        $allocator.realloc(addr, new_layout) as _
+                    }
+                }
+                None => $allocator.alloc(new_layout) as _,
+            }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn posix_memalign(memptr: &mut *mut std::os::raw::c_void, alignment: usize, size: usize) -> i32 {
+            if crate::should_use_original_func() {
+                return unsafe {
+                    (*crate::ORIGINAL_POSIX_MEMALIGN.get_or_init(crate::init_original_posix_memalign))(
+                        memptr, alignment, size,
+                    )
+                };
+            }
+            let layout = Layout::from_size_align(size, alignment).unwrap();
+            *memptr = unsafe { $allocator.alloc(layout) as _ };
+            0
+        }
+
+        #[no_mangle]
+        pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut std::os::raw::c_void {
+            if crate::should_use_original_func() {
+                return unsafe {
+                    (*crate::ORIGINAL_ALIGNED_ALLOC.get_or_init(crate::init_original_aligned_alloc))(alignment, size)
+                };
+            }
+            let layout = Layout::from_size_align(size, alignment).unwrap();
+            unsafe { $allocator.alloc(layout) as _ }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut std::os::raw::c_void {
+            if crate::should_use_original_func() {
+                return unsafe {
+                    (*crate::ORIGINAL_MEMALIGN.get_or_init(crate::init_original_memalign))(alignment, size)
+                };
+            }
+            let layout = Layout::from_size_align(size, alignment).unwrap();
+            unsafe { $allocator.alloc(layout) as _ }
+        }
+
+        #[no_mangle]
+        pub extern "C" fn valloc(_size: usize) -> *mut std::os::raw::c_void {
+            panic!("[ERROR] [Agnocast] valloc is not supported");
+        }
+
+        #[no_mangle]
+        pub extern "C" fn pvalloc(_size: usize) -> *mut std::os::raw::c_void {
+            panic!("[ERROR] [Agnocast] pvalloc is not supported");
+        }
+    };
 }
 
 #[cfg(test)]
