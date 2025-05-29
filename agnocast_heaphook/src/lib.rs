@@ -1,8 +1,8 @@
 use std::{
     alloc::Layout,
-    ffi::{CStr, CString},
+    ffi::CStr,
     mem::MaybeUninit,
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_int, c_void},
     ptr::NonNull,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -112,18 +112,20 @@ static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
 
-extern "C" fn post_fork_handler_in_child() {
-    IS_FORKED_CHILD.store(true, Ordering::Relaxed);
-}
-
 #[cfg(not(test))]
 fn init_agnocast_memory_pool() -> &'static mut [MaybeUninit<u8>] {
+    use std::{ffi::CString, os::raw::c_char};
+
     extern "C" {
         fn initialize_agnocast(
             size: usize,
             version: *const c_char,
             version_str_length: usize,
         ) -> *mut c_void;
+    }
+
+    extern "C" fn post_fork_handler_in_child() {
+        IS_FORKED_CHILD.store(true, Ordering::Relaxed);
     }
 
     let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
@@ -182,6 +184,8 @@ fn should_use_original_func() -> bool {
     false
 }
 
+/// # Safety
+///
 unsafe trait AgnocastHeapHookApi {
     fn init(&self, pool: &'static mut [MaybeUninit<u8>]);
 
