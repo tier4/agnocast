@@ -201,6 +201,9 @@ pub unsafe extern "C" fn __libc_start_main(
     )
 }
 
+// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+const MIN_ALIGN: usize = 16;
+
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
     if should_use_original_func() {
@@ -209,7 +212,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
 
     // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    let layout = Layout::from_size_align(size, 16).unwrap();
+    let layout = Layout::from_size_align(size, MIN_ALIGN).unwrap();
     tlsf::TLSF.alloc(layout) as _
 }
 
@@ -280,7 +283,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
     // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    let new_layout = Layout::from_size_align(new_size, 16).unwrap();
+    let new_layout = Layout::from_size_align(new_size, MIN_ALIGN).unwrap();
 
     match ptr_addr {
         Some(addr) => {
