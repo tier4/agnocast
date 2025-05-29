@@ -1,4 +1,16 @@
-agnocast-heaphook-v2.1 (2.1.0-1) jammy; urgency=medium
+agnocast-heaphook-v2.1.1 (2.1.1-1) jammy; urgency=medium
+
+  * patch level ppa package (#624 <https://github.com/tier4/agnocast/issues/624>)
+  * test(heaphook): add unit test for memalign function (#633 <https://github.com/tier4/agnocast/issues/633>)
+  * test(heaphook): add unit test for aligned_alloc function (#631 <https://github.com/tier4/agnocast/issues/631>)
+  * fix(memory_allocator): increase mempoll size (#629 <https://github.com/tier4/agnocast/issues/629>)
+  * test(heaphook): add unit test for posix_memalign function (#626 <https://github.com/tier4/agnocast/issues/626>)
+  * test(heaphook): add unit test for realloc function (#625 <https://github.com/tier4/agnocast/issues/625>)
+  * test(heaphook): add unit test for calloc function (#618 <https://github.com/tier4/agnocast/issues/618>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Tue, 13 May 2025 14:45:00 +0900
+
+agnocast-heaphook-v2.1.0 (2.1.0-1) jammy; urgency=medium
 
   * refactor(heaphook): use set/get method for TLSF, not init_or_get (#606 <https://github.com/tier4/agnocast/issues/606>)
   * test(heaphook): add unit test (#594 <https://github.com/tier4/agnocast/issues/594>)

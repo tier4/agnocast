@@ -2,6 +2,14 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.1.1 (2025-05-13)
+------------------
+* fix(agnocastlib): forbit the reader processes from resizing shmem (`#632 <https://github.com/tier4/agnocast/issues/632>`_)
+* fix: add validation for add_node() (`#638 <https://github.com/tier4/agnocast/issues/638>`_)
+* fix: lock for atomically obtain shmem info via ioctl and do mmap (`#639 <https://github.com/tier4/agnocast/issues/639>`_)
+* Change to use topic_local_id_t as the key for opened_mqs (`#634 <https://github.com/tier4/agnocast/issues/634>`_)
+* fix(agnocastlib): add error handling for map_writable_area (`#622 <https://github.com/tier4/agnocast/issues/622>`_)
+
 2.1.0 (2025-04-15)
 ------------------
 * fix(agnocastlib): add O_EXCL for shm_open flag (`#595 <https://github.com/tier4/agnocast/issues/595>`_)
