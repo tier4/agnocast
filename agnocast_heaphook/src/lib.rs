@@ -3,6 +3,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
     os::raw::{c_char, c_int, c_void},
+    ptr::NonNull,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         OnceLock,
@@ -181,6 +182,25 @@ fn should_use_original_func() -> bool {
     false
 }
 
+unsafe trait AgnocastHeapHookApi {
+    fn init(&self, pool: &'static mut [MaybeUninit<u8>]);
+
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8;
+
+    unsafe fn dealloc(&self, ptr: NonNull<u8>);
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        let size = layout.size();
+        let ptr = self.alloc(layout);
+        if !ptr.is_null() {
+            ptr.write_bytes(0, size);
+        }
+        ptr
+    }
+
+    unsafe fn realloc(&self, ptr: NonNull<u8>, new_layout: Layout) -> *mut u8;
+}
+
 /// # Safety
 ///
 #[no_mangle]
@@ -213,7 +233,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
     let layout = Layout::from_size_align(size, MIN_ALIGN).unwrap();
-    tlsf::TLSF.alloc(layout) as _
+    unsafe { tlsf::TLSF.alloc(layout) as _ }
 }
 
 /// # Safety
@@ -253,7 +273,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
     // TODO: fix alignment?
     let layout = Layout::from_size_align(num * size, 1).unwrap();
-    tlsf::TLSF.alloc_zeroed(layout) as _
+    unsafe { tlsf::TLSF.alloc_zeroed(layout) as _ }
 }
 
 /// # Safety
@@ -307,7 +327,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         };
     }
     let layout = Layout::from_size_align(size, alignment).unwrap();
-    *memptr = tlsf::TLSF.alloc(layout) as _;
+    *memptr = unsafe { tlsf::TLSF.alloc(layout) as _ };
     0
 }
 
@@ -319,7 +339,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         };
     }
     let layout = Layout::from_size_align(size, alignment).unwrap();
-    tlsf::TLSF.alloc(layout) as _
+    unsafe { tlsf::TLSF.alloc(layout) as _ }
 }
 
 #[no_mangle]
@@ -330,7 +350,7 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         };
     }
     let layout = Layout::from_size_align(size, alignment).unwrap();
-    tlsf::TLSF.alloc(layout) as _
+    unsafe { tlsf::TLSF.alloc(layout) as _ }
 }
 
 #[no_mangle]

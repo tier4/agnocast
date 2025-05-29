@@ -6,6 +6,8 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
+use crate::AgnocastHeapHookApi;
+
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
@@ -19,14 +21,8 @@ pub struct TLSFAllocator {
     inner: OnceLock<Mutex<TlsfType>>,
 }
 
-impl TLSFAllocator {
-    const fn new() -> Self {
-        Self {
-            inner: OnceLock::new(),
-        }
-    }
-
-    pub fn init(&self, pool: &'static mut [MaybeUninit<u8>]) {
+unsafe impl AgnocastHeapHookApi for TLSFAllocator {
+    fn init(&self, pool: &'static mut [MaybeUninit<u8>]) {
         let mut tlsf: TlsfType = Tlsf::new();
         tlsf.insert_free_block(pool);
 
@@ -35,7 +31,7 @@ impl TLSFAllocator {
         }
     }
 
-    pub fn alloc(&self, layout: Layout) -> *mut u8 {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
         let layout = Layout::from_size_align(POINTER_SIZE + size + align, 1).unwrap();
@@ -63,16 +59,7 @@ impl TLSFAllocator {
         aligned_addr as _
     }
 
-    pub fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        let size = layout.size();
-        let ptr = self.alloc(layout);
-        if !ptr.is_null() {
-            unsafe { ptr.write_bytes(0, size) };
-        }
-        ptr
-    }
-
-    pub fn dealloc(&self, ptr: NonNull<u8>) {
+    unsafe fn dealloc(&self, ptr: NonNull<u8>) {
         let original_ptr =
             NonNull::new(unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() }).unwrap();
         let mut tlsf: std::sync::MutexGuard<'_, Tlsf<'static, u32, u64, 28, 64>> =
@@ -80,7 +67,7 @@ impl TLSFAllocator {
         unsafe { tlsf.deallocate(original_ptr, 1) }
     }
 
-    pub fn realloc(&self, ptr: NonNull<u8>, new_layout: Layout) -> *mut u8 {
+    unsafe fn realloc(&self, ptr: NonNull<u8>, new_layout: Layout) -> *mut u8 {
         let original_ptr =
             NonNull::new(unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() }).unwrap();
 
@@ -105,5 +92,13 @@ impl TLSFAllocator {
         unsafe { *start_addr_ptr = start_addr };
 
         aligned_addr as _
+    }
+}
+
+impl TLSFAllocator {
+    const fn new() -> Self {
+        Self {
+            inner: OnceLock::new(),
+        }
     }
 }
