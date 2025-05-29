@@ -186,7 +186,7 @@ fn should_use_original_func() -> bool {
 
 /// # Safety
 ///
-unsafe trait AgnocastHeapHookApi {
+unsafe trait AgnocastSharedMemoryAllocator {
     fn init(&self, pool: &'static mut [MaybeUninit<u8>]);
 
     unsafe fn alloc(&self, layout: Layout) -> *mut u8;

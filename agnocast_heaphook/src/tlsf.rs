@@ -6,7 +6,7 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-use crate::{global_agnocast_heaphook_allocator, AgnocastHeapHookApi};
+use crate::{global_agnocast_heaphook_allocator, AgnocastSharedMemoryAllocator};
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
@@ -22,7 +22,7 @@ pub struct TLSFAllocator {
     inner: OnceLock<Mutex<TlsfType>>,
 }
 
-unsafe impl AgnocastHeapHookApi for TLSFAllocator {
+unsafe impl AgnocastSharedMemoryAllocator for TLSFAllocator {
     fn init(&self, pool: &'static mut [MaybeUninit<u8>]) {
         let mut tlsf: TlsfType = Tlsf::new();
         tlsf.insert_free_block(pool);
