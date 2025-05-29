@@ -53,8 +53,7 @@ mqd_t open_mq_for_subscription(
 
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 {
-  /* It's best to notify the publisher and have it call mq_close, but currently
-    this is not being done. The message queue is destroyed when the publisher process exits. */
+  /* The message queue is destroyed when all the publisher processes it. */
   if (mq_close(mq_subscription.first) == -1) {
     RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
   }

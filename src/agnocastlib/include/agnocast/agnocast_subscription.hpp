@@ -60,7 +60,7 @@ public:
 template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
-  std::pair<mqd_t, std::string> mq_subscription;
+  std::pair<mqd_t, std::string> mq_subscription_;
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -76,7 +76,7 @@ public:
 
     id_ = add_subscriber_args.ret_id;
 
-    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription);
+    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
@@ -94,7 +94,7 @@ public:
 #endif
   }
 
-  ~Subscription() { remove_mq(mq_subscription); }
+  ~Subscription() { remove_mq(mq_subscription_); }
 };
 
 template <typename MessageT>
