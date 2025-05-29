@@ -625,8 +625,8 @@ mod tests {
 
         for &alignment in &alignments {
             for &size in &sizes {
-                // Act
-                let ptr = memalign(alignment, size);
+                // Acthttps://star4.slack.com/archives/C07FL8616EM/p1747278542689899
+                let ptr = unsafe { libc::memalign(alignment, size) };
 
                 // Assert
                 assert!(!ptr.is_null(), "memalign must not return NULL");
@@ -645,7 +645,7 @@ mod tests {
                     0,
                     "memalign memory should be aligned to the specified boundary"
                 );
-                unsafe { free(ptr) };
+                unsafe { libc::free(ptr) };
             }
         }
     }
