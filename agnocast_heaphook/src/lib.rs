@@ -21,7 +21,13 @@ extern "C" {
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
 const ALIGNMENT: usize = 1;
-const MIN_ALIGN: usize = 16; // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+
+// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
+    16
+} else {
+    panic!("add a value for MIN_ALIGN")
+};
 
 type LibcStartMainType = unsafe extern "C" fn(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
