@@ -254,8 +254,8 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
     let alignment = MIN_ALIGN;
     debug_assert!(alignment.is_power_of_two() && alignment >= 8);
 
@@ -365,7 +365,9 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
-    let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
+    // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
+    let ret: *mut c_void = tlsf_allocate_wrapped(MIN_ALIGN, num * size);
     unsafe {
         std::ptr::write_bytes(ret, 0, num * size);
     }
@@ -405,7 +407,9 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 tlsf_reallocate_wrapped(addr, new_size)
             }
         }
-        None => tlsf_allocate_wrapped(0, new_size),
+        // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+        // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+        None => tlsf_allocate_wrapped(MIN_ALIGN, new_size),
     }
 }
 
