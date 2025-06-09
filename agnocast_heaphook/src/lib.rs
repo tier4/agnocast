@@ -230,7 +230,7 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
     // aligned address returned to user
     //
     // It is our responsibility to satisfy alignment constraints.
-    // We avoid using `Layout::align` because doing so requires us to remeber the alignment.
+    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
     debug_assert!(aligned_addr % alignment == 0);
@@ -256,7 +256,7 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     // return value from internal alloc
     //
     // It is our responsibility to satisfy alignment constraints.
-    // We avoid using `Layout::align` because doing so requires us to remeber the alignment.
+    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     let start_addr: usize =
         tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment) as usize;
