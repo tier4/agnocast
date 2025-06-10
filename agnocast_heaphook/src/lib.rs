@@ -20,7 +20,7 @@ extern "C" {
 }
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-const ALIGNMENT: usize = 1;
+const LAYOUT_ALIGN: usize = 1;
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
@@ -187,10 +187,10 @@ fn init_tlsf() {
 }
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
         panic!(
             "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
+            error, size, LAYOUT_ALIGN
         );
     });
 
@@ -204,10 +204,10 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 }
 
 fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
         panic!(
             "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
+            error, size, LAYOUT_ALIGN
         );
     });
 
@@ -224,7 +224,7 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
+    unsafe { tlsf.deallocate(ptr, LAYOUT_ALIGN) }
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
