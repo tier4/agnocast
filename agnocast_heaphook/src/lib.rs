@@ -26,7 +26,9 @@ const ALIGNMENT: usize = 1;
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
 } else {
-    panic!("add a value for MIN_ALIGN")
+    // Architectures other than x64 are not officially supported yet.
+    // This value might need to be changed.
+    16
 };
 
 type LibcStartMainType = unsafe extern "C" fn(
