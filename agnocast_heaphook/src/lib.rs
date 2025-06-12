@@ -20,6 +20,7 @@ extern "C" {
 }
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
+const POINTER_ALIGN: usize = std::mem::align_of::<&usize>();
 const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
@@ -228,9 +229,9 @@ fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
-    // the alignment must be greater than 8 to ensure that `start_addr_ptr` is 8-byte aligned.
-    let alignment = alignment.max(8);
-    debug_assert!(alignment.is_power_of_two() && alignment >= 8);
+    // the alignment must be greater than POINTER_ALIGN to ensure that `start_addr_ptr` is POINTER_ALIGN-byte aligned.
+    let alignment = alignment.max(POINTER_ALIGN);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     // return value from internal alloc
     let start_addr: usize = tlsf_allocate(POINTER_SIZE + size + alignment) as usize;
@@ -259,7 +260,7 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
     let alignment = MIN_ALIGN;
-    debug_assert!(alignment.is_power_of_two() && alignment >= 8);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     // return value from internal alloc
     //
