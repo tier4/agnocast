@@ -20,7 +20,7 @@ extern "C" {
 }
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-const LAYOUT_ALIGN: usize = 1;
+const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
