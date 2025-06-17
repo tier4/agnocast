@@ -93,7 +93,10 @@ union ioctl_publish_msg_args publish_core(
       const std::string mq_name = create_mq_name_for_agnocast_publish(topic_name, subscriber_id);
       mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
       if (mq == -1) {
-        RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+        // Right after a subscriber is added, its message queue has not been created yet. Therefore,
+        // the `mq_open` call above might fail. In that case, we log a warning and continue, but if
+        // the warning keeps appearing, something must be wrong.
+        RCLCPP_WARN(logger, "mq_open failed: %s", strerror(errno));
         continue;
       }
       opened_mqs.insert({subscriber_id, {mq, true}});
