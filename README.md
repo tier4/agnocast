@@ -84,10 +84,15 @@ Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentati
 
 ## Troubleshooting
 
-Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to follow these steps to remove the leftover resources.
+Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to remove leftover shared memory objects by running:
 
 ```bash
 rm /dev/shm/agnocast@*
+```
+
+Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, you may need to remove leftover message queues by running:
+
+```bash
 rm /dev/mqueue/agnocast@*
 rm /dev/mqueue/agnocast_to_ros2@*
 ```
