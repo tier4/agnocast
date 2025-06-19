@@ -24,6 +24,7 @@ const POINTER_ALIGN: usize = std::mem::align_of::<&usize>();
 const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+#[allow(clippy::if_same_then_else)]
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
 } else {
