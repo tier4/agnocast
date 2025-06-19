@@ -20,7 +20,18 @@ extern "C" {
 }
 
 const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-const ALIGNMENT: usize = 64; // must be larger than POINTER_SIZE
+const POINTER_ALIGN: usize = std::mem::align_of::<&usize>();
+const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
+
+// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+#[allow(clippy::if_same_then_else)]
+const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
+    16
+} else {
+    // Architectures other than x64 are not officially supported yet.
+    // This value might need to be changed.
+    16
+};
 
 type LibcStartMainType = unsafe extern "C" fn(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
@@ -178,10 +189,10 @@ fn init_tlsf() {
 }
 
 fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
         panic!(
             "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
+            error, size, LAYOUT_ALIGN
         );
     });
 
@@ -195,10 +206,10 @@ fn tlsf_allocate(size: usize) -> *mut c_void {
 }
 
 fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, ALIGNMENT).unwrap_or_else(|error| {
+    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
         panic!(
             "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, ALIGNMENT
+            error, size, LAYOUT_ALIGN
         );
     });
 
@@ -215,19 +226,24 @@ fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
 
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(ptr, ALIGNMENT) }
+    unsafe { tlsf.deallocate(ptr, LAYOUT_ALIGN) }
 }
 
 fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
+    // the alignment must be greater than POINTER_ALIGN to ensure that `start_addr_ptr` is POINTER_ALIGN-byte aligned.
+    let alignment = alignment.max(POINTER_ALIGN);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
+
     // return value from internal alloc
-    let start_addr: usize = tlsf_allocate(ALIGNMENT + size + alignment) as usize;
+    let start_addr: usize = tlsf_allocate(POINTER_SIZE + size + alignment) as usize;
 
     // aligned address returned to user
-    let aligned_addr: usize = if alignment == 0 {
-        start_addr + ALIGNMENT
-    } else {
-        start_addr + ALIGNMENT + alignment - ((start_addr + ALIGNMENT) % alignment)
-    };
+    //
+    // It is our responsibility to satisfy alignment constraints.
+    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
+    // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
+    let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
+    debug_assert!(aligned_addr % alignment == 0);
 
     // store `start_addr`
     let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
@@ -242,9 +258,20 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     let original_start_addr_ptr: std::ptr::NonNull<u8> =
         std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
+    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+    let alignment = MIN_ALIGN;
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
+
     // return value from internal alloc
-    let start_addr: usize = tlsf_reallocate(original_start_addr_ptr, ALIGNMENT + size) as usize;
-    let aligned_addr: usize = start_addr + ALIGNMENT;
+    //
+    // It is our responsibility to satisfy alignment constraints.
+    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
+    // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
+    let start_addr: usize =
+        tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment) as usize;
+    let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
+    debug_assert!(aligned_addr % alignment == 0);
 
     // store `start_addr`
     let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
@@ -302,7 +329,9 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    tlsf_allocate_wrapped(0, size)
+    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
+    tlsf_allocate_wrapped(MIN_ALIGN, size)
 }
 
 /// # Safety
@@ -340,7 +369,9 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
-    let ret: *mut c_void = tlsf_allocate_wrapped(0, num * size);
+    // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
+    let ret: *mut c_void = tlsf_allocate_wrapped(MIN_ALIGN, num * size);
     unsafe {
         std::ptr::write_bytes(ret, 0, num * size);
     }
@@ -380,7 +411,9 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 tlsf_reallocate_wrapped(addr, new_size)
             }
         }
-        None => tlsf_allocate_wrapped(0, new_size),
+        // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+        // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+        None => tlsf_allocate_wrapped(MIN_ALIGN, new_size),
     }
 }
 
