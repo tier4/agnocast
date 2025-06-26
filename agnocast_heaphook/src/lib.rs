@@ -334,6 +334,12 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     tlsf_allocate_wrapped(MIN_ALIGN, size)
 }
 
+#[inline]
+fn is_shared(ptr: *mut c_void) -> bool {
+    let addr = ptr as usize;
+    MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
+}
+
 /// # Safety
 ///
 #[no_mangle]
@@ -342,10 +348,7 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
-    let is_shared = {
-        let addr = ptr as usize;
-        MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
-    };
+    let is_shared = is_shared(ptr);
     let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
 
     match (is_shared, is_forked_child) {
@@ -374,10 +377,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let is_shared = {
-        let addr = ptr as usize;
-        MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
-    };
+    let is_shared = is_shared(ptr);
     let shoud_use_original = should_use_original_func();
 
     match (is_shared, shoud_use_original) {
