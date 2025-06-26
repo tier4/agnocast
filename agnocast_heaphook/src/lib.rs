@@ -352,7 +352,7 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
     let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
 
     match (is_shared, is_forked_child) {
-        (true, true) => return, // In the child processes, ignore the free operation to the shared memory
+        (true, true) => (), // In the child processes, ignore the free operation to the shared memory
         (true, false) => tlsf_deallocate_wrapped(ptr as usize),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
