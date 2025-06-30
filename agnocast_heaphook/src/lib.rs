@@ -229,11 +229,11 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> Option<NonNull<u8>> {
     Some(NonNull::new(aligned_addr as *mut u8).unwrap())
 }
 
-fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> Option<NonNull<u8>> {
+fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, size: usize) -> Option<NonNull<u8>> {
     // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
-    let original_start_addr_ptr: std::ptr::NonNull<u8> =
-        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+    // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
+    let original_start_addr: usize = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
+    let original_start_addr_ptr = NonNull::new(original_start_addr as *mut u8).unwrap();
 
     // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
@@ -257,11 +257,12 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> Option<NonNull<u8>> {
     Some(NonNull::new(aligned_addr as *mut u8).unwrap())
 }
 
-fn tlsf_deallocate_wrapped(ptr: usize) {
+fn tlsf_deallocate_wrapped(ptr: NonNull<u8>) {
     // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
-    let original_start_addr_ptr: std::ptr::NonNull<u8> =
-        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+    // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
+    let original_start_addr: usize = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
+    let original_start_addr_ptr =
+        NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
 
     tlsf_deallocate(original_start_addr_ptr);
 }
@@ -328,12 +329,13 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
+    let non_null_ptr = NonNull::new(ptr.cast()).unwrap();
     let is_shared = is_shared(ptr);
     let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
 
     match (is_shared, is_forked_child) {
         (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => tlsf_deallocate_wrapped(ptr as usize),
+        (true, false) => tlsf_deallocate_wrapped(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
@@ -371,8 +373,8 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
         }
         (true, false) => {
-            if !ptr.is_null() {
-                match tlsf_reallocate_wrapped(ptr as usize, new_size) {
+            if let Some(non_null_ptr) = NonNull::new(ptr.cast()) {
+                match tlsf_reallocate_wrapped(non_null_ptr, new_size) {
                     Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                     None => std::ptr::null_mut(),
                 }
