@@ -4,6 +4,7 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
     os::raw::{c_char, c_int, c_void},
+    ptr::NonNull,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Mutex, OnceLock,
@@ -188,40 +189,16 @@ fn init_tlsf() {
     }
 }
 
-fn tlsf_allocate(size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
-        panic!(
-            "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, LAYOUT_ALIGN
-        );
-    });
-
+fn tlsf_allocate(size: usize) -> Option<NonNull<u8>> {
+    let layout = Layout::from_size_align(size, LAYOUT_ALIGN).ok()?;
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-
-    let ptr: std::ptr::NonNull<u8> = tlsf.allocate(layout).unwrap_or_else(|| {
-        panic!("[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE");
-    });
-
-    ptr.as_ptr() as *mut c_void
+    tlsf.allocate(layout)
 }
 
-fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> *mut c_void {
-    let layout: Layout = Layout::from_size_align(size, LAYOUT_ALIGN).unwrap_or_else(|error| {
-        panic!(
-            "[ERROR] [Agnocast] {}: size={}, alignment={}",
-            error, size, LAYOUT_ALIGN
-        );
-    });
-
+fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> Option<NonNull<u8>> {
+    let layout = Layout::from_size_align(size, LAYOUT_ALIGN).ok()?;
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-
-    let new_ptr: std::ptr::NonNull<u8> = unsafe {
-        tlsf.reallocate(ptr, layout).unwrap_or_else(|| {
-            panic!("[ERROR] [Agnocast] memory allocation failed: use larger AGNOCAST_MEMPOOL_SIZE");
-        })
-    };
-
-    new_ptr.as_ptr() as *mut c_void
+    unsafe { tlsf.reallocate(ptr, layout) }
 }
 
 fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
@@ -234,8 +211,13 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
     let alignment = alignment.max(POINTER_ALIGN);
     debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
-    // return value from internal alloc
-    let start_addr: usize = tlsf_allocate(POINTER_SIZE + size + alignment) as usize;
+    // return value from internal alloc and null check
+    let start_addr: usize = match tlsf_allocate(POINTER_SIZE + size + alignment) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr() as usize,
+        None => {
+            return std::ptr::null_mut();
+        }
+    };
 
     // aligned address returned to user
     //
@@ -268,8 +250,11 @@ fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
     // It is our responsibility to satisfy alignment constraints.
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
-    let start_addr: usize =
-        tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment) as usize;
+    let start_addr = match tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment)
+    {
+        Some(non_null_ptr) => non_null_ptr.as_ptr() as usize,
+        None => return std::ptr::null_mut(),
+    };
     let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
     debug_assert!(aligned_addr % alignment == 0);
 
@@ -367,6 +352,10 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
     let ret: *mut c_void = tlsf_allocate_wrapped(MIN_ALIGN, num * size);
+    if ret.is_null() {
+        return std::ptr::null_mut();
+    }
+
     unsafe {
         std::ptr::write_bytes(ret, 0, num * size);
     }
@@ -408,7 +397,12 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         };
     }
 
-    *memptr = tlsf_allocate_wrapped(alignment, size);
+    let ptr = tlsf_allocate_wrapped(alignment, size);
+
+    if ptr.is_null() {
+        return libc::ENOMEM;
+    }
+    *memptr = ptr;
     0
 }
 
