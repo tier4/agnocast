@@ -421,7 +421,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
     if ptr.is_null() {
         return libc::ENOMEM;
     }
-    *memptr = tlsf_allocate_wrapped(alignment, size);
+    *memptr = ptr;
     0
 }
 
