@@ -319,32 +319,27 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     tlsf_allocate_wrapped(MIN_ALIGN, size)
 }
 
+#[inline]
+fn is_shared(ptr: *mut c_void) -> bool {
+    let addr = ptr as usize;
+    MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
+}
+
 /// # Safety
 ///
 #[no_mangle]
 pub unsafe extern "C" fn free(ptr: *mut c_void) {
-    let non_null_ptr: std::ptr::NonNull<u8> = match std::ptr::NonNull::new(ptr as *mut u8) {
-        Some(ptr) => ptr,
-        None => return,
-    };
-
-    let ptr_addr: usize = non_null_ptr.as_ptr() as usize;
-    let allocated_by_original: bool = ptr_addr < MEMPOOL_START.load(Ordering::Relaxed)
-        || ptr_addr > MEMPOOL_END.load(Ordering::Relaxed);
-
-    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
-        // In the child processes, ignore the free operation to the shared memory
-        if !allocated_by_original {
-            return;
-        }
-
-        return (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
+    if ptr.is_null() {
+        return;
     }
 
-    if allocated_by_original {
-        (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
-    } else {
-        tlsf_deallocate_wrapped(ptr_addr);
+    let is_shared = is_shared(ptr);
+    let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
+
+    match (is_shared, is_forked_child) {
+        (true, true) => (), // In the child processes, ignore the free operation to the shared memory
+        (true, false) => tlsf_deallocate_wrapped(ptr as usize),
+        (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
 
@@ -371,38 +366,24 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let (ptr_addr, allocated_by_original) =
-        if let Some(non_null_ptr) = std::ptr::NonNull::new(ptr as *mut u8) {
-            let addr = non_null_ptr.as_ptr() as usize;
-            let is_original = addr < MEMPOOL_START.load(Ordering::Relaxed)
-                || addr > MEMPOOL_END.load(Ordering::Relaxed);
-            (Some(addr), is_original)
-        } else {
-            (None, false)
-        };
+    let is_shared = is_shared(ptr);
+    let shoud_use_original = should_use_original_func();
 
-    if should_use_original_func() {
-        // In the child processes, ignore the free operation to the shared memory
-        let realloc_ret: *mut c_void = if !allocated_by_original {
+    match (is_shared, shoud_use_original) {
+        (true, true) => {
+            // In the child processes, ignore the free operation to the shared memory
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
-        } else {
-            (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
-        };
-
-        return realloc_ret;
-    }
-
-    match ptr_addr {
-        Some(addr) => {
-            if allocated_by_original {
-                (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size)
+        }
+        (true, false) => {
+            if !ptr.is_null() {
+                tlsf_reallocate_wrapped(ptr as usize, new_size)
             } else {
-                tlsf_reallocate_wrapped(addr, new_size)
+                // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+                // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+                tlsf_allocate_wrapped(MIN_ALIGN, new_size)
             }
         }
-        // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-        // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-        None => tlsf_allocate_wrapped(MIN_ALIGN, new_size),
+        (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
     }
 }
 
