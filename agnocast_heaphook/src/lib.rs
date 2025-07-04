@@ -702,4 +702,62 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_memory_limit() {
+        // Arrange
+        let huge_size = isize::MAX as usize;
+        let alignment = 64;
+        let mut posix_ptr: *mut c_void = std::ptr::null_mut();
+        let normal_ptr = unsafe { libc::malloc(1024) };
+
+        // Act & Assert
+        assert!(
+            unsafe { libc::malloc(huge_size) }.is_null(),
+            "malloc should return NULL for huge size"
+        );
+
+        assert!(
+            unsafe { libc::calloc(huge_size, 1) }.is_null(),
+            "calloc should return NULL for huge size"
+        );
+
+        assert!(
+            unsafe { libc::aligned_alloc(alignment, huge_size) }.is_null(),
+            "aligned_alloc should return NULL for huge size"
+        );
+
+        assert!(
+            unsafe { libc::memalign(alignment, huge_size) }.is_null(),
+            "memalign should return NULL for huge size"
+        );
+
+        // Act
+        let result = unsafe { libc::posix_memalign(&mut posix_ptr, alignment, huge_size) };
+
+        // Assert
+        assert_eq!(
+            result,
+            libc::ENOMEM,
+            "posix_memalign should return ENOMEM for huge size"
+        );
+        assert!(
+            posix_ptr.is_null(),
+            "posix_memalign should not set pointer on failure"
+        );
+
+        // Act
+        let realloc_ptr = unsafe { libc::realloc(normal_ptr, huge_size) };
+
+        // Assert
+        assert!(
+            realloc_ptr.is_null(),
+            "realloc should return NULL for huge size"
+        );
+        if realloc_ptr.is_null() {
+            unsafe { libc::free(normal_ptr) };
+        } else {
+            unsafe { libc::free(realloc_ptr) };
+        }
+    }
 }
