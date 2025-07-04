@@ -6,10 +6,10 @@ A critical requirement is lockless operation for performance optimization.
 ![heaphook alignment](./heaphook_alignment.png "heaphook alignment")
 
 When a user program calls `aligned_alloc(size, alignment)`, the internal allocator's allocation function is called with a size of `POINTER_SIZE + size + alignment`.
-The address returned by the internal allocator is defined as `start`.
-The aligned address provided to the user program, `ret`, is calculated as `ret = (start + POINTER_SIZE + alignment - 1) & !(alignment - 1);`.
-This ensures that `ret` is aligned to `alignment` and the memory region provided to the user program fits within the initially allocated area from the internal allocator.
-Additionally, the address value `start` is stored at the location indicated by `ret - POINTER_SIZE`.
+The pointer returned by the internal allocator is defined as `original_ptr`.
+The aligned pointer provided to the user program, `aligned_ptr`, is calculated as `aligned_ptr = (original_ptr + POINTER_SIZE + alignment - 1) & !(alignment - 1);`.
+This ensures that `aligned_ptr` is aligned to `alignment` and the memory region provided to the user program fits within the initially allocated area from the internal allocator.
+Additionally, the pointer value is stored at the location indicated by `aligned_ptr - POINTER_SIZE`.
 
-When the user program calls `free()`, `ret` is passed as the argument.
-At this point, the address value to be passed to the internal allocator's `free()` function can be calculated as `*(ret - POINTER_SIZE)`.
+When the user program calls `free()`, `aligned_ptr` is passed as the argument.
+At this point, the pointer value to be passed to the internal allocator's `free()` function can be calculated as `*(aligned_ptr - POINTER_SIZE)`.
