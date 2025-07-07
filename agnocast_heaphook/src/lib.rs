@@ -363,9 +363,9 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
     let is_shared = is_shared(ptr);
-    let shoud_use_original = should_use_original_func();
+    let should_use_original = should_use_original_func();
 
-    match (is_shared, shoud_use_original) {
+    match (is_shared, should_use_original) {
         (true, true) => {
             // In the child processes, ignore the free operation to the shared memory
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
