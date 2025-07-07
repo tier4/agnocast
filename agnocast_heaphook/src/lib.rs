@@ -215,7 +215,7 @@ fn tlsf_reallocate(ptr: NonNull<u8>, size: usize) -> *mut u8 {
     }
 }
 
-fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
+fn tlsf_deallocate(ptr: ptr::NonNull<u8>) {
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
     unsafe { tlsf.deallocate(ptr, LAYOUT_ALIGN) }
 }
@@ -248,10 +248,9 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut u8 {
     aligned_ptr
 }
 
-fn tlsf_reallocate_wrapped(ptr: *mut u8, size: usize) -> *mut u8 {
-    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-    let alignment = MIN_ALIGN;
+fn tlsf_reallocate_wrapped(ptr: *mut u8, alignment: usize, size: usize) -> *mut u8 {
+    // the alignment must be greater than POINTER_ALIGN to ensure that `aligned_ptr` is POINTER_ALIGN-byte aligned.
+    let alignment = alignment.max(POINTER_ALIGN);
     debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     if ptr.is_null() {
@@ -372,7 +371,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     let ptr = tlsf_allocate_wrapped(MIN_ALIGN, num * size);
     if !ptr.is_null() {
         unsafe {
-            std::ptr::write_bytes(ptr, 0, num * size);
+            ptr::write_bytes(ptr, 0, num * size);
         }
     }
 
@@ -391,7 +390,9 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
             // In the child processes, ignore the free operation to the shared memory
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
         }
-        (true, false) => tlsf_reallocate_wrapped(ptr.cast(), new_size).cast(),
+        // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
+        // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
+        (true, false) => tlsf_reallocate_wrapped(ptr.cast(), MIN_ALIGN, new_size).cast(),
         (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
     }
 }
@@ -612,7 +613,7 @@ mod tests {
         let end = MEMPOOL_END.load(Ordering::SeqCst);
         let alignment = 64;
         let size = 512;
-        let mut ptr: *mut c_void = std::ptr::null_mut();
+        let mut ptr: *mut c_void = ptr::null_mut();
 
         // Act
         let r = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
@@ -717,7 +718,7 @@ mod tests {
         // Arrange
         let huge_size = isize::MAX as usize;
         let alignment = 64;
-        let mut posix_ptr: *mut c_void = std::ptr::null_mut();
+        let mut posix_ptr: *mut c_void = ptr::null_mut();
         let normal_ptr = unsafe { libc::malloc(1024) };
 
         // Act & Assert
