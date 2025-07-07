@@ -221,8 +221,10 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> Option<NonNull<u8>> {
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     let aligned_addr = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
+
+    // SAFETY: `aligned_addr` must be non-zero.
     debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
-    let aligned_ptr = NonNull::new(aligned_addr as *mut u8).unwrap();
+    let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
 
     // store the original pointer
     unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
@@ -247,10 +249,11 @@ fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, size: usize) -> Option<NonNull<u8>>
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     let original_ptr = tlsf_reallocate(original_ptr, POINTER_SIZE + size + alignment)?;
     let original_addr = original_ptr.as_ptr() as usize;
-
     let aligned_addr: usize = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
+
+    // SAFETY: `aligned_addr` must be non-zero.
     debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
-    let aligned_ptr = NonNull::new(aligned_addr as *mut u8).unwrap();
+    let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
 
     // store the original pointer
     unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
@@ -327,7 +330,8 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
-    let non_null_ptr = NonNull::new(ptr.cast()).unwrap();
+    // SAFETY: `ptr` must be non-null.
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
     let is_shared = is_shared(ptr);
     let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
 
@@ -346,7 +350,6 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
     // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-
     if let Some(non_null_ptr) = tlsf_allocate_wrapped(MIN_ALIGN, num * size) {
         let ptr = non_null_ptr.as_ptr();
         unsafe {
