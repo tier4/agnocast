@@ -49,7 +49,7 @@ colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args 
 source install/setup.bash
 
 # Run test
-CONFIG_FILE="src/agnocast_e2e_test/test/config_test_ros2_1to1.yaml"
+CONFIG_FILE="src/agnocast_e2e_test/test/config_test_1to1_with_ros2pub.yaml"
 show_config() {
     echo "----------------------------------------------" | sudo tee /dev/kmsg
     cat $CONFIG_FILE | sudo tee /dev/kmsg
@@ -59,7 +59,7 @@ show_config() {
 FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
     show_config
-    launch_test src/agnocast_e2e_test/test/test_ros2_1to1.py
+    launch_test src/agnocast_e2e_test/test/test_1to1_with_ros2pub.py
     if [ $? -ne 0 ]; then
         echo "Test failed" | sudo tee /dev/kmsg
         exit 1
@@ -88,7 +88,7 @@ else
                             sed -i "s/use_take_sub:.*/use_take_sub: $use_take_sub/g" $CONFIG_FILE
                             echo "====================== $COUNT / 64 ======================" | sudo tee /dev/kmsg
                             show_config
-                            launch_test ssrc/agnocast_e2e_test/test/test_ros2_1to1.py
+                            launch_test ssrc/agnocast_e2e_test/test/test_1to1_with_ros2pub.py
 
                             if [ $? -ne 0 ]; then
                                 echo "Test failed." | sudo tee /dev/kmsg

@@ -33,6 +33,9 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 
 struct SubscriptionOptions
 {
+  bool bridge_from_ros2 = false;
+  rclcpp::QoS ros2_qos = rclcpp::QoS(10);
+
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
@@ -61,6 +64,12 @@ template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
+  agnocast::SubscriptionOptions options_;
+
+  /// TODO: Implement the bridge mode.
+  // typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
+  // typename agnocast::Publisher<MessageT>::SharedPtr internal_agnocast_publisher_;
+  // std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> user_callback_;
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -69,20 +78,42 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(node, topic_name)
+  : SubscriptionBase(node, topic_name), options_(options)
   {
-    union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
+    if (options_.bridge_from_ros2) {
+      RCLCPP_INFO(
+        node->get_logger(), "Creating a bridged Agnocast subscription for ROS 2 topic: %s",
+        topic_name_.c_str());
 
-    id_ = add_subscriber_args.ret_id;
+      // TODO: Implement the bridge mode.
+      // agnocast::PublisherOptions pub_options;
+      // pub_options.do_always_ros2_publish = false;
+      // internal_agnocast_publisher_ = std::make_shared<agnocast::Publisher<MessageT>>(
+      //   node, topic_name_ + "_bridge_internal_pub", qos, pub_options);
 
-    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
-    auto node_base = node->get_node_base_interface();
-    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
+      // internal_ros2_subscriber_ = node->create_subscription<MessageT>(
+      //   topic_name_, options.ros2_qos, [this](const typename MessageT::ConstSharedPtr ros_msg) {
+      //     auto loaned_msg_ptr = this->internal_agnocast_publisher_->borrow_loaned_message();
+      //     *loaned_msg_ptr = *ros_msg;
+      //     this->user_callback_(loaned_msg_ptr);
+      //   });
+    } else {
+      RCLCPP_INFO(
+        node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
+      union ioctl_add_subscriber_args add_subscriber_args =
+        initialize(qos, false, node->get_fully_qualified_name());
 
-    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
-      callback, topic_name_, id_, is_transient_local, mq, callback_group);
+      id_ = add_subscriber_args.ret_id;
+
+      mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
+      auto node_base = node->get_node_base_interface();
+      rclcpp::CallbackGroup::SharedPtr callback_group =
+        get_valid_callback_group(node_base, options);
+
+      const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+      [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
+        callback, topic_name_, id_, is_transient_local, mq, callback_group);
+    }
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -94,7 +125,14 @@ public:
 #endif
   }
 
-  ~Subscription() { remove_mq(mq_subscription_); }
+  ~Subscription()
+  {
+    if (options_.bridge_from_ros2) {
+      // TODO: Implement the bridge mode.
+    } else {
+      remove_mq(mq_subscription_);
+    }
+  }
 };
 
 template <typename MessageT>
