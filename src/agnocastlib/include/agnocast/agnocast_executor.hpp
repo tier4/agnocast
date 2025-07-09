@@ -26,7 +26,7 @@ class AgnocastExecutor : public rclcpp::Executor
 
   void wait_and_handle_epoll_event(const int timeout_ms);
   bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
-  virtual void validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const = 0;
+  virtual bool validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const = 0;
 
 protected:
   int epoll_fd_;
