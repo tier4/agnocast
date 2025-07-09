@@ -12,8 +12,8 @@ from launch_ros.descriptions import ComposableNode
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config_test_ros2_1to1.yaml')
 
-EXPECT_INIT_ROS_PUB_NUM: int
-EXPECT_ROS_PUB_NUM: int
+EXPECT_INIT_ROS2_PUB_NUM: int
+EXPECT_ROS2_PUB_NUM: int
 EXPECT_INIT_ROS2_SUB_NUM: int
 EXPECT_ROS2_SUB_NUM: int
 
@@ -21,24 +21,24 @@ TIMEOUT = os.environ.get('STRESS_TEST_TIMEOUT')
 FOREVER = True if (os.environ.get('STRESS_TEST_TIMEOUT')) else False
 
 def calc_expect_pub_sub_num(config: dict) -> None:
-    global EXPECT_ROS_PUB_NUM, EXPECT_INIT_ROS_PUB_NUM, EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM
+    global EXPECT_ROS2_PUB_NUM, EXPECT_INIT_ROS2_PUB_NUM, EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM
 
-    EXPECT_INIT_ROS_PUB_NUM = config['pub_qos_depth'] if (
+    EXPECT_INIT_ROS2_PUB_NUM = config['pub_qos_depth'] if (
         config['launch_pub_before_sub'] and config['pub_transient_local']) else 0
-    EXPECT_ROS_PUB_NUM = config['pub_qos_depth']
+    EXPECT_ROS2_PUB_NUM = config['pub_qos_depth']
 
-    EXPECT_ROS2_SUB_NUM = min(EXPECT_ROS_PUB_NUM, config['sub_qos_depth'])
+    EXPECT_ROS2_SUB_NUM = min(EXPECT_ROS2_PUB_NUM, config['sub_qos_depth'])
 
     if config['sub_transient_local']:
         EXPECT_INIT_ROS2_SUB_NUM = min(
-            EXPECT_INIT_ROS_PUB_NUM, config['sub_qos_depth']) if config['pub_transient_local'] else 0
+            EXPECT_INIT_ROS2_PUB_NUM, config['sub_qos_depth']) if config['pub_transient_local'] else 0
     else:
         EXPECT_INIT_ROS2_SUB_NUM = 0
 
 def calc_action_delays(config: dict) -> tuple:
     unit_delay = 1.0
     pub_delay = 0.0 if config['launch_pub_before_sub'] else unit_delay
-    sub_delay = 0.01 * EXPECT_INIT_ROS_PUB_NUM + unit_delay if config['launch_pub_before_sub'] else 0.0
+    sub_delay = 0.01 * EXPECT_INIT_ROS2_PUB_NUM + unit_delay if config['launch_pub_before_sub'] else 0.0
     ready_delay = float(TIMEOUT) if TIMEOUT else pub_delay + sub_delay + 10.0
     return pub_delay, sub_delay, ready_delay
 
@@ -66,8 +66,8 @@ def generate_test_description():
                             {
                                 "qos_depth": config['pub_qos_depth'],
                                 "transient_local": config['pub_transient_local'],
-                                "init_pub_num": EXPECT_INIT_ROS_PUB_NUM,
-                                "pub_num": EXPECT_ROS_PUB_NUM,
+                                "init_pub_num": EXPECT_INIT_ROS2_PUB_NUM,
+                                "pub_num": EXPECT_ROS2_PUB_NUM,
                                 "forever": FOREVER
                             }
                         ],
@@ -127,7 +127,7 @@ class TestParameterizedPubSub(unittest.TestCase):
             proc_output = "".join(cm._output)
 
             # The display order is not guaranteed, so the message order is not checked.
-            for i in range(EXPECT_INIT_ROS_PUB_NUM + EXPECT_ROS_PUB_NUM):
+            for i in range(EXPECT_INIT_ROS2_PUB_NUM + EXPECT_ROS2_PUB_NUM):
                 self.assertEqual(proc_output.count(f"Publishing {i}."), 1)
             self.assertEqual(proc_output.count("All messages published. Shutting down."), 1)
 
@@ -136,6 +136,6 @@ class TestParameterizedPubSub(unittest.TestCase):
             proc_output = "".join(cm._output)
 
             # The display order is not guaranteed, so the message order is not checked.
-            for i in range(EXPECT_INIT_ROS_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
+            for i in range(EXPECT_INIT_ROS2_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
                 self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
