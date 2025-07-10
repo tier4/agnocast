@@ -72,6 +72,7 @@ else
     SUB_TRANSIENT_LOCAL=(true false)
     USE_TAKE_SUB=(true false)
 
+    # bridge_from_ros2 is always true, because false is agnocasst's default behavior.
     COUNT=0
     for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
         for pub_qos_depth in ${PUB_QOS_DEPTH[@]}; do

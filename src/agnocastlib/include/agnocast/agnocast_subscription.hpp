@@ -67,9 +67,6 @@ class Subscription : public SubscriptionBase
   agnocast::SubscriptionOptions options_;
 
   /// TODO: Implement the bridge mode.
-  // typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
-  // typename agnocast::Publisher<MessageT>::SharedPtr internal_agnocast_publisher_;
-  // std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> user_callback_;
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -86,17 +83,6 @@ public:
         topic_name_.c_str());
 
       // TODO: Implement the bridge mode.
-      // agnocast::PublisherOptions pub_options;
-      // pub_options.do_always_ros2_publish = false;
-      // internal_agnocast_publisher_ = std::make_shared<agnocast::Publisher<MessageT>>(
-      //   node, topic_name_ + "_bridge_internal_pub", qos, pub_options);
-
-      // internal_ros2_subscriber_ = node->create_subscription<MessageT>(
-      //   topic_name_, options.ros2_qos, [this](const typename MessageT::ConstSharedPtr ros_msg) {
-      //     auto loaned_msg_ptr = this->internal_agnocast_publisher_->borrow_loaned_message();
-      //     *loaned_msg_ptr = *ros_msg;
-      //     this->user_callback_(loaned_msg_ptr);
-      //   });
     } else {
       RCLCPP_INFO(
         node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
