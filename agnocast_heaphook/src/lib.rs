@@ -189,11 +189,6 @@ fn init_tlsf() {
     }
 }
 
-fn tlsf_deallocate(ptr: NonNull<u8>) {
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(ptr, LAYOUT_ALIGN) }
-}
-
 fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
     // the alignment must be greater than POINTER_ALIGN to ensure that `aligned_ptr` is POINTER_ALIGN-byte aligned.
     let align = layout.align().max(POINTER_ALIGN);
@@ -260,7 +255,9 @@ fn tlsf_deallocate_wrapped(ptr: NonNull<u8>) {
     // get the original pointer
     // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
     let original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
-    tlsf_deallocate(original_ptr);
+
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
+    unsafe { tlsf.deallocate(original_ptr, LAYOUT_ALIGN) }
 }
 
 #[cfg(not(test))]
