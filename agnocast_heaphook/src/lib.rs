@@ -232,15 +232,14 @@ fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> Option<NonNull<u8>> {
     Some(aligned_ptr)
 }
 
-fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, size: usize) -> Option<NonNull<u8>> {
+fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, alignment: usize, size: usize) -> Option<NonNull<u8>> {
+    // the alignment must be greater than POINTER_ALIGN to ensure that `aligned_ptr` is POINTER_ALIGN-byte aligned.
+    let alignment = alignment.max(POINTER_ALIGN);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
+
     // get the original pointer
     // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
     let original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
-
-    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-    let alignment = MIN_ALIGN;
-    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     // aligned pointer returned to user
     //
@@ -375,7 +374,9 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
         }
         (true, false) => {
             if let Some(non_null_ptr) = NonNull::new(ptr.cast()) {
-                match tlsf_reallocate_wrapped(non_null_ptr, new_size) {
+                // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+                // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+                match tlsf_reallocate_wrapped(non_null_ptr, MIN_ALIGN, new_size) {
                     Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                     None => std::ptr::null_mut(),
                 }
