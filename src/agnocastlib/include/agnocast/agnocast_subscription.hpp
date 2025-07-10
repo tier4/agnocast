@@ -34,7 +34,6 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 struct SubscriptionOptions
 {
   bool bridge_from_ros2 = false;
-  rclcpp::QoS ros2_qos = rclcpp::QoS(10);
 
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
@@ -66,7 +65,29 @@ class Subscription : public SubscriptionBase
   std::pair<mqd_t, std::string> mq_subscription_;
   agnocast::SubscriptionOptions options_;
 
-  /// TODO: Implement the bridge mode.
+  typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
+
+  // For testing purposes. TODO: Remove this in production code.
+  int received_count_ = 0;
+  int expected_count_ = 2;
+
+  void ros2_bridge_callback(const typename MessageT::ConstSharedPtr ros_msg)
+  {
+    // For testing purposes. TODO: Remove this in production code.
+    std::cout << "Receiving " << ros_msg->data << "." << std::endl;
+    received_count_++;
+
+    if (received_count_ == expected_count_) {
+      // For testing purposes. TODO: Remove this in production code.
+      std::cout << "All messages received. Shutting down." << std::endl;
+      std::cout << std::flush;
+      rclcpp::shutdown();
+    }
+
+    // // TODO: ステップA - Agnocast共有メモリを確保する (ローンメッセージAPIなど)
+    // // TODO: ステップB - 受信したros_msgの内容を、確保した共有メモリにコピー/変換する
+    // // TODO: ステップC - ユーザーのコールバック(user_callback_) をタスクとしてExecutorに投入する
+  }
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -82,7 +103,15 @@ public:
         node->get_logger(), "Creating a bridged Agnocast subscription for ROS 2 topic: %s",
         topic_name_.c_str());
 
-      // TODO: Implement the bridge mode.
+      rclcpp::SubscriptionOptions sub_options;
+      sub_options.callback_group = options_.callback_group;
+      internal_ros2_subscriber_ = node->create_subscription<MessageT>(
+        topic_name_, rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
+        std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
+        sub_options);
+
+      RCLCPP_INFO(
+        node->get_logger(), "Bridged subscription created for topic: %s", topic_name_.c_str());
     } else {
       RCLCPP_INFO(
         node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
