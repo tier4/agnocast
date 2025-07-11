@@ -4,6 +4,7 @@
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
+#include "agnocast/agnocast_callback_isolated_executor.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "rclcpp/rclcpp.hpp"
 

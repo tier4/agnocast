@@ -28,7 +28,8 @@ public:
   void spin() override;
 
   // Not used for public API, but required to be exposed for the internal implementation
-  void dedicate_to_callback_group(const rclcpp::CallbackGroup::SharedPtr & group);
+  void dedicate_to_callback_group(const rclcpp::CallbackGroup::SharedPtr & group,
+    const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node);
 };
 
 }  // namespace agnocast
