@@ -86,7 +86,7 @@ void AgnocastExecutor::prepare_epoll()
       continue;
     }
 
-    validate_callback_group(callback_info.callback_group);
+    if (!validate_callback_group(callback_info.callback_group)) continue;
 
     struct epoll_event ev = {};
     ev.events = EPOLLIN;
@@ -104,6 +104,16 @@ void AgnocastExecutor::prepare_epoll()
 
     callback_info.need_epoll_update = false;
   }
+
+  bool all_updated = true;
+  for (const auto & it : id2_callback_info) {
+    if (it.second.need_epoll_update) {
+      all_updated = false;
+      break;
+    }
+  }
+
+  if (all_updated) need_epoll_updates.store(false);
 }
 
 bool AgnocastExecutor::get_next_agnocast_executable(
