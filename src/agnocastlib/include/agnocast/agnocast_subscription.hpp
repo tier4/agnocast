@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -66,27 +67,13 @@ class Subscription : public SubscriptionBase
   agnocast::SubscriptionOptions options_;
 
   typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
-
-  // For testing purposes. TODO: Remove this in production code.
-  int received_count_ = 0;
-  int expected_count_ = 2;
+  typename agnocast::Publisher<MessageT>::SharedPtr internal_shm_provider_;
 
   void ros2_bridge_callback(const typename MessageT::ConstSharedPtr ros_msg)
   {
-    // For testing purposes. TODO: Remove this in production code.
-    std::cout << "Receiving " << ros_msg->data << "." << std::endl;
-    received_count_++;
-
-    if (received_count_ == expected_count_) {
-      // For testing purposes. TODO: Remove this in production code.
-      std::cout << "All messages received. Shutting down." << std::endl;
-      std::cout << std::flush;
-      rclcpp::shutdown();
-    }
-
-    // // TODO: ステップA - Agnocast共有メモリを確保する (ローンメッセージAPIなど)
-    // // TODO: ステップB - 受信したros_msgの内容を、確保した共有メモリにコピー/変換する
-    // // TODO: ステップC - ユーザーのコールバック(user_callback_) をタスクとしてExecutorに投入する
+    auto loaned_msg_ptr = internal_shm_provider_->borrow_loaned_message();
+    *loaned_msg_ptr = *ros_msg;
+    internal_shm_provider_->publish(std::move(loaned_msg_ptr));
   }
 
 public:
@@ -110,25 +97,28 @@ public:
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
         sub_options);
 
+      agnocast::PublisherOptions pub_options;
+      pub_options.is_part_of_bridge = true;  // To prevent looping back to ROS 2.
+      internal_shm_provider_ =
+        std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
+
       RCLCPP_INFO(
         node->get_logger(), "Bridged subscription created for topic: %s", topic_name_.c_str());
-    } else {
-      RCLCPP_INFO(
-        node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
-      union ioctl_add_subscriber_args add_subscriber_args =
-        initialize(qos, false, node->get_fully_qualified_name());
-
-      id_ = add_subscriber_args.ret_id;
-
-      mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
-      auto node_base = node->get_node_base_interface();
-      rclcpp::CallbackGroup::SharedPtr callback_group =
-        get_valid_callback_group(node_base, options);
-
-      const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-      [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
-        callback, topic_name_, id_, is_transient_local, mq, callback_group);
     }
+    RCLCPP_INFO(
+      node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, false, node->get_fully_qualified_name());
+
+    id_ = add_subscriber_args.ret_id;
+
+    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
+    auto node_base = node->get_node_base_interface();
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
+
+    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
+      callback, topic_name_, id_, is_transient_local, mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -140,14 +130,7 @@ public:
 #endif
   }
 
-  ~Subscription()
-  {
-    if (options_.bridge_from_ros2) {
-      // TODO: Implement the bridge mode.
-    } else {
-      remove_mq(mq_subscription_);
-    }
-  }
+  ~Subscription() { remove_mq(mq_subscription_); }
 };
 
 template <typename MessageT>

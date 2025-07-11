@@ -44,6 +44,8 @@ struct PublisherOptions
   // For transient local. If true, publish() does both Agnocast publish and ROS 2 publish,
   // regardless of the existence of ROS 2 subscriptions.
   bool do_always_ros2_publish = true;
+  // To prevent looping back to ROS 2 when bridgeing from ROS 2.
+  bool is_part_of_bridge = false;
   // No overrides allowed by default.
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
@@ -91,6 +93,8 @@ public:
     } else {
       options_.do_always_ros2_publish = false;
     }
+
+    options_.is_part_of_bridge = options.is_part_of_bridge;
 
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
 
@@ -203,7 +207,12 @@ public:
       delete release_ptr;
     }
 
-    if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
+    bool should_publish_to_ros2 = false;
+    if (!options_.is_part_of_bridge) {
+      should_publish_to_ros2 =
+        options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0;
+    }
+    if (should_publish_to_ros2) {
       {
         std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
         ros2_message_queue_.push(std::move(message));
