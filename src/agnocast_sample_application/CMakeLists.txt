@@ -20,25 +20,13 @@ target_include_directories(talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-add_library(listener_component SHARED src/minimal_subscriber.cpp)
-ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
-target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
-
-rclcpp_components_register_node(
-  listener_component
-  PLUGIN "MinimalSubscriber"
-  EXECUTABLE listener
+add_executable(listener src/minimal_subscriber.cpp)
+ament_target_dependencies(listener rclcpp rclcpp_components std_msgs agnocastlib agnocast_sample_interfaces)
+target_include_directories(listener PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
 )
 
-ament_export_targets(export_listener_component)
-install(TARGETS listener_component
-        EXPORT export_listener_component
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        RUNTIME DESTINATION bin
-)
-
-install(TARGETS talker
+install(TARGETS talker listener
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

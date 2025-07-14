@@ -12,6 +12,12 @@ class MinimalPublisher : public rclcpp::Node
   agnocast::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr
     publisher_dynamic_;
 
+  rclcpp::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr
+    publisher_ros_;
+
+  rclcpp::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr
+    publisher_ros2_;
+
   void timer_callback()
   {
     agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> message =
@@ -24,6 +30,17 @@ class MinimalPublisher : public rclcpp::Node
     }
 
     publisher_dynamic_->publish(std::move(message));
+
+    agnocast_sample_interfaces::msg::DynamicSizeArray ros_message;
+    ros_message.id = count_;
+    ros_message.data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
+    for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
+      ros_message.data.push_back(i + count_);
+    }
+
+    publisher_ros_->publish(ros_message);
+    publisher_ros2_->publish(ros_message);
+
     RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_++);
   }
 
@@ -35,6 +52,12 @@ public:
     publisher_dynamic_ =
       agnocast::create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
         this, "/my_topic", 1);
+
+    publisher_ros_ = this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
+      "/ros_topic", 1);
+
+    publisher_ros2_ = this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
+      "/ros_other_topic", 1);
 
     timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
   }
