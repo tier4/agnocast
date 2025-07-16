@@ -49,7 +49,7 @@ public:
 
   void add_node(rclcpp::Node::SharedPtr node, bool notify = true) override;
 
-  virtual void spin() = 0;
+  virtual void spin() override = 0;
 };
 
 }  // namespace agnocast
