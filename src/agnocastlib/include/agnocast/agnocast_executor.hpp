@@ -26,6 +26,10 @@ class AgnocastExecutor : public rclcpp::Executor
 
   void wait_and_handle_epoll_event(const int timeout_ms);
   bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
+
+  // Return false iff this Executor is SingleThreadedAgnocastExecutor
+  // and used for internal implementation of CallbackIsolatedAgnocastExecutor
+  // and `group` is "not" the callback group dedicated by this Executor.
   virtual bool validate_callback_group(const rclcpp::CallbackGroup::SharedPtr & group) const = 0;
 
 protected:
