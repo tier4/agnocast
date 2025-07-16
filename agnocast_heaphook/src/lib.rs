@@ -304,12 +304,14 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
 
     // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    match Layout::from_size_align(size, MIN_ALIGN) {
-        Ok(layout) => match tlsf_allocate_wrapped(layout) {
-            Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-            None => std::ptr::null_mut(),
-        },
-        Err(_) => ptr::null_mut(),
+    let layout = match Layout::from_size_align(size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => ptr::null_mut(),
     }
 }
 
@@ -347,18 +349,21 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
     // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-    match Layout::from_size_align(num * size, MIN_ALIGN) {
-        Ok(layout) => match tlsf_allocate_wrapped(layout) {
-            Some(non_null_ptr) => {
-                let ptr = non_null_ptr.as_ptr();
-                unsafe {
-                    std::ptr::write_bytes(ptr, 0, num * size);
-                }
-                ptr.cast()
+    let size = num * size;
+    let layout = match Layout::from_size_align(size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => {
+            let ptr = non_null_ptr.as_ptr();
+            unsafe {
+                ptr::write_bytes(ptr, 0, size);
             }
-            None => ptr::null_mut(),
-        },
-        Err(_) => ptr::null_mut(),
+            ptr.cast()
+        }
+        None => ptr::null_mut(),
     }
 }
 
