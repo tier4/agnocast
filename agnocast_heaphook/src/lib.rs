@@ -2,7 +2,7 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     ffi::{CStr, CString},
-    mem::MaybeUninit,
+    mem::{size_of, MaybeUninit},
     os::raw::{c_char, c_int, c_void},
     ptr::{self, NonNull},
     sync::{
@@ -423,15 +423,22 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         };
     }
 
-    match Layout::from_size_align(size, alignment) {
-        Ok(layout) => match tlsf_allocate_wrapped(layout) {
-            Some(non_null_ptr) => {
-                *memptr = non_null_ptr.as_ptr().cast();
-                0
-            }
-            None => libc::ENOMEM,
-        },
-        Err(_) => libc::ENOMEM,
+    // `alignment` must be a power of two and a multiple of `sizeof(void *)`.
+    if !alignment.is_power_of_two() || alignment % size_of::<*mut c_void>() != 0 {
+        return libc::EINVAL;
+    }
+
+    let layout = match Layout::from_size_align(size, alignment) {
+        Ok(layout) => layout,
+        Err(_) => return libc::ENOMEM,
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => {
+            *memptr = non_null_ptr.as_ptr().cast();
+            0
+        }
+        None => libc::ENOMEM,
     }
 }
 
