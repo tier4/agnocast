@@ -443,12 +443,19 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         };
     }
 
-    match Layout::from_size_align(size, alignment) {
-        Ok(layout) => match tlsf_allocate_wrapped(layout) {
-            Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-            None => std::ptr::null_mut(),
-        },
-        Err(_) => ptr::null_mut(),
+    // `size` should be a multiple of `alignment`.
+    if size % alignment != 0 {
+        return ptr::null_mut();
+    }
+
+    let layout = match Layout::from_size_align(size, alignment) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => std::ptr::null_mut(),
     }
 }
 
