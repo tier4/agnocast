@@ -3,8 +3,8 @@
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
-#include "agnocast/tp_wrapper.h"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>

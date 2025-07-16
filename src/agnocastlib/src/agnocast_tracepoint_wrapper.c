@@ -1,4 +1,4 @@
-#include "agnocast/tp_wrapper.h"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 
 // clang-format off
 
@@ -7,7 +7,7 @@
 #ifdef TRACETOOLS_LTTNG_ENABLED
 #define TRACEPOINT_CREATE_PROBES
 #define TRACEPOINT_DEFINE
-#include "agnocast/tp_call.h"
+#include "agnocast/agnocast_tracepoint_call.h"
 # define CONDITIONAL_TP(...) \
   tracepoint(TRACEPOINT_PROVIDER, __VA_ARGS__)
 #else

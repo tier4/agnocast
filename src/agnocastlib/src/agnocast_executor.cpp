@@ -1,7 +1,7 @@
 #include "agnocast/agnocast_executor.hpp"
 
 #include "agnocast/agnocast.hpp"
-#include "agnocast/tp_wrapper.h"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
 

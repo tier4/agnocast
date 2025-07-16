@@ -1,13 +1,13 @@
 // Provide fake header guard for cpplint
-#undef AGNOCAST__TP_H_
-#ifndef AGNOCAST__TP_H_
-#define AGNOCAST__TP_H_
+#undef AGNOCAST__TRACEPOINT_H_
+#ifndef AGNOCAST__TRACEPOINT_H_
+#define AGNOCAST__TRACEPOINT_H_
 
 #undef TRACEPOINT_PROVIDER
 #define TRACEPOINT_PROVIDER agnocast
 
 #undef TRACEPOINT_INCLUDE
-#define TRACEPOINT_INCLUDE "agnocast/tp_call.h"
+#define TRACEPOINT_INCLUDE "agnocast/agnocast_tracepoint_call.h"
 
 #if !defined(_TP_H) || defined(TRACEPOINT_HEADER_MULTI_READ)
 #define _TP_H
@@ -146,4 +146,4 @@ TRACEPOINT_EVENT(
 
 #include <lttng/tracepoint-event.h>
 
-#endif  // AGNOCAST__TP_H_
+#endif  // AGNOCAST__TRACEPOINT_H_
