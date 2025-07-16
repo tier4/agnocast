@@ -67,13 +67,13 @@ class Subscription : public SubscriptionBase
   agnocast::SubscriptionOptions options_;
 
   typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
-  typename agnocast::Publisher<MessageT>::SharedPtr internal_shm_provider_;
+  typename agnocast::Publisher<MessageT>::SharedPtr internal_agno_publisher_;
 
   void ros2_bridge_callback(const typename MessageT::ConstSharedPtr ros_msg)
   {
-    auto loaned_msg_ptr = internal_shm_provider_->borrow_loaned_message();
+    auto loaned_msg_ptr = internal_agno_publisher_->borrow_loaned_message();
     *loaned_msg_ptr = *ros_msg;
-    internal_shm_provider_->publish(std::move(loaned_msg_ptr));
+    internal_agno_publisher_->publish(std::move(loaned_msg_ptr));
   }
 
 public:
@@ -90,20 +90,18 @@ public:
         node->get_logger(), "Creating a bridged Agnocast subscription for ROS 2 topic: %s",
         topic_name_.c_str());
 
+      agnocast::PublisherOptions pub_options;
+      pub_options.is_part_of_bridge = true;  // To prevent looping back to ROS 2.
+      internal_agno_publisher_ =
+        std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
+
       rclcpp::SubscriptionOptions sub_options;
-      sub_options.callback_group = options_.callback_group;
+      sub_options.callback_group =
+        this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
       internal_ros2_subscriber_ = node->create_subscription<MessageT>(
         topic_name_, rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
         sub_options);
-
-      agnocast::PublisherOptions pub_options;
-      pub_options.is_part_of_bridge = true;  // To prevent looping back to ROS 2.
-      internal_shm_provider_ =
-        std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
-
-      RCLCPP_INFO(
-        node->get_logger(), "Bridged subscription created for topic: %s", topic_name_.c_str());
     }
     RCLCPP_INFO(
       node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
