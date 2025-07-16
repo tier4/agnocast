@@ -3,9 +3,9 @@
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "tracetools/tracetools.h"
 
 #include <fcntl.h>
 #include <mqueue.h>
@@ -77,14 +77,11 @@ public:
     ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
 
     auto actual_qos = ros2_publisher_->get_actual_qos();
-
-#ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       topic_name_.c_str(), actual_qos.depth());
-#endif
 
     if (actual_qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       options_.do_always_ros2_publish = options.do_always_ros2_publish;
