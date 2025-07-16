@@ -191,12 +191,12 @@ fn init_tlsf() {
 
 fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
     // the alignment must be greater than POINTER_ALIGN to ensure that `aligned_ptr` is POINTER_ALIGN-byte aligned.
-    let align = layout.align().max(POINTER_ALIGN);
-    debug_assert!(align.is_power_of_two() && align >= POINTER_ALIGN);
+    let alignment = layout.align().max(POINTER_ALIGN);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     // the original pointer returned by the internal allocator
     let size = layout.size();
-    let layout = Layout::from_size_align(POINTER_SIZE + size + align, LAYOUT_ALIGN).ok()?;
+    let layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
     let original_ptr = tlsf.allocate(layout)?;
     let original_addr = original_ptr.as_ptr() as usize;
@@ -207,10 +207,10 @@ fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
-    let aligned_addr = (original_addr + POINTER_SIZE + align - 1) & !(align - 1);
+    let aligned_addr = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
 
     // SAFETY: `aligned_addr` must be non-zero.
-    debug_assert!(aligned_addr % align == 0 && aligned_addr != 0);
+    debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
     let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
 
     // store the original pointer
@@ -221,8 +221,8 @@ fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
 
 fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>> {
     // the alignment must be greater than POINTER_ALIGN to ensure that `aligned_ptr` is POINTER_ALIGN-byte aligned.
-    let align = new_layout.align().max(POINTER_ALIGN);
-    debug_assert!(align.is_power_of_two() && align >= POINTER_ALIGN);
+    let alignment = new_layout.align().max(POINTER_ALIGN);
+    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
 
     // get the original pointer
     // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
@@ -230,7 +230,7 @@ fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNu
 
     // the original pointer returned by the internal allocator
     let size = new_layout.size();
-    let new_layout = Layout::from_size_align(POINTER_SIZE + size + align, LAYOUT_ALIGN).ok()?;
+    let new_layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
     let original_ptr = unsafe { tlsf.reallocate(original_ptr, new_layout) }?;
     let original_addr = original_ptr.as_ptr() as usize;
@@ -241,10 +241,10 @@ fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNu
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
     // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
-    let aligned_addr: usize = (original_addr + POINTER_SIZE + align - 1) & !(align - 1);
+    let aligned_addr: usize = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
 
     // SAFETY: `aligned_addr` must be non-zero.
-    debug_assert!(aligned_addr % align == 0 && aligned_addr != 0);
+    debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
     let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
 
     // store the original pointer
