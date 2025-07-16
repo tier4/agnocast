@@ -382,18 +382,31 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
         (true, false) => {
             // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
             // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-            match Layout::from_size_align(new_size, MIN_ALIGN) {
-                Ok(new_layout) => match NonNull::new(ptr.cast()) {
-                    Some(non_null_ptr) => match tlsf_reallocate_wrapped(non_null_ptr, new_layout) {
+            let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
+                Ok(layout) => layout,
+                Err(_) => return ptr::null_mut(),
+            };
+
+            match NonNull::new(ptr.cast()) {
+                Some(non_null_ptr) => {
+                    // If size is equal to zero, and ptr is not NULL, then the call is equivalent to free(ptr).
+                    if new_layout.size() == 0 {
+                        tlsf_deallocate_wrapped(non_null_ptr);
+                        return ptr::null_mut();
+                    }
+
+                    match tlsf_reallocate_wrapped(non_null_ptr, new_layout) {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
-                    },
-                    None => match tlsf_allocate_wrapped(new_layout) {
+                    }
+                }
+                None => {
+                    // If ptr is NULL, then the call is equivalent to malloc(size).
+                    match tlsf_allocate_wrapped(new_layout) {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
-                    },
-                },
-                Err(_) => ptr::null_mut(),
+                    }
+                }
             }
         }
         (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
