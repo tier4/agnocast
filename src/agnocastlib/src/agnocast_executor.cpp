@@ -107,6 +107,14 @@ void AgnocastExecutor::prepare_epoll()
 
     callback_info.need_epoll_update = false;
   }
+
+  const bool all_updated = std::none_of(
+    id2_callback_info.begin(), id2_callback_info.end(),
+    [](const auto & it) { return it.second.need_epoll_update; });
+
+  if (all_updated) {
+    need_epoll_updates.store(false);
+  }
 }
 
 bool AgnocastExecutor::get_next_agnocast_executable(
