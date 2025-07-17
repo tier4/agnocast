@@ -44,7 +44,7 @@ bool SingleThreadedAgnocastExecutor::validate_callback_group(
 
 void SingleThreadedAgnocastExecutor::spin()
 {
-  if (spinning.exchange(true)) {
+  if (spinning.load()) {
     RCLCPP_ERROR(logger, "spin() called while already spinning");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
