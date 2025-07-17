@@ -25,6 +25,7 @@
   <depend>rclcpp_components</depend>
   <depend>std_msgs</depend>
   <depend>tracetools</depend>
+  <depend>liblttng-ust-dev</depend>
 
   <!-- Uncomment when agnocast_kmod is released from PPA -->
   <!-- <exec_depend>agnocast_kmod</exec_depend> -->
