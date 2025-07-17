@@ -26,7 +26,7 @@ SingleThreadedAgnocastExecutor::SingleThreadedAgnocastExecutor(
   }
 }
 
-void SingleThreadedAgnocastExecutor::validate_callback_group(
+bool SingleThreadedAgnocastExecutor::validate_callback_group(
   const rclcpp::CallbackGroup::SharedPtr & group) const
 {
   if (!group) {
@@ -34,6 +34,12 @@ void SingleThreadedAgnocastExecutor::validate_callback_group(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  if (is_dedicated_to_one_callback_group_) {
+    return group == dedicated_callback_group_;
+  }
+
+  return true;
 }
 
 void SingleThreadedAgnocastExecutor::spin()
@@ -62,6 +68,22 @@ void SingleThreadedAgnocastExecutor::spin()
       execute_any_executable(any_executable);
     }
   }
+}
+
+void SingleThreadedAgnocastExecutor::dedicate_to_callback_group(
+  const rclcpp::CallbackGroup::SharedPtr & group,
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node)
+{
+  if (!group) {
+    RCLCPP_ERROR(logger, "The passed callback group is nullptr.");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  is_dedicated_to_one_callback_group_ = true;
+  dedicated_callback_group_ = group;
+
+  add_callback_group(group, node);
 }
 
 }  // namespace agnocast
