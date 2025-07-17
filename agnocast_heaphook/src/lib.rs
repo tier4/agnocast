@@ -374,7 +374,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
     match (is_shared, should_use_original) {
         (true, true) => {
-            // In the child processes, ignore the free operation to the shared memory
+            // In the child processes, ignore the free operation to the shared memory.
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
         }
         (true, false) => {
@@ -387,7 +387,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
             match NonNull::new(ptr.cast()) {
                 Some(non_null_ptr) => {
-                    // If size is equal to zero, and ptr is not NULL, then the call is equivalent to free(ptr).
+                    // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
                     if new_layout.size() == 0 {
                         tlsf_deallocate_wrapped(non_null_ptr);
                         return ptr::null_mut();
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                     }
                 }
                 None => {
-                    // If ptr is NULL, then the call is equivalent to malloc(size).
+                    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
                     match tlsf_allocate_wrapped(new_layout) {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
