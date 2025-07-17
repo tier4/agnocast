@@ -35,7 +35,10 @@ bool SingleThreadedAgnocastExecutor::validate_callback_group(
     exit(EXIT_FAILURE);
   }
 
-  if (is_dedicated_to_one_callback_group_ && group != dedicated_callback_group_) return false;
+  if (is_dedicated_to_one_callback_group_) {
+    return group == dedicated_callback_group_;
+  }
+
   return true;
 }
 

@@ -87,7 +87,9 @@ void AgnocastExecutor::prepare_epoll()
       continue;
     }
 
-    if (!validate_callback_group(callback_info.callback_group)) continue;
+    if (!validate_callback_group(callback_info.callback_group)) {
+      continue;
+    }
 
     struct epoll_event ev = {};
     ev.events = EPOLLIN;
