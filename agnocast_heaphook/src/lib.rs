@@ -448,8 +448,8 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         };
     }
 
-    // `size` should be a multiple of `alignment`.
-    if size % alignment != 0 {
+    // `alignment` should be a power of two and `size` should be a multiple of `alignment`.
+    if !alignment.is_power_of_two() || size % alignment != 0 {
         return ptr::null_mut();
     }
 
@@ -470,6 +470,11 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         return unsafe {
             (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
         };
+    }
+
+    // `alignment` must be a power of two.
+    if !alignment.is_power_of_two() {
+        return ptr::null_mut();
     }
 
     let layout = match Layout::from_size_align(size, alignment) {
