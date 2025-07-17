@@ -219,10 +219,4 @@ void AgnocastExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast
   }
 }
 
-void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
-{
-  nodes_.push_back(node);
-  Executor::add_node(node, notify);
-}
-
 }  // namespace agnocast
