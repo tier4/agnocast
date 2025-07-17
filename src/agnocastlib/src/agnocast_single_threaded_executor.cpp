@@ -44,7 +44,7 @@ bool SingleThreadedAgnocastExecutor::validate_callback_group(
 
 void SingleThreadedAgnocastExecutor::spin()
 {
-  if (spinning.load()) {
+  if (spinning.exchange(true)) {
     RCLCPP_ERROR(logger, "spin() called while already spinning");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -53,7 +53,7 @@ void SingleThreadedAgnocastExecutor::spin()
   RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
 
   while (rclcpp::ok(this->context_) && spinning.load()) {
-    if (need_epoll_updates.exchange(false)) {
+    if (need_epoll_updates.load()) {
       prepare_epoll();
     }
 

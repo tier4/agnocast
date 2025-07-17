@@ -80,7 +80,7 @@ bool MultiThreadedAgnocastExecutor::validate_callback_group(
 
 void MultiThreadedAgnocastExecutor::spin()
 {
-  if (spinning.load()) {
+  if (spinning.exchange(true)) {
     RCLCPP_ERROR(logger, "spin() called while already spinning");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
@@ -143,7 +143,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
 void MultiThreadedAgnocastExecutor::agnocast_spin()
 {
   while (rclcpp::ok(this->context_) && spinning.load()) {
-    if (need_epoll_updates.exchange(false)) {
+    if (need_epoll_updates.load()) {
       prepare_epoll();
     }
 
