@@ -27,7 +27,7 @@ MultiThreadedAgnocastExecutor::MultiThreadedAgnocastExecutor(
 #endif
 }
 
-void MultiThreadedAgnocastExecutor::validate_callback_group(
+bool MultiThreadedAgnocastExecutor::validate_callback_group(
   const rclcpp::CallbackGroup::SharedPtr & group) const
 {
   if (!group) {
@@ -37,7 +37,7 @@ void MultiThreadedAgnocastExecutor::validate_callback_group(
   }
 
   if (group->type() == rclcpp::CallbackGroupType::Reentrant) {
-    return;
+    return true;
   }
 
   bool is_shared_with_ros2 = false;
@@ -74,6 +74,8 @@ void MultiThreadedAgnocastExecutor::validate_callback_group(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  return true;
 }
 
 void MultiThreadedAgnocastExecutor::spin()
