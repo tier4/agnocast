@@ -55,7 +55,7 @@ void AgnocastExecutor::receive_message(
         auto typed_msg = callback_info.message_creator(
           reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.topic_name,
           callback_info.subscriber_id, receive_args.ret_entry_ids[i]);
-        callback_info.callback(*typed_msg);
+        callback_info.callback(std::move(*typed_msg));
       });
 
     {
