@@ -10,7 +10,6 @@ CallbackIsolatedAgnocastExecutor::CallbackIsolatedAgnocastExecutor(
   const rclcpp::ExecutorOptions & options)
 : rclcpp::Executor(options)
 {
-  // TODO: add support for CARET tracepoint
 }
 
 void CallbackIsolatedAgnocastExecutor::spin()
@@ -35,19 +34,19 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_all_callback_groups()
 {
-  return std::vector<rclcpp::CallbackGroup::WeakPtr>();
+  return {};
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_manually_added_callback_groups()
 {
-  return std::vector<rclcpp::CallbackGroup::WeakPtr>();
+  return {};
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_automatically_added_callback_groups_from_nodes()
 {
-  return std::vector<rclcpp::CallbackGroup::WeakPtr>();
+  return {};
 }
 
 void CallbackIsolatedAgnocastExecutor::remove_callback_group(
