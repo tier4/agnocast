@@ -422,7 +422,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
     }
 
     // `alignment` must be a power of two and a multiple of `sizeof(void *)`.
-    if !alignment.is_power_of_two() || alignment % size_of::<*mut c_void>() != 0 {
+    if !alignment.is_power_of_two() || alignment & (size_of::<*mut c_void>() - 1) != 0 {
         return libc::EINVAL;
     }
 
@@ -449,7 +449,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     }
 
     // `alignment` should be a power of two and `size` should be a multiple of `alignment`.
-    if !alignment.is_power_of_two() || size % alignment != 0 {
+    if !alignment.is_power_of_two() || size & (alignment - 1) != 0 {
         return ptr::null_mut();
     }
 
