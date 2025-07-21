@@ -473,10 +473,6 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
     }
 
     // `alignment` must be a power of two.
-    if !alignment.is_power_of_two() {
-        return ptr::null_mut();
-    }
-
     let layout = match Layout::from_size_align(size, alignment) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
