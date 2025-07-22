@@ -89,7 +89,27 @@ CallbackIsolatedAgnocastExecutor::get_manually_added_callback_groups_internal() 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_automatically_added_callback_groups_from_nodes()
 {
-  return {};
+  std::lock_guard<std::mutex> guard{mutex_};
+  return get_automatically_added_callback_groups_from_nodes_internal();
+}
+
+std::vector<rclcpp::CallbackGroup::WeakPtr>
+CallbackIsolatedAgnocastExecutor::get_automatically_added_callback_groups_from_nodes_internal()
+  const
+{
+  std::vector<rclcpp::CallbackGroup::WeakPtr> groups;
+
+  for (const auto & weak_node : weak_nodes_) {
+    auto node = weak_node.lock();
+    if (!node) continue;
+    node->for_each_callback_group([&groups](rclcpp::CallbackGroup::SharedPtr group) {
+      if (group && group->automatically_add_to_executor_with_node()) {
+        groups.push_back(group);
+      }
+    });
+  }
+
+  return groups;
 }
 
 void CallbackIsolatedAgnocastExecutor::remove_callback_group(
@@ -113,27 +133,65 @@ void CallbackIsolatedAgnocastExecutor::remove_callback_group(
 void CallbackIsolatedAgnocastExecutor::add_node(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
 {
-  (void)node_ptr;
   (void)notify;
+
+  std::lock_guard<std::mutex> guard{mutex_};
+
+  // Confirm that any callback group in weak_groups_to_nodes_ does not refer to any of the callback
+  // groups held by node_ptr.
+  for (const auto & weak_group_to_node : weak_groups_to_nodes_) {
+    auto group = weak_group_to_node.first.lock();
+    if (!group) continue;
+
+    if (node_ptr->callback_group_in_node(group)) {
+      RCLCPP_ERROR(
+        logger, "One of the callback groups in node %s already exists in the executor.",
+        node_ptr->get_fully_qualified_name());
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  std::weak_ptr<rclcpp::node_interfaces::NodeBaseInterface> weak_node_ptr = node_ptr;
+
+  auto insert_info = weak_nodes_.insert(weak_node_ptr);
+  if (!insert_info.second) {
+    RCLCPP_ERROR(
+      logger, "Node already exists in the executor: %s", node_ptr->get_fully_qualified_name());
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
 }
 
 void CallbackIsolatedAgnocastExecutor::add_node(rclcpp::Node::SharedPtr node_ptr, bool notify)
 {
-  (void)node_ptr;
   (void)notify;
+  add_node(node_ptr->get_node_base_interface(), notify);
 }
 
 void CallbackIsolatedAgnocastExecutor::remove_node(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
 {
-  (void)node_ptr;
   (void)notify;
+
+  std::weak_ptr<rclcpp::node_interfaces::NodeBaseInterface> weak_node_ptr = node_ptr;
+  std::lock_guard<std::mutex> guard{mutex_};
+
+  auto it = weak_nodes_.find(weak_node_ptr);
+
+  if (it != weak_nodes_.end()) {
+    weak_nodes_.erase(it);
+  } else {
+    RCLCPP_ERROR(
+      logger, "Node not found in the executor: %s", node_ptr->get_fully_qualified_name());
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
 }
 
 void CallbackIsolatedAgnocastExecutor::remove_node(rclcpp::Node::SharedPtr node_ptr, bool notify)
 {
-  (void)node_ptr;
-  (void)notify;
+  remove_node(node_ptr->get_node_base_interface(), notify);
 }
 
 }  // namespace agnocast
