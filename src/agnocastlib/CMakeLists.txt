@@ -95,7 +95,8 @@ if(BUILD_TESTING)
   ament_add_gmock(test_unit_${PROJECT_NAME}
     test/unit/test_agnocast_utils.cpp
     test/unit/test_agnocast_subscription.cpp
-    test/unit/test_mocked_agnocast.cpp)
+    test/unit/test_mocked_agnocast.cpp
+    test/unit/test_agnocast_executors.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
