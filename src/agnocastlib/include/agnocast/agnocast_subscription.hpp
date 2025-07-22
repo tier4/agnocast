@@ -65,9 +65,9 @@ class Subscription : public SubscriptionBase
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
 
+  template <typename Func>
   Subscription(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func callback,
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
@@ -81,7 +81,7 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
 
     const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback<MessageT>(
       callback, topic_name_, id_, is_transient_local, mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED

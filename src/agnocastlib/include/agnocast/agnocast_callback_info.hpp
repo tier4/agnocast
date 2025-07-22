@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 
 #include <mutex>
+#include <type_traits>
 
 namespace agnocast
 {
@@ -31,32 +32,6 @@ public:
 
 // Type for type-erased callback function
 using TypeErasedCallback = std::function<void(AnyObject &&)>;
-
-// Primary template
-template <typename T>
-struct function_traits;
-
-// Specialization for std::function
-template <typename ReturnType, typename... Args>
-struct function_traits<std::function<ReturnType(Args...)>>
-{
-  template <std::size_t Index>
-  using arg = typename std::tuple_element<Index, std::tuple<Args...>>::type;
-};
-
-// Extract the first arg type of a method
-template <typename Func>
-struct callback_first_arg
-{
-  using type = typename std::decay<typename function_traits<Func>::template arg<0>>::type;
-};
-
-// Specialization for std::function
-template <typename ReturnType, typename Arg, typename... Args>
-struct callback_first_arg<std::function<ReturnType(Arg, Args...)>>
-{
-  using type = typename std::decay<Arg>::type;
-};
 
 struct CallbackInfo
 {
@@ -93,21 +68,22 @@ TypeErasedCallback get_erased_callback(const Func callback)
   };
 }
 
-template <typename Func>
+template <typename MessageT, typename Func>
 uint32_t register_callback(
   const Func callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
   const bool is_transient_local, mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
-  using MessagePtrType = typename callback_first_arg<Func>::type;
-  using MessageType = typename MessagePtrType::element_type;
+  static_assert(
+    std::is_invocable_v<Func, agnocast::ipc_shared_ptr<MessageT> &&>,
+    "callback should be invocable with an rvalue reference to ipc_shared_ptr<MessageT>");
 
-  TypeErasedCallback erased_callback = get_erased_callback<MessageType>(callback);
+  TypeErasedCallback erased_callback = get_erased_callback<MessageT>(callback);
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,
                            const topic_local_id_t subscriber_id, const int64_t entry_id) {
-    return std::make_unique<TypedMessagePtr<MessageType>>(agnocast::ipc_shared_ptr<MessageType>(
-      const_cast<MessageType *>(static_cast<const MessageType *>(ptr)), topic_name, subscriber_id,
+    return std::make_unique<TypedMessagePtr<MessageT>>(agnocast::ipc_shared_ptr<MessageT>(
+      const_cast<MessageT *>(static_cast<const MessageT *>(ptr)), topic_name, subscriber_id,
       entry_id));
   };
 
