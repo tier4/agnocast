@@ -24,7 +24,7 @@ TEST_F(CallbackIsolatedAgnocastExecutorTest, add_remove_callback_group)
 
   executor->add_callback_group(group, node->get_node_base_interface());
 
-  auto groups = executor->get_all_callback_groups();
+  auto groups = executor->get_manually_added_callback_groups();
   EXPECT_EQ(groups.size(), 1);
   EXPECT_TRUE(groups[0].lock() == group);
 
