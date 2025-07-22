@@ -101,8 +101,12 @@ CallbackIsolatedAgnocastExecutor::get_automatically_added_callback_groups_from_n
 
   for (const auto & weak_node : weak_nodes_) {
     auto node = weak_node.lock();
-    if (!node) continue;
-    node->for_each_callback_group([&groups](rclcpp::CallbackGroup::SharedPtr group) {
+
+    if (!node) {
+      continue;
+    }
+
+    node->for_each_callback_group([&groups](const rclcpp::CallbackGroup::SharedPtr & group) {
       if (group && group->automatically_add_to_executor_with_node()) {
         groups.push_back(group);
       }
@@ -141,7 +145,10 @@ void CallbackIsolatedAgnocastExecutor::add_node(
   // groups held by node_ptr.
   for (const auto & weak_group_to_node : weak_groups_to_nodes_) {
     auto group = weak_group_to_node.first.lock();
-    if (!group) continue;
+
+    if (!group) {
+      continue;
+    }
 
     if (node_ptr->callback_group_in_node(group)) {
       RCLCPP_ERROR(
