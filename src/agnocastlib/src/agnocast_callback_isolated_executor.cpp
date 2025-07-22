@@ -36,7 +36,11 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
   // weak_nodes_.
   for (const auto & weak_node : weak_nodes_) {
     auto n = weak_node.lock();
-    if (!n) continue;
+
+    if (!n) {
+      continue;
+    }
+
     if (n->callback_group_in_node(group_ptr)) {
       RCLCPP_ERROR(
         logger, "Callback group already exists in node: %s", n->get_fully_qualified_name());
