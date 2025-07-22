@@ -29,6 +29,6 @@ TEST_F(CallbackIsolatedAgnocastExecutorTest, add_remove_callback_group)
   EXPECT_TRUE(groups[0].lock() == group);
 
   executor->remove_callback_group(group);
-  groups = executor->get_all_callback_groups();
+  groups = executor->get_manually_added_callback_groups();
   EXPECT_EQ(groups.size(), 0);
 }
