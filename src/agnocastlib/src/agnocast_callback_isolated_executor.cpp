@@ -63,7 +63,23 @@ CallbackIsolatedAgnocastExecutor::get_all_callback_groups()
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_manually_added_callback_groups()
 {
-  return {};
+  std::lock_guard<std::mutex> guard{mutex_};
+  return get_manually_added_callback_groups_internal();
+}
+
+std::vector<rclcpp::CallbackGroup::WeakPtr>
+CallbackIsolatedAgnocastExecutor::get_manually_added_callback_groups_internal() const
+{
+  std::vector<rclcpp::CallbackGroup::WeakPtr> groups;
+
+  for (const auto & weak_group_to_node : weak_groups_to_nodes_) {
+    auto group = weak_group_to_node.first.lock();
+    if (group) {
+      groups.push_back(group);
+    }
+  }
+
+  return groups;
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
