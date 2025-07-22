@@ -25,9 +25,33 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
   rclcpp::CallbackGroup::SharedPtr group_ptr,
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
 {
-  (void)group_ptr;
-  (void)node_ptr;
   (void)notify;
+
+  std::lock_guard<std::mutex> guard{mutex_};
+
+  std::weak_ptr<rclcpp::CallbackGroup> weak_group_ptr = group_ptr;
+  std::weak_ptr<rclcpp::node_interfaces::NodeBaseInterface> weak_node_ptr = node_ptr;
+
+  // Confirm that group_ptr does not refer to any of the callback groups held by nodes in
+  // weak_nodes_.
+  for (const auto & weak_node : weak_nodes_) {
+    auto n = weak_node.lock();
+    if (!n) continue;
+    if (n->callback_group_in_node(group_ptr)) {
+      RCLCPP_ERROR(
+        logger, "Callback group already exists in node: %s", n->get_fully_qualified_name());
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  auto insert_info = weak_groups_to_nodes_.insert(std::make_pair(weak_group_ptr, weak_node_ptr));
+
+  if (!insert_info.second) {
+    RCLCPP_ERROR(logger, "Callback group already exists in the executor");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
@@ -51,8 +75,19 @@ CallbackIsolatedAgnocastExecutor::get_automatically_added_callback_groups_from_n
 void CallbackIsolatedAgnocastExecutor::remove_callback_group(
   rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)
 {
-  (void)group_ptr;
   (void)notify;
+
+  std::lock_guard<std::mutex> guard{mutex_};
+
+  auto it = weak_groups_to_nodes_.find(group_ptr);
+
+  if (it != weak_groups_to_nodes_.end()) {
+    weak_groups_to_nodes_.erase(it);
+  } else {
+    RCLCPP_ERROR(logger, "Callback group not found in the executor");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
 }
 
 void CallbackIsolatedAgnocastExecutor::add_node(
