@@ -53,9 +53,9 @@ extern std::atomic<uint32_t> next_callback_info_id;
 extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
-TypeErasedCallback get_erased_callback(const Func callback)
+TypeErasedCallback get_erased_callback(Func && callback)
 {
-  return [callback](AnyObject && arg) {
+  return [callback = std::forward<Func>(callback)](AnyObject && arg) {
     if (typeid(T) == arg.type()) {
       auto && typed_arg = static_cast<TypedMessagePtr<T> &&>(arg);
       callback(std::move(typed_arg).get());
@@ -70,14 +70,14 @@ TypeErasedCallback get_erased_callback(const Func callback)
 
 template <typename MessageT, typename Func>
 uint32_t register_callback(
-  const Func callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
+  Func && callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
   const bool is_transient_local, mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   static_assert(
-    std::is_invocable_v<Func, agnocast::ipc_shared_ptr<MessageT> &&>,
+    std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<MessageT> &&>,
     "callback should be invocable with an rvalue reference to ipc_shared_ptr<MessageT>");
 
-  TypeErasedCallback erased_callback = get_erased_callback<MessageT>(callback);
+  TypeErasedCallback erased_callback = get_erased_callback<MessageT>(std::forward<Func>(callback));
 
   auto message_creator = [](
                            const void * ptr, const std::string & topic_name,

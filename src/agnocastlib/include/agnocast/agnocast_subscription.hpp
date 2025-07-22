@@ -67,7 +67,7 @@ public:
 
   template <typename Func>
   Subscription(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func callback,
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
@@ -82,7 +82,7 @@ public:
 
     const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
     [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback<MessageT>(
-      callback, topic_name_, id_, is_transient_local, mq, callback_group);
+      std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
 
 #ifdef TRACETOOLS_LTTNG_ENABLED
     uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
