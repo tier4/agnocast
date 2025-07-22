@@ -27,10 +27,10 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 {
   (void)notify;
 
-  std::lock_guard<std::mutex> guard{mutex_};
-
   std::weak_ptr<rclcpp::CallbackGroup> weak_group_ptr = group_ptr;
   std::weak_ptr<rclcpp::node_interfaces::NodeBaseInterface> weak_node_ptr = node_ptr;
+
+  std::lock_guard<std::mutex> guard{mutex_};
 
   // Confirm that group_ptr does not refer to any of the callback groups held by nodes in
   // weak_nodes_.
