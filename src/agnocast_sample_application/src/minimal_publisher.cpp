@@ -45,7 +45,8 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
 
   agnocast::SingleThreadedAgnocastExecutor executor;
-  executor.add_node(std::make_shared<MinimalPublisher>());
+  auto node = std::make_shared<MinimalPublisher>();
+  executor.add_node(node);
   executor.spin();
 
   rclcpp::shutdown();
