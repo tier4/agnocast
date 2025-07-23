@@ -49,7 +49,7 @@ void CallbackIsolatedAgnocastExecutor::spin()
       }
 
       node->for_each_callback_group(
-        [&groups_and_nodes, node](rclcpp::CallbackGroup::SharedPtr group) {
+        [&groups_and_nodes, node](const rclcpp::CallbackGroup::SharedPtr & group) {
           if (group && group->automatically_add_to_executor_with_node()) {
             groups_and_nodes.emplace_back(group, node);
           }
