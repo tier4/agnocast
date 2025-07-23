@@ -27,6 +27,10 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
   std::vector<rclcpp::CallbackGroup::WeakPtr> get_manually_added_callback_groups_internal() const
     RCPPUTILS_TSA_REQUIRES(mutex_);
 
+  std::vector<rclcpp::CallbackGroup::WeakPtr>
+  get_automatically_added_callback_groups_from_nodes_internal() const
+    RCPPUTILS_TSA_REQUIRES(mutex_);
+
 public:
   RCLCPP_PUBLIC
   explicit CallbackIsolatedAgnocastExecutor(
