@@ -20,6 +20,8 @@ void CallbackIsolatedAgnocastExecutor::spin()
     exit(EXIT_FAILURE);
   }
 
+  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
+
   std::vector<std::thread> threads;
   std::vector<std::pair<
     rclcpp::CallbackGroup::SharedPtr, rclcpp::node_interfaces::NodeBaseInterface::SharedPtr>>
