@@ -93,7 +93,7 @@ public:
 
       rclcpp::SubscriptionOptions sub_options;
       sub_options.callback_group =
-        this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
       internal_ros2_subscriber_ = node->create_subscription<MessageT>(
         topic_name_, rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
