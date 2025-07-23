@@ -5,9 +5,9 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "tracetools/tracetools.h"
 
 #include <fcntl.h>
 #include <mqueue.h>
@@ -112,14 +112,14 @@ public:
     [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback(
       callback, topic_name_, id_, is_transient_local, mq, callback_group);
 
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
-    TRACEPOINT(
-      agnocast_subscription_init, static_cast<const void *>(this),
-      static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
-      static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
-      tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
-#endif
+    {
+      uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
+      TRACEPOINT(
+        agnocast_subscription_init, static_cast<const void *>(this),
+        static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
+        static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
+        tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
+    }
   }
 
   ~Subscription() { remove_mq(mq_subscription_); }
@@ -134,18 +134,18 @@ public:
   TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
   : SubscriptionBase(node, topic_name)
   {
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
-      rclcpp::CallbackGroupType::MutuallyExclusive, false);
-    auto dummy_cb = []() {};
-    std::string dummy_cb_symbols = "dummy_take" + topic_name;
-    TRACEPOINT(
-      agnocast_subscription_init, static_cast<const void *>(this),
-      static_cast<const void *>(
-        node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-      static_cast<const void *>(&dummy_cb), static_cast<const void *>(dummy_cbg.get()),
-      dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
-#endif
+    {
+      auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive, false);
+      auto dummy_cb = []() {};
+      std::string dummy_cb_symbols = "dummy_take" + topic_name;
+      TRACEPOINT(
+        agnocast_subscription_init, static_cast<const void *>(this),
+        static_cast<const void *>(
+          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
+        static_cast<const void *>(&dummy_cb), static_cast<const void *>(dummy_cbg.get()),
+        dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
+    }
 
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, true, node->get_fully_qualified_name());
@@ -181,11 +181,9 @@ public:
       return agnocast::ipc_shared_ptr<const MessageT>();
     }
 
-#ifdef TRACETOOLS_LTTNG_ENABLED
     TRACEPOINT(
       agnocast_take, static_cast<void *>(this), reinterpret_cast<void *>(take_args.ret_addr),
       take_args.ret_entry_id);
-#endif
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
     return agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);

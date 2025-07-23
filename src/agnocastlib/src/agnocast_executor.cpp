@@ -1,9 +1,9 @@
 #include "agnocast/agnocast_executor.hpp"
 
 #include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
-#include "tracetools/tracetools.h"
 
 namespace agnocast
 {
@@ -58,13 +58,14 @@ void AgnocastExecutor::receive_message(
         callback_info.callback(*typed_msg);
       });
 
-#ifdef TRACETOOLS_LTTNG_ENABLED
-    uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << 32) | callback_info_id;
-    TRACEPOINT(
-      agnocast_create_callable, static_cast<const void *>(callable.get()),
-      reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
-      pid_ciid);
-#endif
+    {
+      constexpr uint8_t PID_SHIFT_BITS = 32;
+      uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
+      TRACEPOINT(
+        agnocast_create_callable, static_cast<const void *>(callable.get()),
+        reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), receive_args.ret_entry_ids[i],
+        pid_ciid);
+    }
 
     {
       std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
@@ -86,7 +87,9 @@ void AgnocastExecutor::prepare_epoll()
       continue;
     }
 
-    validate_callback_group(callback_info.callback_group);
+    if (!validate_callback_group(callback_info.callback_group)) {
+      continue;
+    }
 
     struct epoll_event ev = {};
     ev.events = EPOLLIN;
@@ -103,6 +106,14 @@ void AgnocastExecutor::prepare_epoll()
     }
 
     callback_info.need_epoll_update = false;
+  }
+
+  const bool all_updated = std::none_of(
+    id2_callback_info.begin(), id2_callback_info.end(),
+    [](const auto & it) { return it.second.need_epoll_update; });
+
+  if (all_updated) {
+    need_epoll_updates.store(false);
   }
 }
 
@@ -206,24 +217,14 @@ bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & a
 
 void AgnocastExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
-#ifdef TRACETOOLS_LTTNG_ENABLED
   TRACEPOINT(
     agnocast_callable_start, static_cast<const void *>(agnocast_executable.callable.get()));
-#endif
   (*agnocast_executable.callable)();
-#ifdef TRACETOOLS_LTTNG_ENABLED
   TRACEPOINT(agnocast_callable_end, static_cast<const void *>(agnocast_executable.callable.get()));
-#endif
 
   if (agnocast_executable.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
     agnocast_executable.callback_group->can_be_taken_from().store(true);
   }
-}
-
-void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
-{
-  nodes_.push_back(node);
-  Executor::add_node(node, notify);
 }
 
 }  // namespace agnocast

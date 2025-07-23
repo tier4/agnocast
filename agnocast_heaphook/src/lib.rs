@@ -2,9 +2,9 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     ffi::{CStr, CString},
-    mem::MaybeUninit,
+    mem::{size_of, MaybeUninit},
     os::raw::{c_char, c_int, c_void},
-    ptr::NonNull,
+    ptr::{self, NonNull},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Mutex, OnceLock,
@@ -189,89 +189,75 @@ fn init_tlsf() {
     }
 }
 
-fn tlsf_allocate(size: usize) -> Option<NonNull<u8>> {
-    let layout = Layout::from_size_align(size, LAYOUT_ALIGN).ok()?;
+fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
+    // `alignment` must be at least `POINTER_ALIGN` to ensure that `aligned_ptr` is properly aligned to store a pointer.
+    let alignment = layout.align().max(POINTER_ALIGN);
+    let size = layout.size();
+    let layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
+
+    // the original pointer returned by the internal allocator
     let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    tlsf.allocate(layout)
-}
+    let original_ptr = tlsf.allocate(layout)?;
+    let original_addr = original_ptr.as_ptr() as usize;
 
-fn tlsf_reallocate(ptr: std::ptr::NonNull<u8>, size: usize) -> Option<NonNull<u8>> {
-    let layout = Layout::from_size_align(size, LAYOUT_ALIGN).ok()?;
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.reallocate(ptr, layout) }
-}
-
-fn tlsf_deallocate(ptr: std::ptr::NonNull<u8>) {
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(ptr, LAYOUT_ALIGN) }
-}
-
-fn tlsf_allocate_wrapped(alignment: usize, size: usize) -> *mut c_void {
-    // the alignment must be greater than POINTER_ALIGN to ensure that `start_addr_ptr` is POINTER_ALIGN-byte aligned.
-    let alignment = alignment.max(POINTER_ALIGN);
-    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
-
-    // return value from internal alloc and null check
-    let start_addr: usize = match tlsf_allocate(POINTER_SIZE + size + alignment) {
-        Some(non_null_ptr) => non_null_ptr.as_ptr() as usize,
-        None => {
-            return std::ptr::null_mut();
-        }
-    };
-
-    // aligned address returned to user
+    // the aligned pointer returned to the user
     //
     // It is our responsibility to satisfy alignment constraints.
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
-    let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
-    debug_assert!(aligned_addr % alignment == 0);
+    // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
+    let aligned_addr = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
 
-    // store `start_addr`
-    let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
-    unsafe { *start_addr_ptr = start_addr };
+    // SAFETY: `aligned_addr` must be non-zero.
+    debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
+    let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
 
-    aligned_addr as *mut c_void
+    // store the original pointer
+    unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
+
+    Some(aligned_ptr)
 }
 
-fn tlsf_reallocate_wrapped(ptr: usize, size: usize) -> *mut c_void {
-    // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
-    let original_start_addr_ptr: std::ptr::NonNull<u8> =
-        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>> {
+    // `alignment` must be at least `POINTER_ALIGN` to ensure that `aligned_ptr` is properly aligned to store a pointer.
+    let alignment = new_layout.align().max(POINTER_ALIGN);
+    let size = new_layout.size();
+    let new_layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
 
-    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-    let alignment = MIN_ALIGN;
-    debug_assert!(alignment.is_power_of_two() && alignment >= POINTER_ALIGN);
+    // get the original pointer
+    // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
+    let old_original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
 
-    // return value from internal alloc
+    // the original pointer returned by the internal allocator
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
+    let new_original_ptr = unsafe { tlsf.reallocate(old_original_ptr, new_layout) }?;
+    let new_original_addr = new_original_ptr.as_ptr() as usize;
+
+    // the aligned pointer returned to the user
     //
     // It is our responsibility to satisfy alignment constraints.
     // We avoid using `Layout::align` because doing so requires us to remember the alignment.
     // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
-    let start_addr = match tlsf_reallocate(original_start_addr_ptr, POINTER_SIZE + size + alignment)
-    {
-        Some(non_null_ptr) => non_null_ptr.as_ptr() as usize,
-        None => return std::ptr::null_mut(),
-    };
-    let aligned_addr: usize = (start_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
-    debug_assert!(aligned_addr % alignment == 0);
+    // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
+    let new_aligned_addr = (new_original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
 
-    // store `start_addr`
-    let start_addr_ptr: *mut usize = (aligned_addr - POINTER_SIZE) as *mut usize;
-    unsafe { *start_addr_ptr = start_addr };
+    // SAFETY: `new_aligned_addr` must be non-zero.
+    debug_assert!(new_aligned_addr % alignment == 0 && new_aligned_addr != 0);
+    let new_aligned_ptr = unsafe { NonNull::new_unchecked(new_aligned_addr as *mut u8) };
 
-    aligned_addr as *mut c_void
+    // store the original pointer
+    unsafe { *new_aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = new_original_ptr };
+
+    Some(new_aligned_ptr)
 }
 
-fn tlsf_deallocate_wrapped(ptr: usize) {
-    // get the original start address from internal allocator
-    let original_start_addr: usize = unsafe { *((ptr - POINTER_SIZE) as *mut usize) };
-    let original_start_addr_ptr: std::ptr::NonNull<u8> =
-        std::ptr::NonNull::new(original_start_addr as *mut c_void as *mut u8).unwrap();
+fn tlsf_deallocate_wrapped(ptr: NonNull<u8>) {
+    // get the original pointer
+    // SAFETY: `ptr` must have been allocated by `tlsf_{allocate, reallocate}_wrapped`.
+    let original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
 
-    tlsf_deallocate(original_start_addr_ptr);
+    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
+    unsafe { tlsf.deallocate(original_ptr, LAYOUT_ALIGN) }
 }
 
 #[cfg(not(test))]
@@ -316,11 +302,19 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
 
     // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
-    tlsf_allocate_wrapped(MIN_ALIGN, size)
+    let layout = match Layout::from_size_align(size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => ptr::null_mut(),
+    }
 }
 
 #[inline]
-fn is_shared(ptr: *mut c_void) -> bool {
+fn is_shared(ptr: *mut u8) -> bool {
     let addr = ptr as usize;
     MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
 }
@@ -333,12 +327,14 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
-    let is_shared = is_shared(ptr);
+    // SAFETY: `ptr` must be non-null.
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
+    let is_shared = is_shared(ptr.cast());
     let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
 
     match (is_shared, is_forked_child) {
         (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => tlsf_deallocate_wrapped(ptr as usize),
+        (true, false) => tlsf_deallocate_wrapped(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
@@ -351,36 +347,64 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 
     // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-    let ret: *mut c_void = tlsf_allocate_wrapped(MIN_ALIGN, num * size);
-    if ret.is_null() {
-        return std::ptr::null_mut();
-    }
+    let size = num * size;
+    let layout = match Layout::from_size_align(size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
 
-    unsafe {
-        std::ptr::write_bytes(ret, 0, num * size);
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => {
+            let ptr = non_null_ptr.as_ptr();
+            unsafe {
+                ptr::write_bytes(ptr, 0, size);
+            }
+            ptr.cast()
+        }
+        None => ptr::null_mut(),
     }
-    ret
 }
 
 /// # Safety
 ///
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let is_shared = is_shared(ptr);
-    let shoud_use_original = should_use_original_func();
+    let is_shared = is_shared(ptr.cast());
+    let should_use_original = should_use_original_func();
 
-    match (is_shared, shoud_use_original) {
+    match (is_shared, should_use_original) {
         (true, true) => {
-            // In the child processes, ignore the free operation to the shared memory
+            // In the child processes, ignore the free operation to the shared memory.
             (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
         }
         (true, false) => {
-            if !ptr.is_null() {
-                tlsf_reallocate_wrapped(ptr as usize, new_size)
-            } else {
-                // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-                // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-                tlsf_allocate_wrapped(MIN_ALIGN, new_size)
+            // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+            // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+            let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
+                Ok(layout) => layout,
+                Err(_) => return ptr::null_mut(),
+            };
+
+            match NonNull::new(ptr.cast()) {
+                Some(non_null_ptr) => {
+                    // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
+                    if new_layout.size() == 0 {
+                        tlsf_deallocate_wrapped(non_null_ptr);
+                        return ptr::null_mut();
+                    }
+
+                    match tlsf_reallocate_wrapped(non_null_ptr, new_layout) {
+                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+                        None => ptr::null_mut(),
+                    }
+                }
+                None => {
+                    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
+                    match tlsf_allocate_wrapped(new_layout) {
+                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+                        None => ptr::null_mut(),
+                    }
+                }
             }
         }
         (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
@@ -397,13 +421,23 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         };
     }
 
-    let ptr = tlsf_allocate_wrapped(alignment, size);
-
-    if ptr.is_null() {
-        return libc::ENOMEM;
+    // `alignment` must be a power of two and a multiple of `sizeof(void *)`.
+    if !alignment.is_power_of_two() || alignment & (size_of::<*mut c_void>() - 1) != 0 {
+        return libc::EINVAL;
     }
-    *memptr = ptr;
-    0
+
+    let layout = match Layout::from_size_align(size, alignment) {
+        Ok(layout) => layout,
+        Err(_) => return libc::ENOMEM,
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => {
+            *memptr = non_null_ptr.as_ptr().cast();
+            0
+        }
+        None => libc::ENOMEM,
+    }
 }
 
 #[no_mangle]
@@ -414,7 +448,20 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         };
     }
 
-    tlsf_allocate_wrapped(alignment, size)
+    // `alignment` should be a power of two and `size` should be a multiple of `alignment`.
+    if !alignment.is_power_of_two() || size & (alignment - 1) != 0 {
+        return ptr::null_mut();
+    }
+
+    let layout = match Layout::from_size_align(size, alignment) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -425,7 +472,16 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         };
     }
 
-    tlsf_allocate_wrapped(alignment, size)
+    // `alignment` must be a power of two.
+    let layout = match Layout::from_size_align(size, alignment) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match tlsf_allocate_wrapped(layout) {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -759,5 +815,46 @@ mod tests {
         } else {
             unsafe { libc::free(realloc_ptr) };
         }
+    }
+
+    #[test]
+    fn test_posix_memalign_should_fail() {
+        let mut ptr: *mut c_void = ptr::null_mut();
+
+        assert_eq!(
+            unsafe { libc::posix_memalign(&mut ptr, 0, 8) },
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a power of two"
+        );
+
+        assert_eq!(
+            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 8)},
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
+        );
+    }
+
+    #[test]
+    fn test_aligned_alloc_should_fail() {
+        assert_eq!(
+            unsafe { libc::aligned_alloc(0, 8) },
+            ptr::null_mut(),
+            "aligned_alloc should return NULL if the alignment is not a power of two"
+        );
+
+        assert_eq!(
+            unsafe { libc::aligned_alloc(2, 7) },
+            ptr::null_mut(),
+            "aligned_alloc should return NULL if the size is not a multiple of the alignment"
+        );
+    }
+
+    #[test]
+    fn test_memalign_should_fail() {
+        assert_eq!(
+            unsafe { libc::memalign(0, 8) },
+            ptr::null_mut(),
+            "memalign should return NULL if the alignment is not a power of two"
+        );
     }
 }

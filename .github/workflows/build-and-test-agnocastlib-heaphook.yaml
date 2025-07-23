@@ -38,7 +38,7 @@ jobs:
       run: |
         set -e
         if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
-            | grep -q '^agnocast_heaphook/'; then
+            | grep -qE '^agnocast_heaphook/|test_agnocast_heaphook\.cpp$'; then
           echo "heaphook_changed=true" >> $GITHUB_OUTPUT
         else
           echo "heaphook_changed=false" >> $GITHUB_OUTPUT
