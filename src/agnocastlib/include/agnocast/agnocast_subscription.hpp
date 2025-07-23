@@ -86,10 +86,6 @@ public:
   : SubscriptionBase(node, topic_name), options_(options)
   {
     if (options_.bridge_from_ros2) {
-      RCLCPP_INFO(
-        node->get_logger(), "Creating a bridged Agnocast subscription for ROS 2 topic: %s",
-        topic_name_.c_str());
-
       agnocast::PublisherOptions pub_options;
       pub_options.is_part_of_bridge = true;  // To prevent looping back to ROS 2.
       internal_agno_publisher_ =
@@ -103,8 +99,6 @@ public:
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
         sub_options);
     }
-    RCLCPP_INFO(
-      node->get_logger(), "Creating an Agnocast subscription for topic: %s", topic_name_.c_str());
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
