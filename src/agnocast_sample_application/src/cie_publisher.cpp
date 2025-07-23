@@ -28,7 +28,7 @@ class CiePublisher : public rclcpp::Node
     }
 
     publisher_dynamic_->publish(std::move(message));
-    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_++);
+    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_);
 
     agnocast_sample_interfaces::msg::DynamicSizeArray ros_message;
     ros_message.id = count_;
