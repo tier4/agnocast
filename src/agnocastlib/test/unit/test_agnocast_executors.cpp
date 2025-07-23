@@ -32,3 +32,17 @@ TEST_F(CallbackIsolatedAgnocastExecutorTest, add_remove_callback_group)
   groups = executor->get_manually_added_callback_groups();
   EXPECT_EQ(groups.size(), 0);
 }
+
+TEST_F(CallbackIsolatedAgnocastExecutorTest, add_remove_node)
+{
+  auto node = std::make_shared<rclcpp::Node>("test_node");
+
+  executor->add_node(node->get_node_base_interface());
+
+  auto nodes = executor->get_automatically_added_callback_groups_from_nodes();
+  EXPECT_EQ(nodes.size(), 1);
+
+  executor->remove_node(node->get_node_base_interface());
+  nodes = executor->get_automatically_added_callback_groups_from_nodes();
+  EXPECT_EQ(nodes.size(), 0);
+}
