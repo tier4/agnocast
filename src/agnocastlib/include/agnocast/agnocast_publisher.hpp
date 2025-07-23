@@ -208,8 +208,8 @@ public:
     }
 
     if (
-      !options_.is_part_of_bridge &&
-      (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0)) {
+      (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) &&
+      !options_.is_part_of_bridge) {
       {
         std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
         ros2_message_queue_.push(std::move(message));
