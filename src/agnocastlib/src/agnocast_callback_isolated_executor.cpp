@@ -62,8 +62,8 @@ void CallbackIsolatedAgnocastExecutor::spin()
     executor->dedicate_to_callback_group(group, node);
 
     threads.emplace_back([executor]() {
-      auto tid = syscall(SYS_gettid);
-      RCLCPP_INFO(rclcpp::get_logger("agnocast"), "Thread ID: %ld", tid);
+      auto tid = std::this_thread::get_id();
+      RCLCPP_INFO(rclcpp::get_logger("agnocast"), "Thread ID: %s", std::to_string(tid).c_str());
       executor->spin();
     });
   }
