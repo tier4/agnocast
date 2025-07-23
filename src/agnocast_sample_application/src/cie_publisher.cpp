@@ -39,6 +39,8 @@ class CiePublisher : public rclcpp::Node
 
     publisher_ros_->publish(ros_message);
     publisher_ros2_->publish(ros_message);
+
+    count_++;
   }
 
 public:
