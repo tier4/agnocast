@@ -53,7 +53,7 @@ void SingleThreadedAgnocastExecutor::spin()
   RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
 
   while (rclcpp::ok(this->context_) && spinning.load()) {
-    if (need_epoll_updates.exchange(false)) {
+    if (need_epoll_updates.load()) {
       prepare_epoll();
     }
 

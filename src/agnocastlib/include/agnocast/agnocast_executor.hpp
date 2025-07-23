@@ -18,9 +18,6 @@ struct AgnocastExecutable
 
 class AgnocastExecutor : public rclcpp::Executor
 {
-  // prevent objects from being destructed by keeping reference count
-  std::vector<rclcpp::Node::SharedPtr> nodes_;
-
   std::mutex ready_agnocast_executables_mutex_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
 
@@ -50,8 +47,6 @@ public:
 
   RCLCPP_PUBLIC
   virtual ~AgnocastExecutor();
-
-  void add_node(rclcpp::Node::SharedPtr node, bool notify = true) override;
 
   virtual void spin() override = 0;
 };

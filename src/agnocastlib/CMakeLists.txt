@@ -21,7 +21,8 @@ find_package(LTTngUST REQUIRED)
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
-  src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp src/agnocast_tracepoint_wrapper.c)
+  src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
+  src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c)
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast
@@ -94,7 +95,8 @@ if(BUILD_TESTING)
   ament_add_gmock(test_unit_${PROJECT_NAME}
     test/unit/test_agnocast_utils.cpp
     test/unit/test_agnocast_subscription.cpp
-    test/unit/test_mocked_agnocast.cpp)
+    test/unit/test_mocked_agnocast.cpp
+    test/unit/test_agnocast_executors.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
