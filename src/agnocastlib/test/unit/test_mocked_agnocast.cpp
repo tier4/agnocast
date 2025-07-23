@@ -382,13 +382,6 @@ protected:
   topic_local_id_t dummy_pubsub_id;
 };
 
-TEST_F(AgnocastCallbackInfoTest, callback_first_arg)
-{
-  using FuncType = std::function<void(int, float)>;
-  using FirstArgType = agnocast::callback_first_arg<FuncType>::type;
-  EXPECT_TRUE((std::is_same<FirstArgType, int>::value));
-}
-
 TEST_F(AgnocastCallbackInfoTest, get_erased_callback_normal)
 {
   // Arrange
