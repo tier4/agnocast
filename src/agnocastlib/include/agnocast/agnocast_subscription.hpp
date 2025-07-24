@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
@@ -33,6 +34,11 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 
 struct SubscriptionOptions
 {
+  bool bridge_from_ros2 = false;
+
+  bool ros2_bridge_transient_local = false;
+  int64_t ros2_bridge_qos_depth = 10;
+
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
@@ -61,6 +67,17 @@ template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
+  agnocast::SubscriptionOptions options_;
+
+  typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
+  typename agnocast::Publisher<MessageT>::SharedPtr internal_agno_publisher_;
+
+  void ros2_bridge_callback(const typename MessageT::ConstSharedPtr ros_msg)
+  {
+    auto loaned_msg_ptr = internal_agno_publisher_->borrow_loaned_message();
+    *loaned_msg_ptr = *ros_msg;
+    internal_agno_publisher_->publish(std::move(loaned_msg_ptr));
+  }
 
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
@@ -69,8 +86,28 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     std::function<void(const agnocast::ipc_shared_ptr<MessageT> &)> callback,
     agnocast::SubscriptionOptions options)
-  : SubscriptionBase(node, topic_name)
+  : SubscriptionBase(node, topic_name), options_(options)
   {
+    if (options_.bridge_from_ros2) {
+      agnocast::PublisherOptions pub_options;
+      internal_agno_publisher_ =
+        std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
+
+      rclcpp::SubscriptionOptions sub_options;
+      sub_options.callback_group =
+        node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      sub_options.ignore_local_publications = true;  // To prevent looping back to ROS 2.
+
+      auto internal_ros2_qos = rclcpp::QoS(rclcpp::KeepLast(options_.ros2_bridge_qos_depth));
+      if (options_.ros2_bridge_transient_local) {
+        internal_ros2_qos.transient_local();
+      }
+
+      internal_ros2_subscriber_ = node->create_subscription<MessageT>(
+        topic_name_, internal_ros2_qos,
+        std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
+        sub_options);
+    }
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
