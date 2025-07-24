@@ -15,7 +15,6 @@ class TestROS2Publisher : public rclcpp::Node
   bool is_ready_ = false;
   bool forever_;
 
-  bool param_transient_local_;
   int64_t param_qos_depth_;
 
   bool is_ready()
@@ -41,9 +40,9 @@ class TestROS2Publisher : public rclcpp::Node
       return;
     }
 
-    if (param_transient_local_ == false && param_qos_depth_ == 10 && count_ != 0) {
+    if (param_qos_depth_ == 10 && count_ != 0) {
       // HACK: wait for the previous message to be processed
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     auto loaned_msg = publisher_->borrow_loaned_message();
@@ -75,7 +74,7 @@ public:
     this->declare_parameter<int64_t>("planned_pub_count", 1);
     this->declare_parameter<bool>("forever", false);
     param_qos_depth_ = this->get_parameter("qos_depth").as_int();
-    param_transient_local_ = this->get_parameter("transient_local").as_bool();
+    bool transient_local = this->get_parameter("transient_local").as_bool();
     int64_t init_pub_num = this->get_parameter("init_pub_num").as_int();
     int64_t pub_num = this->get_parameter("pub_num").as_int();
     planned_sub_count_ = this->get_parameter("planned_sub_count").as_int();
@@ -83,7 +82,7 @@ public:
     forever_ = this->get_parameter("forever").as_bool();
 
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(param_qos_depth_));
-    if (param_transient_local_) {
+    if (transient_local) {
       qos.transient_local();
     }
     publisher_ = this->create_publisher<std_msgs::msg::Int64>("/test_topic", qos);
