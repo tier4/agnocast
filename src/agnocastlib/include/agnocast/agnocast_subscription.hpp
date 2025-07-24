@@ -87,13 +87,13 @@ public:
   {
     if (options_.bridge_from_ros2) {
       agnocast::PublisherOptions pub_options;
-      pub_options.is_part_of_bridge = true;  // To prevent looping back to ROS 2.
       internal_agno_publisher_ =
         std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
 
       rclcpp::SubscriptionOptions sub_options;
       sub_options.callback_group =
         node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      sub_options.ignore_local_publications = true;  // To prevent looping back to ROS 2.
       internal_ros2_subscriber_ = node->create_subscription<MessageT>(
         topic_name_, rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
