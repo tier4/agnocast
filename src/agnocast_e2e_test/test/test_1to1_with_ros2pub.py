@@ -41,8 +41,8 @@ def calc_expect_pub_sub_num(config: dict) -> None:
     if config['sub_transient_local']:
         EXPECT_INIT_ROS2_SUB_NUM = min(
             EXPECT_INIT_PUB_NUM, config['sub_qos_depth']) if config['pub_transient_local'] else 0
-        EXPECT_INIT_SUB_NUM = 0 if config['use_take_sub'] else min(
-            EXPECT_INIT_PUB_NUM, config['sub_qos_depth'])
+        EXPECT_INIT_SUB_NUM = min(
+            EXPECT_INIT_PUB_NUM, config['sub_qos_depth']) 
     else:
         EXPECT_INIT_ROS2_SUB_NUM = 0
         EXPECT_INIT_SUB_NUM = 0
@@ -116,72 +116,72 @@ def generate_test_description():
     
     pub_node = TimerAction(period=pub_delay, actions=[pub_node_container])
 
-    if config['use_take_sub']:
-        sub_node = TimerAction(
-            period=sub_delay,
-            actions=[
-                ComposableNodeContainer(
-                    name='test_taker_container',
-                    namespace='',
-                    package='agnocastlib',
-                    executable='agnocast_component_container',
-                    composable_node_descriptions=[
-                        ComposableNode(
-                            package='agnocast_e2e_test',
-                            plugin='TestTakeSubscriber',
-                            name='test_taker_node',
-                            parameters=[
-                                {
-                                    "qos_depth": config['sub_qos_depth'],
-                                    "transient_local": config['sub_transient_local'],
-                                    "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM,
-                                    "bridge_from_ros2": is_bridge_from_ros2,
-                                    "forever": FOREVER
-                                }
-                            ],
-                        )
-                    ],
-                    output='screen',
-                    additional_env={
-                        'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
-                        'AGNOCAST_MEMPOOL_SIZE': '134217728',
-                    }
-                )
-            ]
-        )
-    else:
-        sub_node = TimerAction(
-            period=sub_delay,
-            actions=[
-                ComposableNodeContainer(
-                    name='test_listener_container',
-                    namespace='',
-                    package='agnocastlib',
-                    executable='agnocast_component_container',
-                    composable_node_descriptions=[
-                        ComposableNode(
-                            package='agnocast_e2e_test',
-                            plugin='TestSubscriber',
-                            name='test_listener_node',
-                            parameters=[
-                                {
-                                    "qos_depth": config['sub_qos_depth'],
-                                    "transient_local": config['sub_transient_local'],
-                                    "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM,
-                                    "bridge_from_ros2": is_bridge_from_ros2,
-                                    "forever": FOREVER
-                                }
-                            ],
-                        )
-                    ],
-                    output='screen',
-                    additional_env={
-                        'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
-                        'AGNOCAST_MEMPOOL_SIZE': '134217728',
-                    }
-                )
-            ]
-        )
+    # if config['use_take_sub']:
+    #     sub_node = TimerAction(
+    #         period=sub_delay,
+    #         actions=[
+    #             ComposableNodeContainer(
+    #                 name='test_taker_container',
+    #                 namespace='',
+    #                 package='agnocastlib',
+    #                 executable='agnocast_component_container',
+    #                 composable_node_descriptions=[
+    #                     ComposableNode(
+    #                         package='agnocast_e2e_test',
+    #                         plugin='TestTakeSubscriber',
+    #                         name='test_taker_node',
+    #                         parameters=[
+    #                             {
+    #                                 "qos_depth": config['sub_qos_depth'],
+    #                                 "transient_local": config['sub_transient_local'],
+    #                                 "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM,
+    #                                 "bridge_from_ros2": is_bridge_from_ros2,
+    #                                 "forever": FOREVER
+    #                             }
+    #                         ],
+    #                     )
+    #                 ],
+    #                 output='screen',
+    #                 additional_env={
+    #                     'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
+    #                     'AGNOCAST_MEMPOOL_SIZE': '134217728',
+    #                 }
+    #             )
+    #         ]
+    #     )
+    # else:
+    sub_node = TimerAction(
+        period=sub_delay,
+        actions=[
+            ComposableNodeContainer(
+                name='test_listener_container',
+                namespace='',
+                package='agnocastlib',
+                executable='agnocast_component_container',
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package='agnocast_e2e_test',
+                        plugin='TestSubscriber',
+                        name='test_listener_node',
+                        parameters=[
+                            {
+                                "qos_depth": config['sub_qos_depth'],
+                                "transient_local": config['sub_transient_local'] if config['pub_transient_local'] else False,
+                                "sub_num": EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM,
+                                "bridge_from_ros2": is_bridge_from_ros2,
+                                "forever": FOREVER
+                            }
+                        ],
+                    )
+                ],
+                output='screen',
+                additional_env={
+                    'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
+                    'AGNOCAST_MEMPOOL_SIZE': '134217728',
+                }
+            )
+        ]
+    )
 
     return (
         LaunchDescription(

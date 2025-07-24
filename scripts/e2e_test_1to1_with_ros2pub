@@ -70,7 +70,7 @@ else
     PUB_TRANSIENT_LOCAL=(true false)
     SUB_QOS_DEPTH=(1 10)
     SUB_TRANSIENT_LOCAL=(true false)
-    USE_TAKE_SUB=(true false)
+    # USE_TAKE_SUB=(true false)
     BRIDGE_FROM_ROS2=(true false)
 
     COUNT=0
@@ -79,7 +79,7 @@ else
             for pub_transient_local in ${PUB_TRANSIENT_LOCAL[@]}; do
                 for sub_qos_depth in ${SUB_QOS_DEPTH[@]}; do
                     for sub_transient_local in ${SUB_TRANSIENT_LOCAL[@]}; do
-                        for use_take_sub in ${USE_TAKE_SUB[@]}; do
+                        # for use_take_sub in ${USE_TAKE_SUB[@]}; do
                             for bridge_from_ros2 in ${BRIDGE_FROM_ROS2[@]}; do
                                 COUNT=$((COUNT + 1))
                                 sed -i "s/launch_pub_before_sub:.*/launch_pub_before_sub: $launch_pub_before_sub/g" $CONFIG_FILE
@@ -87,9 +87,9 @@ else
                                 sed -i "s/pub_transient_local:.*/pub_transient_local: $pub_transient_local/g" $CONFIG_FILE
                                 sed -i "s/sub_qos_depth:.*/sub_qos_depth: $sub_qos_depth/g" $CONFIG_FILE
                                 sed -i "s/sub_transient_local:.*/sub_transient_local: $sub_transient_local/g" $CONFIG_FILE
-                                sed -i "s/use_take_sub:.*/use_take_sub: $use_take_sub/g" $CONFIG_FILE
+                                # sed -i "s/use_take_sub:.*/use_take_sub: $use_take_sub/g" $CONFIG_FILE
                                 sed -i "s/bridge_from_ros2:.*/bridge_from_ros2: $bridge_from_ros2/g" $CONFIG_FILE
-                                echo "====================== $COUNT / 128 ======================" | sudo tee /dev/kmsg
+                                echo "====================== $COUNT / 64 ======================" | sudo tee /dev/kmsg
                                 show_config
                                 launch_test src/agnocast_e2e_test/test/test_1to1_with_ros2pub.py
 
@@ -102,7 +102,7 @@ else
                                     fi
                                 fi
                             done
-                        done
+                        # done
                     done
                 done
             done

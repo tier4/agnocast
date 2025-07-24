@@ -36,6 +36,9 @@ struct SubscriptionOptions
 {
   bool bridge_from_ros2 = false;
 
+  bool ros2_bridge_transient_local = false;
+  int64_t ros2_bridge_qos_depth = 10;
+
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
@@ -94,8 +97,14 @@ public:
       sub_options.callback_group =
         node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
       sub_options.ignore_local_publications = true;  // To prevent looping back to ROS 2.
+
+      auto internal_ros2_qos = rclcpp::QoS(rclcpp::KeepLast(options_.ros2_bridge_qos_depth));
+      if (options_.ros2_bridge_transient_local) {
+        internal_ros2_qos.transient_local();
+      }
+
       internal_ros2_subscriber_ = node->create_subscription<MessageT>(
-        topic_name_, rclcpp::QoS(rclcpp::KeepLast(10)).transient_local(),
+        topic_name_, internal_ros2_qos,
         std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
         sub_options);
     }

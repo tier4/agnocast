@@ -38,6 +38,11 @@ class TestROS2Publisher : public rclcpp::Node
       return;
     }
 
+    if (count_ != 0) {
+      // HACK: wait for the previous message to be processed
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
     auto loaned_msg = publisher_->borrow_loaned_message();
     loaned_msg.get().data = count_;
     publisher_->publish(std::move(loaned_msg));
