@@ -26,15 +26,11 @@ public:
 
   const std::type_info & type() const override { return typeid(T); }
 
-  // For const objects
-  const agnocast::ipc_shared_ptr<T> & get() const { return ptr_; }
-
-  // For non-const objects
-  agnocast::ipc_shared_ptr<T> & get() { return ptr_; }
+  agnocast::ipc_shared_ptr<T> && get() && { return std::move(ptr_); }
 };
 
 // Type for type-erased callback function
-using TypeErasedCallback = std::function<void(const AnyObject &)>;
+using TypeErasedCallback = std::function<void(AnyObject &&)>;
 
 // Primary template
 template <typename T>
@@ -84,10 +80,10 @@ extern std::atomic<bool> need_epoll_updates;
 template <typename T, typename Func>
 TypeErasedCallback get_erased_callback(const Func callback)
 {
-  return [callback](const AnyObject & arg) {
+  return [callback](AnyObject && arg) {
     if (typeid(T) == arg.type()) {
-      const auto & typed_arg = static_cast<const TypedMessagePtr<T> &>(arg);
-      callback(typed_arg.get());
+      auto && typed_arg = static_cast<TypedMessagePtr<T> &&>(arg);
+      callback(std::move(typed_arg).get());
     } else {
       RCLCPP_ERROR(
         logger, "Agnocast internal implementation error: bad allocation when callback is called");
