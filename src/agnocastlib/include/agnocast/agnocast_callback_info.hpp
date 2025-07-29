@@ -75,7 +75,7 @@ uint32_t register_callback(
 {
   static_assert(
     std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<MessageT> &&>,
-    "callback should be invocable with an rvalue reference to ipc_shared_ptr<MessageT>");
+    "Callback must be callable with ipc_shared_ptr (const&, &&, or by-value)");
 
   TypeErasedCallback erased_callback = get_erased_callback<MessageT>(std::forward<Func>(callback));
 
