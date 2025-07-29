@@ -73,6 +73,8 @@ uint32_t register_callback(
   Func && callback, const std::string & topic_name, const topic_local_id_t subscriber_id,
   const bool is_transient_local, mqd_t mqdes, const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
+  // NOTE: ipc_shared_ptr<MessageT> and ipc_shared_ptr<MessageT>&& make no difference in the
+  // assertion expression below, but we go with ipc_shared_ptr<MessageT>&&.
   static_assert(
     std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<MessageT> &&>,
     "Callback must be callable with ipc_shared_ptr (const&, &&, or by-value)");
