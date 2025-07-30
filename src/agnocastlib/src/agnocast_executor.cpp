@@ -87,7 +87,9 @@ void AgnocastExecutor::prepare_epoll()
       continue;
     }
 
-    validate_callback_group(callback_info.callback_group);
+    if (!validate_callback_group(callback_info.callback_group)) {
+      continue;
+    }
 
     struct epoll_event ev = {};
     ev.events = EPOLLIN;
@@ -104,6 +106,14 @@ void AgnocastExecutor::prepare_epoll()
     }
 
     callback_info.need_epoll_update = false;
+  }
+
+  const bool all_updated = std::none_of(
+    id2_callback_info.begin(), id2_callback_info.end(),
+    [](const auto & it) { return it.second.need_epoll_update; });
+
+  if (all_updated) {
+    need_epoll_updates.store(false);
   }
 }
 
@@ -215,12 +225,6 @@ void AgnocastExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast
   if (agnocast_executable.callback_group->type() == rclcpp::CallbackGroupType::MutuallyExclusive) {
     agnocast_executable.callback_group->can_be_taken_from().store(true);
   }
-}
-
-void AgnocastExecutor::add_node(rclcpp::Node::SharedPtr node, bool notify)
-{
-  nodes_.push_back(node);
-  Executor::add_node(node, notify);
 }
 
 }  // namespace agnocast

@@ -5,12 +5,16 @@
 using namespace std::chrono_literals;
 const long long MESSAGE_SIZE = 1000ll * 1024;
 
-class MinimalPublisher : public rclcpp::Node
+class CiePublisher : public rclcpp::Node
 {
   int64_t count_;
   rclcpp::TimerBase::SharedPtr timer_;
   agnocast::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr
     publisher_dynamic_;
+
+  rclcpp::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_ros_;
+
+  rclcpp::Publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr publisher_ros2_;
 
   void timer_callback()
   {
@@ -24,11 +28,23 @@ class MinimalPublisher : public rclcpp::Node
     }
 
     publisher_dynamic_->publish(std::move(message));
-    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_++);
+    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_);
+
+    agnocast_sample_interfaces::msg::DynamicSizeArray ros_message;
+    ros_message.id = count_;
+    ros_message.data.reserve(MESSAGE_SIZE / sizeof(uint64_t));
+    for (size_t i = 0; i < MESSAGE_SIZE / sizeof(uint64_t); i++) {
+      ros_message.data.push_back(i + count_);
+    }
+
+    publisher_ros_->publish(ros_message);
+    publisher_ros2_->publish(ros_message);
+
+    count_++;
   }
 
 public:
-  MinimalPublisher() : Node("minimal_publisher")
+  CiePublisher() : Node("minimal_publisher")
   {
     count_ = 0;
 
@@ -36,7 +52,13 @@ public:
       agnocast::create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
         this, "/my_topic", 1);
 
-    timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
+    publisher_ros_ =
+      this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>("/ros_topic", 1);
+
+    publisher_ros2_ = this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
+      "/ros_other_topic", 1);
+
+    timer_ = this->create_wall_timer(100ms, std::bind(&CiePublisher::timer_callback, this));
   }
 };
 
@@ -45,7 +67,7 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
 
   agnocast::SingleThreadedAgnocastExecutor executor;
-  auto node = std::make_shared<MinimalPublisher>();
+  auto node = std::make_shared<CiePublisher>();
   executor.add_node(node);
   executor.spin();
 
