@@ -73,7 +73,8 @@ void NodeForExecutorTest::add_agnocast_sub_cb()
       agnocast_sub_cb(msg, cb_i);
     };
   const bool is_transient_local = false;
-  agnocast::register_callback(callback, agnocast_topic_name_, cb_i, is_transient_local, mq, cbg);
+  agnocast::register_callback<std_msgs::msg::Bool>(
+    callback, agnocast_topic_name_, cb_i, is_transient_local, mq, cbg);
 }
 
 // NOTE: If the implementation of agnocast is changed, this function does not
