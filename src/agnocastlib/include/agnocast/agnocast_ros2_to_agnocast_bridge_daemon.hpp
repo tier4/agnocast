@@ -1,0 +1,53 @@
+#pragma once
+
+#include "agnocast/agnocast_publisher.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+#include <functional>
+#include <map>
+#include <string>
+
+namespace agnocast
+{
+using BridgeSetupFunction =
+  std::function<void(rclcpp::Node::SharedPtr, const std::string &, const rclcpp::QoS &)>;
+
+std::map<std::string, BridgeSetupFunction> & get_bridge_factory_map();
+
+template <typename MessageT>
+class BridgeRegistrar
+{
+public:
+  BridgeRegistrar(const std::string & type_name)
+  {
+    get_bridge_factory_map()[type_name] = [type_name](
+                                            rclcpp::Node::SharedPtr node,
+                                            const std::string & topic_name,
+                                            const rclcpp::QoS & qos) {
+      auto logger = node->get_logger();
+      RCLCPP_INFO(
+        logger, "Setting up bridge for type %s on topic %s", type_name.c_str(), topic_name.c_str());
+
+      agnocast::PublisherOptions pub_options;
+      auto internal_agno_publisher =
+        std::make_shared<agnocast::Publisher<MessageT>>(node.get(), topic_name, qos, pub_options);
+
+      auto ros2_callback = [logger,
+                            internal_agno_publisher](const typename MessageT::ConstSharedPtr msg) {
+        RCLCPP_DEBUG(logger, "Bridging message from ROS 2 to Agnocast");
+        auto loaned_msg = internal_agno_publisher->borrow_loaned_message();
+        *loaned_msg = *msg;
+        internal_agno_publisher->publish(std::move(loaned_msg));
+      };
+
+      rclcpp::SubscriptionOptions sub_options;
+      sub_options.callback_group =
+        node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      sub_options.ignore_local_publications = true;
+
+      node->create_subscription<MessageT>(topic_name, qos, ros2_callback, sub_options);
+    };
+  }
+};
+
+}  // namespace agnocast

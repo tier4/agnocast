@@ -63,7 +63,7 @@ template <typename MessageT>
 inline void launch_bridge_daemon_process(
   const std::string & topic_name, const rclcpp::QoS & qos, rclcpp::Logger logger)
 {
-  std::string daemon_name = "agnocast_generic_bridge_daemon";
+  std::string daemon_name = "agnocast_ros2_to_agnocast_bridge_daemon";
   std::string executable_path;
   try {
     std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
@@ -88,8 +88,6 @@ inline void launch_bridge_daemon_process(
   }
 
   if (pid == 0) {
-    RCLCPP_INFO(logger, "1--------------------test1");
-
     std::vector<std::string> string_args;
     string_args.push_back(daemon_name);
     string_args.push_back(topic_name);
@@ -98,18 +96,13 @@ inline void launch_bridge_daemon_process(
     std::vector<std::string> qos_args_vec = qos_to_args(qos);
     string_args.insert(string_args.end(), qos_args_vec.begin(), qos_args_vec.end());
 
-    RCLCPP_INFO(logger, "2--------------------test1");
-
     std::vector<char *> argv;
     for (const auto & s : string_args) {
       argv.push_back(const_cast<char *>(s.c_str()));
     }
     argv.push_back(nullptr);
 
-    RCLCPP_INFO(logger, "3--------------------test1");
-
     execv(executable_path.c_str(), argv.data());
-
     perror(("execv failed for " + executable_path).c_str());
     _exit(EXIT_FAILURE);
   }
