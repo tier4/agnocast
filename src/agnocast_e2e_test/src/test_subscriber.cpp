@@ -52,7 +52,6 @@ public:
     auto cbg = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions sub_options;
     sub_options.callback_group = cbg;
-    sub_options.bridge_from_ros2 = this->get_parameter("bridge_from_ros2").as_bool();
     sub_options.ros2_bridge_qos_depth = qos_depth;
     sub_options.ros2_bridge_transient_local = transient_local;
     sub_ = agnocast::create_subscription<std_msgs::msg::Int64>(

@@ -26,6 +26,7 @@
   <depend>std_msgs</depend>
   <depend>tracetools</depend>
   <depend>liblttng-ust-dev</depend>
+  <depend>ament_index_cpp</depend>
 
   <!-- Uncomment when agnocast_kmod is released from PPA -->
   <!-- <exec_depend>agnocast_kmod</exec_depend> -->

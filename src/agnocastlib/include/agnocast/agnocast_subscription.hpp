@@ -7,7 +7,10 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
+#include "ament_index_cpp/get_package_prefix.hpp"
 #include "rclcpp/rclcpp.hpp"
+
+#include <rosidl_runtime_cpp/traits.hpp>
 
 #include <fcntl.h>
 #include <mqueue.h>
@@ -32,10 +35,88 @@ extern std::mutex mmap_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
+inline std::vector<std::string> qos_to_args(const rclcpp::QoS & qos)
+{
+  std::vector<std::string> args;
+
+  args.push_back("--depth");
+  args.push_back(std::to_string(qos.depth()));
+
+  args.push_back("--durability");
+  if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+    args.push_back("transient_local");
+  } else {
+    args.push_back("volatile");
+  }
+
+  args.push_back("--reliability");
+  if (qos.reliability() == rclcpp::ReliabilityPolicy::Reliable) {
+    args.push_back("reliable");
+  } else {
+    args.push_back("best_effort");
+  }
+
+  return args;
+}
+
+template <typename MessageT>
+inline void launch_bridge_daemon_process(
+  const std::string & topic_name, const rclcpp::QoS & qos, rclcpp::Logger logger)
+{
+  std::string daemon_name = "agnocast_generic_bridge_daemon";
+  std::string executable_path;
+  try {
+    std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
+    executable_path = package_prefix + "/lib/agnocastlib/" + daemon_name;
+  } catch (const ament_index_cpp::PackageNotFoundError & e) {
+    RCLCPP_ERROR(
+      logger, "Could not find package 'agnocastlib' to locate bridge daemon. Error: %s", e.what());
+    return;
+  }
+
+  const std::string message_type_name = rosidl_generator_traits::name<MessageT>();
+
+  RCLCPP_INFO(
+    logger, "Attempting to launch generic bridge daemon for type %s from path: %s",
+    message_type_name.c_str(), executable_path.c_str());
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork() failed for bridge daemon: %s", strerror(errno));
+    return;
+  }
+
+  if (pid == 0) {
+    RCLCPP_INFO(logger, "1--------------------test1");
+
+    std::vector<std::string> string_args;
+    string_args.push_back(daemon_name);
+    string_args.push_back(topic_name);
+    string_args.push_back(message_type_name);
+
+    std::vector<std::string> qos_args_vec = qos_to_args(qos);
+    string_args.insert(string_args.end(), qos_args_vec.begin(), qos_args_vec.end());
+
+    RCLCPP_INFO(logger, "2--------------------test1");
+
+    std::vector<char *> argv;
+    for (const auto & s : string_args) {
+      argv.push_back(const_cast<char *>(s.c_str()));
+    }
+    argv.push_back(nullptr);
+
+    RCLCPP_INFO(logger, "3--------------------test1");
+
+    execv(executable_path.c_str(), argv.data());
+
+    perror(("execv failed for " + executable_path).c_str());
+    _exit(EXIT_FAILURE);
+  }
+}
+
 struct SubscriptionOptions
 {
-  bool bridge_from_ros2 = false;
-
   bool ros2_bridge_transient_local = false;
   int64_t ros2_bridge_qos_depth = 10;
 
@@ -88,26 +169,24 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    if (options_.bridge_from_ros2) {
-      agnocast::PublisherOptions pub_options;
-      internal_agno_publisher_ =
-        std::make_shared<agnocast::Publisher<MessageT>>(node, topic_name_, qos, pub_options);
-
-      rclcpp::SubscriptionOptions sub_options;
-      sub_options.callback_group =
-        node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-      sub_options.ignore_local_publications = true;  // To prevent looping back to ROS 2.
-
-      auto internal_ros2_qos = rclcpp::QoS(rclcpp::KeepLast(options_.ros2_bridge_qos_depth));
-      if (options_.ros2_bridge_transient_local) {
-        internal_ros2_qos.transient_local();
-      }
-
-      internal_ros2_subscriber_ = node->create_subscription<MessageT>(
-        topic_name_, internal_ros2_qos,
-        std::bind(&Subscription<MessageT>::ros2_bridge_callback, this, std::placeholders::_1),
-        sub_options);
+    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
     }
+
+    RCLCPP_INFO(
+      logger, "Checking subscriber count for topic '%s'. Found %u subscribers.",
+      topic_name_.c_str(), get_subscriber_count_args.ret_subscriber_num);
+
+    if (get_subscriber_count_args.ret_subscriber_num == 0) {
+      RCLCPP_INFO(
+        logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
+      launch_bridge_daemon_process<MessageT>(topic_name_, qos, logger);
+    }
+
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
