@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="agnocast_sample_application" exec="client" name="client_node" output="screen">
+    </node>
+</launch>
