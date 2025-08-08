@@ -97,3 +97,49 @@ TEST_F(HeaphookIntegrationTest, malloc_publisher_num_switching)
   std::free(ptr2);
   std::free(ptr3);
 }
+TEST_F(HeaphookIntegrationTest, fork_memory_behavior)
+{
+  agnocast::validate_ld_preload();
+
+  agnocast::increment_borrowed_publisher_num();
+
+  void * parent_ptr = std::malloc(100);
+  EXPECT_TRUE(is_address_in_shared_mapping(parent_ptr));
+
+  pid_t pid = fork();
+
+  if (pid == 0) {
+    // malloc in the child process
+    void * child_ptr = std::malloc(100);
+    bool child_is_shared = is_address_in_shared_mapping(child_ptr);
+
+    // Ignore free for shared memory in child processes
+    std::free(parent_ptr);
+
+    std::free(child_ptr);
+
+    std::exit(child_is_shared ? 1 : 0);
+
+  } else if (pid > 0) {
+    // malloc in the parent process
+    void * next_parent_ptr = std::malloc(100);
+    EXPECT_TRUE(is_address_in_shared_mapping(next_parent_ptr));
+
+    int status;
+    waitpid(pid, &status, 0);
+
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+    EXPECT_TRUE(is_address_in_shared_mapping(next_parent_ptr));
+
+    // Confirms that it is still allocated in the parent process
+    EXPECT_TRUE(is_address_in_shared_mapping(parent_ptr));
+
+    std::free(parent_ptr);
+    std::free(next_parent_ptr);
+
+  } else {
+    FAIL() << "fork() failed";
+  }
+
+  agnocast::decrement_borrowed_publisher_num();
+}
