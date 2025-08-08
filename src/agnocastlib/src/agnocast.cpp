@@ -146,15 +146,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -263,7 +257,7 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  agnocast_fd = open("/dev/agnocast", O_RDWR);
+  agnocast_fd = open("/dev/agnocast", O_RDWR | O_CLOEXEC);
   if (agnocast_fd < 0) {
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
     exit(EXIT_FAILURE);
