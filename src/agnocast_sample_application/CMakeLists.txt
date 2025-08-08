@@ -20,6 +20,10 @@ target_include_directories(talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_executable(ros2_talker  src/minimal_ros2_publisher.cpp)
+ament_target_dependencies(ros2_talker  rclcpp agnocast_sample_interfaces)
+
+
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
 target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
@@ -44,5 +48,8 @@ install(TARGETS talker
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/
 )
+
+install(TARGETS ros2_talker 
+  DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
