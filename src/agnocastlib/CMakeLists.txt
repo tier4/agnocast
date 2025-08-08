@@ -18,6 +18,7 @@ find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(Python3 REQUIRED)
+find_package(agnocast_sample_interfaces REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -57,12 +58,6 @@ target_link_libraries(agnocast_component_container_mt
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
 ### ▼▼▼ Start of generic bridge daemon configuration ▼▼▼
-
-# # If you want to use a specific message list file, uncomment the following lines.
-# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/scripts/agnocast_messages.txt")
-# if(NOT EXISTS "${MESSAGE_TYPES_FILE}")
-#   message(FATAL_ERROR "Message list file not found: ${MESSAGE_TYPES_FILE}")
-# endif()
 
 # 1. Generate a file specifying the list of messages to be built
 set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
@@ -111,6 +106,7 @@ add_executable(agnocast_ros2_to_agnocast_bridge_daemon
 target_include_directories(agnocast_ros2_to_agnocast_bridge_daemon PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${agnocast_sample_interfaces_INCLUDE_DIRS}
 )
 
 # 6. Process all found dependencies
@@ -125,6 +121,7 @@ endforeach()
 target_link_libraries(agnocast_ros2_to_agnocast_bridge_daemon agnocast)
 ament_target_dependencies(agnocast_ros2_to_agnocast_bridge_daemon
   rclcpp
+  agnocast_sample_interfaces
   ${auto_dependencies}
 )
 

@@ -143,16 +143,6 @@ class Subscription : public SubscriptionBase
   std::pair<mqd_t, std::string> mq_subscription_;
   agnocast::SubscriptionOptions options_;
 
-  typename rclcpp::Subscription<MessageT>::SharedPtr internal_ros2_subscriber_;
-  typename agnocast::Publisher<MessageT>::SharedPtr internal_agno_publisher_;
-
-  void ros2_bridge_callback(const typename MessageT::ConstSharedPtr ros_msg)
-  {
-    auto loaned_msg_ptr = internal_agno_publisher_->borrow_loaned_message();
-    *loaned_msg_ptr = *ros_msg;
-    internal_agno_publisher_->publish(std::move(loaned_msg_ptr));
-  }
-
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
 
@@ -169,10 +159,6 @@ public:
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
-
-    RCLCPP_INFO(
-      logger, "Checking subscriber count for topic '%s'. Found %u subscribers.",
-      topic_name_.c_str(), get_subscriber_count_args.ret_subscriber_num);
 
     if (get_subscriber_count_args.ret_subscriber_num == 0) {
       RCLCPP_INFO(
