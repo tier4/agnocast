@@ -19,6 +19,63 @@ void CallbackIsolatedAgnocastExecutor::spin()
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  RCPPUTILS_SCOPE_EXIT(this->spinning.store(false););
+
+  std::vector<std::thread> threads;
+  std::vector<std::pair<
+    rclcpp::CallbackGroup::SharedPtr, rclcpp::node_interfaces::NodeBaseInterface::SharedPtr>>
+    groups_and_nodes;
+
+  {
+    std::lock_guard<std::mutex> guard{mutex_};
+
+    for (const auto & weak_group_to_node : weak_groups_to_nodes_) {
+      auto group = weak_group_to_node.first.lock();
+      if (!group) {
+        continue;
+      }
+
+      auto node = weak_group_to_node.second.lock();
+      if (!node) {
+        continue;
+      }
+
+      groups_and_nodes.emplace_back(group, node);
+    }
+
+    for (const auto & weak_node : weak_nodes_) {
+      auto node = weak_node.lock();
+      if (!node) {
+        continue;
+      }
+
+      node->for_each_callback_group(
+        [&groups_and_nodes, node](const rclcpp::CallbackGroup::SharedPtr & group) {
+          if (group && group->automatically_add_to_executor_with_node()) {
+            groups_and_nodes.emplace_back(group, node);
+          }
+        });
+    }
+  }  // guard mutex_
+
+  for (auto [group, node] : groups_and_nodes) {
+    auto executor = std::make_shared<SingleThreadedAgnocastExecutor>();
+    executor->dedicate_to_callback_group(group, node);
+
+    threads.emplace_back([executor]() {
+      auto tid = std::this_thread::get_id();
+      RCLCPP_INFO(
+        rclcpp::get_logger("agnocast"), "Thread ID: %zu", std::hash<std::thread::id>{}(tid));
+      executor->spin();
+    });
+  }
+
+  for (auto & thread : threads) {
+    if (thread.joinable()) {
+      thread.join();
+    }
+  }
 }
 
 void CallbackIsolatedAgnocastExecutor::add_callback_group(
@@ -61,7 +118,17 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_all_callback_groups()
 {
-  return {};
+  std::lock_guard<std::mutex> guard{mutex_};
+  std::vector<rclcpp::CallbackGroup::WeakPtr> groups;
+
+  auto manually_added_groups = get_manually_added_callback_groups_internal();
+  auto automatically_added_groups = get_automatically_added_callback_groups_from_nodes_internal();
+
+  groups.reserve(manually_added_groups.size() + automatically_added_groups.size());
+  groups.insert(groups.end(), manually_added_groups.begin(), manually_added_groups.end());
+  groups.insert(groups.end(), automatically_added_groups.begin(), automatically_added_groups.end());
+
+  return groups;
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
