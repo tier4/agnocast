@@ -156,7 +156,7 @@ int main(int argc, char * argv[])
     rclcpp::shutdown();
     return EXIT_FAILURE;
   }
-  it->second(g_node, topic_name, qos);
+  g_subscriptions.push_back(it->second(g_node, topic_name, qos));
 
   std::thread monitor_thread(agnocast::monitor_subscriber_count, topic_name);
 
