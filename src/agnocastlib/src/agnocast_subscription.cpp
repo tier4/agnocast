@@ -3,6 +3,8 @@
 namespace agnocast
 {
 
+std::mutex subscription_init_mtx;
+
 SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topic_name)
 : id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
 {

@@ -33,6 +33,7 @@ namespace agnocast
 {
 
 extern std::mutex mmap_mtx;
+extern std::mutex subscription_init_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
@@ -101,8 +102,7 @@ inline void launch_bridge_daemon_process(
     argv.reserve(string_args.size() + 1);
 
     std::transform(
-      string_args.begin(), string_args.end(),
-      std::back_inserter(argv),  // argvの末尾に追加
+      string_args.begin(), string_args.end(), std::back_inserter(argv),
       [](const std::string & s) { return const_cast<char *>(s.c_str()); });
 
     argv.push_back(nullptr);
@@ -157,24 +157,28 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
-    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
+    {
+      std::lock_guard<std::mutex> lock(agnocast::subscription_init_mtx);
+
+      union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+      get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+      if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      if (get_subscriber_count_args.ret_subscriber_num == 0) {
+        RCLCPP_INFO(
+          logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
+        launch_bridge_daemon_process<MessageT>(topic_name_, qos, logger);
+      }
+
+      union ioctl_add_subscriber_args add_subscriber_args =
+        initialize(qos, false, node->get_fully_qualified_name());
+
+      id_ = add_subscriber_args.ret_id;
     }
-
-    if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      RCLCPP_INFO(
-        logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
-      launch_bridge_daemon_process<MessageT>(topic_name_, qos, logger);
-    }
-
-    union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
-
-    id_ = add_subscriber_args.ret_id;
 
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
     auto node_base = node->get_node_base_interface();
@@ -219,10 +223,12 @@ public:
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
 
-    union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, node->get_fully_qualified_name());
-
-    id_ = add_subscriber_args.ret_id;
+    {
+      std::lock_guard<std::mutex> lock(agnocast::subscription_init_mtx);
+      union ioctl_add_subscriber_args add_subscriber_args =
+        initialize(qos, true, node->get_fully_qualified_name());
+      id_ = add_subscriber_args.ret_id;
+    }
   }
 
   agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
