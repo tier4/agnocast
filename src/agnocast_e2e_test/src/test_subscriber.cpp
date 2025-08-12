@@ -34,15 +34,12 @@ public:
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
     this->declare_parameter<int64_t>("sub_num", 10);
-    this->declare_parameter<bool>("bridge_from_ros2", false);
     this->declare_parameter<bool>("forever", false);
     forever_ = this->get_parameter("forever").as_bool();
 
     int64_t qos_depth = this->get_parameter("qos_depth").as_int();
-    bool transient_local = this->get_parameter("transient_local").as_bool();
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth));
-
-    if (transient_local) {
+    if (this->get_parameter("transient_local").as_bool()) {
       qos.transient_local();
     }
 
@@ -52,8 +49,6 @@ public:
     auto cbg = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions sub_options;
     sub_options.callback_group = cbg;
-    sub_options.ros2_bridge_qos_depth = qos_depth;
-    sub_options.ros2_bridge_transient_local = transient_local;
     sub_ = agnocast::create_subscription<std_msgs::msg::Int64>(
       this, "/test_topic", qos, std::bind(&TestSubscriber::callback, this, _1), sub_options);
   }

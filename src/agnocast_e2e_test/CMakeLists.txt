@@ -45,14 +45,6 @@ rclcpp_components_register_node(
   EXECUTABLE test_taker
 )
 
-add_library(test_ros2_talker_component SHARED src/test_ros2_publisher.cpp)
-ament_target_dependencies(test_ros2_talker_component rclcpp rclcpp_components std_msgs)
-rclcpp_components_register_node(
-  test_ros2_talker_component
-  PLUGIN "TestROS2Publisher"
-  EXECUTABLE test_ros2_talker
-)
-
 add_library(test_ros2_listener_component SHARED src/test_ros2_subscriber.cpp)
 ament_target_dependencies(test_ros2_listener_component rclcpp rclcpp_components std_msgs)
 rclcpp_components_register_node(
@@ -83,14 +75,6 @@ install(TARGETS test_taker_component
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
-)
-
-ament_export_targets(export_test_ros2_talker_component)
-install(TARGETS test_ros2_talker_component
-  EXPORT export_test_ros2_talker_component
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
 )
 
 ament_export_targets(export_test_ros2_listener_component)
