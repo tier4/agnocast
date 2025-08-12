@@ -118,11 +118,6 @@ int main(int argc, char * argv[])
   auto it = factory.find(message_type);
 
   if (it == factory.end()) {
-    RCLCPP_ERROR(
-      logger,
-      "Failed to find a bridge handler for message type '%s'. "
-      "Ensure this type appears in the output of the 'ros2 interface list -m' command.",
-      message_type.c_str());
     rclcpp::shutdown();
     return EXIT_FAILURE;
   }

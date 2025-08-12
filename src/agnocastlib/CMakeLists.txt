@@ -23,7 +23,6 @@ find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(Python3 REQUIRED)
-find_package(agnocast_sample_interfaces REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -126,7 +125,6 @@ endforeach()
 target_link_libraries(agnocast_ros2_to_agnocast_bridge_daemon agnocast)
 ament_target_dependencies(agnocast_ros2_to_agnocast_bridge_daemon
   rclcpp
-  agnocast_sample_interfaces
   ${auto_dependencies}
 )
 

@@ -28,6 +28,9 @@
   <depend>liblttng-ust-dev</depend>
   <depend>ament_index_cpp</depend>
 
+  <!-- Add your custom message here if you have one.-->
+  <depend>agnocast_sample_interfaces</depend> 
+
   <!-- Uncomment when agnocast_kmod is released from PPA -->
   <!-- <exec_depend>agnocast_kmod</exec_depend> -->
 
