@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <cstring>
@@ -97,9 +98,13 @@ inline void launch_bridge_daemon_process(
     string_args.insert(string_args.end(), qos_args_vec.begin(), qos_args_vec.end());
 
     std::vector<char *> argv;
-    for (const auto & s : string_args) {
-      argv.push_back(const_cast<char *>(s.c_str()));
-    }
+    argv.reserve(string_args.size() + 1);
+
+    std::transform(
+      string_args.begin(), string_args.end(),
+      std::back_inserter(argv),  // argvの末尾に追加
+      [](const std::string & s) { return const_cast<char *>(s.c_str()); });
+
     argv.push_back(nullptr);
 
     execv(executable_path.c_str(), argv.data());

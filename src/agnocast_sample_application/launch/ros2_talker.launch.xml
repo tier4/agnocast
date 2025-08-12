@@ -2,6 +2,6 @@
     <node 
         pkg="agnocast_sample_application" 
         exec="minimal_ros2_talker" 
-        name="minimal_publisher" 
+        name="minimal_ros2_talker"
         output="screen"/>
 </launch>

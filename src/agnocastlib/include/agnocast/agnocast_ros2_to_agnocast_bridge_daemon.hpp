@@ -18,7 +18,7 @@ template <typename MessageT>
 class BridgeRegistrar
 {
 public:
-  BridgeRegistrar(const std::string & type_name)
+  explicit BridgeRegistrar(const std::string & type_name)
   {
     get_bridge_factory_map()[type_name] =
       [type_name](

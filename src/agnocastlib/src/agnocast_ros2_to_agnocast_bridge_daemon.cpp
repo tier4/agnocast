@@ -21,7 +21,7 @@ void signal_handler(int signum)
 namespace agnocast
 {
 
-void monitor_subscriber_count(std::string topic_name)
+void monitor_subscriber_count(const std::string & topic_name)
 {
   int agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
@@ -58,7 +58,7 @@ std::map<std::string, BridgeSetupFunction> & get_bridge_factory_map()
   return factory_map;
 }
 
-inline rclcpp::QoS parse_qos_from_args(int argc, char * argv[])
+inline rclcpp::QoS parse_qos_from_args(int argc, const char * argv[])
 {
   rclcpp::QoS qos{rclcpp::KeepLast(10)};
 
@@ -104,7 +104,7 @@ int main(int argc, char * argv[])
 
   std::string topic_name = argv[1];
   std::string message_type = argv[2];
-  rclcpp::QoS qos = agnocast::parse_qos_from_args(argc, argv);
+  rclcpp::QoS qos = agnocast::parse_qos_from_args(argc, const_cast<const char **>(argv));
 
   std::string node_name_suffix = topic_name;
   std::replace(node_name_suffix.begin(), node_name_suffix.end(), '/', '_');

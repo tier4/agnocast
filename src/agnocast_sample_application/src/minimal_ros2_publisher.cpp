@@ -8,7 +8,7 @@
 using namespace std::chrono_literals;
 const long long MESSAGE_SIZE = 1000ll * 1024;
 
-class MinimalPublisher : public rclcpp::Node
+class MinimalRos2Publisher : public rclcpp::Node
 {
 private:
   int64_t count_;
@@ -31,7 +31,7 @@ private:
   }
 
 public:
-  MinimalPublisher() : Node("minimal_publisher")
+  MinimalRos2Publisher() : Node("minimal_ros2_publisher")
   {
     count_ = 0;
 
@@ -40,7 +40,7 @@ public:
     publisher_ =
       this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>("/my_topic", qos);
 
-    timer_ = this->create_wall_timer(100ms, std::bind(&MinimalPublisher::timer_callback, this));
+    timer_ = this->create_wall_timer(100ms, std::bind(&MinimalRos2Publisher::timer_callback, this));
   }
 };
 
@@ -49,7 +49,7 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
   rclcpp::executors::SingleThreadedExecutor executor;
 
-  auto node = std::make_shared<MinimalPublisher>();
+  auto node = std::make_shared<MinimalRos2Publisher>();
   executor.add_node(node);
   executor.spin();
 
