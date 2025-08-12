@@ -146,9 +146,15 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver{};
-  struct semver heaphook_ver{};
-  struct semver kmod_ver{};
+  struct semver lib_ver
+  {
+  };
+  struct semver heaphook_ver
+  {
+  };
+  struct semver kmod_ver
+  {
+  };
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
