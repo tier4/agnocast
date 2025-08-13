@@ -101,13 +101,13 @@ file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
 file(GLOB GENERATED_REGISTRATION_FILES "${GENERATED_TYPES_DIR}/*.cpp")
 
 # 4. Add the generic bridge daemon executable
-add_executable(agnocast_ros2_to_agnocast_bridge_daemon
-  src/agnocast_ros2_to_agnocast_bridge_daemon.cpp
+add_executable(agnocast_ros2_forwarder_daemon
+  src/agnocast_ros2_forwarder_daemon.cpp
   ${GENERATED_REGISTRATION_FILES}
 )
 
 # 5. Set include directories for this target itself
-target_include_directories(agnocast_ros2_to_agnocast_bridge_daemon PRIVATE
+target_include_directories(agnocast_ros2_forwarder_daemon PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${agnocast_sample_interfaces_INCLUDE_DIRS}
@@ -116,14 +116,14 @@ target_include_directories(agnocast_ros2_to_agnocast_bridge_daemon PRIVATE
 # 6. Process all found dependencies
 foreach(dep ${auto_dependencies})
   find_package(${dep} REQUIRED)
-  target_include_directories(agnocast_ros2_to_agnocast_bridge_daemon PRIVATE
+  target_include_directories(agnocast_ros2_forwarder_daemon PRIVATE
     ${${dep}_INCLUDE_DIRS}
   )
 endforeach()
 
 # 7. Set linked libraries and ament dependencies
-target_link_libraries(agnocast_ros2_to_agnocast_bridge_daemon agnocast)
-ament_target_dependencies(agnocast_ros2_to_agnocast_bridge_daemon
+target_link_libraries(agnocast_ros2_forwarder_daemon agnocast)
+ament_target_dependencies(agnocast_ros2_forwarder_daemon
   rclcpp
   ${auto_dependencies}
 )
@@ -155,7 +155,7 @@ install(
 )
 
 install(
-  TARGETS agnocast_ros2_to_agnocast_bridge_daemon
+  TARGETS agnocast_ros2_forwarder_daemon
   DESTINATION lib/${PROJECT_NAME}
 )
 

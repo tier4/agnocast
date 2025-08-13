@@ -37,7 +37,7 @@ def main():
         with open(output_cpp_path, 'w') as f:
             f.write("// This file is auto-generated. Do not edit.\n")
             f.write(f"// Registers message type: {msg_type}\n\n")
-            f.write('#include "agnocast/agnocast_ros2_to_agnocast_bridge_daemon.hpp"\n')
+            f.write('#include "agnocast/agnocast_ros2_forwarder_daemon.hpp"\n')
             f.write('#include <rosidl_runtime_cpp/traits.hpp>\n')
             f.write(f'#include "{header_path}"\n\n')
             f.write(f'// Static registrar for the message type\n')

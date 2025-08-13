@@ -64,7 +64,7 @@ template <typename MessageT>
 inline void launch_bridge_daemon_process(
   const std::string & topic_name, const rclcpp::QoS & qos, rclcpp::Logger logger)
 {
-  std::string daemon_name = "agnocast_ros2_to_agnocast_bridge_daemon";
+  std::string daemon_name = "agnocast_ros2_forwarder_daemon";
   std::string executable_path;
   try {
     std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");

@@ -1,4 +1,4 @@
-#include "agnocast/agnocast_ros2_to_agnocast_bridge_daemon.hpp"
+#include "agnocast/agnocast_ros2_forwarder_daemon.hpp"
 
 #include "agnocast/agnocast_ioctl.hpp"
 
