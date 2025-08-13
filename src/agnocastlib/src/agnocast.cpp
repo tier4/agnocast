@@ -263,7 +263,7 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  agnocast_fd = open("/dev/agnocast", O_RDWR);
+  agnocast_fd = open("/dev/agnocast", O_RDWR | O_CLOEXEC);
   if (agnocast_fd < 0) {
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
     exit(EXIT_FAILURE);
