@@ -3,7 +3,7 @@ typedef Mutex {
 }
 
 inline lock(mutex) {
-    atomic {!mutex.is_locked -> mutex.is_locked = true}
+	atomic {!mutex.is_locked -> mutex.is_locked = true}
 }
 
 inline unlock(mutex) {

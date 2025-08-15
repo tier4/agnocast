@@ -1,6 +1,7 @@
 byte num_completed_cbs = 0
+byte expected_num_completed_cbs = NUM_PUBLISH * 2// The expected number of completed subscription callbacks will be added later.
 
-#define MAX_COMPLETED_CBS (NUM_PUBLISH * (1 + NUM_SUBSCRIPTIONS))
+#define MAX_COMPLETED_CBS ((NUM_PUBLISH * (1 + NUM_SUBSCRIPTIONS)) * 2)
 
 // === For weak fairness ===
 #define MAX_CONSECUTIVE_EMPTY_EXECUTOR_LOOP 5
@@ -15,7 +16,7 @@ active proctype timeout_handler() {
 	do
 	:: timeout -> 
 		if
-		:: num_completed_cbs == MAX_COMPLETED_CBS -> break
+		:: num_completed_cbs == expected_num_completed_cbs -> break
 		:: atomic{else -> 
 				assert(nempty(resume_requests));
 				resume_requests?executor_id;

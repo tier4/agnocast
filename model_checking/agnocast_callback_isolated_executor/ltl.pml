@@ -1,3 +1,3 @@
 ltl eventually_completed {
-	<> (num_completed_cbs == MAX_COMPLETED_CBS)
+	<> (num_completed_cbs == expected_num_completed_cbs)
 }
