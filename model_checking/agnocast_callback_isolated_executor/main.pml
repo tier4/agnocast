@@ -16,6 +16,8 @@ inline subscription_callback(cb_id) {
 
 // agnocast_single_threaded_executor.hpp | class SingleThreadedAgnocastExecutor
 proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_weak_fairness[executor_id]) {
+	Callback executable;bool ret_result;
+
 	start:
 	
 	// For weak fairness
