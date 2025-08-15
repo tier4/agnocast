@@ -1,6 +1,6 @@
 // Parameters
 #define NUM_SUBSCRIPTIONS 2
-#define NUM_PUBLISH 3
+#define NUM_PUBLISH 2
 #define NUM_EXECUTORS 1
 
 #include "utility.pml"
