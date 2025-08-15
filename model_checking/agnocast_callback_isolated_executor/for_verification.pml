@@ -1,5 +1,6 @@
 byte num_completed_cbs = 0
 byte num_ros_published = 0
+byte num_agnocast_published = 0
 byte expected_num_completed_cbs = NUM_PUBLISH * 2// The expected number of completed subscription callbacks will be added later.
 
 #define MAX_COMPLETED_CBS ((NUM_PUBLISH * (1 + NUM_SUBSCRIPTIONS)) * 2)

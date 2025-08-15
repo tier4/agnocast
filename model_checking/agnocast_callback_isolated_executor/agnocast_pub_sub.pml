@@ -25,16 +25,19 @@ proctype AgnocastSubscription(int topic_name;byte callback_group) {
 inline agnocast_timer_callback(topic_name_) {
 	// agnocast_publisher.cpp | publish_core()
 	byte loop_i;byte cb_info_i;byte len_id2_callback_info;
-	len_id2_callback_info = len(id2_callback_info_keys);// The subscription callbacks registered after this line will not be triggered.
+	d_step {
+		len_id2_callback_info = len(id2_callback_info_keys);
+		num_agnocast_published++;
+		// The subscription callbacks registered after this line will not be triggered.
+	}
 	
-	for (loop_i : 0 .. len_id2_callback_info - 1) {
+	for (loop_i : 0 .. len_id2_callback_info) {
 		d_step {id2_callback_info_keys?cb_info_i;id2_callback_info_keys!cb_info_i;}
 		if
 		:: id2_callback_info[cb_info_i].topic_name == topic_name_ && epoll_added[cb_info_i] -> // Abstraction: `id2_callback_info` is used instead of the return values of ioctl(2) for simplicity.
 			entry_num[cb_info_i]++;// Abstraction: This corresponds to `ioctl(agnocast_fd,AGNOCAST_PUBLISH_MSG_CMD,&publish_msg_args)`.
 			d_step{
-				epoll!cb_info_i
-				expected_num_completed_cbs++;
+				epoll!cb_info_i// mq_send() for publish
 			}
 		:: else
 		fi
@@ -158,6 +161,7 @@ inline prepare_epoll() {
 		
 		d_step{
 			epoll_added[cb_info_i] = true;
+			expected_num_completed_cbs = expected_num_completed_cbs + NUM_PUBLISH - num_agnocast_published;
 			printf("Agnocast | agnocast subscription is registered: callback_info_id = %d,topic_name = %d\n",cb_info_i,id2_callback_info[cb_info_i].topic_name);
 		}
 		
