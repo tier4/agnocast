@@ -3,21 +3,25 @@ proctype RosSubscription(int topic_name) {
 		registered_ros_subscriptions[cur_ros_sub_cb_id].id = cur_ros_sub_cb_id;
 		registered_ros_subscriptions[cur_ros_sub_cb_id].type = SUBSCRIPTION;
 		registered_ros_subscriptions[cur_ros_sub_cb_id].topic_name = topic_name;
-		cur_ros_sub_cb_id++
+		cur_ros_sub_cb_id++;
+		expected_num_completed_cbs = expected_num_completed_cbs + NUM_PUBLISH - num_ros_published;
 		printf("ROS | ros subscription is registered: cb_id = %d,topic_name = %d\n",cur_ros_sub_cb_id - 1,topic_name);
 	}
 }
 
 inline ros_timer_callback(topic_name_) {
-	byte sub_i;
-	byte sub_num = cur_ros_sub_cb_id;// The subscription callbacks registered after this line will not be triggered.
+	byte sub_i;byte sub_num;
+	d_step{
+		sub_num = cur_ros_sub_cb_id;
+		num_ros_published++;
+		// The subscription callbacks registered after this line will not be triggered.
+	}
 	
 	for (sub_i : 0 .. sub_num - 1) {
 		if
 		:: registered_ros_subscriptions[sub_i].topic_name == topic_name_ -> 
 			d_step {
 				ready_executables!registered_ros_subscriptions[sub_i]// Abstraction: This corresponds to the publish() and triggers subscription callbacks.
-				expected_num_completed_cbs++;
 			}
 		:: else
 		fi
