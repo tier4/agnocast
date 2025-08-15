@@ -24,15 +24,15 @@ I've commented out following line.
 
 ```c
 inline prepare_epoll() {
-	...
-		
-		d_step{
-			// epoll_added[cb_info_i] = true; <- comment out
-			expected_num_completed_cbs = expected_num_completed_cbs + NUM_PUBLISH - num_agnocast_published;
-			printf("Agnocast | agnocast subscription is registered: callback_info_id = %d,topic_name = %d\n",cb_info_i,id2_callback_info[cb_info_i].topic_name);
-		}
-		
-	...
+ ...
+  
+  d_step{
+   // epoll_added[cb_info_i] = true; <- comment out
+   expected_num_completed_cbs = expected_num_completed_cbs + NUM_PUBLISH - num_agnocast_published;
+   printf("Agnocast | agnocast subscription is registered: callback_info_id = %d,topic_name = %d\n",cb_info_i,id2_callback_info[cb_info_i].topic_name);
+  }
+  
+ ...
 ```
 
 As shown in this output, registered agnocast subscriptions are not executed and `ltl eventually_completed` is never satisfied.
