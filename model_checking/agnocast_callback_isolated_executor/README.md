@@ -22,7 +22,7 @@ The model verifies the `ltl eventually_completed` which ensures all callbacks ev
 
 I've commented out following line.
 
-```
+```c
 inline prepare_epoll() {
 	...
 		
