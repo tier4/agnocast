@@ -2,6 +2,26 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix: remove unnecessary TRACETOOLS_LTTNG_ENABLED (`#678 <https://github.com/tier4/agnocast/issues/678>`_)
+* test(integration): Add integration test investigate malloc region differences after fork (`#675 <https://github.com/tier4/agnocast/issues/675>`_)
+* feat(agnocastlib): template the callback type for greater flexibility (`#665 <https://github.com/tier4/agnocast/issues/665>`_)
+* build: set C++ standard explicitly to support Clang builds (`#677 <https://github.com/tier4/agnocast/issues/677>`_)
+* test(integration): Add integration test for malloc allocator switching based on publisher_num (`#661 <https://github.com/tier4/agnocast/issues/661>`_)
+* feat(agnocastlib): impl get_all_callback_groups method in cie (`#674 <https://github.com/tier4/agnocast/issues/674>`_)
+* feat(agnocastlib): cie spin (`#669 <https://github.com/tier4/agnocast/issues/669>`_)
+* feat(agnocastlib): add/remove node in cie (`#668 <https://github.com/tier4/agnocast/issues/668>`_)
+* feat(agnocastlib): add/remove callback group in cie (`#667 <https://github.com/tier4/agnocast/issues/667>`_)
+* feat(agnocastlib): add cie skelton (`#666 <https://github.com/tier4/agnocast/issues/666>`_)
+* fix(agnocastlib): stop possessing shared pointer to nodes in agnocast executor (`#664 <https://github.com/tier4/agnocast/issues/664>`_)
+* feat(agnocastlib) change epoll updates behavior for cie (`#663 <https://github.com/tier4/agnocast/issues/663>`_)
+* feat(agnocastlib): single threaded executor for cie (`#660 <https://github.com/tier4/agnocast/issues/660>`_)
+* fix(agnocastlib): use override keyword (`#662 <https://github.com/tier4/agnocast/issues/662>`_)
+* feat: tracepoint definition for CARET (`#659 <https://github.com/tier4/agnocast/issues/659>`_)
+* refactor(agnocastlib): lower the log level when mq_open fails (`#650 <https://github.com/tier4/agnocast/issues/650>`_)
+* style: add a trailing underscore to the data member of Subscriber (`#645 <https://github.com/tier4/agnocast/issues/645>`_)
+
 2.1.1 (2025-05-13)
 ------------------
 * fix(agnocastlib): forbit the reader processes from resizing shmem (`#632 <https://github.com/tier4/agnocast/issues/632>`_)

@@ -2,6 +2,9 @@
 Changelog for package agnocast_e2e_test
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 2.1.1 (2025-05-13)
 ------------------
 * fix(e2e_test): extend ready_delay waiting time (`#630 <https://github.com/tier4/agnocast/issues/630>`_)

@@ -2,6 +2,11 @@
 Changelog for package agnocast_sample_application
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* feat(agnocastlib): cie spin (`#669 <https://github.com/tier4/agnocast/issues/669>`_)
+* fix(agnocastlib): stop possessing shared pointer to nodes in agnocast executor (`#664 <https://github.com/tier4/agnocast/issues/664>`_)
+
 2.1.1 (2025-05-13)
 ------------------
 
