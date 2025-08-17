@@ -118,7 +118,17 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 std::vector<rclcpp::CallbackGroup::WeakPtr>
 CallbackIsolatedAgnocastExecutor::get_all_callback_groups()
 {
-  return {};
+  std::lock_guard<std::mutex> guard{mutex_};
+  std::vector<rclcpp::CallbackGroup::WeakPtr> groups;
+
+  auto manually_added_groups = get_manually_added_callback_groups_internal();
+  auto automatically_added_groups = get_automatically_added_callback_groups_from_nodes_internal();
+
+  groups.reserve(manually_added_groups.size() + automatically_added_groups.size());
+  groups.insert(groups.end(), manually_added_groups.begin(), manually_added_groups.end());
+  groups.insert(groups.end(), automatically_added_groups.begin(), automatically_added_groups.end());
+
+  return groups;
 }
 
 std::vector<rclcpp::CallbackGroup::WeakPtr>
