@@ -2,8 +2,8 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.2 (2025-08-18)
+------------------
 * fix: remove unnecessary TRACETOOLS_LTTNG_ENABLED (`#678 <https://github.com/tier4/agnocast/issues/678>`_)
 * test(integration): Add integration test investigate malloc region differences after fork (`#675 <https://github.com/tier4/agnocast/issues/675>`_)
 * feat(agnocastlib): template the callback type for greater flexibility (`#665 <https://github.com/tier4/agnocast/issues/665>`_)
