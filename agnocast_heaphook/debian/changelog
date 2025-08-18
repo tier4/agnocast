@@ -1,3 +1,16 @@
+agnocast-heaphook-v2.1.2 (2.1.2-1) jammy; urgency=medium
+
+  * fix(heaphook): fix memory-related functions to match C semantics (#657 <https://github.com/tier4/agnocast/issues/657>)
+  * refactor(heaphook): modify tlsf_{allocate, reallocate}_wrapped to return Option<NonNull<u8>> (#653 <https://github.com/tier4/agnocast/issues/653>)
+  * test(heaphook): add unit tests for memory allocation limits (#654 <https://github.com/tier4/agnocast/issues/654>)
+  * Fix for memory limit error (#652 <https://github.com/tier4/agnocast/issues/652>)
+  * Simplify conditional logic in {free, realloc} (#651 <https://github.com/tier4/agnocast/issues/651>)
+  * Remove unnecessary padding (#647 <https://github.com/tier4/agnocast/issues/647>)
+  * Modify to use libc functions in unit tests (#648 <https://github.com/tier4/agnocast/issues/648>)
+  * test(heaphook): fix unit test for test_aligned_alloc function (#642 <https://github.com/tier4/agnocast/issues/642>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Mon, 18 Aug 2025 0:37:00 +0900
+
 agnocast-heaphook-v2.1.1 (2.1.1-1) jammy; urgency=medium
 
   * patch level ppa package (#624 <https://github.com/tier4/agnocast/issues/624>)
