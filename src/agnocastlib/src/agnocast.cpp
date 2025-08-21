@@ -1,5 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
+#include "agnocast/agnocast_bridge_daemon.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -12,7 +13,7 @@
 
 namespace agnocast
 {
-
+int g_bridge_notification_fd = -1;
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
@@ -146,15 +147,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -279,6 +274,31 @@ void * initialize_agnocast(
   if (!is_version_consistent(heaphook_version_ptr, heaphook_version_str_len, get_version_args)) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  int pipe_fd[2];
+  if (pipe(pipe_fd) == -1) {
+    RCLCPP_ERROR(logger, "pipe failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(pipe_fd[0]);
+    close(pipe_fd[1]);
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  if (pid == 0) {
+    close(pipe_fd[1]);
+    bridge_daemon_main(pipe_fd[0]);
+  } else {
+    close(pipe_fd[0]);
+    g_bridge_notification_fd = pipe_fd[1];
   }
 
   union ioctl_add_process_args add_process_args = {};

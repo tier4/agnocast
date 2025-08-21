@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
@@ -28,6 +29,42 @@ namespace agnocast
 {
 
 extern std::mutex mmap_mtx;
+
+extern int g_bridge_notification_fd;
+
+inline void commonFunction()
+{
+  std::cout << "This function is compiled in the parent process." << std::endl;
+}
+
+template <typename MessageT>
+void start_agnocast_bridge(
+  rclcpp::Node::SharedPtr node, const std::string & topic_name, const rclcpp::QoS & qos)
+{
+  auto logger = node->get_logger();
+
+  agnocast::PublisherOptions pub_options;
+  auto internal_agno_publisher =
+    std::make_shared<agnocast::Publisher<MessageT>>(node.get(), topic_name, qos, pub_options);
+
+  auto ros2_callback = [logger,
+                        internal_agno_publisher](const typename MessageT::ConstSharedPtr msg) {
+    auto loaned_msg = internal_agno_publisher->borrow_loaned_message();
+    *loaned_msg = *msg;
+    internal_agno_publisher->publish(std::move(loaned_msg));
+  };
+
+  rclcpp::SubscriptionOptions sub_options;
+  sub_options.callback_group =
+    node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  sub_options.ignore_local_publications = true;
+
+  auto sub = node->create_subscription<MessageT>(topic_name, qos, ros2_callback, sub_options);
+
+  RCLCPP_INFO(logger, "started daemon subscription for topic: %s", topic_name.c_str());
+
+  rclcpp::spin(node);
+}
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
@@ -71,6 +108,29 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
+    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (get_subscriber_count_args.ret_subscriber_num == 0) {
+      RCLCPP_INFO(
+        logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
+      if (g_bridge_notification_fd != -1) {
+        const std::string & message = topic_name;
+        ssize_t bytes_written = write(g_bridge_notification_fd, message.c_str(), message.length());
+
+        if (bytes_written == -1) {
+          RCLCPP_ERROR(
+            node->get_logger(), "Failed to send notification to bridge daemon: %s",
+            strerror(errno));
+        }
+      }
+    }
+
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
