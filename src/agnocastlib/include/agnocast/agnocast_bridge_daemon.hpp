@@ -1,6 +1,101 @@
-#ifndef BRIDGE_DAEMON_HPP
-#define BRIDGE_DAEMON_HPP
+#pragma once
 
-void bridge_daemon_main(int read_pipe_fd);
+#include "agnocast/agnocast_publisher.hpp"
+#include "rclcpp/rclcpp.hpp"
 
-#endif  // BRIDGE_DAEMON_HPP
+#include <mqueue.h>
+
+#include <cstdint>
+#include <regex>
+
+namespace agnocast
+{
+extern std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
+
+struct QoSFlat
+{
+  uint32_t depth;
+  uint8_t history;
+  uint8_t reliability;
+  uint8_t durability;
+};
+
+struct BridgeArgs
+{
+  char topic_name[256];
+  QoSFlat qos;
+};
+
+struct ControlMsg
+{
+  enum Opcode : uint32_t {
+    StartBridge = 1,
+  };
+
+  uint32_t opcode;
+  uintptr_t fn_ptr;
+  BridgeArgs args;
+};
+
+using BridgeFn = void (*)(const BridgeArgs &);
+
+void bridge_daemon_main(mqd_t mq_read);
+
+inline rclcpp::QoS reconstruct_qos(const QoSFlat & q)
+{
+  rclcpp::QoS qos(q.depth);
+  if (q.history == 1) {
+    qos.keep_all();
+  }
+  if (q.reliability == 1) {
+    qos.reliable();
+  } else if (q.reliability == 2) {
+    qos.best_effort();
+  }
+  if (q.durability == 1) {
+    qos.transient_local();
+  }
+  return qos;
+}
+
+template <typename MessageT>
+void bridge_entry(const BridgeArgs & args);
+
+template <typename MessageT>
+void start_bridge_node(const BridgeArgs & args)
+{
+  std::cout << "[Debug] Entering start_bridge_node..." << std::endl;
+
+  std::string topic_name(args.topic_name);
+  rclcpp::QoS qos = reconstruct_qos(args.qos);
+  auto node_name = "agnocast_bridge_" + std::regex_replace(topic_name, std::regex("/"), "_");
+
+  std::cout << "[Debug] 1. Creating Node..." << std::endl;
+  auto node = std::make_shared<rclcpp::Node>(node_name);
+
+  std::cout << "[Debug] 2. Creating Agnocast Publisher..." << std::endl;
+  agnocast::PublisherOptions pub_options;
+  auto agnocast_pub =
+    std::make_shared<agnocast::Publisher<MessageT>>(node.get(), topic_name, qos, pub_options);
+
+  std::cout << "[Debug] 3. Creating ROS 2 Subscription..." << std::endl;
+  auto callback = [agnocast_pub](const typename MessageT::ConstSharedPtr msg) {
+    auto loaned_msg = agnocast_pub->borrow_loaned_message();
+    *loaned_msg = *msg;
+    agnocast_pub->publish(std::move(loaned_msg));
+  };
+  auto sub = node->create_subscription<MessageT>(topic_name, qos, callback);
+
+  std::cout << "[Debug] 4. Adding node to executor..." << std::endl;
+  g_executor->add_node(node);
+
+  std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << topic_name << std::endl;
+}
+
+template <typename MessageT>
+void bridge_entry(const BridgeArgs & args)
+{
+  start_bridge_node<MessageT>(args);
+}
+
+}  // namespace agnocast

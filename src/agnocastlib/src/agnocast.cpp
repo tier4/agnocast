@@ -5,6 +5,8 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
+#include <fcntl.h>   // O_CREAT, O_RDWR などのフラグに必要
+#include <mqueue.h>  // mqueue を使うために必要
 #include <sys/types.h>
 
 #include <atomic>
@@ -15,6 +17,12 @@ namespace agnocast
 {
 int g_bridge_notification_fd = -1;
 int agnocast_fd = -1;
+
+mqd_t get_bridge_mq()
+{
+  return static_cast<mqd_t>(g_bridge_notification_fd);
+}
+
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
 std::mutex mmap_mtx;
@@ -276,29 +284,44 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  int pipe_fd[2];
-  if (pipe(pipe_fd) == -1) {
-    RCLCPP_ERROR(logger, "pipe failed: %s", strerror(errno));
+  const char * mq_name = "/agnocast_bridge_ctl";
+  struct mq_attr attr;
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = sizeof(ControlMsg);
+
+  mq_unlink(mq_name);
+
+  mqd_t mq = mq_open(mq_name, O_CREAT | O_RDWR, 0660, &attr);
+  if (mq == (mqd_t)-1) {
+    RCLCPP_ERROR(logger, "mq_open for creation failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+  mq_close(mq);
 
   pid_t pid = fork();
 
   if (pid < 0) {
     RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    close(pipe_fd[0]);
-    close(pipe_fd[1]);
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   if (pid == 0) {
-    close(pipe_fd[1]);
-    bridge_daemon_main(pipe_fd[0]);
+    mqd_t mq_read = mq_open(mq_name, O_RDONLY);
+    if (mq_read == (mqd_t)-1) {
+      exit(EXIT_FAILURE);
+    }
+    bridge_daemon_main(mq_read);
+    exit(EXIT_SUCCESS);
   } else {
-    close(pipe_fd[0]);
-    g_bridge_notification_fd = pipe_fd[1];
+    mqd_t mq_write = mq_open(mq_name, O_WRONLY);
+    if (mq_write == (mqd_t)-1) {
+      RCLCPP_ERROR(logger, "mq_open for parent failed: %s", strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    g_bridge_notification_fd = mq_write;
   }
 
   union ioctl_add_process_args add_process_args = {};

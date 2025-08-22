@@ -1,46 +1,81 @@
-#include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_bridge_daemon.hpp"
 
+#include "rclcpp/rclcpp.hpp"
+
+#include <mqueue.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <cstring>
 #include <iostream>
-#include <string>
+#include <thread>
+#include <vector>
 
-void bridge_daemon_main(int read_pipe_fd)
+namespace agnocast
+{
+std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
+std::thread g_spin_thread;
+
+void bridge_daemon_main(mqd_t mq_read)
 {
   if (setsid() == -1) {
     std::cerr << "setsid failed for daemon: " << strerror(errno) << std::endl;
     exit(EXIT_FAILURE);
   }
 
-  std::cout << "[Bridge Daemon] PID: " << getpid() << ". Waiting for notifications..." << std::endl;
+  rclcpp::init(0, nullptr);
 
-  while (true) {
-    char buffer[256];
-    ssize_t bytes_read = read(read_pipe_fd, buffer, sizeof(buffer) - 1);
+  g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+  g_spin_thread = std::thread([]() { g_executor->spin(); });
 
-    if (bytes_read > 0) {
-      buffer[bytes_read] = '\0';
-      std::cout << "[Bridge Daemon] Received notification: " << buffer << std::endl;
+  std::cout << "[Bridge Daemon] PID: " << getpid() << ". Waiting for commands..." << std::endl;
 
-      agnocast::commonFunction();
+  while (rclcpp::ok()) {
+    ControlMsg msg{};
+    ssize_t bytes_read = mq_receive(mq_read, reinterpret_cast<char *>(&msg), sizeof(msg), nullptr);
 
-    } else if (bytes_read == 0) {
-      std::cout << "[Bridge Daemon] Parent process closed the pipe. Shutting down." << std::endl;
+    if (bytes_read < 0) {
+      std::cerr << "[Bridge Daemon] mq_receive failed. Shutting down." << std::endl;
       break;
+    }
 
-    } else {
-      if (errno == EINTR) {
+    if (static_cast<size_t>(bytes_read) != sizeof(ControlMsg)) {
+      std::cerr << "[Bridge Daemon] Received malformed message." << std::endl;
+      continue;
+    }
+
+    if (msg.opcode == ControlMsg::StartBridge) {
+      std::cout << "[Bridge Daemon] Received StartBridge command for topic: " << msg.args.topic_name
+                << std::endl;
+
+      std::cout << "[Daemon Debug] Received fn_ptr value: 0x" << std::hex << msg.fn_ptr << std::dec
+                << std::endl;
+
+      if (msg.fn_ptr == 0) {
+        std::cerr << "[Bridge Daemon Error] Received a NULL function pointer. Cannot proceed."
+                  << std::endl;
         continue;
       }
-      std::cerr << "[Bridge Daemon] read failed: " << strerror(errno) << std::endl;
-      break;
+
+      std::cout << "[Bridge Daemon] Starting bridge for topic: " << msg.args.topic_name
+                << std::endl;
+      auto fn = reinterpret_cast<BridgeFn>(msg.fn_ptr);
+      std::cout << "[Bridge Daemon] Calling bridge function for topic: " << msg.args.topic_name
+                << std::endl;
+      fn(msg.args);
+      std::cout << "[Bridge Daemon] Bridge function executed for topic: " << msg.args.topic_name
+                << std::endl;
     }
   }
 
-  close(read_pipe_fd);
-  std::cout << "[Bridge Daemon] Daemon has finished." << std::endl;
+  std::cout << "[Bridge Daemon] Shutting down..." << std::endl;
+  g_executor->cancel();
+  g_spin_thread.join();
+  rclcpp::shutdown();
+  mq_close(mq_read);
 
+  std::cout << "[Bridge Daemon] Daemon has finished." << std::endl;
   exit(EXIT_SUCCESS);
 }
+
+}  // namespace agnocast
