@@ -93,9 +93,8 @@ void bridge_daemon_main(mqd_t mq_read)
                 << func_addr_in_daemon << std::dec << ". Calling bridge function..." << std::endl;
       bridge_function(msg.args);
 
-      // 注意:
-      // 本番環境では、ブリッジが不要になった際にdlclose(handle)を呼び出すための管理機構が必要です。
-      // ^ ^ ^ ^ ^ 修正箇所 ^ ^ ^ ^ ^
+      // TODO:
+      // ブリッジが不要になった際にdlclose(handle)を呼び出すための管理機構
     }
   }
 
