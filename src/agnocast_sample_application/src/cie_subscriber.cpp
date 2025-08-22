@@ -29,8 +29,8 @@ public:
       [](const agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> &
            message) {
         RCLCPP_INFO(
-          rclcpp::get_logger("agnocast_sample_application"), "subscribe message in group1: id=%ld",
-          message->id);
+          rclcpp::get_logger("agnocast_sample_application"),
+          "receive message id=%ld in group1 from /my_topic", message->id);
       },
       agnocast_options);
 
@@ -41,7 +41,7 @@ public:
       [](const agnocast_sample_interfaces::msg::DynamicSizeArray::SharedPtr message) {
         RCLCPP_INFO(
           rclcpp::get_logger("agnocast_sample_application"),
-          "subscribe ros message in group1: id=%ld", message->id);
+          "receive message id=%ld in group1 from /ros_topic", message->id);
       },
       ros_options);
 
@@ -52,7 +52,7 @@ public:
       [](const agnocast_sample_interfaces::msg::DynamicSizeArray::SharedPtr message) {
         RCLCPP_INFO(
           rclcpp::get_logger("agnocast_sample_application"),
-          "subscribe ros other message in group2: id=%ld", message->id);
+          "receive message id=%ld in group2 from /ros_other_topic", message->id);
       },
       ros_options2);
   }
