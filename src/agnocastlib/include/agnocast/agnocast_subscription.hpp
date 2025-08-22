@@ -10,6 +10,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
+#include <link.h>  // dl_iterate_phdr を使うために追加
 #include <mqueue.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -73,6 +74,31 @@ public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
+struct PhdrCallbackData
+{
+  uintptr_t target_addr;
+  const char * lib_name;
+  uintptr_t offset;
+};
+
+static int find_offset_callback(struct dl_phdr_info * info, size_t /*size*/, void * data)
+{
+  PhdrCallbackData * callback_data = (PhdrCallbackData *)data;
+  for (int j = 0; j < info->dlpi_phnum; j++) {
+    const ElfW(Phdr) * phdr = &info->dlpi_phdr[j];
+    if (phdr->p_type == PT_LOAD) {
+      uintptr_t start_addr = info->dlpi_addr + phdr->p_vaddr;
+      uintptr_t end_addr = start_addr + phdr->p_memsz;
+      if (callback_data->target_addr >= start_addr && callback_data->target_addr < end_addr) {
+        callback_data->lib_name = info->dlpi_name;
+        callback_data->offset = callback_data->target_addr - info->dlpi_addr;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
@@ -101,12 +127,29 @@ public:
       {
         ControlMsg msg{};
         msg.opcode = ControlMsg::StartBridge;
-        msg.fn_ptr = reinterpret_cast<uintptr_t>(&bridge_entry<MessageT>);
+
+        uintptr_t func_ptr = reinterpret_cast<uintptr_t>(&bridge_entry<MessageT>);
+
+        PhdrCallbackData callback_data = {func_ptr, nullptr, 0};
+        dl_iterate_phdr(find_offset_callback, &callback_data);
+
+        if (callback_data.lib_name == nullptr || callback_data.lib_name[0] == '\0') {
+          RCLCPP_FATAL(
+            node->get_logger(),
+            "Could not find library for the bridge function! This is a critical error.");
+          exit(EXIT_FAILURE);
+        }
+
+        strncpy(msg.library_name, callback_data.lib_name, sizeof(msg.library_name) - 1);
+        msg.library_name[sizeof(msg.library_name) - 1] = '\0';
+        msg.function_offset = callback_data.offset;
 
         std::snprintf(msg.args.topic_name, sizeof(msg.args.topic_name), "%s", topic_name_.c_str());
         msg.args.qos = flatten_qos(qos);
 
-        RCLCPP_INFO(node->get_logger(), "[Parent Debug] Sending fn_ptr value: 0x%lx", msg.fn_ptr);
+        RCLCPP_INFO(
+          node->get_logger(), "[Parent Debug] Sending library '%s' with offset 0x%lx",
+          msg.library_name, msg.function_offset);
 
         mqd_t mq = get_bridge_mq();
         if (mq != (mqd_t)-1) {

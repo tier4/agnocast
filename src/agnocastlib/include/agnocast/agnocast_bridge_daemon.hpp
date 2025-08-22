@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <linux/limits.h>  // PATH_MAX を使うために追加
 #include <mqueue.h>
 
 #include <cstdint>
@@ -26,6 +27,7 @@ struct BridgeArgs
   QoSFlat qos;
 };
 
+// V V V V V 修正箇所 V V V V V
 struct ControlMsg
 {
   enum Opcode : uint32_t {
@@ -33,9 +35,11 @@ struct ControlMsg
   };
 
   uint32_t opcode;
-  uintptr_t fn_ptr;
+  char library_name[PATH_MAX];  // 関数が含まれるライブラリのパス
+  uintptr_t function_offset;    // ライブラリのベースアドレスからのオフセット
   BridgeArgs args;
 };
+// ^ ^ ^ ^ ^ 修正箇所 ^ ^ ^ ^ ^
 
 using BridgeFn = void (*)(const BridgeArgs &);
 

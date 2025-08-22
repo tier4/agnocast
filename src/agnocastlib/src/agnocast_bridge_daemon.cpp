@@ -2,6 +2,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 
+#include <dlfcn.h>  // dlopen, dlsym, dlerror を使うために追加
+#include <link.h>   // dl_iterate_phdr を使うために追加
 #include <mqueue.h>
 #include <unistd.h>
 
@@ -15,6 +17,22 @@ namespace agnocast
 {
 std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
 std::thread g_spin_thread;
+
+struct PhdrFindBaseData
+{
+  const char * target_lib_name;
+  uintptr_t base_addr;
+};
+
+static int find_base_callback(struct dl_phdr_info * info, size_t /*size*/, void * data)
+{
+  PhdrFindBaseData * find_data = (PhdrFindBaseData *)data;
+  if (info->dlpi_name && strcmp(info->dlpi_name, find_data->target_lib_name) == 0) {
+    find_data->base_addr = info->dlpi_addr;
+    return 1;
+  }
+  return 0;
+}
 
 void bridge_daemon_main(mqd_t mq_read)
 {
@@ -35,6 +53,7 @@ void bridge_daemon_main(mqd_t mq_read)
     ssize_t bytes_read = mq_receive(mq_read, reinterpret_cast<char *>(&msg), sizeof(msg), nullptr);
 
     if (bytes_read < 0) {
+      if (errno == EAGAIN) continue;
       std::cerr << "[Bridge Daemon] mq_receive failed. Shutting down." << std::endl;
       break;
     }
@@ -45,26 +64,38 @@ void bridge_daemon_main(mqd_t mq_read)
     }
 
     if (msg.opcode == ControlMsg::StartBridge) {
-      std::cout << "[Bridge Daemon] Received StartBridge command for topic: " << msg.args.topic_name
+      std::cout << "[Bridge Daemon] Received StartBridge for topic: " << msg.args.topic_name
                 << std::endl;
+      std::cout << "[Bridge Daemon] Library: " << msg.library_name << ", Offset: 0x" << std::hex
+                << msg.function_offset << std::dec << std::endl;
 
-      std::cout << "[Daemon Debug] Received fn_ptr value: 0x" << std::hex << msg.fn_ptr << std::dec
-                << std::endl;
-
-      if (msg.fn_ptr == 0) {
-        std::cerr << "[Bridge Daemon Error] Received a NULL function pointer. Cannot proceed."
-                  << std::endl;
+      void * handle = dlopen(msg.library_name, RTLD_LAZY);
+      if (!handle) {
+        std::cerr << "[Bridge Daemon Error] dlopen failed for " << msg.library_name << ": "
+                  << dlerror() << std::endl;
         continue;
       }
 
-      std::cout << "[Bridge Daemon] Starting bridge for topic: " << msg.args.topic_name
-                << std::endl;
-      auto fn = reinterpret_cast<BridgeFn>(msg.fn_ptr);
-      std::cout << "[Bridge Daemon] Calling bridge function for topic: " << msg.args.topic_name
-                << std::endl;
-      fn(msg.args);
-      std::cout << "[Bridge Daemon] Bridge function executed for topic: " << msg.args.topic_name
-                << std::endl;
+      PhdrFindBaseData find_data = {msg.library_name, 0};
+      dl_iterate_phdr(find_base_callback, &find_data);
+
+      if (find_data.base_addr == 0) {
+        std::cerr << "[Bridge Daemon Error] Could not find library " << msg.library_name
+                  << " in my address space after dlopen." << std::endl;
+        dlclose(handle);
+        continue;
+      }
+
+      uintptr_t func_addr_in_daemon = find_data.base_addr + msg.function_offset;
+      BridgeFn bridge_function = reinterpret_cast<BridgeFn>(func_addr_in_daemon);
+
+      std::cout << "[Bridge Daemon] Reconstructed function pointer at 0x" << std::hex
+                << func_addr_in_daemon << std::dec << ". Calling bridge function..." << std::endl;
+      bridge_function(msg.args);
+
+      // 注意:
+      // 本番環境では、ブリッジが不要になった際にdlclose(handle)を呼び出すための管理機構が必要です。
+      // ^ ^ ^ ^ ^ 修正箇所 ^ ^ ^ ^ ^
     }
   }
 
