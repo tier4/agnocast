@@ -10,6 +10,7 @@
 #include <sys/types.h>
 
 #include <atomic>
+#include <csignal>  // signal を使うために追加
 #include <cstdint>
 #include <mutex>
 
@@ -256,6 +257,20 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+static void signal_handler(int signum)
+{
+  if (signum == SIGINT) {
+    std::cout << "[Agnocast Parent] SIGINT received. Notifying daemon to shut down." << std::endl;
+    ControlMsg msg{};
+    msg.opcode = ControlMsg::Shutdown;
+
+    mqd_t mq = get_bridge_mq();
+    if (mq != (mqd_t)-1) {
+      mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0);
+    }
+  }
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -271,6 +286,8 @@ void * initialize_agnocast(
     RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
+
+  signal(SIGINT, signal_handler);
 
   struct ioctl_get_version_args get_version_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION_CMD, &get_version_args) < 0) {
@@ -316,6 +333,7 @@ void * initialize_agnocast(
     bridge_daemon_main(mq_read);
     exit(EXIT_SUCCESS);
   } else {
+    RCLCPP_INFO(logger, "Forked the bridge daemon process with PID: %d", pid);
     mqd_t mq_write = mq_open(mq_name, O_WRONLY);
     if (mq_write == (mqd_t)-1) {
       RCLCPP_ERROR(logger, "mq_open for parent failed: %s", strerror(errno));
@@ -352,6 +370,10 @@ void * initialize_agnocast(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  std::cerr << "[Main Process] Mapped memory pool at address: " << std::hex
+            << reinterpret_cast<uintptr_t>(mempool_ptr) << std::endl;
+
   return mempool_ptr;
 }
 

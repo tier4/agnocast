@@ -1,22 +1,25 @@
 #include "agnocast/agnocast_bridge_daemon.hpp"
 
+#include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_ioctl.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <dlfcn.h>  // dlopen, dlsym, dlerror を使うために追加
-#include <link.h>   // dl_iterate_phdr を使うために追加
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <link.h>
 #include <mqueue.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-#include <cerrno>
-#include <cstring>
-#include <iostream>
-#include <thread>
-#include <vector>
+#include <csignal>
 
 namespace agnocast
 {
+
+std::map<std::string, BridgeComponents> g_active_bridges;
+std::mutex g_bridges_mutex;
+
 std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
-std::thread g_spin_thread;
 
 struct PhdrFindBaseData
 {
@@ -34,76 +37,102 @@ static int find_base_callback(struct dl_phdr_info * info, size_t /*size*/, void 
   return 0;
 }
 
-void bridge_daemon_main(mqd_t mq_read)
-{
-  if (setsid() == -1) {
-    std::cerr << "setsid failed for daemon: " << strerror(errno) << std::endl;
-    exit(EXIT_FAILURE);
-  }
+// ros2 topic pub --qos-reliability reliable /my_topic
+// agnocast_sample_interfaces/msg/DynamicSizeArray "{id: 1, data: [10, 20, 30]}"
 
+void bridge_process_main(const ControlMsg & msg)
+{
   rclcpp::init(0, nullptr);
 
   g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
-  g_spin_thread = std::thread([]() { g_executor->spin(); });
 
-  std::cout << "[Bridge Daemon] PID: " << getpid() << ". Waiting for commands..." << std::endl;
+  const char * mempool_size_env = std::getenv("AGNOCAST_MEMPOOL_SIZE");
+  size_t shm_size = mempool_size_env ? std::stoul(mempool_size_env) : 67108864;
 
-  while (rclcpp::ok()) {
+  union ioctl_add_process_args add_process_args = {};
+  add_process_args.shm_size = shm_size;
+  std::cerr << "[Bridge Process] Using shared memory size: " << shm_size << " bytes" << std::endl;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    std::cerr << "[Bridge Process Error] AGNOCAST_ADD_PROCESS_CMD failed: " << strerror(errno)
+              << std::endl;
+    close(agnocast_fd);
+    rclcpp::shutdown();
+    exit(EXIT_FAILURE);
+  }
+
+  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  std::cerr << "[Bridge Process] Mapped memory pool at address: " << std::hex
+            << reinterpret_cast<uintptr_t>(mempool_ptr) << std::endl;
+
+  if (mempool_ptr == nullptr) {
+    std::cerr << "[Bridge Process Error] map_writable_area failed" << std::endl;
+    close(agnocast_fd);
+    rclcpp::shutdown();
+    exit(EXIT_FAILURE);
+  }
+
+  void * handle = dlopen(msg.library_name, RTLD_LAZY);
+  if (!handle) {
+    exit(EXIT_FAILURE);
+  }
+
+  PhdrFindBaseData find_data = {msg.library_name, 0};
+  dl_iterate_phdr(find_base_callback, &find_data);
+  if (find_data.base_addr == 0) {
+    dlclose(handle);
+    exit(EXIT_FAILURE);
+  }
+
+  uintptr_t func_addr = find_data.base_addr + msg.function_offset;
+  BridgeFn bridge_function = reinterpret_cast<BridgeFn>(func_addr);
+
+  bridge_function(msg.args);
+
+  std::cout << "[Bridge Process] Starting executor spin for topic: " << msg.args.topic_name
+            << std::endl;
+  g_executor->spin();
+
+  dlclose(handle);
+  close(agnocast_fd);
+  rclcpp::shutdown();
+  std::cout << "[Bridge Process] Shutting down for topic: " << msg.args.topic_name << std::endl;
+  exit(EXIT_SUCCESS);
+}
+
+void bridge_daemon_main(mqd_t mq_read)
+{
+  signal(SIGCHLD, SIG_IGN);
+
+  std::cout << "[Bridge Daemon] PID: " << getpid() << ". Ready to launch bridge processes..."
+            << std::endl;
+
+  while (true) {
     ControlMsg msg{};
     ssize_t bytes_read = mq_receive(mq_read, reinterpret_cast<char *>(&msg), sizeof(msg), nullptr);
-
-    if (bytes_read < 0) {
-      if (errno == EAGAIN) continue;
-      std::cerr << "[Bridge Daemon] mq_receive failed. Shutting down." << std::endl;
+    if (bytes_read <= 0) {
       break;
     }
 
-    if (static_cast<size_t>(bytes_read) != sizeof(ControlMsg)) {
-      std::cerr << "[Bridge Daemon] Received malformed message." << std::endl;
-      continue;
-    }
-
     if (msg.opcode == ControlMsg::StartBridge) {
-      std::cout << "[Bridge Daemon] Received StartBridge for topic: " << msg.args.topic_name
-                << std::endl;
-      std::cout << "[Bridge Daemon] Library: " << msg.library_name << ", Offset: 0x" << std::hex
-                << msg.function_offset << std::dec << std::endl;
-
-      void * handle = dlopen(msg.library_name, RTLD_LAZY);
-      if (!handle) {
-        std::cerr << "[Bridge Daemon Error] dlopen failed for " << msg.library_name << ": "
-                  << dlerror() << std::endl;
+      pid_t pid = fork();
+      if (pid < 0) {
+        std::cerr << "[Bridge Daemon] fork failed: " << strerror(errno) << std::endl;
         continue;
       }
-
-      PhdrFindBaseData find_data = {msg.library_name, 0};
-      dl_iterate_phdr(find_base_callback, &find_data);
-
-      if (find_data.base_addr == 0) {
-        std::cerr << "[Bridge Daemon Error] Could not find library " << msg.library_name
-                  << " in my address space after dlopen." << std::endl;
-        dlclose(handle);
-        continue;
+      if (pid == 0) {
+        mq_close(mq_read);
+        bridge_process_main(msg);
       }
+      std::cout << "[Bridge Daemon] Launched a new bridge process with PID " << pid
+                << " for topic: " << msg.args.topic_name << std::endl;
 
-      uintptr_t func_addr_in_daemon = find_data.base_addr + msg.function_offset;
-      BridgeFn bridge_function = reinterpret_cast<BridgeFn>(func_addr_in_daemon);
-
-      std::cout << "[Bridge Daemon] Reconstructed function pointer at 0x" << std::hex
-                << func_addr_in_daemon << std::dec << ". Calling bridge function..." << std::endl;
-      bridge_function(msg.args);
-
-      // TODO:
-      // ブリッジが不要になった際にdlclose(handle)を呼び出すための管理機構
+    } else if (msg.opcode == ControlMsg::Shutdown) {
+      std::cout << "[Bridge Daemon] Received shutdown command. Exiting." << std::endl;
+      break;
     }
   }
 
-  std::cout << "[Bridge Daemon] Shutting down..." << std::endl;
-  g_executor->cancel();
-  g_spin_thread.join();
-  rclcpp::shutdown();
   mq_close(mq_read);
-
   std::cout << "[Bridge Daemon] Daemon has finished." << std::endl;
   exit(EXIT_SUCCESS);
 }
