@@ -3,6 +3,52 @@
 namespace agnocast
 {
 
+void launch_bridge_daemon_process(
+  rclcpp::Logger logger, const std::string & shared_lib_path, const std::string & mangled_name,
+  const std::string & topic_name, const rclcpp::QoS & qos)
+{
+  std::string daemon_name = "agnocast_bridge_daemon";
+  std::string executable_path;
+  try {
+    std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
+    executable_path = package_prefix + "/lib/agnocastlib/" + daemon_name;
+  } catch (const ament_index_cpp::PackageNotFoundError & e) {
+    RCLCPP_ERROR(
+      logger, "Could not find package 'agnocastlib' to locate bridge daemon. Error: %s", e.what());
+    return;
+  }
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork() failed for bridge daemon: %s", strerror(errno));
+    return;
+  }
+
+  if (pid == 0) {
+    std::vector<std::string> string_args;
+    string_args.push_back(daemon_name);
+    string_args.push_back(shared_lib_path);
+    string_args.push_back(mangled_name);
+    string_args.push_back(topic_name);
+
+    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().history));
+    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().depth));
+    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().reliability));
+
+    std::vector<char *> argv;
+    for (auto & arg : string_args) {
+      argv.push_back(arg.data());
+    }
+
+    argv.push_back(nullptr);
+
+    execv(executable_path.c_str(), argv.data());
+    perror(("execv failed for " + executable_path).c_str());
+    _exit(EXIT_FAILURE);
+  }
+}
+
 SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topic_name)
 : id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
 {

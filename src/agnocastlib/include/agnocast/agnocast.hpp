@@ -22,10 +22,6 @@
 
 namespace agnocast
 {
-
-void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
-void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
-
 extern "C" void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
   const size_t heaphook_version_str_len);

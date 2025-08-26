@@ -3,11 +3,20 @@
 #include "agnocast/agnocast_publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <linux/limits.h>  // PATH_MAX を使うために追加
-#include <mqueue.h>
-
 #include <cstdint>
 #include <regex>
+
+struct BridgeArgs
+{
+  char topic_name[256];
+
+  int32_t qos_history;
+  int32_t qos_depth;
+  int32_t qos_reliability;
+};
+
+using BridgeFn =
+  void (*)(const BridgeArgs &, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
 
 namespace agnocast
 {
@@ -18,69 +27,37 @@ struct BridgeComponents
   rclcpp::SubscriptionBase::SharedPtr sub;
 };
 
-extern std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
 extern std::map<std::string, BridgeComponents> g_active_bridges;
 extern std::mutex g_bridges_mutex;
 
-struct QoSFlat
-{
-  uint32_t depth;
-  uint8_t history;
-  uint8_t reliability;
-  uint8_t durability;
-};
-
-struct BridgeArgs
-{
-  char topic_name[256];
-  QoSFlat qos;
-};
-
-struct ControlMsg
-{
-  enum Opcode : uint32_t {
-    StartBridge = 1,
-    Shutdown = 2,
-  };
-
-  uint32_t opcode;
-  char library_name[PATH_MAX];
-  uintptr_t function_offset;
-  BridgeArgs args;
-};
-
-using BridgeFn = void (*)(const BridgeArgs &);
-
-void bridge_daemon_main(mqd_t mq_read);
-
-inline rclcpp::QoS reconstruct_qos(const QoSFlat & q)
-{
-  rclcpp::QoS qos(q.depth);
-  if (q.history == 1) {
-    qos.keep_all();
-  }
-  if (q.reliability == 1) {
-    qos.reliable();
-  } else if (q.reliability == 2) {
-    qos.best_effort();
-  }
-  if (q.durability == 1) {
-    qos.transient_local();
-  }
-  return qos;
-}
+template <typename MessageT>
+void bridge_entry(
+  const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
 
 template <typename MessageT>
-void bridge_entry(const BridgeArgs & args);
-
-template <typename MessageT>
-void start_bridge_node(const BridgeArgs & args)
+void start_bridge_node(
+  const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor)
 {
   try {
     std::cout << "[Debug] Entering start_bridge_node..." << std::endl;
 
     std::string topic_name(args.topic_name);
-    rclcpp::QoS qos = reconstruct_qos(args.qos);
+
+    // 引数からQoSプロファイルを復元する
+    rclcpp::QoS qos(
+      rclcpp::QoSInitialization::from_rmw(
+        {static_cast<rmw_qos_history_policy_t>(args.qos_history),
+         static_cast<size_t>(args.qos_depth),
+         static_cast<rmw_qos_reliability_policy_t>(args.qos_reliability),
+         RMW_QOS_POLICY_DURABILITY_VOLATILE,
+         {}}));
+
+    std::cout << "[Debug] Reconstructed QoS - history: " << args.qos_history
+              << ", depth: " << args.qos_depth << ", reliability: " << args.qos_reliability
+              << std::endl;
+
+    std::cout << "[Debug] Topic name :" << topic_name << std::endl;
+
     auto node_name = "agnocast_bridge" + std::regex_replace(topic_name, std::regex("/"), "_");
 
     std::cout << "[Debug] 1. Creating Node..." << std::endl;
@@ -91,20 +68,23 @@ void start_bridge_node(const BridgeArgs & args)
     auto agnocast_pub =
       std::make_shared<agnocast::Publisher<MessageT>>(node.get(), topic_name, qos, pub_options);
 
-        std::cout << "[Debug] 3. Creating ROS 2 Subscription..." << std::endl;
+    std::cout << "[Debug] 3. Creating ROS 2 Subscription..." << std::endl;
     auto callback = [agnocast_pub, node](const typename MessageT::ConstSharedPtr msg) {
-      RCLCPP_INFO(node->get_logger(), "[Bridge Daemon Callback] Message Received!");
+      // RCLCPP_INFO(node->get_logger(), "[Bridge Daemon Callback] Message Received!");
 
       auto loaned_msg = agnocast_pub->borrow_loaned_message();
-      RCLCPP_INFO(node->get_logger(), "Address of msg: %p", (void *)msg.get());
-      RCLCPP_INFO(
-        node->get_logger(), "Address of loaned_msg before copy: %p", (void *)loaned_msg.get());
+      // RCLCPP_INFO(node->get_logger(), "Address of msg: %p", (void *)msg.get());
+      // RCLCPP_INFO(
+      //   node->get_logger(), "Address of loaned_msg before copy: %p", (void *)loaned_msg.get());
       *loaned_msg = *msg;
-      RCLCPP_INFO(
-        node->get_logger(), "Address of loaned_msg after copy: %p", (void *)loaned_msg.get());
+      // RCLCPP_INFO(
+      //   node->get_logger(), "Address of loaned_msg after copy: %p", (void *)loaned_msg.get());
       agnocast_pub->publish(std::move(loaned_msg));
     };
-    auto sub = node->create_subscription<MessageT>(topic_name, qos, callback);
+
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.ignore_local_publications = true;
+    auto sub = node->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
 
     {
       std::lock_guard<std::mutex> lock(g_bridges_mutex);
@@ -112,10 +92,14 @@ void start_bridge_node(const BridgeArgs & args)
     }
 
     std::cout << "[Debug] 4. Adding node to executor..." << std::endl;
-    g_executor->add_node(node);
+    if (!rclcpp::ok()) {
+      std::cerr << "[Bridge Daemon CRITICAL ERROR] rclcpp context is NOT ok before add_node!"
+                << std::endl;
+      return;
+    }
+    executor->add_node(node);
 
-    std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << topic_name
-              << std::endl;
+    std::cout << "[Bridge Daemon] Successfully started bridge" << std::endl;
 
   } catch (const std::exception & e) {
     std::cerr << "[Bridge Daemon CRITICAL ERROR] An exception occurred in start_bridge_node: "
@@ -128,9 +112,10 @@ void start_bridge_node(const BridgeArgs & args)
 }
 
 template <typename MessageT>
-void bridge_entry(const BridgeArgs & args)
+void bridge_entry(
+  const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor)
 {
-  start_bridge_node<MessageT>(args);
+  start_bridge_node<MessageT>(args, executor);
 }
 
 }  // namespace agnocast

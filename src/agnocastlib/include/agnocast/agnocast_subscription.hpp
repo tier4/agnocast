@@ -7,6 +7,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
+#include "ament_index_cpp/get_package_prefix.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -35,16 +36,9 @@ extern int g_bridge_notification_fd;
 
 extern mqd_t get_bridge_mq();
 
-inline QoSFlat flatten_qos(const rclcpp::QoS & qos)
-{
-  QoSFlat out{};
-  const auto & rmw_qos = qos.get_rmw_qos_profile();
-  out.depth = rmw_qos.depth;
-  out.history = (rmw_qos.history == RMW_QOS_POLICY_HISTORY_KEEP_ALL) ? 1 : 0;
-  out.reliability = (rmw_qos.reliability == RMW_QOS_POLICY_RELIABILITY_RELIABLE) ? 1 : 2;
-  out.durability = (rmw_qos.durability == RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL) ? 1 : 2;
-  return out;
-}
+void launch_bridge_daemon_process(
+  rclcpp::Logger logger, const std::string & shared_lib_path, const std::string & mangled_name,
+  const std::string & topic_name, const rclcpp::QoS & qos);
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
@@ -81,24 +75,6 @@ struct PhdrCallbackData
   uintptr_t offset;
 };
 
-static int find_offset_callback(struct dl_phdr_info * info, size_t /*size*/, void * data)
-{
-  PhdrCallbackData * callback_data = (PhdrCallbackData *)data;
-  for (int j = 0; j < info->dlpi_phnum; j++) {
-    const ElfW(Phdr) * phdr = &info->dlpi_phdr[j];
-    if (phdr->p_type == PT_LOAD) {
-      uintptr_t start_addr = info->dlpi_addr + phdr->p_vaddr;
-      uintptr_t end_addr = start_addr + phdr->p_memsz;
-      if (callback_data->target_addr >= start_addr && callback_data->target_addr < end_addr) {
-        callback_data->lib_name = info->dlpi_name;
-        callback_data->offset = callback_data->target_addr - info->dlpi_addr;
-        return 1;
-      }
-    }
-  }
-  return 0;
-}
-
 template <typename MessageT>
 class Subscription : public SubscriptionBase
 {
@@ -124,43 +100,20 @@ public:
     if (get_subscriber_count_args.ret_subscriber_num == 0) {
       RCLCPP_INFO(
         logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
-      {
-        ControlMsg msg{};
-        msg.opcode = ControlMsg::StartBridge;
 
-        uintptr_t func_ptr = reinterpret_cast<uintptr_t>(&bridge_entry<MessageT>);
+      auto fn = &bridge_entry<MessageT>;
 
-        PhdrCallbackData callback_data = {func_ptr, nullptr, 0};
-        dl_iterate_phdr(find_offset_callback, &callback_data);
-
-        if (callback_data.lib_name == nullptr || callback_data.lib_name[0] == '\0') {
-          RCLCPP_FATAL(
-            node->get_logger(),
-            "Could not find library for the bridge function! This is a critical error.");
-          exit(EXIT_FAILURE);
-        }
-
-        strncpy(msg.library_name, callback_data.lib_name, sizeof(msg.library_name) - 1);
-        msg.library_name[sizeof(msg.library_name) - 1] = '\0';
-        msg.function_offset = callback_data.offset;
-
-        std::snprintf(msg.args.topic_name, sizeof(msg.args.topic_name), "%s", topic_name_.c_str());
-        msg.args.qos = flatten_qos(qos);
-
-        RCLCPP_INFO(
-          node->get_logger(), "[Parent Debug] Sending library '%s' with offset 0x%lx",
-          msg.library_name, msg.function_offset);
-
-        mqd_t mq = get_bridge_mq();
-        if (mq != (mqd_t)-1) {
-          if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) != 0) {
-            RCLCPP_ERROR(
-              node->get_logger(), "mq_send to bridge daemon failed: %s", strerror(errno));
-          }
-        } else {
-          RCLCPP_ERROR(node->get_logger(), "Bridge message queue is not ready.");
-        }
+      Dl_info info{};
+      if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
+        throw std::runtime_error("dladdr failed");
       }
+
+      std::cout << "Library: " << info.dli_fname << std::endl;
+      std::cout << "Symbol: " << info.dli_sname << std::endl;
+
+      launch_bridge_daemon_process(
+        node->get_logger(), info.dli_fname, info.dli_sname, topic_name_, qos);
+      RCLCPP_INFO(logger, "Bridge daemon launched for topic: %s", topic_name_.c_str());
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =

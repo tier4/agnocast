@@ -5,12 +5,9 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
-#include <fcntl.h>   // O_CREAT, O_RDWR などのフラグに必要
-#include <mqueue.h>  // mqueue を使うために必要
 #include <sys/types.h>
 
 #include <atomic>
-#include <csignal>  // signal を使うために追加
 #include <cstdint>
 #include <mutex>
 
@@ -18,11 +15,6 @@ namespace agnocast
 {
 int g_bridge_notification_fd = -1;
 int agnocast_fd = -1;
-
-mqd_t get_bridge_mq()
-{
-  return static_cast<mqd_t>(g_bridge_notification_fd);
-}
 
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
@@ -257,20 +249,6 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
-static void signal_handler(int signum)
-{
-  if (signum == SIGINT) {
-    std::cout << "[Agnocast Parent] SIGINT received. Notifying daemon to shut down." << std::endl;
-    ControlMsg msg{};
-    msg.opcode = ControlMsg::Shutdown;
-
-    mqd_t mq = get_bridge_mq();
-    if (mq != (mqd_t)-1) {
-      mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0);
-    }
-  }
-}
-
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -287,8 +265,6 @@ void * initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  signal(SIGINT, signal_handler);
-
   struct ioctl_get_version_args get_version_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_GET_VERSION_CMD, &get_version_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_GET_VERSION_CMD failed: %s", strerror(errno));
@@ -299,47 +275,6 @@ void * initialize_agnocast(
   if (!is_version_consistent(heaphook_version_ptr, heaphook_version_str_len, get_version_args)) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
-  }
-
-  const char * mq_name = "/agnocast_bridge_ctl";
-  struct mq_attr attr;
-  attr.mq_flags = 0;
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = sizeof(ControlMsg);
-
-  mq_unlink(mq_name);
-
-  mqd_t mq = mq_open(mq_name, O_CREAT | O_RDWR, 0660, &attr);
-  if (mq == (mqd_t)-1) {
-    RCLCPP_ERROR(logger, "mq_open for creation failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-  mq_close(mq);
-
-  pid_t pid = fork();
-
-  if (pid < 0) {
-    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  if (pid == 0) {
-    mqd_t mq_read = mq_open(mq_name, O_RDONLY);
-    if (mq_read == (mqd_t)-1) {
-      exit(EXIT_FAILURE);
-    }
-    bridge_daemon_main(mq_read);
-    exit(EXIT_SUCCESS);
-  } else {
-    RCLCPP_INFO(logger, "Forked the bridge daemon process with PID: %d", pid);
-    mqd_t mq_write = mq_open(mq_name, O_WRONLY);
-    if (mq_write == (mqd_t)-1) {
-      RCLCPP_ERROR(logger, "mq_open for parent failed: %s", strerror(errno));
-      exit(EXIT_FAILURE);
-    }
-    g_bridge_notification_fd = mq_write;
   }
 
   union ioctl_add_process_args add_process_args = {};

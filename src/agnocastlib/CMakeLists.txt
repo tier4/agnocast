@@ -60,8 +60,22 @@ target_link_libraries(agnocast_component_container_mt
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
+add_executable(agnocast_bridge_daemon
+  src/agnocast_bridge_daemon.cpp
+)
+
+ament_target_dependencies(agnocast_bridge_daemon
+  "rclcpp"
+)
+
+target_include_directories(agnocast_bridge_daemon
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
 install(
-  TARGETS agnocast_component_container agnocast_component_container_mt
+  TARGETS agnocast_component_container agnocast_component_container_mt agnocast_bridge_daemon
   DESTINATION lib/${PROJECT_NAME}
 )
 
