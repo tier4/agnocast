@@ -112,10 +112,6 @@ int main(int argc, char * argv[])
   const char * mangled_name = argv[2];
   const std::string topic_name = argv[3];
 
-  std::cout << "Daemon process started, trying to call shared library: " << shared_lib_path
-            << std::endl;
-  std::cout << "Daemon process started, trying to call symbol: " << mangled_name << std::endl;
-
   void * handle = dlopen(shared_lib_path, RTLD_NOW | RTLD_GLOBAL);
   if (!handle) {
     std::cerr << "[Daemon] dlopen failed: " << dlerror() << std::endl;
@@ -131,9 +127,7 @@ int main(int argc, char * argv[])
 
   BridgeFn bridge_function = reinterpret_cast<BridgeFn>(func_ptr);
 
-  std::cout << "[Daemon] Function resolved. Calling it now." << std::endl;
-
-  BridgeArgs args{};  // ゼロ初期化
+  BridgeArgs args{};
   strncpy(args.topic_name, argv[3], sizeof(args.topic_name) - 1);
   args.qos_history = std::stoi(argv[4]);
   args.qos_depth = std::stoi(argv[5]);

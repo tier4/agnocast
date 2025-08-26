@@ -87,9 +87,6 @@ public:
     }
 
     if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      RCLCPP_INFO(
-        logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
-
       auto fn = &bridge_entry<MessageT>;
 
       Dl_info info{};
@@ -97,12 +94,8 @@ public:
         throw std::runtime_error("dladdr failed");
       }
 
-      std::cout << "Library: " << info.dli_fname << std::endl;
-      std::cout << "Symbol: " << info.dli_sname << std::endl;
-
       launch_bridge_daemon_process(
         node->get_logger(), info.dli_fname, info.dli_sname, topic_name_, qos);
-      RCLCPP_INFO(logger, "Bridge daemon launched for topic: %s", topic_name_.c_str());
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =
