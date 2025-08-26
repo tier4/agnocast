@@ -34,6 +34,12 @@ template <typename MessageT>
 void bridge_entry(
   const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
 
+inline std::string generate_node_name(const std::string & topic_name)
+{
+  constexpr const char * prefix = "agnocast_bridge";
+  return prefix + std::regex_replace(topic_name, std::regex("/"), "_");
+}
+
 template <typename MessageT>
 void start_bridge_node(
   const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor)
@@ -48,7 +54,7 @@ void start_bridge_node(
        RMW_QOS_POLICY_DURABILITY_VOLATILE,
        {}}));
 
-  auto node_name = "agnocast_bridge" + std::regex_replace(topic_name, std::regex("/"), "_");
+  auto node_name = agnocast::generate_node_name(topic_name);
 
   auto node = std::make_shared<rclcpp::Node>(node_name);
 

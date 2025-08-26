@@ -9,12 +9,27 @@
 
 #include <csignal>
 
-namespace agnocast
+class DynamicLibraryGuard
 {
+public:
+  explicit DynamicLibraryGuard(const char * path) : handle_(dlopen(path, RTLD_NOW | RTLD_GLOBAL)) {}
+  ~DynamicLibraryGuard()
+  {
+    if (handle_) {
+      dlclose(handle_);
+    }
+  }
 
-std::map<std::string, BridgeComponents> g_active_bridges;
-std::mutex g_bridges_mutex;
+  void * get() const { return handle_; }
 
+  DynamicLibraryGuard(const DynamicLibraryGuard &) = delete;
+  DynamicLibraryGuard & operator=(const DynamicLibraryGuard &) = delete;
+
+private:
+  void * handle_;
+};
+
+// Temporary implementation.
 class FileDescriptorGuard
 {
 public:
@@ -39,9 +54,15 @@ private:
   int fd_;
 };
 
+namespace agnocast
+{
+
+std::map<std::string, BridgeComponents> g_active_bridges;
+std::mutex g_bridges_mutex;
+
+// Temporary implementation.
 void monitor_subscriber_count(const std::string & topic_name)
 {
-  // Use the RAII wrapper to manage the file descriptor.
   FileDescriptorGuard agnocast_fd("/dev/agnocast");
   if (!agnocast_fd.isValid()) {
     std::cerr << "Failed to open /dev/agnocast: " << strerror(errno) << std::endl;
@@ -58,8 +79,7 @@ void monitor_subscriber_count(const std::string & topic_name)
       if (get_subscriber_count_args.ret_subscriber_num == 0) {
         std::cerr << "Subscriber count for topic '" << topic_name << "' is 0. Shutting down daemon."
                   << std::endl;
-        rclcpp::shutdown();  // Trigger shutdown
-        break;
+        rclcpp::shutdown();
       }
     } else {
       std::cerr << "ioctl to get subscriber count failed: " << strerror(errno) << std::endl;
@@ -67,7 +87,6 @@ void monitor_subscriber_count(const std::string & topic_name)
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
-  // The file descriptor is automatically closed here by the FileDescriptorGuard destructor.
 }
 
 }  // namespace agnocast
@@ -78,70 +97,86 @@ void signal_handler(int signum)
   rclcpp::shutdown();
 }
 
-int main(int argc, char * argv[])
+bool parse_arguments(
+  int argc, char * argv[], BridgeArgs & args, std::string & lib_path, std::string & mangled_name)
+{
+  if (argc < 7) {
+    std::cerr << "[Bridge Daemon] Error: Not enough arguments." << std::endl;
+    return false;
+  }
+
+  lib_path = argv[1];
+  mangled_name = argv[2];
+  std::string topic_name_str = argv[3];
+
+  snprintf(args.topic_name, sizeof(args.topic_name), "%s", topic_name_str.c_str());
+
+  try {
+    args.qos_history = std::stoi(argv[4]);
+    args.qos_depth = std::stoi(argv[5]);
+    args.qos_reliability = std::stoi(argv[6]);
+  } catch (const std::exception & e) {
+    std::cerr << "[Bridge Daemon] Error: Invalid QoS arguments. " << e.what() << std::endl;
+    return false;
+  }
+  return true;
+}
+
+void setup_process()
 {
   if (setsid() == -1) {
     perror("setsid failed");
-    return EXIT_FAILURE;
+    exit(EXIT_FAILURE);
   }
 
-  struct sigaction sa;
+  struct sigaction sa = {};
   sa.sa_handler = signal_handler;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
   sigaction(SIGINT, &sa, nullptr);
   sigaction(SIGTERM, &sa, nullptr);
+}
 
+int main(int argc, char * argv[])
+{
+  setup_process();
   std::cout << "[Bridge Daemon] Started with PID: " << getpid() << std::endl;
 
-  if (argc < 7) {  // 引数は argv[0], argv[1], argv[2], argv[3]
-    std::cerr << "Error: Usage: " << argv[0] << " <shared_lib_path> <mangled_name> <topic_name>"
-              << std::endl;
+  BridgeArgs args{};
+  std::string shared_lib_path, mangled_name;
+  if (!parse_arguments(argc, argv, args, shared_lib_path, mangled_name)) {
     return EXIT_FAILURE;
   }
 
-  rclcpp::init(0, nullptr);
-
-  auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
-
-  const char * shared_lib_path = argv[1];
-  const char * mangled_name = argv[2];
-  const std::string topic_name = argv[3];
-
-  void * handle = dlopen(shared_lib_path, RTLD_NOW | RTLD_GLOBAL);
-  if (!handle) {
+  DynamicLibraryGuard library(shared_lib_path.c_str());
+  if (!library.get()) {
     std::cerr << "[Bridge Daemon] dlopen failed: " << dlerror() << std::endl;
     return EXIT_FAILURE;
   }
 
-  void * func_ptr = dlsym(handle, mangled_name);
+  void * func_ptr = dlsym(library.get(), mangled_name.c_str());
   if (!func_ptr) {
     std::cerr << "[Bridge Daemon] dlsym failed: " << dlerror() << std::endl;
-    dlclose(handle);
     return EXIT_FAILURE;
   }
+  auto bridge_function = reinterpret_cast<BridgeFn>(func_ptr);
 
-  BridgeFn bridge_function = reinterpret_cast<BridgeFn>(func_ptr);
-
-  BridgeArgs args{};
-  strncpy(args.topic_name, argv[3], sizeof(args.topic_name) - 1);
-  args.qos_history = std::stoi(argv[4]);
-  args.qos_depth = std::stoi(argv[5]);
-  args.qos_reliability = std::stoi(argv[6]);
+  rclcpp::init(0, nullptr);
+  auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
 
   bridge_function(args, executor);
+  std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << args.topic_name
+            << std::endl;
 
-  std::cout << "[Bridge Daemon] Successfully started bridge_function" << std::endl;
-
-  std::thread monitor_thread(agnocast::monitor_subscriber_count, std::ref(topic_name));
+  std::thread monitor_thread(agnocast::monitor_subscriber_count, std::string(args.topic_name));
 
   executor->spin();
+  rclcpp::shutdown();
 
   if (monitor_thread.joinable()) {
     monitor_thread.join();
   }
 
-  std::cout << "[Bridge Daemon] Shutting down for topic: " << topic_name << std::endl;
-  dlclose(handle);
-  exit(EXIT_SUCCESS);
+  std::cout << "[Bridge Daemon] Shutting down for topic: " << args.topic_name << std::endl;
+
+  return EXIT_SUCCESS;
 }
