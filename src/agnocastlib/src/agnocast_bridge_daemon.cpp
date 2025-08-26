@@ -92,7 +92,7 @@ int main(int argc, char * argv[])
   sigaction(SIGINT, &sa, nullptr);
   sigaction(SIGTERM, &sa, nullptr);
 
-  std::cout << "Bridge daemon process started with PID: " << getpid() << std::endl;
+  std::cout << "[Bridge Daemon] Started with PID: " << getpid() << std::endl;
 
   if (argc < 7) {  // 引数は argv[0], argv[1], argv[2], argv[3]
     std::cerr << "Error: Usage: " << argv[0] << " <shared_lib_path> <mangled_name> <topic_name>"
@@ -110,13 +110,13 @@ int main(int argc, char * argv[])
 
   void * handle = dlopen(shared_lib_path, RTLD_NOW | RTLD_GLOBAL);
   if (!handle) {
-    std::cerr << "[Daemon] dlopen failed: " << dlerror() << std::endl;
+    std::cerr << "[Bridge Daemon] dlopen failed: " << dlerror() << std::endl;
     return EXIT_FAILURE;
   }
 
   void * func_ptr = dlsym(handle, mangled_name);
   if (!func_ptr) {
-    std::cerr << "[Daemon] dlsym failed: " << dlerror() << std::endl;
+    std::cerr << "[Bridge Daemon] dlsym failed: " << dlerror() << std::endl;
     dlclose(handle);
     return EXIT_FAILURE;
   }
@@ -131,17 +131,17 @@ int main(int argc, char * argv[])
 
   bridge_function(args, executor);
 
+  std::cout << "[Bridge Daemon] Successfully started bridge_function" << std::endl;
+
   std::thread monitor_thread(agnocast::monitor_subscriber_count, std::ref(topic_name));
 
-  std::cout << "[Bridge Process] Starting executor spin for topic: " << std::endl;
   executor->spin();
 
   if (monitor_thread.joinable()) {
-    std::cout << "[Bridge Process] Waiting for monitor thread to finish." << std::endl;
     monitor_thread.join();
   }
 
-  std::cout << "[Bridge Process] Shutting down for topic: " << topic_name << std::endl;
+  std::cout << "[Bridge Daemon] Shutting down for topic: " << topic_name << std::endl;
   dlclose(handle);
   exit(EXIT_SUCCESS);
 }

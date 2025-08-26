@@ -33,8 +33,8 @@ namespace agnocast
 extern std::mutex mmap_mtx;
 
 void launch_bridge_daemon_process(
-  rclcpp::Logger logger, const std::string & shared_lib_path, const std::string & mangled_name,
-  const std::string & topic_name, const rclcpp::QoS & qos);
+  const rclcpp::Logger & logger, const std::string & shared_lib_path,
+  const std::string & mangled_name, const std::string & topic_name, const rclcpp::QoS & qos);
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
@@ -78,26 +78,7 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
-    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
-    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      auto fn = &bridge_entry<MessageT>;
-
-      Dl_info info{};
-      if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
-        throw std::runtime_error("dladdr failed");
-      }
-
-      launch_bridge_daemon_process(
-        node->get_logger(), info.dli_fname, info.dli_sname, topic_name_, qos);
-    }
-
+    start_bridge_daemon_if_needed(node, qos);
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
@@ -122,6 +103,30 @@ public:
   }
 
   ~Subscription() { remove_mq(mq_subscription_); }
+
+private:
+  void start_bridge_daemon_if_needed(rclcpp::Node * node, const rclcpp::QoS & qos)
+  {
+    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (get_subscriber_count_args.ret_subscriber_num == 0) {
+      auto fn = &bridge_entry<MessageT>;
+
+      Dl_info info{};
+      if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
+        throw std::runtime_error("dladdr failed");
+      }
+
+      launch_bridge_daemon_process(
+        node->get_logger(), info.dli_fname, info.dli_sname, topic_name_, qos);
+    }
+  }
 };
 
 template <typename MessageT>

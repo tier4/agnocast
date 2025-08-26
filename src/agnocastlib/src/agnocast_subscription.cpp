@@ -4,8 +4,8 @@ namespace agnocast
 {
 
 void launch_bridge_daemon_process(
-  rclcpp::Logger logger, const std::string & shared_lib_path, const std::string & mangled_name,
-  const std::string & topic_name, const rclcpp::QoS & qos)
+  const rclcpp::Logger & logger, const std::string & shared_lib_path,
+  const std::string & mangled_name, const std::string & topic_name, const rclcpp::QoS & qos)
 {
   std::string daemon_name = "agnocast_bridge_daemon";
   std::string executable_path;
@@ -26,21 +26,21 @@ void launch_bridge_daemon_process(
   }
 
   if (pid == 0) {
-    std::vector<std::string> string_args;
-    string_args.push_back(daemon_name);
-    string_args.push_back(shared_lib_path);
-    string_args.push_back(mangled_name);
-    string_args.push_back(topic_name);
-
-    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().history));
-    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().depth));
-    string_args.push_back(std::to_string(qos.get_rmw_qos_profile().reliability));
+    const auto & rmw_qos = qos.get_rmw_qos_profile();
+    std::vector<std::string> string_args = {
+      daemon_name,
+      shared_lib_path,
+      mangled_name,
+      topic_name,
+      std::to_string(rmw_qos.history),
+      std::to_string(rmw_qos.depth),
+      std::to_string(rmw_qos.reliability)};
 
     std::vector<char *> argv;
+    argv.reserve(string_args.size() + 1);
     for (auto & arg : string_args) {
       argv.push_back(arg.data());
     }
-
     argv.push_back(nullptr);
 
     execv(executable_path.c_str(), argv.data());
