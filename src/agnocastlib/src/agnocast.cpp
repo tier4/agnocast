@@ -13,7 +13,6 @@
 
 namespace agnocast
 {
-int g_bridge_notification_fd = -1;
 int agnocast_fd = -1;
 
 std::vector<int> shm_fds;
@@ -148,9 +147,15 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver{};
-  struct semver heaphook_ver{};
-  struct semver kmod_ver{};
+  struct semver lib_ver
+  {
+  };
+  struct semver heaphook_ver
+  {
+  };
+  struct semver kmod_ver
+  {
+  };
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -305,9 +310,6 @@ void * initialize_agnocast(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-
-  std::cerr << "[Main Process] Mapped memory pool at address: " << std::hex
-            << reinterpret_cast<uintptr_t>(mempool_ptr) << std::endl;
 
   return mempool_ptr;
 }

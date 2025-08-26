@@ -11,7 +11,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
-#include <link.h>  // dl_iterate_phdr を使うために追加
+#include <link.h>
 #include <mqueue.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -31,10 +31,6 @@ namespace agnocast
 {
 
 extern std::mutex mmap_mtx;
-
-extern int g_bridge_notification_fd;
-
-extern mqd_t get_bridge_mq();
 
 void launch_bridge_daemon_process(
   rclcpp::Logger logger, const std::string & shared_lib_path, const std::string & mangled_name,
@@ -66,13 +62,6 @@ protected:
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
-};
-
-struct PhdrCallbackData
-{
-  uintptr_t target_addr;
-  const char * lib_name;
-  uintptr_t offset;
 };
 
 template <typename MessageT>
