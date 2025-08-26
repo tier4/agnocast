@@ -1,14 +1,10 @@
 #include "agnocast/agnocast_bridge_daemon.hpp"
 
-#include "agnocast/agnocast.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <link.h>
-#include <mqueue.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <csignal>
