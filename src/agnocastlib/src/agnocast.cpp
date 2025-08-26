@@ -12,6 +12,7 @@
 
 namespace agnocast
 {
+
 int agnocast_fd = -1;
 std::vector<int> shm_fds;
 std::mutex shm_fds_mtx;
