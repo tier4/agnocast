@@ -17,17 +17,18 @@ pub struct TLSFAllocator {
     inner: Mutex<TlsfType>,
 }
 
-impl TLSFAllocator {
-    pub fn new(pool: &'static mut [MaybeUninit<u8>]) -> Self {
+unsafe impl AgnocastSharedMemoryAllocator for TLSFAllocator {
+    fn new(pool: &'static mut [u8]) -> Self {
+        let pool = unsafe {
+            std::slice::from_raw_parts_mut(pool.as_mut_ptr() as *mut MaybeUninit<u8>, pool.len())
+        };
         let mut tlsf: TlsfType = Tlsf::new();
         tlsf.insert_free_block(pool);
         Self {
             inner: Mutex::new(tlsf),
         }
     }
-}
 
-unsafe impl AgnocastSharedMemoryAllocator for TLSFAllocator {
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>> {
         // `alignment` must be at least `POINTER_ALIGN` to ensure that `aligned_ptr` is properly aligned to store a pointer.
         let alignment = layout.align().max(POINTER_ALIGN);

@@ -140,6 +140,7 @@ extern "C" fn post_fork_handler_in_child() {
 static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
 
 unsafe trait AgnocastSharedMemoryAllocator {
+    fn new(pool: &'static mut [u8]) -> Self;
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
     fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
     fn deallocate(&self, ptr: NonNull<u8>);
@@ -174,9 +175,7 @@ fn init_tlsf() {
         initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
     };
 
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
+    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
 
     MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
@@ -424,9 +423,7 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 fn init_tlsf() {
     let mempool_size = 1024 * 1024;
     let mempool_ptr = 0x121000000000 as *mut c_void;
-    let pool = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
+    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
 
     let shm_fd = unsafe {
         libc::shm_open(
