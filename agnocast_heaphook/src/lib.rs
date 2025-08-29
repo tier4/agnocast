@@ -250,7 +250,17 @@ impl AgnocastSharedMemory {
 
 static AGNOCAST_SHARED_MEMORY: OnceLock<AgnocastSharedMemory> = OnceLock::new();
 
-static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
+struct AgnocastSharedMemoryAllocator<A: SharedMemoryAllocator>(A);
+
+impl<A: SharedMemoryAllocator> AgnocastSharedMemoryAllocator<A> {
+    #[inline]
+    fn new(shm: &'static AgnocastSharedMemory) -> Self {
+        Self(A::new(shm))
+    }
+}
+
+static AGNOCAST_SHARED_MEMORY_ALLOCATOR: OnceLock<AgnocastSharedMemoryAllocator<TLSFAllocator>> =
+    OnceLock::new();
 
 #[inline]
 fn is_shared(ptr: *const u8) -> bool {
@@ -331,11 +341,13 @@ pub unsafe extern "C" fn __libc_start_main(
         panic!("[ERROR] [Agnocast] Shared memory has already been initialized.");
     }
 
-    if TLSF
-        .set(TLSFAllocator::new(AGNOCAST_SHARED_MEMORY.get().unwrap()))
+    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .set(AgnocastSharedMemoryAllocator::new(
+            AGNOCAST_SHARED_MEMORY.get().unwrap(),
+        ))
         .is_err()
     {
-        panic!("[ERROR] [Agnocast] TLSF is already initialized.");
+        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized.");
     }
 
     (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
@@ -356,7 +368,12 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .0
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => ptr::null_mut(),
     }
@@ -377,7 +394,11 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
 
     match (is_shared, is_forked_child) {
         (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => TLSF.get().unwrap().deallocate(non_null_ptr),
+        (true, false) => AGNOCAST_SHARED_MEMORY_ALLOCATOR
+            .get()
+            .unwrap()
+            .0
+            .deallocate(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
@@ -396,7 +417,12 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .0
+        .allocate(layout)
+    {
         Some(non_null_ptr) => {
             let ptr = non_null_ptr.as_ptr();
             unsafe {
@@ -432,18 +458,32 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 Some(non_null_ptr) => {
                     // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
                     if new_layout.size() == 0 {
-                        TLSF.get().unwrap().deallocate(non_null_ptr);
+                        AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                            .get()
+                            .unwrap()
+                            .0
+                            .deallocate(non_null_ptr);
                         return ptr::null_mut();
                     }
 
-                    match TLSF.get().unwrap().reallocate(non_null_ptr, new_layout) {
+                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                        .get()
+                        .unwrap()
+                        .0
+                        .reallocate(non_null_ptr, new_layout)
+                    {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
                 }
                 None => {
                     // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
-                    match TLSF.get().unwrap().allocate(new_layout) {
+                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                        .get()
+                        .unwrap()
+                        .0
+                        .allocate(new_layout)
+                    {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
@@ -474,7 +514,12 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         Err(_) => return libc::ENOMEM,
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .0
+        .allocate(layout)
+    {
         Some(non_null_ptr) => {
             *memptr = non_null_ptr.as_ptr().cast();
             0
@@ -501,7 +546,12 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .0
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
@@ -521,7 +571,12 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .0
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
