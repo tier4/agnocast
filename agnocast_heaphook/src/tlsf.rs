@@ -6,7 +6,7 @@ use std::{
     sync::{atomic::Ordering, Mutex},
 };
 
-use crate::{AgnocastSharedMemory, AgnocastSharedMemoryAllocator};
+use crate::{AgnocastSharedMemory, SharedMemoryAllocator};
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
@@ -22,7 +22,7 @@ pub struct TLSFAllocator {
     inner: Mutex<TlsfType>,
 }
 
-unsafe impl AgnocastSharedMemoryAllocator for TLSFAllocator {
+unsafe impl SharedMemoryAllocator for TLSFAllocator {
     fn new(shm: &'static AgnocastSharedMemory) -> Self {
         let mempool_ptr = shm.start.load(Ordering::Relaxed) as *mut MaybeUninit<u8>;
         let mempool_size = shm.end.load(Ordering::Relaxed) - shm.start.load(Ordering::Relaxed);

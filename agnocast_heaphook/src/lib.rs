@@ -235,7 +235,7 @@ static AGNOCAST_SHARED_MEMORY: AgnocastSharedMemory = AgnocastSharedMemory {
 
 static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
 
-unsafe trait AgnocastSharedMemoryAllocator {
+unsafe trait SharedMemoryAllocator {
     fn new(shm: &'static AgnocastSharedMemory) -> Self;
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
     fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
