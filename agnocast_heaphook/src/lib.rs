@@ -422,9 +422,9 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 
 #[cfg(test)]
 fn init_tlsf() {
-    let mempool_size: usize = 1024 * 1024;
-    let mempool_ptr: *mut c_void = 0x121000000000 as *mut c_void;
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
+    let mempool_size = 1024 * 1024;
+    let mempool_ptr = 0x121000000000 as *mut c_void;
+    let pool = unsafe {
         std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
     };
 
@@ -437,8 +437,10 @@ fn init_tlsf() {
             0o600,
         )
     };
+    assert!(shm_fd != -1);
 
-    unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+    let result = unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+    assert!(result != -1);
 
     let mmap_ptr = unsafe {
         libc::mmap(
@@ -450,20 +452,21 @@ fn init_tlsf() {
             0,
         )
     };
+    assert!(mmap_ptr != libc::MAP_FAILED);
 
-    unsafe {
+    let result = unsafe {
         libc::shm_unlink(
             CStr::from_bytes_with_nul(b"/agnocast_test\0")
                 .unwrap()
                 .as_ptr(),
         )
     };
+    assert!(result != -1);
 
     MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
 
-    // FIXME
-    TLSF.set(TLSFAllocator::new(pool));
+    assert!(TLSF.set(TLSFAllocator::new(pool)).is_ok())
 }
 
 #[cfg(test)]
