@@ -265,10 +265,10 @@ fn is_shared(ptr: *const u8) -> bool {
 ///
 /// # Safety
 ///
-/// The `AgnocastSharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
+/// The `SharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
 ///
 /// * The memory allocator must not unwind. A panic in any of its functions may lead to memory unsafety.
-unsafe trait AgnocastSharedMemoryAllocator {
+unsafe trait SharedMemoryAllocator {
     /// Initializes the allocator with the given `shm`.
     fn new(shm: &'static AgnocastSharedMemory) -> Self;
 
@@ -276,7 +276,7 @@ unsafe trait AgnocastSharedMemoryAllocator {
     ///
     /// # Safety
     ///
-    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `AgnocastSharedMemoryAllocator::new`
+    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `SharedMemoryAllocator::new`
     /// and satisfy the requirements of `layout`.
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
 
@@ -285,7 +285,7 @@ unsafe trait AgnocastSharedMemoryAllocator {
     /// # Safety
     ///
     /// * `ptr` must denote a block of memory currently allocated via this allocator.
-    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `AgnocastSharedMemoryAllocator::new`
+    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `SharedMemoryAllocator::new`
     /// and satisfy the requirements of `new_layout`.
     fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
 
