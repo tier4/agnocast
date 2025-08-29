@@ -1,9 +1,9 @@
 use core::panic;
 use std::{
     alloc::Layout,
-    ffi::{CStr, CString},
+    ffi::CStr,
     mem::size_of,
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_int, c_void},
     ptr::{self, NonNull},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -14,15 +14,6 @@ use std::{
 use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
-
-extern "C" {
-    fn initialize_agnocast(
-        size: usize,
-        version: *const c_char,
-        version_str_length: usize,
-    ) -> *mut c_void;
-    fn agnocast_get_borrowed_publisher_num() -> u32;
-}
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 #[allow(clippy::if_same_then_else)]
@@ -132,6 +123,7 @@ fn init_original_memalign() -> MemalignType {
 
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
 
+#[cfg(not(test))]
 extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
@@ -144,6 +136,16 @@ struct AgnocastSharedMemory {
 impl AgnocastSharedMemory {
     #[cfg(not(test))]
     fn init(&self) {
+        use std::{ffi::CString, os::raw::c_char};
+
+        extern "C" {
+            fn initialize_agnocast(
+                size: usize,
+                version: *const c_char,
+                version_str_length: usize,
+            ) -> *mut c_void;
+        }
+
         let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
 
         if result != 0 {
@@ -254,6 +256,10 @@ unsafe trait SharedMemoryAllocator {
 
 #[cfg(not(test))]
 fn should_use_original_func() -> bool {
+    extern "C" {
+        fn agnocast_get_borrowed_publisher_num() -> u32;
+    }
+
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return true;
     }
