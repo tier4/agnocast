@@ -1,7 +1,12 @@
 use rlsf::Tlsf;
-use std::{alloc::Layout, mem::MaybeUninit, ptr::NonNull, sync::Mutex};
+use std::{
+    alloc::Layout,
+    mem::MaybeUninit,
+    ptr::NonNull,
+    sync::{atomic::Ordering, Mutex},
+};
 
-use crate::AgnocastSharedMemoryAllocator;
+use crate::{AgnocastSharedMemory, AgnocastSharedMemoryAllocator};
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
@@ -18,10 +23,11 @@ pub struct TLSFAllocator {
 }
 
 unsafe impl AgnocastSharedMemoryAllocator for TLSFAllocator {
-    fn new(pool: &'static mut [u8]) -> Self {
-        let pool = unsafe {
-            std::slice::from_raw_parts_mut(pool.as_mut_ptr() as *mut MaybeUninit<u8>, pool.len())
-        };
+    fn new(shm: &'static AgnocastSharedMemory) -> Self {
+        let mempool_ptr = shm.start.load(Ordering::Relaxed) as *mut MaybeUninit<u8>;
+        let mempool_size = shm.end.load(Ordering::Relaxed) - shm.start.load(Ordering::Relaxed);
+
+        let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr, mempool_size) };
         let mut tlsf: TlsfType = Tlsf::new();
         tlsf.insert_free_block(pool);
         Self {
