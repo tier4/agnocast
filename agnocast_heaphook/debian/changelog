@@ -1,4 +1,4 @@
-agnocast-heaphook-v2.1.2 (2.1.2-1) jammy; urgency=medium
+agnocast-heaphook-v2.1.2 (2.1.2-2) jammy; urgency=medium
 
   * fix(heaphook): fix memory-related functions to match C semantics (#657 <https://github.com/tier4/agnocast/issues/657>)
   * refactor(heaphook): modify tlsf_{allocate, reallocate}_wrapped to return Option<NonNull<u8>> (#653 <https://github.com/tier4/agnocast/issues/653>)
