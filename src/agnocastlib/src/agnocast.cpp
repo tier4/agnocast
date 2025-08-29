@@ -43,8 +43,58 @@ void poll_for_unlink()
     exit(EXIT_FAILURE);
   }
 
+  RCLCPP_INFO(logger, "[Poll For Unlink] fork successful PID: %d", getpid());
+
+  std::map<pid_t, std::string> active_daemons;
+
+  const std::string topic_info_mq_name = create_mq_name_for_topic_info();
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = sizeof(agnocast::MqMsgTopicInfo);
+
+  mqd_t topic_info_mq =
+    mq_open(topic_info_mq_name.c_str(), O_RDONLY | O_CREAT | O_NONBLOCK, 0644, &attr);
+  if (topic_info_mq == (mqd_t)-1) {
+    RCLCPP_ERROR(logger, "mq_open failed for topic_info_mq: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
   while (true) {
     sleep(1);
+
+    agnocast::MqMsgTopicInfo received_msg;
+    ssize_t bytes_read = mq_receive(
+      topic_info_mq, reinterpret_cast<char *>(&received_msg), sizeof(received_msg), nullptr);
+
+    if (bytes_read > 0) {
+      active_daemons[received_msg.pid] = received_msg.topic_name;
+    } else if (errno != EAGAIN) {
+      RCLCPP_ERROR(logger, "mq_receive from topic_info_mq failed: %s", strerror(errno));
+    }
+
+    for (auto it = active_daemons.begin(); it != active_daemons.end();) {
+      pid_t pid = it->first;
+      std::string topic_name_str = it->second;
+
+      union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+      get_subscriber_count_args.topic_name = {topic_name_str.c_str(), topic_name_str.size()};
+
+      if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+        ++it;
+        continue;
+      }
+
+      if (get_subscriber_count_args.ret_subscriber_num == 0) {
+        if (kill(pid, SIGTERM) == -1) {
+          RCLCPP_ERROR(logger, "Failed to send SIGTERM to PID %d: %s", pid, strerror(errno));
+        }
+
+        it = active_daemons.erase(it);
+      } else {
+        ++it;
+      }
+    }
 
     struct ioctl_get_exit_process_args get_exit_process_args = {};
     do {
@@ -65,6 +115,9 @@ void poll_for_unlink()
       break;
     }
   }
+
+  mq_close(topic_info_mq);
+  mq_unlink(topic_info_mq_name.c_str());
 
   exit(0);
 }
@@ -146,15 +199,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);

@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_bridge_daemon.hpp"
 
 #include "agnocast/agnocast_ioctl.hpp"
+#include "agnocast/agnocast_mq.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <dlfcn.h>
@@ -8,6 +9,14 @@
 #include <unistd.h>
 
 #include <csignal>
+
+namespace agnocast
+{
+
+std::map<std::string, BridgeComponents> g_active_bridges;
+std::mutex g_bridges_mutex;
+
+}  // namespace agnocast
 
 class DynamicLibraryGuard
 {
@@ -28,68 +37,6 @@ public:
 private:
   void * handle_;
 };
-
-// Temporary implementation.
-class FileDescriptorGuard
-{
-public:
-  explicit FileDescriptorGuard(const char * pathname) : fd_(open(pathname, O_RDWR)) {}
-
-  // Closes the file in the destructor.
-  ~FileDescriptorGuard()
-  {
-    if (isValid()) {
-      close(fd_);
-    }
-  }
-
-  FileDescriptorGuard(const FileDescriptorGuard &) = delete;
-  FileDescriptorGuard & operator=(const FileDescriptorGuard &) = delete;
-
-  int get() const { return fd_; }
-
-  bool isValid() const { return fd_ >= 0; }
-
-private:
-  int fd_;
-};
-
-namespace agnocast
-{
-
-std::map<std::string, BridgeComponents> g_active_bridges;
-std::mutex g_bridges_mutex;
-
-// Temporary implementation.
-void monitor_subscriber_count(const std::string & topic_name)
-{
-  FileDescriptorGuard agnocast_fd("/dev/agnocast");
-  if (!agnocast_fd.isValid()) {
-    std::cerr << "Failed to open /dev/agnocast: " << strerror(errno) << std::endl;
-    rclcpp::shutdown();
-    return;
-  }
-
-  while (rclcpp::ok()) {
-    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-    get_subscriber_count_args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-    if (
-      ioctl(agnocast_fd.get(), AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) == 0) {
-      if (get_subscriber_count_args.ret_subscriber_num == 0) {
-        std::cerr << "Subscriber count for topic '" << topic_name << "' is 0. Shutting down daemon."
-                  << std::endl;
-        rclcpp::shutdown();
-      }
-    } else {
-      std::cerr << "ioctl to get subscriber count failed: " << strerror(errno) << std::endl;
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-}
-
-}  // namespace agnocast
 
 void signal_handler(int signum)
 {
@@ -167,14 +114,28 @@ int main(int argc, char * argv[])
   std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << args.topic_name
             << std::endl;
 
-  std::thread monitor_thread(agnocast::monitor_subscriber_count, std::string(args.topic_name));
+  const std::string topic_info_mq_name = agnocast::create_mq_name_for_topic_info();
+  mqd_t topic_info_mq = mq_open(topic_info_mq_name.c_str(), O_WRONLY);
+
+  if (topic_info_mq != (mqd_t)-1) {
+    agnocast::MqMsgTopicInfo msg_to_send = {};
+    msg_to_send.pid = getpid();
+    strncpy(msg_to_send.topic_name, args.topic_name, sizeof(msg_to_send.topic_name) - 1);
+    msg_to_send.topic_name[sizeof(msg_to_send.topic_name) - 1] = '\0';
+
+    if (
+      mq_send(
+        topic_info_mq, reinterpret_cast<const char *>(&msg_to_send), sizeof(msg_to_send), 0) ==
+      -1) {
+      std::cerr << "mq_send failed: " << strerror(errno) << std::endl;
+    }
+    mq_close(topic_info_mq);
+  } else {
+    std::cerr << "mq_open failed for topic_info_mq: " << strerror(errno) << std::endl;
+  }
 
   executor->spin();
   rclcpp::shutdown();
-
-  if (monitor_thread.joinable()) {
-    monitor_thread.join();
-  }
 
   std::cout << "[Bridge Daemon] Shutting down for topic: " << args.topic_name << std::endl;
 

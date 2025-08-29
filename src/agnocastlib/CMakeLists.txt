@@ -62,6 +62,8 @@ ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_componen
 
 add_executable(agnocast_bridge_daemon
   src/agnocast_bridge_daemon.cpp
+  src/agnocast_utils.cpp
+  src/agnocast.cpp
 )
 
 ament_target_dependencies(agnocast_bridge_daemon
