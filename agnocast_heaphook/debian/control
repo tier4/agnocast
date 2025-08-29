@@ -9,5 +9,8 @@ Homepage: https://github.com/tier4/agnocast
 Package: agnocast-heaphook-v2.1.2
 Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Provides: agnocast-heaphook
+Conflicts: agnocast-heaphook, agnocast-heaphook-v2.1.0, agnocast-heaphook-v2.1.1
+Replaces: agnocast-heaphook-v2.1.0, agnocast-heaphook-v2.1.1
 Description: A heap runtime replacement for Agnocast.
  To achieve true zero-copy communication with Agnocast, message objects must be placed in shared memory. Therefore, all heap allocation and deallocation operations are intercepted and customized using LD_PRELOAD hooks.
