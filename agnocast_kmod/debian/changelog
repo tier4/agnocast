@@ -1,3 +1,9 @@
+agnocast-kmod-v2.1.2 (2.1.2-1) jammy; urgency=medium
+
+  * refactor(kmod): allocate memory for the name buffers using kmalloc (#641 <https://github.com/tier4/agnocast/issues/641>)
+
+ -- Takahiro Ishikawa-Aso <sykwer@gmail.com>  Mon, 18 Aug 2025 0:37:00 +0900
+
 agnocast-kmod-v2.1.1 (2.1.1-1) jammy; urgency=medium
 
   * fix(kmod): add a boundary check for msg_virtual_address (#635 <https://github.com/tier4/agnocast/issues/635>)
