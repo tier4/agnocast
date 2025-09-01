@@ -1,12 +1,19 @@
 # Model checking for CallbackIsolatedAgnocastExecutor
 
-Currently, this model verifies a behavior or a single SingleThreadedAgnocastExecutor as first step.
+## Model checking for SingleThreadedAgnocastExecutor
 
-## Setup
+The `CallbackIsolatedAgnocastExecutor` is regarded as a set of `SingleThreadedAgnocastExecutor`s. Therefore, we verify the `SingleThreadedAgnocastExecutor` in isolation as first step.
+
+### Overall modeling policy
+
+- The Agnocast-related part is modeled as accurately as possible. The correspondence between the model and the actual code is explained in the comments. Only the kernel module part is abstracted.
+- The ROS-related part is roughly modeled.
+
+### Setup
 
 The verification is conducted under the following conditions:
 
-- Only one SingleThreadedAgnocastExecutor exists (`NUM_EXECUTORS`).
+- Only one `SingleThreadedAgnocastExecutor` exists (`NUM_EXECUTORS = 1`).
 - For both ROS and Agnocast, there is one publisher and two subscriptions (`NUM_SUBSCRIPTIONS = 2`).
   - Subscriptions may join in the middle of execution.
 - Each publisher sends two messages (`NUM_PUBLISH = 2`).
@@ -14,11 +21,11 @@ The verification is conducted under the following conditions:
 
 Increasing `NUM_SUBSCRIPTIONS` or `NUM_PUBLISH` is difficult due to memory usage issues...
 
-## Subjects to be verified
+### Subjects to be verified
 
 The model verifies the `ltl eventually_completed` which ensures all callbacks eventually complete.
 
-## Result of enbug
+### Result of enbug
 
 I've commented out following line.
 
@@ -104,7 +111,7 @@ spin: trail ends after 1244 steps
 9 processes created
 ```
 
-## Result of verification
+### Result of verification
 
 ```bash
 spin -a main.pml
