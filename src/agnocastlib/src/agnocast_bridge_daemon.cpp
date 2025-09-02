@@ -10,12 +10,6 @@
 
 #include <csignal>
 
-namespace agnocast
-{
-std::map<std::string, BridgeComponents> g_active_bridges;
-std::mutex g_bridges_mutex;
-}  // namespace agnocast
-
 std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor = nullptr;
 
 class DynamicLibraryGuard
@@ -47,7 +41,8 @@ void signal_handler(int signum)
 }
 
 bool parse_arguments(
-  int argc, char * argv[], BridgeArgs & args, std::string & lib_path, std::string & mangled_name)
+  int argc, char * argv[], agnocast::BridgeArgs & args, std::string & lib_path,
+  std::string & mangled_name)
 {
   if (argc < 7) {
     std::cerr << "[Bridge Daemon] Error: Not enough arguments." << std::endl;
@@ -100,7 +95,7 @@ int main(int argc, char * argv[])
   setup_process();
   std::cout << "[Bridge Daemon] Started with PID: " << getpid() << std::endl;
 
-  BridgeArgs args{};
+  agnocast::BridgeArgs args{};
   std::string shared_lib_path, mangled_name;
   if (!parse_arguments(argc, argv, args, shared_lib_path, mangled_name)) {
     return EXIT_FAILURE;
@@ -125,7 +120,7 @@ int main(int argc, char * argv[])
     auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
     g_executor = executor;
 
-    bridge_function(args, executor);
+    auto bridge_components = bridge_function(args, executor);
     std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << args.topic_name
               << std::endl;
 
@@ -153,39 +148,17 @@ int main(int argc, char * argv[])
 
     std::cout << "[Bridge Daemon] Shutting down gracefully..." << std::endl;
 
-    // 手順1 & 2: Executorからノードを削除し、関連オブジェクトを破棄する
-    {
-      std::lock_guard<std::mutex> lock(agnocast::g_bridges_mutex);
-      if (!agnocast::g_active_bridges.empty()) {
-        // g_active_bridges には一つのブリッジしか無いはずですが、安全のためループします
-        for (auto const & [topic_name, components] : agnocast::g_active_bridges) {
-          // 'components' に node が含まれていることを想定
-          if (components.node) {
-            executor->remove_node(components.node);
-            std::cout << "[Bridge Daemon] Removed node for topic: " << topic_name
-                      << " from executor." << std::endl;
-          }
-        }
-        // g_active_bridges の中身を解放することで、NodeやSubscriptionのデストラクタが呼ばれる
-        agnocast::g_active_bridges.clear();
-      }
+    if (bridge_components.node) {
+      executor->remove_node(bridge_components.node);
+      std::cout << "[Bridge Daemon] Removed node for topic: " << args.topic_name
+                << " from executor." << std::endl;
     }
 
-    // 手順3: Executorを破棄する
-    // executor はこのスコープを抜ける際に自動で破棄されますが、明示的にリセットします。
     g_executor.reset();
     executor.reset();
 
     std::cout << "[Bridge Daemon] All nodes and executor have been cleaned up." << std::endl;
   }
-
-  // g_executor.reset();
-  // {
-  //   std::lock_guard<std::mutex> lock(agnocast::g_bridges_mutex);
-  //   agnocast::g_active_bridges.clear();
-  // }
-
-  // std::cout << "[Bridge Daemon] All bridges stopped." << std::endl;
 
   rclcpp::shutdown();
 

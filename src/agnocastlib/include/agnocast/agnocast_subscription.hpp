@@ -116,7 +116,7 @@ private:
     }
 
     if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      auto fn = &bridge_entry<MessageT>;
+      BridgeFn fn = &bridge_entry<MessageT>;
 
       Dl_info info{};
       if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {

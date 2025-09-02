@@ -4,35 +4,25 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <regex>
+
+namespace agnocast
+{
 
 struct BridgeArgs
 {
   char topic_name[256];
-
   int32_t qos_history;
   int32_t qos_depth;
   int32_t qos_reliability;
 };
-
-using BridgeFn =
-  void (*)(const BridgeArgs &, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
-
-namespace agnocast
-{
 
 struct BridgeComponents
 {
   rclcpp::Node::SharedPtr node;
   rclcpp::SubscriptionBase::SharedPtr sub;
 };
-
-extern std::map<std::string, BridgeComponents> g_active_bridges;
-extern std::mutex g_bridges_mutex;
-
-template <typename MessageT>
-void bridge_entry(
-  const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
 
 inline std::string generate_node_name(const std::string & topic_name)
 {
@@ -41,7 +31,7 @@ inline std::string generate_node_name(const std::string & topic_name)
 }
 
 template <typename MessageT>
-void start_bridge_node(
+BridgeComponents start_bridge_node(
   const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor)
 {
   std::string topic_name(args.topic_name);
@@ -71,18 +61,19 @@ void start_bridge_node(
   sub_options.ignore_local_publications = true;
   auto sub = node->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
 
-  {
-    std::lock_guard<std::mutex> lock(g_bridges_mutex);
-    g_active_bridges[topic_name] = {node, sub};
-  }
   executor->add_node(node);
+
+  return {node, sub};
 }
 
 template <typename MessageT>
-void bridge_entry(
+BridgeComponents bridge_entry(
   const BridgeArgs & args, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor)
 {
-  start_bridge_node<MessageT>(args, executor);
+  return start_bridge_node<MessageT>(args, executor);
 }
 
 }  // namespace agnocast
+
+using BridgeFn = agnocast::BridgeComponents (*)(
+  const agnocast::BridgeArgs &, std::shared_ptr<rclcpp::executors::MultiThreadedExecutor>);
