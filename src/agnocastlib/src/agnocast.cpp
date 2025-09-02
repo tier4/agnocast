@@ -37,6 +37,15 @@ std::mutex mmap_mtx;
 
 void poll_for_unlink()
 {
+  int log_fd = open("/tmp/unlink_daemon.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (log_fd == -1) {
+    perror("open log file failed");
+    exit(EXIT_FAILURE);
+  }
+  dup2(log_fd, 1);
+  dup2(log_fd, 2);
+  close(log_fd);
+
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
     close(agnocast_fd);
@@ -86,10 +95,12 @@ void poll_for_unlink()
       }
 
       if (get_subscriber_count_args.ret_subscriber_num == 0) {
+        RCLCPP_INFO(
+          logger, "No subscribers for topic '%s'. Sending SIGTERM to PID %d",
+          topic_name_str.c_str(), pid);
         if (kill(pid, SIGTERM) == -1) {
           RCLCPP_ERROR(logger, "Failed to send SIGTERM to PID %d: %s", pid, strerror(errno));
         }
-
         it = active_daemons.erase(it);
       } else {
         ++it;
@@ -106,18 +117,22 @@ void poll_for_unlink()
       }
 
       if (get_exit_process_args.ret_pid > 0) {
+        RCLCPP_INFO(logger, "Unlinking shared memory for PID: %d", get_exit_process_args.ret_pid);
         const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
         shm_unlink(shm_name.c_str());
       }
     } while (get_exit_process_args.ret_pid > 0);
 
     if (get_exit_process_args.ret_daemon_should_exit) {
+      RCLCPP_INFO(logger, "Unlink daemon requested to exit");
       break;
     }
   }
 
   mq_close(topic_info_mq);
   mq_unlink(topic_info_mq_name.c_str());
+
+  RCLCPP_INFO(logger, "Unlink daemon exiting PID: %d", getpid());
 
   exit(0);
 }

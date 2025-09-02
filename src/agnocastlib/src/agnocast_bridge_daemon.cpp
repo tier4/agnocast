@@ -12,11 +12,11 @@
 
 namespace agnocast
 {
-
 std::map<std::string, BridgeComponents> g_active_bridges;
 std::mutex g_bridges_mutex;
-
 }  // namespace agnocast
+
+std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor = nullptr;
 
 class DynamicLibraryGuard
 {
@@ -41,7 +41,9 @@ private:
 void signal_handler(int signum)
 {
   std::cout << "Received signal " << signum << ", shutting down ROS 2..." << std::endl;
-  rclcpp::shutdown();
+  if (g_executor) {
+    g_executor->cancel();
+  }
 }
 
 bool parse_arguments(
@@ -79,12 +81,22 @@ void setup_process()
   struct sigaction sa = {};
   sa.sa_handler = signal_handler;
   sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
   sigaction(SIGINT, &sa, nullptr);
   sigaction(SIGTERM, &sa, nullptr);
 }
 
 int main(int argc, char * argv[])
 {
+  int log_fd = open("/tmp/bridge_daemon.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (log_fd == -1) {
+    perror("open log file failed");
+    exit(EXIT_FAILURE);
+  }
+  dup2(log_fd, 1);
+  dup2(log_fd, 2);
+  close(log_fd);
+
   setup_process();
   std::cout << "[Bridge Daemon] Started with PID: " << getpid() << std::endl;
 
@@ -108,33 +120,73 @@ int main(int argc, char * argv[])
   auto bridge_function = reinterpret_cast<BridgeFn>(func_ptr);
 
   rclcpp::init(0, nullptr);
-  auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
 
-  bridge_function(args, executor);
-  std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << args.topic_name
-            << std::endl;
+  {
+    auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+    g_executor = executor;
 
-  const std::string topic_info_mq_name = agnocast::create_mq_name_for_topic_info();
-  mqd_t topic_info_mq = mq_open(topic_info_mq_name.c_str(), O_WRONLY);
+    bridge_function(args, executor);
+    std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << args.topic_name
+              << std::endl;
 
-  if (topic_info_mq != (mqd_t)-1) {
-    agnocast::MqMsgTopicInfo msg_to_send = {};
-    msg_to_send.pid = getpid();
-    strncpy(msg_to_send.topic_name, args.topic_name, sizeof(msg_to_send.topic_name) - 1);
-    msg_to_send.topic_name[sizeof(msg_to_send.topic_name) - 1] = '\0';
+    const std::string topic_info_mq_name = agnocast::create_mq_name_for_topic_info();
+    mqd_t topic_info_mq = mq_open(topic_info_mq_name.c_str(), O_WRONLY);
 
-    if (
-      mq_send(
-        topic_info_mq, reinterpret_cast<const char *>(&msg_to_send), sizeof(msg_to_send), 0) ==
-      -1) {
-      std::cerr << "mq_send failed: " << strerror(errno) << std::endl;
+    if (topic_info_mq != (mqd_t)-1) {
+      agnocast::MqMsgTopicInfo msg_to_send = {};
+      msg_to_send.pid = getpid();
+      strncpy(msg_to_send.topic_name, args.topic_name, sizeof(msg_to_send.topic_name) - 1);
+      msg_to_send.topic_name[sizeof(msg_to_send.topic_name) - 1] = '\0';
+
+      if (
+        mq_send(
+          topic_info_mq, reinterpret_cast<const char *>(&msg_to_send), sizeof(msg_to_send), 0) ==
+        -1) {
+        std::cerr << "mq_send failed: " << strerror(errno) << std::endl;
+      }
+      mq_close(topic_info_mq);
+    } else {
+      std::cerr << "mq_open failed for topic_info_mq: " << strerror(errno) << std::endl;
     }
-    mq_close(topic_info_mq);
-  } else {
-    std::cerr << "mq_open failed for topic_info_mq: " << strerror(errno) << std::endl;
+
+    executor->spin();
+
+    std::cout << "[Bridge Daemon] Shutting down gracefully..." << std::endl;
+
+    // 手順1 & 2: Executorからノードを削除し、関連オブジェクトを破棄する
+    {
+      std::lock_guard<std::mutex> lock(agnocast::g_bridges_mutex);
+      if (!agnocast::g_active_bridges.empty()) {
+        // g_active_bridges には一つのブリッジしか無いはずですが、安全のためループします
+        for (auto const & [topic_name, components] : agnocast::g_active_bridges) {
+          // 'components' に node が含まれていることを想定
+          if (components.node) {
+            executor->remove_node(components.node);
+            std::cout << "[Bridge Daemon] Removed node for topic: " << topic_name
+                      << " from executor." << std::endl;
+          }
+        }
+        // g_active_bridges の中身を解放することで、NodeやSubscriptionのデストラクタが呼ばれる
+        agnocast::g_active_bridges.clear();
+      }
+    }
+
+    // 手順3: Executorを破棄する
+    // executor はこのスコープを抜ける際に自動で破棄されますが、明示的にリセットします。
+    g_executor.reset();
+    executor.reset();
+
+    std::cout << "[Bridge Daemon] All nodes and executor have been cleaned up." << std::endl;
   }
 
-  executor->spin();
+  // g_executor.reset();
+  // {
+  //   std::lock_guard<std::mutex> lock(agnocast::g_bridges_mutex);
+  //   agnocast::g_active_bridges.clear();
+  // }
+
+  // std::cout << "[Bridge Daemon] All bridges stopped." << std::endl;
+
   rclcpp::shutdown();
 
   std::cout << "[Bridge Daemon] Shutting down for topic: " << args.topic_name << std::endl;
