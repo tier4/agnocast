@@ -25,15 +25,17 @@ add_library(agnocast SHARED
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
-  ${tracetools_LIBRARIES}
+  # ${tracetools_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${rclcpp_INCLUDE_DIRS}
-  ${tracetools_INCLUDE_DIRS}
+  # ${tracetools_INCLUDE_DIRS}
 )
+
+ament_target_dependencies(agnocast tracetools)
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
 
@@ -130,4 +132,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
+ament_export_dependencies(tracetools)
 ament_package()
