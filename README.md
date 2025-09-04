@@ -21,6 +21,17 @@ The paper has been accepted to [IEEE ISORC 2025](https://isorc.github.io/2025/),
 
 </details>
 
+## Supported Environments
+
+Agnocast is currently available in the following environments.
+This reflects the current status, and support is expected to expand in the future.
+
+| Category           | Supported Versions / Notes                                   |
+|--------------------|--------------------------------------------------------------|
+| ROS 2              | Humble (only with `rclcpp` client library)                   |
+| Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
+| Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
+
 ## Build
 
 Setup.
