@@ -15,8 +15,7 @@ class MinimalSubscriber : public rclcpp::Node
   }
 
 public:
-  explicit MinimalSubscriber(const rclcpp::NodeOptions & options)
-  : Node("minimal_subscriber", options)
+  explicit MinimalSubscriber(const rclcpp::NodeOptions & options) : Node("cie_subscriber", options)
   {
     rclcpp::CallbackGroup::SharedPtr group =
       create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);

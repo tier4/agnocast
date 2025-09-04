@@ -28,7 +28,7 @@ class MinimalPublisher : public rclcpp::Node
   }
 
 public:
-  MinimalPublisher() : Node("minimal_publisher")
+  MinimalPublisher() : Node("cie_publisher")
   {
     count_ = 0;
 

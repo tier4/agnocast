@@ -64,9 +64,8 @@ void CallbackIsolatedAgnocastExecutor::spin()
     executor->dedicate_to_callback_group(group, node);
 
     threads.emplace_back([executor]() {
-      auto tid = std::this_thread::get_id();
-      RCLCPP_INFO(
-        rclcpp::get_logger("agnocast"), "Thread ID: %zu", std::hash<std::thread::id>{}(tid));
+      auto tid = static_cast<pid_t>(syscall(SYS_gettid));
+      RCLCPP_INFO(rclcpp::get_logger("agnocast"), "Linux TID: %d", tid);
       executor->spin();
     });
   }
