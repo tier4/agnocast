@@ -6,7 +6,7 @@ byte expected_num_completed_cbs = NUM_PUBLISH * 2// The expected number of compl
 #define MAX_COMPLETED_CBS ((NUM_PUBLISH * (1 + NUM_SUBSCRIPTIONS)) * 2)
 
 // === For weak fairness ===
-#define MAX_CONSECUTIVE_EMPTY_EXECUTOR_LOOP 5
+#define MAX_CONSECUTIVE_EMPTY_EXECUTOR_LOOP 1
 byte consecutive_empty_executor_loop[NUM_EXECUTORS] = 0
 bool wait_for_weak_fairness[NUM_EXECUTORS] = false
 chan resume_requests = [NUM_EXECUTORS] of { byte }// executor_id that requested to resume execution.

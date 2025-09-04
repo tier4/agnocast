@@ -1,6 +1,6 @@
 // Parameters
-#define NUM_SUBSCRIPTIONS 2
-#define NUM_PUBLISH 2
+#define NUM_SUBSCRIPTIONS 3
+#define NUM_PUBLISH 3
 #define NUM_EXECUTORS 1
 
 #include "utility.pml"
@@ -59,20 +59,18 @@ proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_we
 
 init {
 	byte init_i;
-	int agnocast_topic_name = 'A';
-	int ros_topic_name = 'R';
 	
 	for (init_i : 0 .. NUM_SUBSCRIPTIONS - 1) {
-		run AgnocastSubscription(agnocast_topic_name,init_i);// NOTE: Each subscription has a unique callback group for now.
+		run AgnocastSubscription(init_i);// NOTE: Each subscription has a unique callback group for now.
 	}
-	
-	run AgnocastPublisher(agnocast_topic_name);
+
+	run AgnocastPublisher();
 	
 	for (init_i : 0 .. NUM_SUBSCRIPTIONS - 1) {
-		run RosSubscription(ros_topic_name);
+		run RosSubscription();
 	}
 	
-	run RosPublisher(ros_topic_name);
+	run RosPublisher();
 	
 	for (init_i : 0 .. NUM_EXECUTORS - 1) {
 		run SingleThreadedAgnocastExecutor(init_i)
