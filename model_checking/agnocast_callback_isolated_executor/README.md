@@ -129,7 +129,6 @@ id2_callback_info[callback_info_id].callback_group = callback_group_;
 
 The uninitialized `callback_group` causes assertion violation in `validate_callback_group()`.
 
-
 ```bash
 ltl eventually_completed: [] (<> ((num_completed_cbs==expected_num_completed_cbs)))
 Never claim moves to line 3     [(!((num_completed_cbs==expected_num_completed_cbs)))]
@@ -152,7 +151,6 @@ spin: agnocast_pub_sub.pml:140, Error: assertion violated
 spin: text of failed assertion: assert((id2_callback_info[cb_info_i].callback_group!=-(1)))
 spin: trail ends after 607 steps
 ```
-
 
 ### Result of verification
 
