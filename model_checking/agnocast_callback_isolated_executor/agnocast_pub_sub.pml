@@ -7,10 +7,8 @@ inline register_callback(callback_group_) {
 	}
 	
 	lock(id2_callback_info_mtx);
-	d_step {
-		id2_callback_info[callback_info_id].callback_group = callback_group_;
-		id2_callback_info[callback_info_id].initialized = true;
-	}
+	id2_callback_info[callback_info_id].callback_group = callback_group_;
+	id2_callback_info[callback_info_id].initialized = true;
 	unlock(id2_callback_info_mtx);
 	
 	need_epoll_updates = true
@@ -102,10 +100,8 @@ inline wait_and_handle_epoll_event() {
 	
 	CallbackInfo callback_info;
 	lock(id2_callback_info_mtx);
-	d_step {
-		callback_info.callback_group = id2_callback_info[callback_info_id].callback_group;
-		callback_info.need_epoll_update = id2_callback_info[callback_info_id].need_epoll_update;
-	}
+	callback_info.callback_group = id2_callback_info[callback_info_id].callback_group;
+	callback_info.need_epoll_update = id2_callback_info[callback_info_id].need_epoll_update;
 	unlock(id2_callback_info_mtx);
 	
 	receive_message(callback_info_id,callback_info);
@@ -145,6 +141,12 @@ inline execute_agnocast_executable(cb) {
 	fi
 }
 
+inline validate_callback_group(callback_group_) {
+	assert(callback_group_ != -1);
+
+	// TODO(CIE): check dedicated_callback_group_
+}
+
 // agnocast_executor.cpp | AgnocastExecutor::prepare_epoll()
 inline prepare_epoll() {
 	byte cb_info_i;
@@ -156,7 +158,7 @@ inline prepare_epoll() {
 		:: else
 		fi
 		
-		// TODO(CIE): validate_callback_group();
+		validate_callback_group(id2_callback_info[cb_info_i].callback_group);
 		
 		d_step{
 			epoll_added[cb_info_i] = true;// epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, ...);

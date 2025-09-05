@@ -17,7 +17,7 @@ Callback registered_ros_subscriptions[NUM_SUBSCRIPTIONS]
 // === For Agnocast ===
 // agnocast_callback_info.hpp | struct CallbackInfo
 typedef CallbackInfo {
-	byte callback_group
+	short callback_group = -1
 	bool need_epoll_update = true
 	bool initialized = false// This is added for promela implementation.
 }
