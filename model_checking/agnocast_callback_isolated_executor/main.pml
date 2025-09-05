@@ -1,6 +1,6 @@
 // Parameters
-#define NUM_SUBSCRIPTIONS 3
-#define NUM_PUBLISH 3
+#define NUM_SUBSCRIPTIONS 2
+#define NUM_PUBLISH 2
 #define NUM_EXECUTORS 1
 
 #include "utility.pml"
@@ -20,17 +20,6 @@ proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_we
 
 	start:
 	
-	// For weak fairness
-	atomic {
-		consecutive_empty_executor_loop[executor_id]++;
-		if
-		:: consecutive_empty_executor_loop[executor_id] == MAX_CONSECUTIVE_EMPTY_EXECUTOR_LOOP -> 
-			resume_requests!executor_id;
-			wait_for_weak_fairness[executor_id] = true;
-		:: else
-		fi
-	}
-	
 	if
 	:: need_epoll_updates -> prepare_epoll()
 	:: else
@@ -48,6 +37,21 @@ proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_we
 	:: atomic {ret_result -> consecutive_empty_executor_loop[executor_id] = 0;} execute_any_executable(executable)
 	:: else
 	fi
+
+	// For weak fairness
+	d_step{
+		if
+		:: !ret_result -> consecutive_empty_executor_loop[executor_id]++
+		:: else -> consecutive_empty_executor_loop[executor_id] = 0
+		fi
+
+		if
+		:: consecutive_empty_executor_loop[executor_id] == MAX_CONSECUTIVE_EMPTY_EXECUTOR_LOOP -> 
+			resume_requests!executor_id;
+			wait_for_weak_fairness[executor_id] = true;
+		:: else
+		fi
+	}
 	
 	if
 	:: num_completed_cbs < expected_num_completed_cbs -> goto start

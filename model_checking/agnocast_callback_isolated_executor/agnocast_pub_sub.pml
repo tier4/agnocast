@@ -7,8 +7,8 @@ inline register_callback(callback_group_) {
 	}
 	
 	lock(id2_callback_info_mtx);
-	id2_callback_info[callback_info_id].callback_group = callback_group_;
 	id2_callback_info[callback_info_id].initialized = true;
+	id2_callback_info[callback_info_id].callback_group = callback_group_;
 	unlock(id2_callback_info_mtx);
 	
 	need_epoll_updates = true
