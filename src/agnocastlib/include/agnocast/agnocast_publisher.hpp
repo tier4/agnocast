@@ -227,4 +227,55 @@ public:
   }
 };
 
+// The Publisher that does not instantiate a ros2 publisher
+template <typename MessageT>
+class AgnocastOnlyPublisher
+{
+  const std::string topic_name_;
+  const topic_local_id_t id_;
+  std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> opened_mqs_;
+
+public:
+  using SharedPtr = std::shared_ptr<AgnocastOnlyPublisher<MessageT>>;
+
+  AgnocastOnlyPublisher(
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
+    id_(initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos))
+  {
+  }
+
+  ipc_shared_ptr<MessageT> borrow_loaned_message()
+  {
+    increment_borrowed_publisher_num();
+    MessageT * ptr = new MessageT();
+    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
+  }
+
+  void publish(ipc_shared_ptr<MessageT> && message)
+  {
+    if (!message || topic_name_ != message.get_topic_name()) {
+      RCLCPP_ERROR(logger, "Invalid message to publish.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    decrement_borrowed_publisher_num();
+
+    const union ioctl_publish_msg_args publish_msg_args =
+      publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+
+    message.set_entry_id(publish_msg_args.ret_entry_id);
+
+    for (uint32_t i = 0; i < publish_msg_args.ret_released_num; i++) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_msg_args.ret_released_addrs[i]);
+      delete release_ptr;
+    }
+
+    message.reset();
+  }
+
+  uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
+};
+
 }  // namespace agnocast

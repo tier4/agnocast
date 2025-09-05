@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="agnocast_sample_application" exec="client" name="client_node" output="screen">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="16777216" /> <!-- 16MB-->
+    </node>
+</launch>

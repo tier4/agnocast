@@ -9,6 +9,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME} "msg/DynamicSizeArray.msg" "msg/StaticSizeArray.msg")
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/DynamicSizeArray.msg"
+  "msg/StaticSizeArray.msg"
+  "srv/SumIntArray.srv"
+)
 
 ament_package()
