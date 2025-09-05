@@ -67,7 +67,7 @@ proctype AgnocastPublisher() {
 }
 
 // agnocast_executor.cpp | AgnocastExecutor::receive_message()
-inline receive_message(callback_info_id,callback_info) {
+inline receive_message(callback_info_id) {
 	byte ret_entry_num;
 	d_step{
 		ret_entry_num = entry_num[callback_info_id];
@@ -98,13 +98,8 @@ inline wait_and_handle_epoll_event() {
 	:: else -> goto finish_wait_and_handle_epoll_event// timeout
 	fi
 	
-	CallbackInfo callback_info;
-	lock(id2_callback_info_mtx);
-	callback_info.callback_group = id2_callback_info[callback_info_id].callback_group;
-	callback_info.need_epoll_update = id2_callback_info[callback_info_id].need_epoll_update;
-	unlock(id2_callback_info_mtx);
-	
-	receive_message(callback_info_id,callback_info);
+	// Only the `callback_info_id` is needed in this model.
+	receive_message(callback_info_id);
 	
 	finish_wait_and_handle_epoll_event:
 }
