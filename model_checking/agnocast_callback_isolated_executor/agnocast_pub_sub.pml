@@ -106,7 +106,6 @@ inline wait_and_handle_epoll_event() {
 
 inline get_next_ready_agnocast_executable(ret_cb,ret_result) {
 	lock(ready_agnocast_executables_mutex_);
-	// TODO: add callback group mechanism
 	if
 	:: d_step {ready_agnocast_executables?[ret_cb] -> ready_agnocast_executables?ret_cb;} ret_result = true
 	:: else -> ret_result = false
