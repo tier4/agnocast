@@ -140,9 +140,31 @@ extern "C" fn post_fork_handler_in_child() {
 static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
 
 unsafe trait AgnocastSharedMemoryAllocator {
+    /// Initializes the allocator with the given `pool`.
     fn new(pool: &'static mut [u8]) -> Self;
+
+    /// Attemps to allocate a block of memory as described by the given `layout`.
+    ///
+    /// # Safety
+    ///
+    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// and satisfy the requirements of `layout`.
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
+
+    /// Attemps to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must denote a block of memory currently allocated via this allocator.
+    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// and satisfy the requirements of `new_layout`.
     fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
+
+    /// Deallocates the block of memory at the given `ptr`.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must denote a block of memory currently allocated via this allocator.
     fn deallocate(&self, ptr: NonNull<u8>);
 }
 
