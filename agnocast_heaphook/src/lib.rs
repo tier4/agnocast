@@ -1,15 +1,18 @@
-use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     ffi::{CStr, CString},
-    mem::{size_of, MaybeUninit},
+    mem::size_of,
     os::raw::{c_char, c_int, c_void},
     ptr::{self, NonNull},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        Mutex, OnceLock,
+        OnceLock,
     },
 };
+
+use crate::tlsf::TLSFAllocator;
+
+mod tlsf;
 
 extern "C" {
     fn initialize_agnocast(
@@ -19,10 +22,6 @@ extern "C" {
     ) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
 }
-
-const POINTER_SIZE: usize = std::mem::size_of::<&usize>();
-const POINTER_ALIGN: usize = std::mem::align_of::<&usize>();
-const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 #[allow(clippy::if_same_then_else)]
@@ -138,12 +137,43 @@ extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
 
-const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
-const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
-type FLBitmap = u32; // FLBitmap should contain at least FLLEN bits
-type SLBitmap = u64; // SLBitmap should contain at least SLLEN bits
-type TlsfType = Tlsf<'static, FLBitmap, SLBitmap, FLLEN, SLLEN>;
-static TLSF: OnceLock<Mutex<TlsfType>> = OnceLock::new();
+static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
+
+/// A memory allocator that manages shared memory.
+///
+/// # Safety
+///
+/// The `AgnocastSharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
+///
+/// * The memory allocator must not unwind. A panic in any of its functions may lead to memory unsafety.
+unsafe trait AgnocastSharedMemoryAllocator {
+    /// Initializes the allocator with the given `pool`.
+    fn new(pool: &'static mut [u8]) -> Self;
+
+    /// Attemps to allocate a block of memory as described by the given `layout`.
+    ///
+    /// # Safety
+    ///
+    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// and satisfy the requirements of `layout`.
+    fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
+
+    /// Attemps to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must denote a block of memory currently allocated via this allocator.
+    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// and satisfy the requirements of `new_layout`.
+    fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
+
+    /// Deallocates the block of memory at the given `ptr`.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must denote a block of memory currently allocated via this allocator.
+    fn deallocate(&self, ptr: NonNull<u8>);
+}
 
 #[cfg(not(test))]
 fn init_tlsf() {
@@ -174,90 +204,14 @@ fn init_tlsf() {
         initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
     };
 
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
+    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
 
     MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
 
-    let mut tlsf: TlsfType = Tlsf::new();
-    tlsf.insert_free_block(pool);
-
-    if TLSF.set(Mutex::new(tlsf)).is_err() {
+    if TLSF.set(TLSFAllocator::new(pool)).is_err() {
         panic!("[ERROR] [Agnocast] TLSF is already initialized.");
     }
-}
-
-fn tlsf_allocate_wrapped(layout: Layout) -> Option<NonNull<u8>> {
-    // `alignment` must be at least `POINTER_ALIGN` to ensure that `aligned_ptr` is properly aligned to store a pointer.
-    let alignment = layout.align().max(POINTER_ALIGN);
-    let size = layout.size();
-    let layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
-
-    // the original pointer returned by the internal allocator
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    let original_ptr = tlsf.allocate(layout)?;
-    let original_addr = original_ptr.as_ptr() as usize;
-
-    // the aligned pointer returned to the user
-    //
-    // It is our responsibility to satisfy alignment constraints.
-    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
-    // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
-    // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
-    let aligned_addr = (original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
-
-    // SAFETY: `aligned_addr` must be non-zero.
-    debug_assert!(aligned_addr % alignment == 0 && aligned_addr != 0);
-    let aligned_ptr = unsafe { NonNull::new_unchecked(aligned_addr as *mut u8) };
-
-    // store the original pointer
-    unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
-
-    Some(aligned_ptr)
-}
-
-fn tlsf_reallocate_wrapped(ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>> {
-    // `alignment` must be at least `POINTER_ALIGN` to ensure that `aligned_ptr` is properly aligned to store a pointer.
-    let alignment = new_layout.align().max(POINTER_ALIGN);
-    let size = new_layout.size();
-    let new_layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
-
-    // get the original pointer
-    // SAFETY: `ptr` must have been allocated by `tlsf_allocate_wrapped`.
-    let old_original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
-
-    // the original pointer returned by the internal allocator
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    let new_original_ptr = unsafe { tlsf.reallocate(old_original_ptr, new_layout) }?;
-    let new_original_addr = new_original_ptr.as_ptr() as usize;
-
-    // the aligned pointer returned to the user
-    //
-    // It is our responsibility to satisfy alignment constraints.
-    // We avoid using `Layout::align` because doing so requires us to remember the alignment.
-    // This is because `Tlsf::{reallocate, deallocate}` functions require the same alignment.
-    // See: https://docs.rs/rlsf/latest/rlsf/struct.Tlsf.html
-    let new_aligned_addr = (new_original_addr + POINTER_SIZE + alignment - 1) & !(alignment - 1);
-
-    // SAFETY: `new_aligned_addr` must be non-zero.
-    debug_assert!(new_aligned_addr % alignment == 0 && new_aligned_addr != 0);
-    let new_aligned_ptr = unsafe { NonNull::new_unchecked(new_aligned_addr as *mut u8) };
-
-    // store the original pointer
-    unsafe { *new_aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = new_original_ptr };
-
-    Some(new_aligned_ptr)
-}
-
-fn tlsf_deallocate_wrapped(ptr: NonNull<u8>) {
-    // get the original pointer
-    // SAFETY: `ptr` must have been allocated by `tlsf_{allocate, reallocate}_wrapped`.
-    let original_ptr = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
-
-    let mut tlsf = TLSF.get().unwrap().lock().unwrap();
-    unsafe { tlsf.deallocate(original_ptr, LAYOUT_ALIGN) }
 }
 
 #[cfg(not(test))]
@@ -307,7 +261,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match tlsf_allocate_wrapped(layout) {
+    match TLSF.get().unwrap().allocate(layout) {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => ptr::null_mut(),
     }
@@ -334,7 +288,7 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
 
     match (is_shared, is_forked_child) {
         (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => tlsf_deallocate_wrapped(non_null_ptr),
+        (true, false) => TLSF.get().unwrap().deallocate(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
@@ -353,7 +307,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match tlsf_allocate_wrapped(layout) {
+    match TLSF.get().unwrap().allocate(layout) {
         Some(non_null_ptr) => {
             let ptr = non_null_ptr.as_ptr();
             unsafe {
@@ -389,18 +343,18 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 Some(non_null_ptr) => {
                     // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
                     if new_layout.size() == 0 {
-                        tlsf_deallocate_wrapped(non_null_ptr);
+                        TLSF.get().unwrap().deallocate(non_null_ptr);
                         return ptr::null_mut();
                     }
 
-                    match tlsf_reallocate_wrapped(non_null_ptr, new_layout) {
+                    match TLSF.get().unwrap().reallocate(non_null_ptr, new_layout) {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
                 }
                 None => {
                     // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
-                    match tlsf_allocate_wrapped(new_layout) {
+                    match TLSF.get().unwrap().allocate(new_layout) {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
@@ -431,7 +385,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         Err(_) => return libc::ENOMEM,
     };
 
-    match tlsf_allocate_wrapped(layout) {
+    match TLSF.get().unwrap().allocate(layout) {
         Some(non_null_ptr) => {
             *memptr = non_null_ptr.as_ptr().cast();
             0
@@ -458,7 +412,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match tlsf_allocate_wrapped(layout) {
+    match TLSF.get().unwrap().allocate(layout) {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
@@ -478,7 +432,7 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match tlsf_allocate_wrapped(layout) {
+    match TLSF.get().unwrap().allocate(layout) {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
@@ -496,11 +450,9 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 
 #[cfg(test)]
 fn init_tlsf() {
-    let mempool_size: usize = 1024 * 1024;
-    let mempool_ptr: *mut c_void = 0x121000000000 as *mut c_void;
-    let pool: &mut [MaybeUninit<u8>] = unsafe {
-        std::slice::from_raw_parts_mut(mempool_ptr as *mut MaybeUninit<u8>, mempool_size)
-    };
+    let mempool_size = 1024 * 1024;
+    let mempool_ptr = 0x121000000000 as *mut c_void;
+    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
 
     let shm_fd = unsafe {
         libc::shm_open(
@@ -511,8 +463,10 @@ fn init_tlsf() {
             0o600,
         )
     };
+    assert!(shm_fd != -1);
 
-    unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+    let result = unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+    assert!(result != -1);
 
     let mmap_ptr = unsafe {
         libc::mmap(
@@ -524,22 +478,21 @@ fn init_tlsf() {
             0,
         )
     };
+    assert!(mmap_ptr != libc::MAP_FAILED);
 
-    unsafe {
+    let result = unsafe {
         libc::shm_unlink(
             CStr::from_bytes_with_nul(b"/agnocast_test\0")
                 .unwrap()
                 .as_ptr(),
         )
     };
+    assert!(result != -1);
 
     MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
 
-    let mut tlsf: TlsfType = Tlsf::new();
-    tlsf.insert_free_block(pool);
-
-    TLSF.set(Mutex::new(tlsf));
+    assert!(TLSF.set(TLSFAllocator::new(pool)).is_ok());
 }
 
 #[cfg(test)]
