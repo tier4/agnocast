@@ -1,7 +1,7 @@
 use std::{
     alloc::Layout,
     ffi::{CStr, CString},
-    mem::{size_of, MaybeUninit},
+    mem::size_of,
     os::raw::{c_char, c_int, c_void},
     ptr::{self, NonNull},
     sync::{
@@ -139,6 +139,13 @@ extern "C" fn post_fork_handler_in_child() {
 
 static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
 
+/// A memory allocator that manages shared memory.
+///
+/// # Safety
+///
+/// The `AgnocastSharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
+///
+/// * The memory allocator must not unwind. A panic in any of its functions may lead to memory unsafety.
 unsafe trait AgnocastSharedMemoryAllocator {
     /// Initializes the allocator with the given `pool`.
     fn new(pool: &'static mut [u8]) -> Self;
