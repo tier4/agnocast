@@ -463,7 +463,7 @@ fn init_tlsf() {
     MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
     MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
 
-    assert!(TLSF.set(TLSFAllocator::new(pool)).is_ok())
+    assert!(TLSF.set(TLSFAllocator::new(pool)).is_ok());
 }
 
 #[cfg(test)]
