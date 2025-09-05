@@ -52,7 +52,7 @@ private:
     std::optional<std::function<void(SharedFuture)>> callback;
 
     RequestInfo() = default;
-    RequestInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
+    explicit RequestInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
   };
 
   std::atomic<uint64_t> next_sequence_number_;
