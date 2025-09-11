@@ -50,6 +50,7 @@ Suppose the process's id is `pid`, then the message queue is named as "/new_publ
 The restriction for the name is the same as the shared memory.
 
 ## How to determine `AGNOCAST_MEMPOOL_SIZE` value
+
 Any process which joins Agnocast has to set `AGNOCAST_MEMPOOL_SIZE` as an environment variable.
 The passed value is aligned to 100KB boundaries.
 
