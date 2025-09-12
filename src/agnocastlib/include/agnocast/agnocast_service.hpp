@@ -17,12 +17,12 @@ template <typename ServiceT>
 class Service
 {
 public:
+  // To avoid name conflicts, members of RequestT and ResponseT are given an underscore prefix.
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
     uint64_t _sequence_number;
   };
-
   struct ResponseT : public ServiceT::Response
   {
     std::string _node_name;

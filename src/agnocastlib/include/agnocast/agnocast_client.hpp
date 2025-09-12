@@ -30,12 +30,12 @@ template <typename ServiceT>
 class Client
 {
 public:
+  // To avoid name conflicts, members of RequestT and ResponseT are given an underscore prefix.
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
     uint64_t _sequence_number;
   };
-
   struct ResponseT : public ServiceT::Response
   {
     std::string _node_name;
@@ -56,8 +56,8 @@ private:
   };
 
   std::atomic<uint64_t> next_sequence_number_;
-  std::mutex seqno2_request_info_mtx;
-  std::unordered_map<uint64_t, RequestInfo> seqno2_request_info;
+  std::mutex seqno2_request_info_mtx_;
+  std::unordered_map<uint64_t, RequestInfo> seqno2_request_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
   typename AgnocastOnlyPublisher<RequestT>::SharedPtr publisher_;
@@ -78,18 +78,18 @@ public:
         return;
       }
 
-      std::unique_lock<std::mutex> lock(seqno2_request_info_mtx);
+      std::unique_lock<std::mutex> lock(seqno2_request_info_mtx_);
       /* --- critical section begin --- */
       // Get the corresponding RequestInfo and remove it from the map
-      auto it = seqno2_request_info.find(response->_sequence_number);
-      if (it == seqno2_request_info.end()) {
+      auto it = seqno2_request_info_.find(response->_sequence_number);
+      if (it == seqno2_request_info_.end()) {
         lock.unlock();
         RCLCPP_ERROR(
           node_->get_logger(), "Agnocast internal implementation error: bad sequence number");
         return;
       }
       RequestInfo info = std::move(it->second);
-      seqno2_request_info.erase(it);
+      seqno2_request_info_.erase(it);
       /* --- critical section end --- */
       lock.unlock();
 
@@ -125,8 +125,8 @@ public:
     ipc_shared_ptr<RequestT> && request, std::function<void(SharedFuture)> callback)
   {
     {
-      std::lock_guard<std::mutex> lock(seqno2_request_info_mtx);
-      seqno2_request_info.try_emplace(request->_sequence_number, std::move(callback));
+      std::lock_guard<std::mutex> lock(seqno2_request_info_mtx_);
+      seqno2_request_info_.try_emplace(request->_sequence_number, std::move(callback));
     }
 
     publisher_->publish(std::move(request));
@@ -134,8 +134,8 @@ public:
 
   SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
   {
-    std::unique_lock<std::mutex> lock(seqno2_request_info_mtx);
-    auto it = seqno2_request_info.try_emplace(request->_sequence_number).first;
+    std::unique_lock<std::mutex> lock(seqno2_request_info_mtx_);
+    auto it = seqno2_request_info_.try_emplace(request->_sequence_number).first;
     SharedFuture ret = it->second.promise.get_future().share();
     lock.unlock();
 
