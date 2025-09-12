@@ -252,7 +252,7 @@ public:
     return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
   }
 
-  void publish(ipc_shared_ptr<MessageT> && message)
+  int64_t publish(ipc_shared_ptr<MessageT> && message)
   {
     if (!message || topic_name_ != message.get_topic_name()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
@@ -273,6 +273,8 @@ public:
     }
 
     message.reset();
+
+    return publish_msg_args.ret_entry_id;
   }
 
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }

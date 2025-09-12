@@ -17,16 +17,15 @@ template <typename ServiceT>
 class Service
 {
 public:
+  // To avoid name conflicts, members of RequestT and ResponseT are given an underscore prefix.
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
-    uint64_t _sequence_number;
   };
-
   struct ResponseT : public ServiceT::Response
   {
     std::string _node_name;
-    uint64_t _sequence_number;
+    int64_t _request_entry_id;
   };
 
 private:
@@ -55,7 +54,7 @@ public:
       [this, callback = std::forward<Func>(callback)](const ipc_shared_ptr<RequestT> & request) {
         ipc_shared_ptr<ResponseT> response = this->publisher_->borrow_loaned_message();
         response->_node_name = request->_node_name;
-        response->_sequence_number = request->_sequence_number;
+        response->_request_entry_id = request.get_entry_id();
 
         callback(request, response);
 
