@@ -45,17 +45,17 @@ public:
   using SharedFuture = std::shared_future<ipc_shared_ptr<ResponseT>>;
 
 private:
-  struct RequestInfo
+  struct ServiceCallInfo
   {
     std::promise<ipc_shared_ptr<ResponseT>> promise;
     std::optional<std::function<void(SharedFuture)>> callback;
 
-    RequestInfo() = default;
-    explicit RequestInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
+    ServiceCallInfo() = default;
+    explicit ServiceCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
   };
 
-  std::mutex id2_request_info_mtx_;
-  std::unordered_map<int64_t, RequestInfo> id2_request_info_;
+  std::mutex id2_service_call_info_mtx_;
+  std::unordered_map<int64_t, ServiceCallInfo> id2_service_call_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
   typename AgnocastOnlyPublisher<RequestT>::SharedPtr publisher_;
@@ -76,17 +76,17 @@ public:
         return;
       }
 
-      std::unique_lock<std::mutex> lock(id2_request_info_mtx_);
+      std::unique_lock<std::mutex> lock(id2_service_call_info_mtx_);
       /* --- critical section begin --- */
-      // Get the corresponding RequestInfo and remove it from the map
-      auto it = id2_request_info_.find(response->_request_entry_id);
-      if (it == id2_request_info_.end()) {
+      // Get the corresponding ServiceCallInfo and remove it from the map
+      auto it = id2_service_call_info_.find(response->_request_entry_id);
+      if (it == id2_service_call_info_.end()) {
         lock.unlock();
         RCLCPP_ERROR(node_->get_logger(), "Agnocast internal implementation error: bad entry id");
         return;
       }
-      RequestInfo info = std::move(it->second);
-      id2_request_info_.erase(it);
+      ServiceCallInfo info = std::move(it->second);
+      id2_service_call_info_.erase(it);
       /* --- critical section end --- */
       lock.unlock();
 
@@ -122,16 +122,16 @@ public:
   {
     int64_t entry_id = publisher_->publish(std::move(request));
 
-    std::lock_guard<std::mutex> lock(id2_request_info_mtx_);
-    id2_request_info_.try_emplace(entry_id, std::move(callback));
+    std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
+    id2_service_call_info_.try_emplace(entry_id, std::move(callback));
   }
 
   SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
   {
     int64_t entry_id = publisher_->publish(std::move(request));
 
-    std::lock_guard<std::mutex> lock(id2_request_info_mtx_);
-    auto it = id2_request_info_.try_emplace(entry_id).first;
+    std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
+    auto it = id2_service_call_info_.try_emplace(entry_id).first;
     return it->second.promise.get_future().share();
   }
 };
