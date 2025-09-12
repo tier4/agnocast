@@ -135,7 +135,7 @@ struct AgnocastSharedMemory {
 
 impl AgnocastSharedMemory {
     #[cfg(not(test))]
-    /// Initizlizes shared memory.
+    /// Initializes shared memory.
     ///
     /// # Safety
     /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
@@ -184,7 +184,7 @@ impl AgnocastSharedMemory {
     }
 
     #[cfg(test)]
-    /// Initizlizes shared memory.
+    /// Initializes shared memory.
     ///
     /// # Safety
     /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
@@ -284,7 +284,7 @@ unsafe trait SharedMemoryAllocator {
     /// Initializes the allocator with the given `shm`.
     fn new(shm: &'static AgnocastSharedMemory) -> Self;
 
-    /// Attemps to allocate a block of memory as described by the given `layout`.
+    /// Attempts to allocate a block of memory as described by the given `layout`.
     ///
     /// # Safety
     ///
@@ -292,7 +292,7 @@ unsafe trait SharedMemoryAllocator {
     /// and satisfy the requirements of `layout`.
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
 
-    /// Attemps to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
+    /// Attempts to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
     ///
     /// # Safety
     ///
