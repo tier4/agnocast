@@ -69,7 +69,7 @@ This is because it is not possible to determine exactly when, within this interv
 
 Given the above implementation, it is difficult to determine an appropriate size for `AGNOCAST_MEMPOOL_SIZE`.
 Due to demand paging, the shared physical memory corresponding to `AGNOCAST_MEMPOOL_SIZE` is not consumed in full from the beginning.
-Therefore, as long as the virtual address space resources are not exhausted, it is safer to allocate a much large size.
+Therefore, as long as the virtual address space resources are not exhausted, it is safer to allocate a much larger size.
 The virtual address space resources are managed in [agnocast_kmod/agnocast_memory_allocator.h](https://github.com/tier4/agnocast/blob/main/agnocast_kmod/agnocast_memory_allocator.h), and the ranges defined in this file are arbitrarily chosen.
 
 ## Known issues
