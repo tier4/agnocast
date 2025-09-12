@@ -16,7 +16,7 @@ The `CallbackIsolatedAgnocastExecutor` is regarded as a set of `SingleThreadedAg
 The verification is conducted under the following conditions:
 
 - Only one `SingleThreadedAgnocastExecutor` exists (`NUM_EXECUTORS = 1`).
-- For both ROS and Agnocast, there is one publisher and three subscriptions (`NUM_SUBSCRIPTIONS = 2`).
+- For both ROS and Agnocast, there is one publisher and two subscriptions (`NUM_SUBSCRIPTIONS = 2`).
   - Subscriptions may join in the middle of execution.
 - Each publisher sends just two messages (`NUM_PUBLISH = 2`).
 
