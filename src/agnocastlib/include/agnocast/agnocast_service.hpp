@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
@@ -61,7 +62,8 @@ public:
           std::lock_guard<std::mutex> lock(publishers_mtx_);
           auto it = publishers_.find(request->_node_name);
           if (it == publishers_.end()) {
-            std::string topic_name = service_name_ + "_response" + request->_node_name;
+            std::string topic_name =
+              create_service_response_topic_name(service_name_, request->_node_name);
             publisher = std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node_, topic_name, qos_);
             publishers_[request->_node_name] = publisher;
           } else {
@@ -78,8 +80,9 @@ public:
       };
 
     SubscriptionOptions options{group};
+    std::string topic_name = create_service_request_topic_name(service_name_);
     subscriber_ = std::make_shared<Subscription<RequestT>>(
-      node, service_name_ + "_request", qos, std::move(subscriber_callback), options);
+      node, topic_name, qos, std::move(subscriber_callback), options);
   }
 };
 

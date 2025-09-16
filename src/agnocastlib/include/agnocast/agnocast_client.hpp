@@ -4,6 +4,7 @@
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <atomic>
@@ -67,8 +68,8 @@ public:
     rclcpp::CallbackGroup::SharedPtr group)
   : node_(node),
     service_name_(node_->get_node_services_interface()->resolve_service_name(service_name)),
-    publisher_(
-      std::make_shared<AgnocastOnlyPublisher<RequestT>>(node, service_name_ + "_request", qos))
+    publisher_(std::make_shared<AgnocastOnlyPublisher<RequestT>>(
+      node, create_service_request_topic_name(service_name_), qos))
   {
     auto subscriber_callback = [this](ipc_shared_ptr<ResponseT> && response) {
       std::unique_lock<std::mutex> lock(id2_service_call_info_mtx_);
@@ -92,7 +93,8 @@ public:
     };
 
     SubscriptionOptions options{group};
-    std::string topic_name = service_name_ + "_response" + node_->get_fully_qualified_name();
+    std::string topic_name =
+      create_service_response_topic_name(service_name_, node->get_fully_qualified_name());
     subscriber_ = std::make_shared<Subscription<ResponseT>>(
       node_, topic_name, qos, std::move(subscriber_callback), options);
   }
