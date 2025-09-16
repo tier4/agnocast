@@ -35,12 +35,78 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+void bg_process()
+{
+  std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+
+  std::string mq_name = create_mq_name_for_bridge();  // "/agnocast@for_bridge@0"
+  mqd_t mq;
+  struct mq_attr attr;
+
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = 8192;
+  attr.mq_curmsgs = 0;
+
+  mq = mq_open(mq_name.c_str(), O_RDONLY | O_CREAT, 0644, &attr);
+
+  if (mq == (mqd_t)-1) {
+    RCLCPP_ERROR(logger, "mq_open failed for %s: %s", mq_name.c_str(), strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  if (mq_getattr(mq, &attr) == -1) {
+    RCLCPP_ERROR(logger, "mq_getattr failed: %s", strerror(errno));
+    mq_close(mq);
+    mq_unlink(mq_name.c_str());
+    exit(EXIT_FAILURE);
+  }
+
+  std::cout << "bg_process: Waiting for messages on " << mq_name
+            << " (MaxMsgSize: " << attr.mq_msgsize << " bytes)" << std::endl;
+
+  std::vector<char> buffer(attr.mq_msgsize);
+  unsigned int msg_prio;
+
+  while (true) {
+    ssize_t bytes_read;
+    bytes_read = mq_receive(mq, buffer.data(), attr.mq_msgsize, &msg_prio);
+    if (bytes_read >= 0) {
+      std::cout << "Received " << bytes_read << " bytes. (Prio: " << msg_prio << ")" << std::endl;
+
+      break;
+
+    } else {
+      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+      break;
+    }
+  }
+
+  std::cout << "bg_process: Exiting loop." << std::endl;
+  mq_close(mq);
+}
+
 void poll_for_unlink()
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
+  }
+
+  std::cout << "[POLL PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  if (pid == 0) {
+    bg_process();
+    exit(EXIT_SUCCESS);
   }
 
   while (true) {
@@ -146,15 +212,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);

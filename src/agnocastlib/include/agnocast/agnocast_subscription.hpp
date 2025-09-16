@@ -71,6 +71,7 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
+    start_bridge_daemon_if_needed();
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
@@ -95,6 +96,44 @@ public:
   }
 
   ~Subscription() { remove_mq(mq_subscription_); }
+
+private:
+  void start_bridge_daemon_if_needed()
+  {
+    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+    get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (get_subscriber_count_args.ret_subscriber_num == 0) {
+      RCLCPP_INFO(logger, "-------------------------test");
+      std::string mq_name = create_mq_name_for_bridge();
+      mqd_t mq;
+      mq = mq_open(mq_name.c_str(), O_WRONLY);
+      if (mq == (mqd_t)-1) {
+        RCLCPP_ERROR(
+          logger, "mq_open (sender) failed for %s: %s", mq_name.c_str(), strerror(errno));
+        return;
+      }
+
+      MqMsgBridge msg_to_send;
+
+      msg_to_send.shared_lib_path = "/path/to/your/shared_library.so";
+      msg_to_send.fn_ptr = nullptr;
+
+      unsigned int priority = 0;
+      if (mq_send(mq, msg_to_send.c_str(), msg_to_send.length(), priority) == -1) {
+        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+      } else {
+        std::cout << "Successfully sent " << data.length() << " bytes to " << mq_name << std::endl;
+      }
+
+      mq_close(mq);
+    }
+  }
 };
 
 template <typename MessageT>
