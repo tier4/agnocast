@@ -115,20 +115,30 @@ public:
       std::chrono::duration_cast<std::chrono::nanoseconds>(timeout));
   }
 
+  /*
+   * NOTE on async_send_request implementation:
+   *   It is possible for `subscriber_` to receive a response before the corresponding service call
+   *   info is inserted into `id2_service_call_info_`. To handle such cases, we acquire the lock on
+   *   `id2_service_call_info_` before publishing the request.
+   *   However, this solution may block the `subscriber_` callback for a non-negligible amount of
+   *   time under heavy use of the service.
+   *   As an alternative, we could let the client generate service call IDs instead of using the
+   *   `entry_id` from `ipc_shared_ptr`, allowing us to publish the request before acquiring the
+   *   lock.
+   */
+
   void async_send_request(
     ipc_shared_ptr<RequestT> && request, std::function<void(SharedFuture)> callback)
   {
-    int64_t entry_id = publisher_->publish(std::move(request));
-
     std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
+    int64_t entry_id = publisher_->publish(std::move(request));
     id2_service_call_info_.try_emplace(entry_id, std::move(callback));
   }
 
   SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
   {
-    int64_t entry_id = publisher_->publish(std::move(request));
-
     std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
+    int64_t entry_id = publisher_->publish(std::move(request));
     auto it = id2_service_call_info_.try_emplace(entry_id).first;
     return it->second.promise.get_future().share();
   }
