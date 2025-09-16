@@ -21,6 +21,7 @@
 namespace agnocast
 {
 
+bool service_is_ready_core(const std::string & service_name);
 bool wait_for_service_nanoseconds(
   rclcpp::Context::SharedPtr context, const std::string & service_name,
   std::chrono::nanoseconds timeout);
@@ -105,6 +106,10 @@ public:
     request->_node_name = node_->get_fully_qualified_name();
     return request;
   }
+
+  const char * get_service_name() const { return service_name_.c_str(); }
+
+  bool service_is_ready() const { return service_is_ready_core(service_name_); }
 
   template <typename RepT, typename RatioT>
   bool wait_for_service(

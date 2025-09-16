@@ -41,10 +41,11 @@ struct topic_info_ret * get_agnocast_sub_nodes(
   return agnocast_topic_info_ret_buffer;
 }
 
-bool is_service_ready(const std::string & service_name)
+bool service_is_ready_core(const std::string & service_name)
 {
   int sub_count;
-  struct topic_info_ret * sub_nodes = get_agnocast_sub_nodes(service_name + "_request", sub_count);
+  struct topic_info_ret * sub_nodes =
+    get_agnocast_sub_nodes(create_service_request_topic_name(service_name), sub_count);
 
   if (sub_count == 0) {
     return false;
@@ -63,7 +64,7 @@ bool wait_for_service_nanoseconds(
   std::chrono::nanoseconds timeout)
 {
   auto start = std::chrono::steady_clock::now();
-  if (is_service_ready(service_name)) {
+  if (service_is_ready_core(service_name)) {
     return true;
   }
   if (timeout == std::chrono::nanoseconds(0)) {
@@ -80,7 +81,7 @@ bool wait_for_service_nanoseconds(
     }
     auto interval = std::min(time_to_wait, std::chrono::nanoseconds(100 * 1000 * 1000) /*100ms*/);
     std::this_thread::sleep_for(interval);
-    if (is_service_ready(service_name)) {
+    if (service_is_ready_core(service_name)) {
       return true;
     }
     if (timeout > std::chrono::nanoseconds(0)) {
