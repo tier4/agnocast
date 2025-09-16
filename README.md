@@ -1,8 +1,36 @@
 # ROS 2 Agnocast
 
-True Zero Copy Communication Middleware for Undefined ROS 2 Message Types.
+A ROS 2-Compatible Middleware Enabling True Zero-Copy IPC for all ROS Message Types including Unsized Ones.
 
-prototype: <https://github.com/sykwer/agnocast>
+This middleware is based on the following paper and the [corresponding prototype](https://github.com/sykwer/agnocast).
+The paper has been accepted to [IEEE ISORC 2025](https://isorc.github.io/2025/), but only the preprint version ([pdf](https://www.arxiv.org/pdf/2506.16882)) is available at this stage.
+
+- T. Ishikawa-Aso and S. Kato, “ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC”, arXiv preprint arXiv:2506.16882, 2025.
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@article{ishikawa2025agnocast,
+  title={ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC},
+  author={Ishikawa-Aso, Takahiro and Kato, Shinpei},
+  journal={arXiv preprint arXiv:2506.16882},
+  year={2025}
+}
+```
+
+</details>
+
+## Supported Environments
+
+Agnocast is currently available in the following environments.
+This reflects the current status, and support is expected to expand in the future.
+
+| Category           | Supported Versions / Notes                                   |
+|--------------------|--------------------------------------------------------------|
+| ROS 2              | Humble (only with `rclcpp` client library)                   |
+| Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
+| Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
 ## Build
 
