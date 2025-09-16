@@ -37,7 +37,6 @@ public:
   };
   struct ResponseT : public ServiceT::Response
   {
-    std::string _node_name;
     int64_t _request_entry_id;
   };
 
@@ -58,6 +57,7 @@ private:
   std::unordered_map<int64_t, ServiceCallInfo> id2_service_call_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
+  // AgnocastOnlyPublisher is used since RequestT is not a compatible ROS message type.
   typename AgnocastOnlyPublisher<RequestT>::SharedPtr publisher_;
   typename Subscription<ResponseT>::SharedPtr subscriber_;
 
@@ -71,11 +71,6 @@ public:
       std::make_shared<AgnocastOnlyPublisher<RequestT>>(node, service_name_ + "_request", qos))
   {
     auto subscriber_callback = [this](ipc_shared_ptr<ResponseT> && response) {
-      if (response->_node_name != node_->get_fully_qualified_name()) {
-        // not a response for this client
-        return;
-      }
-
       std::unique_lock<std::mutex> lock(id2_service_call_info_mtx_);
       /* --- critical section begin --- */
       // Get the corresponding ServiceCallInfo and remove it from the map
@@ -97,8 +92,9 @@ public:
     };
 
     SubscriptionOptions options{group};
+    std::string topic_name = service_name_ + "_response" + node_->get_fully_qualified_name();
     subscriber_ = std::make_shared<Subscription<ResponseT>>(
-      node_, service_name_ + "_response", qos, std::move(subscriber_callback), options);
+      node_, topic_name, qos, std::move(subscriber_callback), options);
   }
 
   ipc_shared_ptr<RequestT> borrow_loaned_request()

@@ -24,13 +24,16 @@ public:
   };
   struct ResponseT : public ServiceT::Response
   {
-    std::string _node_name;
     int64_t _request_entry_id;
   };
 
 private:
+  rclcpp::Node * node_;
   const std::string service_name_;
-  typename AgnocastOnlyPublisher<ResponseT>::SharedPtr publisher_;
+  const rclcpp::QoS qos_;
+  std::mutex publishers_mtx_;
+  // AgnocastOnlyPublisher is used since ResponseT is not a compatible ROS message type.
+  std::unordered_map<std::string, typename AgnocastOnlyPublisher<ResponseT>::SharedPtr> publishers_;
   typename Subscription<RequestT>::SharedPtr subscriber_;
 
 public:
@@ -40,9 +43,9 @@ public:
   Service(
     rclcpp::Node * node, const std::string & service_name, Func && callback,
     const rclcpp::QoS & qos, rclcpp::CallbackGroup::SharedPtr group)
-  : service_name_(node->get_node_services_interface()->resolve_service_name(service_name)),
-    publisher_(
-      std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node, service_name_ + "_response", qos))
+  : node_(node),
+    service_name_(node_->get_node_services_interface()->resolve_service_name(service_name)),
+    qos_(qos)
   {
     static_assert(
       std::is_invocable_v<
@@ -52,13 +55,26 @@ public:
 
     auto subscriber_callback =
       [this, callback = std::forward<Func>(callback)](const ipc_shared_ptr<RequestT> & request) {
-        ipc_shared_ptr<ResponseT> response = this->publisher_->borrow_loaned_message();
-        response->_node_name = request->_node_name;
+        typename AgnocastOnlyPublisher<ResponseT>::SharedPtr publisher;
+
+        {
+          std::lock_guard<std::mutex> lock(publishers_mtx_);
+          auto it = publishers_.find(request->_node_name);
+          if (it == publishers_.end()) {
+            std::string topic_name = service_name_ + "_response" + request->_node_name;
+            publisher = std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node_, topic_name, qos_);
+            publishers_[request->_node_name] = publisher;
+          } else {
+            publisher = it->second;
+          }
+        }
+
+        ipc_shared_ptr<ResponseT> response = publisher->borrow_loaned_message();
         response->_request_entry_id = request.get_entry_id();
 
         callback(request, response);
 
-        this->publisher_->publish(std::move(response));
+        publisher->publish(std::move(response));
       };
 
     SubscriptionOptions options{group};
