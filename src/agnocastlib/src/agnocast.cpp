@@ -35,49 +35,58 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+mqd_t open_bridge_receiver_queue()
+{
+  std::string mq_name = create_mq_name_for_bridge();
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = sizeof(agnocast::MqMsgBridge);
+  mqd_t mq = mq_open(mq_name.c_str(), O_RDONLY | O_CREAT, 0644, &attr);
+
+  if (mq == (mqd_t)-1) {
+    std::cerr << "mq_open failed for " << mq_name << ": " << strerror(errno) << std::endl;
+    return (mqd_t)-1;
+  }
+
+  return mq;
+}
+
 void bg_process()
 {
   std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
 
-  std::string mq_name = create_mq_name_for_bridge();  // "/agnocast@for_bridge@0"
-  mqd_t mq;
-  struct mq_attr attr;
-
-  attr.mq_flags = 0;
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = 8192;
-  attr.mq_curmsgs = 0;
-
-  mq = mq_open(mq_name.c_str(), O_RDONLY | O_CREAT, 0644, &attr);
-
+  mqd_t mq = open_bridge_receiver_queue();
   if (mq == (mqd_t)-1) {
-    RCLCPP_ERROR(logger, "mq_open failed for %s: %s", mq_name.c_str(), strerror(errno));
     exit(EXIT_FAILURE);
   }
-
-  if (mq_getattr(mq, &attr) == -1) {
-    RCLCPP_ERROR(logger, "mq_getattr failed: %s", strerror(errno));
-    mq_close(mq);
-    mq_unlink(mq_name.c_str());
-    exit(EXIT_FAILURE);
-  }
-
-  std::cout << "bg_process: Waiting for messages on " << mq_name
-            << " (MaxMsgSize: " << attr.mq_msgsize << " bytes)" << std::endl;
-
-  std::vector<char> buffer(attr.mq_msgsize);
-  unsigned int msg_prio;
 
   while (true) {
+    agnocast::MqMsgBridge received_msg;
+
     ssize_t bytes_read;
-    bytes_read = mq_receive(mq, buffer.data(), attr.mq_msgsize, &msg_prio);
+
+    bytes_read = mq_receive(
+      mq, reinterpret_cast<char *>(&received_msg), sizeof(agnocast::MqMsgBridge), nullptr);
+
     if (bytes_read >= 0) {
-      std::cout << "Received " << bytes_read << " bytes. (Prio: " << msg_prio << ")" << std::endl;
+      if (static_cast<size_t>(bytes_read) == sizeof(agnocast::MqMsgBridge)) {
+        std::cout << "--- Restored MqMsgBridge (Directly) ---" << std::endl;
+        std::cout << "  Path: " << received_msg.shared_lib_path << std::endl;
+        std::cout << "  Topic: " << received_msg.args.topic_name << std::endl;
+        std::cout << "  Ptr: 0x" << std::hex << received_msg.fn_ptr << std::dec << std::endl;
+        std::cout << "  QoS Depth: " << (int)received_msg.args.qos.depth << std::endl;
+        std::cout << "  QoS Rel: " << (int)received_msg.args.qos.reliability << std::endl;
+        std::cout << "---------------------------------------" << std::endl;
+        bridge_process_main(received_msg);
+      } else {
+        std::cerr << "Received message size mismatch! Expected " << sizeof(agnocast::MqMsgBridge)
+                  << ", Got " << bytes_read << std::endl;
+      }
 
       break;
 
     } else {
-      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+      std::cerr << "mq_receive failed: " << strerror(errno) << std::endl;
       break;
     }
   }

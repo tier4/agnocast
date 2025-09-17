@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_daemon.hpp"
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
@@ -8,6 +9,7 @@
 #include "agnocast/agnocast_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <mqueue.h>
 #include <string.h>
@@ -71,7 +73,7 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
-    start_bridge_daemon_if_needed();
+    start_bridge_daemon_if_needed(qos);
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
@@ -98,7 +100,7 @@ public:
   ~Subscription() { remove_mq(mq_subscription_); }
 
 private:
-  void start_bridge_daemon_if_needed()
+  void start_bridge_daemon_if_needed(const rclcpp::QoS & qos)
   {
     union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
     get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
@@ -109,26 +111,43 @@ private:
     }
 
     if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      RCLCPP_INFO(logger, "-------------------------test");
       std::string mq_name = create_mq_name_for_bridge();
-      mqd_t mq;
-      mq = mq_open(mq_name.c_str(), O_WRONLY);
+      mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
       if (mq == (mqd_t)-1) {
         RCLCPP_ERROR(
           logger, "mq_open (sender) failed for %s: %s", mq_name.c_str(), strerror(errno));
         return;
       }
 
-      MqMsgBridge msg_to_send;
+      agnocast::MqMsgBridge msg = {};
 
-      msg_to_send.shared_lib_path = "/path/to/your/shared_library.so";
-      msg_to_send.fn_ptr = nullptr;
+      BridgeFn fn = &bridge_entry<MessageT>;
 
-      unsigned int priority = 0;
-      if (mq_send(mq, msg_to_send.c_str(), msg_to_send.length(), priority) == -1) {
-        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+      Dl_info info{};
+      if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
+        throw std::runtime_error("dladdr failed");
+      }
+
+      std::strncpy(msg.shared_lib_path, info.dli_fname, MAX_PATH_LEN - 1);
+      msg.shared_lib_path[MAX_PATH_LEN - 1] = '\0';
+
+      if (info.dli_sname) {
+        std::strncpy(msg.symbol_name, info.dli_sname, MAX_PATH_LEN - 1);
+        msg.symbol_name[MAX_PATH_LEN - 1] = '\0';
       } else {
-        std::cout << "Successfully sent " << data.length() << " bytes to " << mq_name << std::endl;
+        std::strncpy(msg.symbol_name, "__MAIN_EXECUTABLE__", MAX_PATH_LEN - 1);
+        msg.symbol_name[MAX_PATH_LEN - 1] = '\0';
+      }
+
+      msg.fn_ptr = reinterpret_cast<uintptr_t>(fn);
+
+      std::strncpy(msg.args.topic_name, topic_name_.c_str(), sizeof(msg.args.topic_name) - 1);
+      msg.args.topic_name[sizeof(msg.args.topic_name) - 1] = '\0';
+
+      msg.args.qos = agnocast::flatten_qos(qos);
+
+      if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) == -1) {
+        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
       }
 
       mq_close(mq);
