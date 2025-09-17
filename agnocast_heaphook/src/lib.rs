@@ -252,12 +252,14 @@ impl AgnocastSharedMemory {
 
 static AGNOCAST_SHARED_MEMORY: OnceLock<AgnocastSharedMemory> = OnceLock::new();
 
-struct AgnocastSharedMemoryAllocator<A: SharedMemoryAllocator>(A);
+struct AgnocastSharedMemoryAllocator<A: SharedMemoryAllocator> {
+    inner: A,
+}
 
 impl<A: SharedMemoryAllocator> AgnocastSharedMemoryAllocator<A> {
     #[inline]
     fn new(shm: &'static AgnocastSharedMemory) -> Self {
-        Self(A::new(shm))
+        Self { inner: A::new(shm) }
     }
 }
 
@@ -377,7 +379,7 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
         .get()
         .unwrap()
-        .0
+        .inner
         .allocate(layout)
     {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
@@ -403,7 +405,7 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         (true, false) => AGNOCAST_SHARED_MEMORY_ALLOCATOR
             .get()
             .unwrap()
-            .0
+            .inner
             .deallocate(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
@@ -426,7 +428,7 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
         .get()
         .unwrap()
-        .0
+        .inner
         .allocate(layout)
     {
         Some(non_null_ptr) => {
@@ -467,7 +469,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                         AGNOCAST_SHARED_MEMORY_ALLOCATOR
                             .get()
                             .unwrap()
-                            .0
+                            .inner
                             .deallocate(non_null_ptr);
                         return ptr::null_mut();
                     }
@@ -475,7 +477,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
                         .get()
                         .unwrap()
-                        .0
+                        .inner
                         .reallocate(non_null_ptr, new_layout)
                     {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
@@ -487,7 +489,7 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
                         .get()
                         .unwrap()
-                        .0
+                        .inner
                         .allocate(new_layout)
                     {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
@@ -523,7 +525,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
         .get()
         .unwrap()
-        .0
+        .inner
         .allocate(layout)
     {
         Some(non_null_ptr) => {
@@ -555,7 +557,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
         .get()
         .unwrap()
-        .0
+        .inner
         .allocate(layout)
     {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
@@ -580,7 +582,7 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
     match AGNOCAST_SHARED_MEMORY_ALLOCATOR
         .get()
         .unwrap()
-        .0
+        .inner
         .allocate(layout)
     {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
