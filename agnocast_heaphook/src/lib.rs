@@ -21,6 +21,8 @@ extern "C" {
         version_str_length: usize,
     ) -> *mut c_void;
     fn agnocast_get_borrowed_publisher_num() -> u32;
+
+    fn agnocast_child_initialize_pool(size: u64) -> *mut c_void;
 }
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
@@ -132,6 +134,7 @@ fn init_original_memalign() -> MemalignType {
 static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
 static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
+static MEMPOOL_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
@@ -197,6 +200,8 @@ fn init_tlsf() {
     let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
 
+    MEMPOOL_SIZE.store(aligned_size, Ordering::Relaxed);
+
     let version = env!("CARGO_PKG_VERSION");
     let c_version = CString::new(version).unwrap();
 
@@ -212,6 +217,26 @@ fn init_tlsf() {
     if TLSF.set(TLSFAllocator::new(pool)).is_err() {
         panic!("[ERROR] [Agnocast] TLSF is already initialized.");
     }
+}
+
+#[no_mangle]
+unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
+    let mempool_size = MEMPOOL_SIZE.load(Ordering::Relaxed);
+    let child_mempool_ptr = agnocast_child_initialize_pool(mempool_size as u64);
+
+    let pool =
+        unsafe { std::slice::from_raw_parts_mut(child_mempool_ptr as *mut u8, mempool_size) };
+
+    MEMPOOL_START.store(child_mempool_ptr as usize, Ordering::Relaxed);
+    MEMPOOL_END.store(child_mempool_ptr as usize + mempool_size, Ordering::Relaxed);
+
+    if TLSF.set(TLSFAllocator::new(pool)).is_err() {
+        panic!("[ERROR] [Agnocast] TLSF is already initialized.");
+    }
+
+    IS_FORKED_CHILD.store(false, Ordering::Relaxed);
+
+    true
 }
 
 #[cfg(not(test))]

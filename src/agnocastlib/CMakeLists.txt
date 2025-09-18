@@ -23,6 +23,8 @@ find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 
+set(AGNOCAST_HEAPHOOK_LIB_DIR /home/yutarokobayashi/agnocast/agnocast_heaphook/target/release)
+
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
@@ -31,9 +33,21 @@ add_library(agnocast SHARED
 # ament_target_dependencies(agnocast rclcpp)
 
 target_link_libraries(agnocast
+PUBLIC
   ${rclcpp_LIBRARIES}
   ${tracetools_LIBRARIES}
   ${LTTNGUST_LIBRARIES}
+)
+
+target_link_directories(agnocast PRIVATE ${AGNOCAST_HEAPHOOK_LIB_DIR})
+
+target_link_libraries(agnocast
+  PRIVATE
+    agnocast_heaphook 
+    rt                
+    dl               
+    pthread            
+    m               
 )
 
 target_include_directories(agnocast PUBLIC
@@ -43,6 +57,7 @@ target_include_directories(agnocast PUBLIC
   ${tracetools_INCLUDE_DIRS}
   ${LTTNGUST_INCLUDE_DIRS}
 )
+
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
 

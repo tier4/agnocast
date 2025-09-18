@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <mutex>
 
+extern "C" bool agnocast_heaphook_init_daemon();
+
 namespace agnocast
 {
 
@@ -53,7 +55,19 @@ mqd_t open_bridge_receiver_queue()
 
 void bg_process()
 {
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+
+  std::cout << "[BG PROCESS] (Daemon) Calling manual heaphook init..." << std::endl;
+
+  if (!agnocast_heaphook_init_daemon()) {
+    std::cerr << "[BG PROCESS] (Daemon) Heaphook init FAILED." << std::endl;
+  }
 
   mqd_t mq = open_bridge_receiver_queue();
   if (mq == (mqd_t)-1) {
@@ -371,6 +385,24 @@ void * initialize_agnocast(
     if (pid == 0) {
       poll_for_unlink();
     }
+  }
+
+  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  if (mempool_ptr == nullptr) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  return mempool_ptr;
+}
+
+extern "C" void * agnocast_child_initialize_pool(const uint64_t shm_size)
+{
+  union ioctl_add_process_args add_process_args = {};
+  add_process_args.shm_size = shm_size;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);

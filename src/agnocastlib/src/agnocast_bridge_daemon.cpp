@@ -15,19 +15,6 @@ void bridge_process_main(const MqMsgBridge & msg)
 
   g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
 
-  const char * mempool_size_env = std::getenv("AGNOCAST_MEMPOOL_SIZE");
-  size_t shm_size = mempool_size_env ? std::stoul(mempool_size_env) : 67108864;
-
-  union ioctl_add_process_args add_process_args = {};
-  add_process_args.shm_size = shm_size;
-  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
-    std::cerr << "[Bridge Process Error] AGNOCAST_ADD_PROCESS_CMD failed: " << strerror(errno)
-              << std::endl;
-    close(agnocast_fd);
-    rclcpp::shutdown();
-    exit(EXIT_FAILURE);
-  }
-
   if (msg.fn_ptr == 0) {
     std::cerr << "[Bridge Process Error] Received a null function pointer!" << std::endl;
     close(agnocast_fd);
@@ -67,11 +54,27 @@ void bridge_process_main(const MqMsgBridge & msg)
   }
 
   std::cout << "[Bridge Process] Calling bridge entry function..." << std::endl;
-  entry_func(msg.args);
-  std::cout << "[Bridge Process] Starting executor spin for topic: " << msg.args.topic_name
-            << std::endl;
 
-  g_executor->spin();
+  try {
+    entry_func(msg.args);
+    std::cout << "[Bridge Process] Starting executor spin for topic: " << msg.args.topic_name
+              << std::endl;
+
+    g_executor->spin();
+
+  } catch (const std::exception & e) {
+    std::cerr << "[Bridge Process FATAL ERROR] Unhandled std::exception: " << e.what()
+              << " for topic: " << msg.args.topic_name << std::endl;
+    close(agnocast_fd);
+    rclcpp::shutdown();
+    exit(EXIT_FAILURE);
+  } catch (...) {
+    std::cerr << "[Bridge Process FATAL ERROR] Unhandled unknown exception"
+              << " for topic: " << msg.args.topic_name << std::endl;
+    close(agnocast_fd);
+    rclcpp::shutdown();
+    exit(EXIT_FAILURE);
+  }
 
   close(agnocast_fd);
   rclcpp::shutdown();
@@ -79,4 +82,4 @@ void bridge_process_main(const MqMsgBridge & msg)
   exit(EXIT_SUCCESS);
 }
 
-}  // namespace agnocast
+}

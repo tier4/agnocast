@@ -34,19 +34,17 @@ void start_bridge_node(const BridgeArgs & args)
     std::cout << "[Debug] 3. Creating ROS 2 Subscription..." << std::endl;
 
     auto callback = [agnocast_pub, node, sub_holder](const typename MessageT::ConstSharedPtr msg) {
-      RCLCPP_INFO(node->get_logger(), "[Bridge Daemon Callback] Message Received!");
+      // RCLCPP_INFO(node->get_logger(), "[Bridge Daemon Callback] Message Received!");
 
       auto loaned_msg = agnocast_pub->borrow_loaned_message();
-      RCLCPP_INFO(node->get_logger(), "Address of msg: %p", (void *)msg.get());
-      RCLCPP_INFO(
-        node->get_logger(), "Address of loaned_msg before copy: %p", (void *)loaned_msg.get());
       *loaned_msg = *msg;
-      RCLCPP_INFO(
-        node->get_logger(), "Address of loaned_msg after copy: %p", (void *)loaned_msg.get());
       agnocast_pub->publish(std::move(loaned_msg));
     };
 
-    *sub_holder = node->create_subscription<MessageT>(topic_name, qos, callback);
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.ignore_local_publications = true;
+
+    *sub_holder = node->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
 
     std::cout << "[Debug] 4. Adding node to executor..." << std::endl;
     g_executor->add_node(node);
