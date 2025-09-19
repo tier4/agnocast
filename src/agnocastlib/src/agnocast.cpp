@@ -46,7 +46,7 @@ mqd_t open_bridge_receiver_queue()
   mqd_t mq = mq_open(mq_name.c_str(), O_RDONLY | O_CREAT, 0644, &attr);
 
   if (mq == (mqd_t)-1) {
-    std::cerr << "mq_open failed for " << mq_name << ": " << strerror(errno) << std::endl;
+    RCLCPP_ERROR(logger, "mq_open failed for %s: %s", mq_name.c_str(), strerror(errno));
     return (mqd_t)-1;
   }
 
@@ -100,10 +100,10 @@ static void fork_bridge_daemon(
       exit(EXIT_FAILURE);
     }
 
-    std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+    RCLCPP_INFO(logger, "[BRIDGE PROCESS] PID: %d", getpid());
 
     if (!agnocast_heaphook_init_daemon()) {
-      std::cerr << "[BG PROCESS] (Daemon) Heaphook init FAILED." << std::endl;
+      RCLCPP_ERROR(logger, "Heaphook init FAILED.");
     }
 
     bridge_process_main(msg_buffer);
@@ -154,7 +154,7 @@ void poll_for_unlink()
     exit(EXIT_FAILURE);
   }
 
-  std::cout << "[POLL PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+  RCLCPP_INFO(logger, "[POLL PROCESS] PID: %d", getpid());
 
   mqd_t mq = open_bridge_receiver_queue();
   if (mq == (mqd_t)-1) {
