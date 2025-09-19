@@ -121,7 +121,7 @@ private:
 
       agnocast::MqMsgBridge msg = {};
 
-      BridgeFn fn = &bridge_entry<MessageT>;
+      BridgeFn fn = &start_bridge_node<MessageT>;
 
       Dl_info info{};
       if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {

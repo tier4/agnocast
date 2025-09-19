@@ -62,12 +62,6 @@ void start_bridge_node(const BridgeArgs & args)
   }
 }
 
-template <typename MessageT>
-void bridge_entry(const BridgeArgs & args)
-{
-  start_bridge_node<MessageT>(args);
-}
-
 }  // namespace agnocast
 
 using BridgeFn = void (*)(const agnocast::BridgeArgs &);
