@@ -1,6 +1,7 @@
 #pragma once
 
-#define MAX_PATH_LEN 256
+constexpr size_t kMaxPathLen = 256;
+
 #include "rclcpp/qos.hpp"
 
 namespace agnocast
@@ -25,14 +26,14 @@ struct QoSFlat
 
 struct BridgeArgs
 {
-  char topic_name[256];
+  char topic_name[kMaxPathLen];
   QoSFlat qos;
 };
 
 struct MqMsgBridge
 {
-  char shared_lib_path[MAX_PATH_LEN];
-  char symbol_name[MAX_PATH_LEN];
+  char shared_lib_path[kMaxPathLen];
+  char symbol_name[kMaxPathLen];
   uintptr_t fn_ptr;
   BridgeArgs args;
 };
