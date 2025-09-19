@@ -48,11 +48,7 @@ target_link_libraries(agnocast
     ${tracetools_LIBRARIES}
     ${LTTNGUST_LIBRARIES}
   PRIVATE
-    agnocast_heaphook 
-    rt                
-    dl               
-    pthread            
-    m               
+    agnocast_heaphook          
 )
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
