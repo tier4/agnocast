@@ -81,4 +81,29 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   return callback_group;
 }
 
+int get_subscriber_count(const std::string topic_name)
+{
+  union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+  get_subscriber_count_args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  return get_subscriber_count_args.ret_subscriber_num;
+}
+
+void safe_strncpy(char * dest, const char * src, size_t dest_size)
+{
+  if (dest_size == 0) return;
+  if (src == nullptr) {
+    dest[0] = '\0';
+    return;
+  }
+  std::strncpy(dest, src, dest_size - 1);
+  dest[dest_size - 1] = '\0';
+}
+
 }  // namespace agnocast
