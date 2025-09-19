@@ -114,7 +114,7 @@ bool send_bridge_message(
     throw std::runtime_error("dladdr failed");
   }
 
-  agnocast::MqMsgBridge msg = {};
+  MqMsgBridge msg = {};
 
   safe_strncpy(msg.shared_lib_path, info.dli_fname, kMaxNameLen);
   const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";

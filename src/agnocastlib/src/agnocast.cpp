@@ -42,7 +42,7 @@ mqd_t open_bridge_receiver_queue()
   std::string mq_name = create_mq_name_for_bridge();
   struct mq_attr attr = {};
   attr.mq_maxmsg = 10;
-  attr.mq_msgsize = sizeof(agnocast::MqMsgBridge);
+  attr.mq_msgsize = sizeof(MqMsgBridge);
   mqd_t mq = mq_open(mq_name.c_str(), O_RDONLY | O_CREAT, 0644, &attr);
 
   if (mq == (mqd_t)-1) {
@@ -53,7 +53,7 @@ mqd_t open_bridge_receiver_queue()
   return mq;
 }
 
-static bool receive_message(mqd_t mq, agnocast::MqMsgBridge & msg_buffer)
+static bool receive_message(mqd_t mq, MqMsgBridge & msg_buffer)
 {
   struct timespec ts;
   if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
@@ -73,35 +73,17 @@ static bool receive_message(mqd_t mq, agnocast::MqMsgBridge & msg_buffer)
     return false;
   }
 
-  if (static_cast<size_t>(bytes_read) != sizeof(agnocast::MqMsgBridge)) {
+  if (static_cast<size_t>(bytes_read) != sizeof(MqMsgBridge)) {
     RCLCPP_WARN(
-      logger, "Received message with unexpected size: %zd vs %zu", bytes_read,
-      sizeof(agnocast::MqMsgBridge));
+      logger, "Received message with unexpected size: %zd vs %zu", bytes_read, sizeof(MqMsgBridge));
     return false;
   }
 
   return true;
 }
 
-void start_bridge(agnocast::MqMsgBridge received_msg)
-{
-  if (setsid() == -1) {
-    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
-
-  if (!agnocast_heaphook_init_daemon()) {
-    std::cerr << "[BG PROCESS] (Daemon) Heaphook init FAILED." << std::endl;
-  }
-
-  bridge_process_main(received_msg);
-}
-
 static void fork_bridge_daemon(
-  const agnocast::MqMsgBridge & msg_buffer, std::map<pid_t, std::string> & active_daemons)
+  const MqMsgBridge & msg_buffer, std::map<pid_t, std::string> & active_daemons)
 {
   pid_t pid = fork();
 
@@ -112,7 +94,19 @@ static void fork_bridge_daemon(
   }
 
   if (pid == 0) {
-    start_bridge(msg_buffer);
+    if (setsid() == -1) {
+      RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
+
+    if (!agnocast_heaphook_init_daemon()) {
+      std::cerr << "[BG PROCESS] (Daemon) Heaphook init FAILED." << std::endl;
+    }
+
+    bridge_process_main(msg_buffer);
     exit(EXIT_SUCCESS);
   }
 
@@ -168,7 +162,7 @@ void poll_for_unlink()
   }
 
   std::map<pid_t, std::string> active_daemons;
-  agnocast::MqMsgBridge msg_buffer;
+  MqMsgBridge msg_buffer;
 
   while (true) {
     if (receive_message(mq, msg_buffer)) {
