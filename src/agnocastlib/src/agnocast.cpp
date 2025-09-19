@@ -53,7 +53,37 @@ mqd_t open_bridge_receiver_queue()
   return mq;
 }
 
-void bg_process()
+static bool receive_message(mqd_t mq, agnocast::MqMsgBridge & msg_buffer)
+{
+  struct timespec ts;
+  if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+    RCLCPP_ERROR(logger, "clock_gettime failed: %s", strerror(errno));
+    sleep(1);
+    return false;
+  }
+  ts.tv_sec += 1;
+
+  ssize_t bytes_read =
+    mq_timedreceive(mq, reinterpret_cast<char *>(&msg_buffer), sizeof(msg_buffer), NULL, &ts);
+
+  if (bytes_read < 0) {
+    if (errno != ETIMEDOUT) {
+      RCLCPP_ERROR(logger, "mq_timedreceive failed: %s", strerror(errno));
+    }
+    return false;
+  }
+
+  if (static_cast<size_t>(bytes_read) != sizeof(agnocast::MqMsgBridge)) {
+    RCLCPP_WARN(
+      logger, "Received message with unexpected size: %zd vs %zu", bytes_read,
+      sizeof(agnocast::MqMsgBridge));
+    return false;
+  }
+
+  return true;
+}
+
+void start_bridge(agnocast::MqMsgBridge received_msg)
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
@@ -63,50 +93,63 @@ void bg_process()
 
   std::cout << "[BG PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
 
-  std::cout << "[BG PROCESS] (Daemon) Calling manual heaphook init..." << std::endl;
-
   if (!agnocast_heaphook_init_daemon()) {
     std::cerr << "[BG PROCESS] (Daemon) Heaphook init FAILED." << std::endl;
   }
 
-  mqd_t mq = open_bridge_receiver_queue();
-  if (mq == (mqd_t)-1) {
+  bridge_process_main(received_msg);
+}
+
+static void fork_bridge_daemon(
+  const agnocast::MqMsgBridge & msg_buffer, std::map<pid_t, std::string> & active_daemons)
+{
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  while (true) {
-    agnocast::MqMsgBridge received_msg;
-
-    ssize_t bytes_read;
-
-    bytes_read = mq_receive(
-      mq, reinterpret_cast<char *>(&received_msg), sizeof(agnocast::MqMsgBridge), nullptr);
-
-    if (bytes_read >= 0) {
-      if (static_cast<size_t>(bytes_read) == sizeof(agnocast::MqMsgBridge)) {
-        std::cout << "--- Restored MqMsgBridge (Directly) ---" << std::endl;
-        std::cout << "  Path: " << received_msg.shared_lib_path << std::endl;
-        std::cout << "  Topic: " << received_msg.args.topic_name << std::endl;
-        std::cout << "  Ptr: 0x" << std::hex << received_msg.fn_ptr << std::dec << std::endl;
-        std::cout << "  QoS Depth: " << (int)received_msg.args.qos.depth << std::endl;
-        std::cout << "  QoS Rel: " << (int)received_msg.args.qos.reliability << std::endl;
-        std::cout << "---------------------------------------" << std::endl;
-        bridge_process_main(received_msg);
-      } else {
-        std::cerr << "Received message size mismatch! Expected " << sizeof(agnocast::MqMsgBridge)
-                  << ", Got " << bytes_read << std::endl;
-      }
-
-      break;
-
-    } else {
-      std::cerr << "mq_receive failed: " << strerror(errno) << std::endl;
-      break;
-    }
+  if (pid == 0) {
+    start_bridge(msg_buffer);
+    exit(EXIT_SUCCESS);
   }
 
-  std::cout << "bg_process: Exiting loop." << std::endl;
-  mq_close(mq);
+  active_daemons[pid] = msg_buffer.args.topic_name;
+}
+
+static void monitor_active_daemons(std::map<pid_t, std::string> & active_daemons)
+{
+  for (auto it = active_daemons.begin(); it != active_daemons.end();) {
+    pid_t pid = it->first;
+    std::string topic_name_str = it->second;
+
+    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
+    get_subscriber_count_args.topic_name = {topic_name_str.c_str(), topic_name_str.size()};
+
+    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
+      RCLCPP_ERROR(
+        logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed for topic '%s': %s", topic_name_str.c_str(),
+        strerror(errno));
+      ++it;
+      continue;
+    }
+
+    if (get_subscriber_count_args.ret_subscriber_num == 0) {
+      RCLCPP_INFO(
+        logger, "No subscribers for topic '%s'. Sending SIGTERM to PID %d", topic_name_str.c_str(),
+        pid);
+      if (kill(pid, SIGTERM) == -1) {
+        if (errno != ESRCH) {
+          RCLCPP_ERROR(logger, "Failed to send SIGTERM to PID %d: %s", pid, strerror(errno));
+        }
+      }
+      it = active_daemons.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void poll_for_unlink()
@@ -119,21 +162,20 @@ void poll_for_unlink()
 
   std::cout << "[POLL PROCESS] PID: " << getpid() << ". Ready ..." << std::endl;
 
-  pid_t pid = fork();
-
-  if (pid < 0) {
-    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    close(agnocast_fd);
+  mqd_t mq = open_bridge_receiver_queue();
+  if (mq == (mqd_t)-1) {
     exit(EXIT_FAILURE);
   }
 
-  if (pid == 0) {
-    bg_process();
-    exit(EXIT_SUCCESS);
-  }
+  std::map<pid_t, std::string> active_daemons;
+  agnocast::MqMsgBridge msg_buffer;
 
   while (true) {
-    sleep(1);
+    if (receive_message(mq, msg_buffer)) {
+      fork_bridge_daemon(msg_buffer, active_daemons);
+    }
+
+    monitor_active_daemons(active_daemons);
 
     struct ioctl_get_exit_process_args get_exit_process_args = {};
     do {
@@ -147,6 +189,10 @@ void poll_for_unlink()
       if (get_exit_process_args.ret_pid > 0) {
         const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
         shm_unlink(shm_name.c_str());
+
+        if (active_daemons.count(get_exit_process_args.ret_pid)) {
+          active_daemons.erase(get_exit_process_args.ret_pid);
+        }
       }
     } while (get_exit_process_args.ret_pid > 0);
 
@@ -155,6 +201,7 @@ void poll_for_unlink()
     }
   }
 
+  mq_close(mq);
   exit(0);
 }
 

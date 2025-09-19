@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_bridge_daemon.hpp"
 
 #include <dlfcn.h>
+#include <signal.h>
 
 extern int agnocast_fd;
 
@@ -37,9 +38,21 @@ rclcpp::QoS reconstruct_qos(const QoSFlat & q)
 
 std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
 
+void bridge_signal_handler(int sig)
+{
+  (void)sig;
+  std::cout << "[Bridge Process] Signal received, shutting down executor..." << std::endl;
+  if (g_executor) {
+    g_executor->cancel();
+  }
+  rclcpp::shutdown();
+}
+
 void bridge_process_main(const MqMsgBridge & msg)
 {
   rclcpp::init(0, nullptr);
+  std::signal(SIGINT, bridge_signal_handler);
+  std::signal(SIGTERM, bridge_signal_handler);
 
   g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
 
