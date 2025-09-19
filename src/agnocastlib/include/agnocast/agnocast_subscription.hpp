@@ -47,7 +47,8 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
   const SubscriptionOptions & options);
 int get_subscriber_count(const std::string topic_name);
-void safe_strncpy(char * dest, const char * src, size_t dest_size);
+bool send_bridge_message(
+  mqd_t mq, BridgeFn fn, const std::string & topic_name, const rclcpp::QoS & qos);
 
 class SubscriptionBase
 {
@@ -116,24 +117,16 @@ private:
 
     BridgeFn fn = &start_bridge_node<MessageT>;
 
-    Dl_info info{};
-    if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
+    try {
+      bool success = send_bridge_message(mq, fn, topic_name_, qos);
+
+      if (!success) {
+        RCLCPP_WARN(logger, "Bridge message send failed, closing queue.");
+      }
+
+    } catch (const std::runtime_error & e) {
+      RCLCPP_ERROR(logger, "Failed to get symbol info: %s. Closing queue.", e.what());
       mq_close(mq);
-      throw std::runtime_error("dladdr failed");
-    }
-
-    agnocast::MqMsgBridge msg = {};
-
-    safe_strncpy(msg.shared_lib_path, info.dli_fname, kMaxPathLen);
-    const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
-    safe_strncpy(msg.symbol_name, symbol_name, kMaxPathLen);
-    msg.fn_ptr = reinterpret_cast<uintptr_t>(fn);
-
-    safe_strncpy(msg.args.topic_name, topic_name_.c_str(), sizeof(msg.args.topic_name));
-    msg.args.qos = flatten_qos(qos);
-
-    if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) == -1) {
-      RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
     }
 
     mq_close(mq);

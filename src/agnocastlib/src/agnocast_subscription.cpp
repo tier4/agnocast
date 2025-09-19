@@ -95,7 +95,7 @@ int get_subscriber_count(const std::string topic_name)
   return get_subscriber_count_args.ret_subscriber_num;
 }
 
-void safe_strncpy(char * dest, const char * src, size_t dest_size)
+static void safe_strncpy(char * dest, const char * src, size_t dest_size)
 {
   if (dest_size == 0) return;
   if (src == nullptr) {
@@ -104,6 +104,31 @@ void safe_strncpy(char * dest, const char * src, size_t dest_size)
   }
   std::strncpy(dest, src, dest_size - 1);
   dest[dest_size - 1] = '\0';
+}
+
+bool send_bridge_message(
+  mqd_t mq, BridgeFn fn, const std::string & topic_name, const rclcpp::QoS & qos)
+{
+  Dl_info info{};
+  if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {
+    throw std::runtime_error("dladdr failed");
+  }
+
+  agnocast::MqMsgBridge msg = {};
+
+  safe_strncpy(msg.shared_lib_path, info.dli_fname, kMaxPathLen);
+  const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
+  safe_strncpy(msg.symbol_name, symbol_name, kMaxPathLen);
+  msg.fn_ptr = reinterpret_cast<uintptr_t>(fn);
+
+  safe_strncpy(msg.args.topic_name, topic_name.c_str(), sizeof(msg.args.topic_name));
+  msg.args.qos = flatten_qos(qos);
+
+  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) == -1) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace agnocast
