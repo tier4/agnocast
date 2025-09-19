@@ -10,6 +10,8 @@ namespace agnocast
 extern std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
 
 void bridge_process_main(const MqMsgBridge & msg);
+QoSFlat flatten_qos(const rclcpp::QoS & qos);
+rclcpp::QoS reconstruct_qos(const QoSFlat & q);
 
 template <typename MessageT>
 void start_bridge_node(const BridgeArgs & args)

@@ -130,7 +130,7 @@ private:
     msg.fn_ptr = reinterpret_cast<uintptr_t>(fn);
 
     safe_strncpy(msg.args.topic_name, topic_name_.c_str(), sizeof(msg.args.topic_name));
-    msg.args.qos = agnocast::flatten_qos(qos);
+    msg.args.qos = flatten_qos(qos);
 
     if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) == -1) {
       RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));

@@ -7,6 +7,34 @@ extern int agnocast_fd;
 namespace agnocast
 {
 
+QoSFlat flatten_qos(const rclcpp::QoS & qos)
+{
+  QoSFlat out{};
+  const auto & rmw_qos = qos.get_rmw_qos_profile();
+  out.depth = rmw_qos.depth;
+  out.history = (rmw_qos.history == RMW_QOS_POLICY_HISTORY_KEEP_ALL) ? 1 : 0;
+  out.reliability = (rmw_qos.reliability == RMW_QOS_POLICY_RELIABILITY_RELIABLE) ? 1 : 2;
+  out.durability = (rmw_qos.durability == RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL) ? 1 : 2;
+  return out;
+}
+
+rclcpp::QoS reconstruct_qos(const QoSFlat & q)
+{
+  rclcpp::QoS qos(q.depth);
+  if (q.history == 1) {
+    qos.keep_all();
+  }
+  if (q.reliability == 1) {
+    qos.reliable();
+  } else if (q.reliability == 2) {
+    qos.best_effort();
+  }
+  if (q.durability == 1) {
+    qos.transient_local();
+  }
+  return qos;
+}
+
 std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
 
 void bridge_process_main(const MqMsgBridge & msg)
@@ -82,4 +110,4 @@ void bridge_process_main(const MqMsgBridge & msg)
   exit(EXIT_SUCCESS);
 }
 
-}
+}  // namespace agnocast
