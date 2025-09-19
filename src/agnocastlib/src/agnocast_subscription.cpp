@@ -116,9 +116,9 @@ bool send_bridge_message(
 
   agnocast::MqMsgBridge msg = {};
 
-  safe_strncpy(msg.shared_lib_path, info.dli_fname, kMaxPathLen);
+  safe_strncpy(msg.shared_lib_path, info.dli_fname, kMaxNameLen);
   const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
-  safe_strncpy(msg.symbol_name, symbol_name, kMaxPathLen);
+  safe_strncpy(msg.symbol_name, symbol_name, kMaxNameLen);
   msg.fn_ptr = reinterpret_cast<uintptr_t>(fn);
 
   safe_strncpy(msg.args.topic_name, topic_name.c_str(), sizeof(msg.args.topic_name));

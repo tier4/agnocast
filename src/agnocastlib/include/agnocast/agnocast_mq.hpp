@@ -1,6 +1,6 @@
 #pragma once
 
-constexpr size_t kMaxPathLen = 256;
+constexpr size_t kMaxNameLen = 256;
 
 namespace agnocast
 {
@@ -24,14 +24,14 @@ struct QoSFlat
 
 struct BridgeArgs
 {
-  char topic_name[kMaxPathLen];
+  char topic_name[kMaxNameLen];
   QoSFlat qos;
 };
 
 struct MqMsgBridge
 {
-  char shared_lib_path[kMaxPathLen];
-  char symbol_name[kMaxPathLen];
+  char shared_lib_path[kMaxNameLen];
+  char symbol_name[kMaxNameLen];
   uintptr_t fn_ptr;
   BridgeArgs args;
 };
