@@ -32,14 +32,6 @@ add_library(agnocast SHARED
   src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c src/agnocast_bridge_daemon.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
-target_include_directories(agnocast PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  ${rclcpp_INCLUDE_DIRS}
-  ${tracetools_INCLUDE_DIRS}
-  ${LTTNGUST_INCLUDE_DIRS}
-)
-
 target_link_directories(agnocast PRIVATE ${AGNOCAST_HEAPHOOK_LIB_DIR})
 
 target_link_libraries(agnocast
@@ -49,6 +41,14 @@ target_link_libraries(agnocast
     ${LTTNGUST_LIBRARIES}
   PRIVATE
     agnocast_heaphook          
+)
+
+target_include_directories(agnocast PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${rclcpp_INCLUDE_DIRS}
+  ${tracetools_INCLUDE_DIRS}
+  ${LTTNGUST_INCLUDE_DIRS}
 )
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
