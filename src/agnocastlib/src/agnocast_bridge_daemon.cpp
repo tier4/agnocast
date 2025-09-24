@@ -36,24 +36,12 @@ rclcpp::QoS reconstruct_qos(const QoSFlat & q)
   return qos;
 }
 
-std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> g_executor;
-
-void bridge_signal_handler(int sig)
-{
-  (void)sig;
-  if (g_executor) {
-    g_executor->cancel();
-  }
-  rclcpp::shutdown();
-}
-
 void bridge_process_main(const MqMsgBridge & msg)
 {
-  rclcpp::init(0, nullptr);
-  std::signal(SIGINT, bridge_signal_handler);
-  std::signal(SIGTERM, bridge_signal_handler);
+  std::signal(SIGPIPE, SIG_IGN);
 
-  g_executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  rclcpp::init(0, nullptr);
+  rclcpp::executors::SingleThreadedExecutor executor;
 
   if (msg.fn_ptr == 0) {
     std::cerr << "[Bridge Process Error] Received a null function pointer!" << std::endl;
@@ -65,7 +53,6 @@ void bridge_process_main(const MqMsgBridge & msg)
   BridgeFn entry_func = nullptr;
 
   if (std::strcmp(msg.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
-    std::cout << "[Bridge Process] Using direct fn_ptr for executable symbol." << std::endl;
     entry_func = reinterpret_cast<BridgeFn>(msg.fn_ptr);
   } else {
     const char * lib_path = msg.shared_lib_path;
@@ -94,9 +81,8 @@ void bridge_process_main(const MqMsgBridge & msg)
 
   try {
     auto node = entry_func(msg.args);
-    g_executor->add_node(node);
-    g_executor->spin();
-
+    executor.add_node(node);
+    executor.spin();
   } catch (const std::exception & e) {
     std::cerr << "[Bridge Process FATAL ERROR] Unhandled std::exception: " << e.what()
               << " for topic: " << msg.args.topic_name << std::endl;
