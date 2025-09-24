@@ -43,8 +43,11 @@ void bridge_process_main(const MqMsgBridge & msg)
   rclcpp::init(0, nullptr);
   rclcpp::executors::SingleThreadedExecutor executor;
 
+  auto logger = rclcpp::get_logger("agnocast_bridge_daemon");
+
   if (msg.fn_ptr == 0) {
-    std::cerr << "[Bridge Process Error] Received a null function pointer!" << std::endl;
+    // ★ std::cerr を RCLCPP_FATAL に変更
+    RCLCPP_FATAL(logger, "[Bridge Process Error] Received a null function pointer!");
     close(agnocast_fd);
     rclcpp::shutdown();
     exit(EXIT_FAILURE);
@@ -59,8 +62,7 @@ void bridge_process_main(const MqMsgBridge & msg)
     void * handle = dlopen(lib_path, RTLD_NOW);
 
     if (!handle) {
-      std::cerr << "[Bridge Process Error] dlopen failed for " << lib_path << ": " << dlerror()
-                << std::endl;
+      RCLCPP_FATAL(logger, "[Bridge Process Error] dlopen failed for %s: %s", lib_path, dlerror());
       close(agnocast_fd);
       rclcpp::shutdown();
       exit(EXIT_FAILURE);
@@ -68,8 +70,9 @@ void bridge_process_main(const MqMsgBridge & msg)
     void * raw_func = dlsym(handle, msg.symbol_name);
 
     if (!raw_func) {
-      std::cerr << "[Bridge Process Error] dlsym failed for symbol " << msg.symbol_name << " in "
-                << lib_path << ": " << dlerror() << std::endl;
+      RCLCPP_FATAL(
+        logger, "[Bridge Process Error] dlsym failed for symbol %s in %s: %s", msg.symbol_name,
+        lib_path, dlerror());
       dlclose(handle);
       close(agnocast_fd);
       rclcpp::shutdown();
@@ -84,14 +87,16 @@ void bridge_process_main(const MqMsgBridge & msg)
     executor.add_node(node);
     executor.spin();
   } catch (const std::exception & e) {
-    std::cerr << "[Bridge Process FATAL ERROR] Unhandled std::exception: " << e.what()
-              << " for topic: " << msg.args.topic_name << std::endl;
+    RCLCPP_FATAL(
+      logger, "[Bridge Process FATAL ERROR] Unhandled std::exception: %s for topic: %s", e.what(),
+      msg.args.topic_name);
     close(agnocast_fd);
     rclcpp::shutdown();
     exit(EXIT_FAILURE);
   } catch (...) {
-    std::cerr << "[Bridge Process FATAL ERROR] Unhandled unknown exception"
-              << " for topic: " << msg.args.topic_name << std::endl;
+    RCLCPP_FATAL(
+      logger, "[Bridge Process FATAL ERROR] Unhandled unknown exception for topic: %s",
+      msg.args.topic_name);
     close(agnocast_fd);
     rclcpp::shutdown();
     exit(EXIT_FAILURE);
@@ -101,5 +106,4 @@ void bridge_process_main(const MqMsgBridge & msg)
   rclcpp::shutdown();
   exit(EXIT_SUCCESS);
 }
-
 }  // namespace agnocast
