@@ -46,7 +46,6 @@ void bridge_process_main(const MqMsgBridge & msg)
   auto logger = rclcpp::get_logger("agnocast_bridge_daemon");
 
   if (msg.fn_ptr == 0) {
-    // ★ std::cerr を RCLCPP_FATAL に変更
     RCLCPP_FATAL(logger, "[Bridge Process Error] Received a null function pointer!");
     close(agnocast_fd);
     rclcpp::shutdown();
