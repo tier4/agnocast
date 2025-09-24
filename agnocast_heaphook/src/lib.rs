@@ -1,11 +1,12 @@
+use core::panic;
 use std::{
     alloc::Layout,
-    ffi::{CStr, CString},
+    ffi::CStr,
     mem::size_of,
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_int, c_void},
     ptr::{self, NonNull},
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, Ordering},
         OnceLock,
     },
 };
@@ -13,15 +14,6 @@ use std::{
 use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
-
-extern "C" {
-    fn initialize_agnocast(
-        size: usize,
-        version: *const c_char,
-        version_str_length: usize,
-    ) -> *mut c_void;
-    fn agnocast_get_borrowed_publisher_num() -> u32;
-}
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 #[allow(clippy::if_same_then_else)]
@@ -129,41 +121,185 @@ fn init_original_memalign() -> MemalignType {
     }
 }
 
-static MEMPOOL_START: AtomicUsize = AtomicUsize::new(0);
-static MEMPOOL_END: AtomicUsize = AtomicUsize::new(0);
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
 
+#[cfg(not(test))]
 extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
 
-static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
+struct AgnocastSharedMemory {
+    start: usize,
+    end: usize,
+}
+
+impl AgnocastSharedMemory {
+    #[cfg(not(test))]
+    /// Initializes shared memory.
+    ///
+    /// # Safety
+    /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
+    unsafe fn new() -> Self {
+        use std::{ffi::CString, os::raw::c_char};
+
+        extern "C" {
+            fn initialize_agnocast(
+                size: usize,
+                version: *const c_char,
+                version_str_length: usize,
+            ) -> *mut c_void;
+        }
+
+        let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
+
+        if result != 0 {
+            panic!(
+                "[ERROR] [Agnocast] agnocast_heaphook internal error: pthread_atfork failed: {}",
+                std::io::Error::from_raw_os_error(result)
+            )
+        }
+
+        let mempool_size_env = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
+            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
+        });
+
+        let mempool_size = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
+            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
+        });
+
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
+
+        let version = env!("CARGO_PKG_VERSION");
+        let c_version = CString::new(version).unwrap();
+
+        let mempool_ptr = unsafe {
+            initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
+        };
+
+        let start = mempool_ptr as usize;
+        let end = start + mempool_size;
+
+        Self { start, end }
+    }
+
+    #[cfg(test)]
+    /// Initializes shared memory.
+    ///
+    /// # Safety
+    /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
+    unsafe fn new() -> Self {
+        let mempool_size = 1024 * 1024;
+        let mempool_ptr = 0x121000000000 as *mut c_void;
+
+        let shm_fd = unsafe {
+            libc::shm_open(
+                CStr::from_bytes_with_nul(b"/agnocast_test\0")
+                    .unwrap()
+                    .as_ptr(),
+                libc::O_CREAT | libc::O_RDWR,
+                0o600,
+            )
+        };
+        assert!(shm_fd != -1);
+
+        let result = unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
+        assert!(result != -1);
+
+        let mmap_ptr = unsafe {
+            libc::mmap(
+                mempool_ptr,
+                mempool_size,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_SHARED | libc::MAP_FIXED_NOREPLACE,
+                shm_fd,
+                0,
+            )
+        };
+        assert!(mmap_ptr != libc::MAP_FAILED);
+
+        let result = unsafe {
+            libc::shm_unlink(
+                CStr::from_bytes_with_nul(b"/agnocast_test\0")
+                    .unwrap()
+                    .as_ptr(),
+            )
+        };
+        assert!(result != -1);
+
+        let start = mempool_ptr as usize;
+        let end = start + mempool_size;
+
+        Self { start, end }
+    }
+
+    #[inline]
+    fn is_shared(&self, ptr: *const u8) -> bool {
+        let addr = ptr as usize;
+        self.start <= addr && addr <= self.end
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.end - self.start
+    }
+
+    #[inline]
+    fn as_ptr(&self) -> *const u8 {
+        self.start as *const u8
+    }
+}
+
+static AGNOCAST_SHARED_MEMORY: OnceLock<AgnocastSharedMemory> = OnceLock::new();
+
+struct AgnocastSharedMemoryAllocator<A: SharedMemoryAllocator> {
+    inner: A,
+}
+
+impl<A: SharedMemoryAllocator> AgnocastSharedMemoryAllocator<A> {
+    #[inline]
+    fn new(shm: &'static AgnocastSharedMemory) -> Self {
+        Self { inner: A::new(shm) }
+    }
+}
+
+static AGNOCAST_SHARED_MEMORY_ALLOCATOR: OnceLock<AgnocastSharedMemoryAllocator<TLSFAllocator>> =
+    OnceLock::new();
+
+#[inline]
+fn is_shared(ptr: *const u8) -> bool {
+    if let Some(shm) = AGNOCAST_SHARED_MEMORY.get() {
+        shm.is_shared(ptr)
+    } else {
+        false
+    }
+}
 
 /// A memory allocator that manages shared memory.
 ///
 /// # Safety
 ///
-/// The `AgnocastSharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
+/// The `SharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
 ///
 /// * The memory allocator must not unwind. A panic in any of its functions may lead to memory unsafety.
-unsafe trait AgnocastSharedMemoryAllocator {
-    /// Initializes the allocator with the given `pool`.
-    fn new(pool: &'static mut [u8]) -> Self;
+unsafe trait SharedMemoryAllocator {
+    /// Initializes the allocator with the given `shm`.
+    fn new(shm: &'static AgnocastSharedMemory) -> Self;
 
-    /// Attemps to allocate a block of memory as described by the given `layout`.
+    /// Attempts to allocate a block of memory as described by the given `layout`.
     ///
     /// # Safety
     ///
-    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `SharedMemoryAllocator::new`
     /// and satisfy the requirements of `layout`.
     fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
 
-    /// Attemps to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
+    /// Attempts to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
     ///
     /// # Safety
     ///
     /// * `ptr` must denote a block of memory currently allocated via this allocator.
-    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
+    /// * If this returns `Some`, then the returned pointer must be within the range of `shm` passed to `SharedMemoryAllocator::new`
     /// and satisfy the requirements of `new_layout`.
     fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
 
@@ -176,46 +312,11 @@ unsafe trait AgnocastSharedMemoryAllocator {
 }
 
 #[cfg(not(test))]
-fn init_tlsf() {
-    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
-
-    if result != 0 {
-        panic!(
-            "[ERROR] [Agnocast] agnocast_heaphook internal error: pthread_atfork failed: {}",
-            std::io::Error::from_raw_os_error(result)
-        )
-    }
-
-    let mempool_size_env: String = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-    });
-
-    let mempool_size: usize = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-        panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-    });
-
-    let page_size: usize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-    let aligned_size: usize = (mempool_size + page_size - 1) & !(page_size - 1);
-
-    let version = env!("CARGO_PKG_VERSION");
-    let c_version = CString::new(version).unwrap();
-
-    let mempool_ptr: *mut c_void = unsafe {
-        initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
-    };
-
-    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
-
-    MEMPOOL_START.store(mempool_ptr as usize, Ordering::Relaxed);
-    MEMPOOL_END.store(mempool_ptr as usize + mempool_size, Ordering::Relaxed);
-
-    if TLSF.set(TLSFAllocator::new(pool)).is_err() {
-        panic!("[ERROR] [Agnocast] TLSF is already initialized.");
-    }
-}
-
-#[cfg(not(test))]
 fn should_use_original_func() -> bool {
+    extern "C" {
+        fn agnocast_get_borrowed_publisher_num() -> u32;
+    }
+
     if IS_FORKED_CHILD.load(Ordering::Relaxed) {
         return true;
     }
@@ -241,7 +342,21 @@ pub unsafe extern "C" fn __libc_start_main(
     rtld_fini: unsafe extern "C" fn(),
     stack_end: *const c_void,
 ) -> c_int {
-    init_tlsf();
+    if AGNOCAST_SHARED_MEMORY
+        .set(AgnocastSharedMemory::new())
+        .is_err()
+    {
+        panic!("[ERROR] [Agnocast] Shared memory has already been initialized.");
+    }
+
+    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .set(AgnocastSharedMemoryAllocator::new(
+            AGNOCAST_SHARED_MEMORY.get().unwrap(),
+        ))
+        .is_err()
+    {
+        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized.");
+    }
 
     (*ORIGINAL_LIBC_START_MAIN.get_or_init(init_original_libc_start_main))(
         main, argc, argv, init, fini, rtld_fini, stack_end,
@@ -261,16 +376,15 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => ptr::null_mut(),
     }
-}
-
-#[inline]
-fn is_shared(ptr: *mut u8) -> bool {
-    let addr = ptr as usize;
-    MEMPOOL_START.load(Ordering::Relaxed) <= addr && addr <= MEMPOOL_END.load(Ordering::Relaxed)
 }
 
 /// # Safety
@@ -288,7 +402,11 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
 
     match (is_shared, is_forked_child) {
         (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => TLSF.get().unwrap().deallocate(non_null_ptr),
+        (true, false) => AGNOCAST_SHARED_MEMORY_ALLOCATOR
+            .get()
+            .unwrap()
+            .inner
+            .deallocate(non_null_ptr),
         (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
     }
 }
@@ -307,7 +425,12 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout)
+    {
         Some(non_null_ptr) => {
             let ptr = non_null_ptr.as_ptr();
             unsafe {
@@ -343,18 +466,32 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 Some(non_null_ptr) => {
                     // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
                     if new_layout.size() == 0 {
-                        TLSF.get().unwrap().deallocate(non_null_ptr);
+                        AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                            .get()
+                            .unwrap()
+                            .inner
+                            .deallocate(non_null_ptr);
                         return ptr::null_mut();
                     }
 
-                    match TLSF.get().unwrap().reallocate(non_null_ptr, new_layout) {
+                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                        .get()
+                        .unwrap()
+                        .inner
+                        .reallocate(non_null_ptr, new_layout)
+                    {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
                 }
                 None => {
                     // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
-                    match TLSF.get().unwrap().allocate(new_layout) {
+                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                        .get()
+                        .unwrap()
+                        .inner
+                        .allocate(new_layout)
+                    {
                         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
                         None => ptr::null_mut(),
                     }
@@ -385,7 +522,12 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
         Err(_) => return libc::ENOMEM,
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout)
+    {
         Some(non_null_ptr) => {
             *memptr = non_null_ptr.as_ptr().cast();
             0
@@ -412,7 +554,12 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
@@ -432,7 +579,12 @@ pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
         Err(_) => return ptr::null_mut(),
     };
 
-    match TLSF.get().unwrap().allocate(layout) {
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout)
+    {
         Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
         None => std::ptr::null_mut(),
     }
@@ -449,53 +601,6 @@ pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
 }
 
 #[cfg(test)]
-fn init_tlsf() {
-    let mempool_size = 1024 * 1024;
-    let mempool_ptr = 0x121000000000 as *mut c_void;
-    let pool = unsafe { std::slice::from_raw_parts_mut(mempool_ptr as *mut u8, mempool_size) };
-
-    let shm_fd = unsafe {
-        libc::shm_open(
-            CStr::from_bytes_with_nul(b"/agnocast_test\0")
-                .unwrap()
-                .as_ptr(),
-            libc::O_CREAT | libc::O_RDWR,
-            0o600,
-        )
-    };
-    assert!(shm_fd != -1);
-
-    let result = unsafe { libc::ftruncate(shm_fd, mempool_size as libc::off_t) };
-    assert!(result != -1);
-
-    let mmap_ptr = unsafe {
-        libc::mmap(
-            mempool_ptr,
-            mempool_size,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED | libc::MAP_FIXED_NOREPLACE,
-            shm_fd,
-            0,
-        )
-    };
-    assert!(mmap_ptr != libc::MAP_FAILED);
-
-    let result = unsafe {
-        libc::shm_unlink(
-            CStr::from_bytes_with_nul(b"/agnocast_test\0")
-                .unwrap()
-                .as_ptr(),
-        )
-    };
-    assert!(result != -1);
-
-    MEMPOOL_START.store(mmap_ptr as usize, Ordering::Relaxed);
-    MEMPOOL_END.store(mmap_ptr as usize + mempool_size, Ordering::Relaxed);
-
-    assert!(TLSF.set(TLSFAllocator::new(pool)).is_ok());
-}
-
-#[cfg(test)]
 fn should_use_original_func() -> bool {
     false
 }
@@ -507,8 +612,8 @@ mod tests {
     #[test]
     fn test_malloc_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let malloc_size = 1024;
 
         // Act
@@ -531,8 +636,8 @@ mod tests {
     #[test]
     fn test_calloc_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let elements = 4;
         let element_size = 256;
         let calloc_size = elements * element_size;
@@ -564,8 +669,8 @@ mod tests {
     #[test]
     fn test_realloc_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let malloc_size = 512;
         let realloc_size = 1024;
 
@@ -608,8 +713,8 @@ mod tests {
     #[test]
     fn test_posix_memalign_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignment = 64;
         let size = 512;
         let mut ptr: *mut c_void = std::ptr::null_mut();
@@ -641,8 +746,8 @@ mod tests {
     #[test]
     fn test_aligned_alloc_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
 
         for &alignment in &alignments {
@@ -680,8 +785,8 @@ mod tests {
     #[test]
     fn test_memalign_normal() {
         // Arrange
-        let start = MEMPOOL_START.load(Ordering::SeqCst);
-        let end = MEMPOOL_END.load(Ordering::SeqCst);
+        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
+        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
         let sizes = [10, 32, 100, 512, 1000, 4096];
 

@@ -73,9 +73,7 @@ union ioctl_publish_msg_args publish_core(
     exit(EXIT_FAILURE);
   }
 
-  TRACEPOINT(
-    agnocast_publish, publisher_handle, reinterpret_cast<const void *>(msg_virtual_address),
-    publish_msg_args.ret_entry_id);
+  TRACEPOINT(agnocast_publish, publisher_handle, publish_msg_args.ret_entry_id);
 
   for (uint32_t i = 0; i < publish_msg_args.ret_subscriber_num; i++) {
     const topic_local_id_t subscriber_id = publish_msg_args.ret_subscriber_ids[i];
