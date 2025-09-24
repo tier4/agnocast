@@ -100,6 +100,19 @@ static void fork_bridge_daemon(
       exit(EXIT_FAILURE);
     }
 
+    // tail -f /tmp/bridge_daemon.log
+    int log_fd = open("/tmp/bridge_daemon.log", O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+    if (log_fd == -1) {
+      perror("open log file failed");
+      exit(EXIT_FAILURE);
+    }
+
+    dup2(log_fd, STDOUT_FILENO);
+    dup2(log_fd, STDERR_FILENO);
+
+    close(log_fd);
+
     RCLCPP_INFO(logger, "[BRIDGE PROCESS] PID: %d", getpid());
 
     if (!agnocast_heaphook_init_daemon()) {
@@ -154,6 +167,16 @@ void poll_for_unlink()
     exit(EXIT_FAILURE);
   }
 
+  // tail -f /tmp/unlink_daemon.log
+  int log_fd = open("/tmp/unlink_daemon.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (log_fd == -1) {
+    perror("open log file failed");
+    exit(EXIT_FAILURE);
+  }
+  dup2(log_fd, 1);
+  dup2(log_fd, 2);
+  close(log_fd);
+
   RCLCPP_INFO(logger, "[POLL PROCESS] PID: %d", getpid());
 
   mqd_t mq = open_bridge_receiver_queue();
@@ -191,11 +214,13 @@ void poll_for_unlink()
     } while (get_exit_process_args.ret_pid > 0);
 
     if (get_exit_process_args.ret_daemon_should_exit) {
+      RCLCPP_INFO(logger, "Exiting unlink daemon.");
       break;
     }
   }
 
   mq_close(mq);
+  mq_unlink(create_mq_name_for_bridge().c_str());
   exit(0);
 }
 

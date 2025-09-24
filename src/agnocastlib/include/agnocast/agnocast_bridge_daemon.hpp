@@ -1,69 +1,58 @@
 #pragma once
 
 #include "agnocast/agnocast_publisher.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include <regex>
 
 namespace agnocast
 {
 
-extern std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
-
 void bridge_process_main(const MqMsgBridge & msg);
 QoSFlat flatten_qos(const rclcpp::QoS & qos);
 rclcpp::QoS reconstruct_qos(const QoSFlat & q);
 
 template <typename MessageT>
-void start_bridge_node(const BridgeArgs & args)
+class BridgeNode : public rclcpp::Node
 {
-  try {
-    std::cout << "[Debug] Entering start_bridge_node..." << std::endl;
-
+public:
+  explicit BridgeNode(const BridgeArgs & args)
+  : rclcpp::Node(
+      "agnocast_bridge" + std::regex_replace(std::string(args.topic_name), std::regex("/"), "_"))
+  {
     std::string topic_name(args.topic_name);
     rclcpp::QoS qos = reconstruct_qos(args.qos);
-    auto node_name = "agnocast_bridge" + std::regex_replace(topic_name, std::regex("/"), "_");
 
-    std::cout << "[Debug] 1. Creating Node..." << std::endl;
-    auto node = std::make_shared<rclcpp::Node>(node_name);
-
-    std::cout << "[Debug] 2. Creating Agnocast Publisher..." << std::endl;
     agnocast::PublisherOptions pub_options;
-    auto agnocast_pub =
-      std::make_shared<agnocast::Publisher<MessageT>>(node.get(), topic_name, qos, pub_options);
+    agnocast_pub_ =
+      std::make_shared<agnocast::Publisher<MessageT>>(this, topic_name, qos, pub_options);
 
-    auto sub_holder = std::make_shared<std::shared_ptr<rclcpp::Subscription<MessageT>>>();
-
-    std::cout << "[Debug] 3. Creating ROS 2 Subscription..." << std::endl;
-
-    auto callback = [agnocast_pub, node, sub_holder](const typename MessageT::ConstSharedPtr msg) {
-      // RCLCPP_INFO(node->get_logger(), "[Bridge Daemon Callback] Message Received!");
-
-      auto loaned_msg = agnocast_pub->borrow_loaned_message();
+    auto callback = [this](const typename MessageT::ConstSharedPtr msg) {
+      auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
       *loaned_msg = *msg;
-      agnocast_pub->publish(std::move(loaned_msg));
+      this->agnocast_pub_->publish(std::move(loaned_msg));
     };
 
     rclcpp::SubscriptionOptions sub_options;
     sub_options.ignore_local_publications = true;
-
-    *sub_holder = node->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
-
-    std::cout << "[Debug] 4. Adding node to executor..." << std::endl;
-    g_executor->add_node(node);
+    ros_sub_ = this->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
 
     std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << topic_name
               << std::endl;
-
-  } catch (const std::exception & e) {
-    std::cerr << "[Bridge Daemon CRITICAL ERROR] An exception occurred in start_bridge_node: "
-              << e.what() << std::endl;
-  } catch (...) {
-    std::cerr
-      << "[Bridge Daemon CRITICAL ERROR] An unknown exception occurred in start_bridge_node."
-      << std::endl;
   }
+
+private:
+  typename agnocast::Publisher<MessageT>::SharedPtr agnocast_pub_;
+  typename rclcpp::Subscription<MessageT>::SharedPtr ros_sub_;
+};
+
+template <typename MessageT>
+std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
+{
+  std::cout << "[Debug] Entering start_bridge_node factory..." << std::endl;
+  return std::make_shared<BridgeNode<MessageT>>(args);
 }
 
 }  // namespace agnocast
 
-using BridgeFn = void (*)(const agnocast::BridgeArgs &);
+using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const agnocast::BridgeArgs &);

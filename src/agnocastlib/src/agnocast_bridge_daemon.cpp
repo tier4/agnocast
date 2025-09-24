@@ -36,7 +36,7 @@ rclcpp::QoS reconstruct_qos(const QoSFlat & q)
   return qos;
 }
 
-std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> g_executor;
+std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> g_executor;
 
 void bridge_signal_handler(int sig)
 {
@@ -54,7 +54,7 @@ void bridge_process_main(const MqMsgBridge & msg)
   std::signal(SIGINT, bridge_signal_handler);
   std::signal(SIGTERM, bridge_signal_handler);
 
-  g_executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+  g_executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
   if (msg.fn_ptr == 0) {
     std::cerr << "[Bridge Process Error] Received a null function pointer!" << std::endl;
@@ -97,7 +97,8 @@ void bridge_process_main(const MqMsgBridge & msg)
   std::cout << "[Bridge Process] Calling bridge entry function..." << std::endl;
 
   try {
-    entry_func(msg.args);
+    auto node = entry_func(msg.args);
+    g_executor->add_node(node);
     std::cout << "[Bridge Process] Starting executor spin for topic: " << msg.args.topic_name
               << std::endl;
 
