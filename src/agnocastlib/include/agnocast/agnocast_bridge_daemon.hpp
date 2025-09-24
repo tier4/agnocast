@@ -36,9 +36,6 @@ public:
     rclcpp::SubscriptionOptions sub_options;
     sub_options.ignore_local_publications = true;
     ros_sub_ = this->create_subscription<MessageT>(topic_name, qos, callback, sub_options);
-
-    std::cout << "[Bridge Daemon] Successfully started bridge for topic: " << topic_name
-              << std::endl;
   }
 
 private:
@@ -49,7 +46,6 @@ private:
 template <typename MessageT>
 std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
 {
-  std::cout << "[Debug] Entering start_bridge_node factory..." << std::endl;
   return std::make_shared<BridgeNode<MessageT>>(args);
 }
 

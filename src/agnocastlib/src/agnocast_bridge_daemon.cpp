@@ -41,7 +41,6 @@ std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> g_executor;
 void bridge_signal_handler(int sig)
 {
   (void)sig;
-  std::cout << "[Bridge Process] Signal received, shutting down executor..." << std::endl;
   if (g_executor) {
     g_executor->cancel();
   }
@@ -79,7 +78,6 @@ void bridge_process_main(const MqMsgBridge & msg)
       rclcpp::shutdown();
       exit(EXIT_FAILURE);
     }
-    std::cout << "[Bridge Process] Looking up symbol via dlsym: " << msg.symbol_name << std::endl;
     void * raw_func = dlsym(handle, msg.symbol_name);
 
     if (!raw_func) {
@@ -94,14 +92,9 @@ void bridge_process_main(const MqMsgBridge & msg)
     entry_func = reinterpret_cast<BridgeFn>(raw_func);
   }
 
-  std::cout << "[Bridge Process] Calling bridge entry function..." << std::endl;
-
   try {
     auto node = entry_func(msg.args);
     g_executor->add_node(node);
-    std::cout << "[Bridge Process] Starting executor spin for topic: " << msg.args.topic_name
-              << std::endl;
-
     g_executor->spin();
 
   } catch (const std::exception & e) {
@@ -120,7 +113,6 @@ void bridge_process_main(const MqMsgBridge & msg)
 
   close(agnocast_fd);
   rclcpp::shutdown();
-  std::cout << "[Bridge Process] Shutting down for topic: " << msg.args.topic_name << std::endl;
   exit(EXIT_SUCCESS);
 }
 
