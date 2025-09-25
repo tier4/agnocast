@@ -105,4 +105,37 @@ void bridge_process_main(const MqMsgBridge & msg)
   rclcpp::shutdown();
   exit(EXIT_SUCCESS);
 }
+
+bool get_topic_publishers(
+  const std::string & topic_name, std::vector<std::string> & publisher_names, rclcpp::Logger logger)
+{
+  publisher_names.clear();
+
+  std::vector<struct topic_info_ret> info_buffer(MAX_TOPIC_INFO_RET_NUM);
+
+  union ioctl_topic_info_args topic_info_args = {};
+  topic_info_args.topic_name = {topic_name.c_str(), topic_name.size()};
+  topic_info_args.topic_info_ret_buffer_addr = reinterpret_cast<uint64_t>(info_buffer.data());
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD, &topic_info_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD failed: %s", strerror(errno));
+    return false;
+  }
+
+  uint32_t publisher_count = topic_info_args.ret_topic_info_ret_num;
+
+  for (uint32_t i = 0; i < publisher_count; ++i) {
+    const auto & info = info_buffer[i];
+    std::string name_to_add = info.node_name;
+
+    if (!name_to_add.empty() && name_to_add[0] == '/') {
+      name_to_add.erase(0, 1);
+    }
+
+    publisher_names.push_back(name_to_add);
+  }
+
+  return true;
+}
+
 }  // namespace agnocast
