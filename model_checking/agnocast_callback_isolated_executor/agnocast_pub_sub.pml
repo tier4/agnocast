@@ -40,28 +40,31 @@ inline agnocast_timer_callback() {
 		if
 		:: epoll_added[cb_info_i] ->
 			entry_num[cb_info_i]++;// Simplification: This corresponds to `ioctl(agnocast_fd,AGNOCAST_PUBLISH_MSG_CMD,&publish_msg_args)`.
-			epoll!cb_info_i// mq_send() for publish
+			epoll[executor_id]!cb_info_i// mq_send() for publish
 		:: else
 		fi
 	}
 	
 	atomic {
 		num_completed_cbs++
-		printf("Agnocast | finish agnocast_timer_callback()\n");
+		printf("Agnocast | finish agnocast_timer_callback(): executor_id = %d\n", executor_id);
 	}
 }
 
 // agnocast_publisher.cpp | class Publisher
-proctype AgnocastPublisher() {
+proctype AgnocastPublisher(byte callback_group) {
 	Callback timer_cb;
 	d_step {
 		timer_cb.id = BYTE_MAX;
+		timer_cb.callback_group = callback_group;
 		timer_cb.type = AGNOCAST_TIMER;
 	}
 	
 	byte pub_i;
 	for (pub_i : 0 .. NUM_PUBLISH - 1) {
-		ready_executables!timer_cb;
+		lock(mutex_[callback_group]);
+		ready_executables[callback_group]!timer_cb;
+		unlock(mutex_[callback_group]);
 		skip// Simulate period
 	}
 }
@@ -82,9 +85,9 @@ inline receive_message(callback_info_id) {
 			sub_cb.type = SUBSCRIPTION;
 		}
 		
-		lock(ready_agnocast_executables_mutex_);
-		ready_agnocast_executables!sub_cb;
-		unlock(ready_agnocast_executables_mutex_);
+		// lock(ready_agnocast_executables_mutex_[executor_id]);
+		ready_agnocast_executables[executor_id]!sub_cb;
+		// unlock(ready_agnocast_executables_mutex_[executor_id]);
 	}
 }
 
@@ -94,7 +97,7 @@ inline wait_and_handle_epoll_event() {
 	
 	skip;// Simulate blocking with timeout
 	if
-	:: d_step {epoll?[callback_info_id] -> epoll?callback_info_id;}
+	:: d_step {epoll[executor_id]?[callback_info_id] -> epoll[executor_id]?callback_info_id;}
 	:: else -> goto finish_wait_and_handle_epoll_event// timeout
 	fi
 	
@@ -105,12 +108,12 @@ inline wait_and_handle_epoll_event() {
 }
 
 inline get_next_ready_agnocast_executable(ret_cb,ret_result) {
-	lock(ready_agnocast_executables_mutex_);
+	// lock(ready_agnocast_executables_mutex_[executor_id]);
 	if
-	:: d_step {ready_agnocast_executables?[ret_cb] -> ready_agnocast_executables?ret_cb;} ret_result = true
+	:: d_step {ready_agnocast_executables[executor_id]?[ret_cb] -> ready_agnocast_executables[executor_id]?ret_cb;} ret_result = true
 	:: else -> ret_result = false
 	fi
-	unlock(ready_agnocast_executables_mutex_);
+	// unlock(ready_agnocast_executables_mutex_[executor_id]);
 }
 
 inline get_next_agnocast_executable(ret_cb,ret_result) {
@@ -130,20 +133,24 @@ inline get_next_agnocast_executable(ret_cb,ret_result) {
 
 inline execute_agnocast_executable(cb) {
 	if
-	:: d_step{cb.type == SUBSCRIPTION -> printf("Agnocast | subscription_callback(): callback_info_id = %d\n",cb.id);} subscription_callback(cb.id)
+	:: d_step{cb.type == SUBSCRIPTION -> printf("Agnocast | subscription_callback(): callback_info_id = %d, executor_id = %d\n",cb.id, executor_id);} subscription_callback(cb.id)
 	:: else -> assert(false)
 	fi
 }
 
-inline validate_callback_group(callback_group_) {
+// agnocast_single_threaded_executor.hpp | SingleThreadedAgnocastExecutor::validate_callback_group()
+inline validate_callback_group(callback_group_,ret) {
 	assert(callback_group_ != -1);
 
-	// TODO(CIE): check dedicated_callback_group_
+	if
+	:: is_dedicated_to_one_callback_group[executor_id] -> ret = (callback_group_ == dedicated_callback_group[executor_id])
+	:: else -> ret = true
+	fi
 }
 
 // agnocast_executor.cpp | AgnocastExecutor::prepare_epoll()
 inline prepare_epoll() {
-	byte cb_info_i;
+	byte cb_info_i;bool ret_validate;
 
 	lock(id2_callback_info_mtx);
 	for (cb_info_i : 0 .. NUM_SUBSCRIPTIONS - 1) {
@@ -151,10 +158,15 @@ inline prepare_epoll() {
 		:: !id2_callback_info[cb_info_i].initialized || id2_callback_info[cb_info_i].need_epoll_update == false -> goto continue_loop
 		:: else
 		fi
-		
-		validate_callback_group(id2_callback_info[cb_info_i].callback_group);
-		
+
+		validate_callback_group(id2_callback_info[cb_info_i].callback_group,ret_validate);
+		if
+		:: !ret_validate -> goto continue_loop
+		:: else
+		fi
+
 		d_step{
+			assert(epoll_added[cb_info_i] == false);
 			epoll_added[cb_info_i] = true;// epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, ...);
 			expected_num_completed_cbs = expected_num_completed_cbs + NUM_PUBLISH - num_agnocast_published;
 			printf("Agnocast | agnocast subscription is registered: callback_info_id = %d,num_agnocast_published = %d\n",cb_info_i,num_agnocast_published);
@@ -176,7 +188,7 @@ inline prepare_epoll() {
 	}
 	
 	if
-	:: all_updated -> need_epoll_updates = false// `all_updated` is always true for now.
+	:: all_updated -> need_epoll_updates = false
 	:: else
 	fi
 	

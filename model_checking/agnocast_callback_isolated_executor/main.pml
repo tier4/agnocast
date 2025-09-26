@@ -1,7 +1,8 @@
 // Parameters
 #define NUM_SUBSCRIPTIONS 2
 #define NUM_PUBLISH 2
-#define NUM_EXECUTORS 1
+#define NUM_CALLBACK_GROUPS (2 + NUM_SUBSCRIPTIONS * 2)// Agnocast publisher, ROS publisher, and each subscription has its own callback group.
+#define NUM_SINGLE_THREADED_EXECUTORS NUM_CALLBACK_GROUPS
 
 #include "utility.pml"
 #include "for_verification.pml"
@@ -15,7 +16,8 @@ inline subscription_callback(cb_id) {
 }
 
 // agnocast_single_threaded_executor.hpp | class SingleThreadedAgnocastExecutor
-proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_weak_fairness[executor_id]) {
+proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (spin_called[executor_id] && !wait_for_weak_fairness[executor_id]) {
+	printf("Executor %d started\n",executor_id);
 	Callback executable;bool ret_result;
 
 	start:
@@ -61,24 +63,48 @@ proctype SingleThreadedAgnocastExecutor(byte executor_id) provided (!wait_for_we
 	end:
 }
 
+// agnocast_single_threaded_executor.cpp | SingleThreadedAgnocastExecutor::dedicate_to_callback_group()
+inline dedicate_to_callback_group(executor_id,group) {
+	assert(group != -1);
+
+	is_dedicated_to_one_callback_group[executor_id] = true;
+	dedicated_callback_group[executor_id] = group;
+}
+
+// agnocast_callback_isolated_executor.hpp | class CallbackIsolatedAgnocastExecutor
+proctype CallbackIsolatedAgnocastExecutor() {
+	byte executor_id;
+
+	for (executor_id : 0 .. NUM_CALLBACK_GROUPS - 1) {
+		run SingleThreadedAgnocastExecutor(executor_id);
+		dedicate_to_callback_group(executor_id,node_callback_groups[executor_id]);
+		spin_called[executor_id] = true;
+	}
+}
+
 init {
-	byte init_i;
+	byte init_i,callback_group = 0;
 	
 	for (init_i : 0 .. NUM_SUBSCRIPTIONS - 1) {
-		run AgnocastSubscription(init_i);// NOTE: Each subscription has a unique callback group for now.
+		run AgnocastSubscription(callback_group);
+		node_callback_groups[callback_group] = callback_group;
+		callback_group++;
 	}
 
-	run AgnocastPublisher();
+	run AgnocastPublisher(callback_group);
+	node_callback_groups[callback_group] = callback_group;
+	callback_group++;
 	
 	for (init_i : 0 .. NUM_SUBSCRIPTIONS - 1) {
-		run RosSubscription();
+		run RosSubscription(callback_group);
+		node_callback_groups[callback_group] = callback_group;
+		callback_group++;
 	}
 	
-	run RosPublisher();
+	run RosPublisher(callback_group);
+	node_callback_groups[callback_group] = callback_group;
 	
-	for (init_i : 0 .. NUM_EXECUTORS - 1) {
-		run SingleThreadedAgnocastExecutor(init_i)
-	}
+	run CallbackIsolatedAgnocastExecutor();
 }
 
 #include "ltl.pml"
