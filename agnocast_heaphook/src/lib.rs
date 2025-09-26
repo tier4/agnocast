@@ -314,9 +314,9 @@ unsafe trait SharedMemoryAllocator {
 /// Returns true when glibc functions must be used.
 /// It is intended to be called from memory allocation functions such as `malloc` or `realloc`.
 ///
-/// We must use glibc functions when any of the following condtions hold:
+/// We must use glibc functions when any of the following conditions hold:
 /// * When the shared memory allocator is not initialized.
-/// * When in a forked process (since we do not expect forked process to operate on shared memory).
+/// * When in a forked process (since we do not expect forked processes to operate on shared memory).
 /// * When `agnocast_get_borrowed_publisher_num` returns 0, i.e., when the publisher is not using shared memory.
 #[cfg(not(test))]
 fn should_use_original_func() -> bool {
