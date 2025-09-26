@@ -311,6 +311,13 @@ unsafe trait SharedMemoryAllocator {
     fn deallocate(&self, ptr: NonNull<u8>);
 }
 
+/// Returns true when glibc functions must be used.
+/// It is intended to be called from memory allocation functions such as `malloc` or `realloc`.
+///
+/// We must use glibc functions when any of the following condtions hold:
+/// * When the shared memory allocator is not initialized.
+/// * When in a forked process (since we do not expect forked process to operate on shared memory).
+/// * When `agnocast_get_borrowed_publisher_num` returns 0, i.e., when the publisher is not using shared memory.
 #[cfg(not(test))]
 fn should_use_original_func() -> bool {
     extern "C" {
@@ -327,6 +334,14 @@ fn should_use_original_func() -> bool {
         }
     }
 
+    // We do not need to explicitly check whether the shared memory allocator is initialized,
+    // because it is initialized in `__libc_start_main`, and when `agnocast_get_borrowed_publisher_num` returns a non-zero value,
+    // meaning that the `main` function is running, we can assume the allocator is already initialized.
+    false
+}
+
+#[cfg(test)]
+fn should_use_original_func() -> bool {
     false
 }
 
@@ -598,11 +613,6 @@ pub extern "C" fn valloc(_size: usize) -> *mut c_void {
 #[no_mangle]
 pub extern "C" fn pvalloc(_size: usize) -> *mut c_void {
     panic!("[ERROR] [Agnocast] pvalloc is not supported");
-}
-
-#[cfg(test)]
-fn should_use_original_func() -> bool {
-    false
 }
 
 #[cfg(test)]
