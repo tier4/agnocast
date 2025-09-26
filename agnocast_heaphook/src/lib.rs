@@ -342,7 +342,8 @@ fn should_use_original_func() -> bool {
 
 #[cfg(test)]
 fn should_use_original_func() -> bool {
-    false
+    // In tests, we use glibc functions only when the allocator is uninitialized.
+    AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
 }
 
 /// # Safety
