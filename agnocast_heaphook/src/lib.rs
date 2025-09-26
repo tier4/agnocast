@@ -451,8 +451,8 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
     match (is_shared, should_use_original) {
         (true, true) => {
-            // In the child processes, ignore the free operation to the shared memory.
-            (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(new_size)
+            // Ignore unexpected calls to `realloc`.
+            ptr::null_mut()
         }
         (true, false) => {
             // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
