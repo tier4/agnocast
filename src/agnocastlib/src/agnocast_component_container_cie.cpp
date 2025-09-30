@@ -1,0 +1,37 @@
+#include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_callback_isolated_executor.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/component_manager.hpp"
+
+int main(int argc, char * argv[])
+{
+  try {
+    rclcpp::init(argc, argv);
+
+    rclcpp::NodeOptions options;
+    options.allow_undeclared_parameters(true);
+    options.automatically_declare_parameters_from_overrides(true);
+
+    auto node = std::make_shared<rclcpp_components::ComponentManager>(
+      std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
+
+    auto executor = std::make_shared<agnocast::CallbackIsolatedAgnocastExecutor>(
+      rclcpp::ExecutorOptions{});
+
+    node->set_executor(executor);
+    executor->add_node(node);
+    executor->spin();
+
+    rclcpp::shutdown();
+  } catch (rclcpp_components::ComponentManagerException & ex) {
+    std::cerr << "Exception caught in main: " << ex.what() << std::endl;
+    close(agnocast::agnocast_fd);
+    return EXIT_FAILURE;
+  } catch (...) {
+    std::cerr << "Unknown exception caught in main: " << std::endl;
+    close(agnocast::agnocast_fd);
+    return EXIT_FAILURE;
+  }
+
+  return 0;
+}
