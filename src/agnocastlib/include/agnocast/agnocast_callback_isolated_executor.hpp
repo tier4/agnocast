@@ -31,10 +31,13 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
   get_automatically_added_callback_groups_from_nodes_internal() const
     RCPPUTILS_TSA_REQUIRES(mutex_);
 
+  const int next_exec_timeout_ms_;
+
 public:
   RCLCPP_PUBLIC
   explicit CallbackIsolatedAgnocastExecutor(
-    const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions());
+    const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions(),
+    int next_exec_timeout_ms = 50);
 
   RCLCPP_PUBLIC
   void spin() override;
