@@ -15,8 +15,8 @@ int main(int argc, char * argv[])
     auto node = std::make_shared<rclcpp_components::ComponentManager>(
       std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
 
-    auto executor = std::make_shared<agnocast::CallbackIsolatedAgnocastExecutor>(
-      rclcpp::ExecutorOptions{});
+    auto executor =
+      std::make_shared<agnocast::CallbackIsolatedAgnocastExecutor>(rclcpp::ExecutorOptions{});
 
     node->set_executor(executor);
     executor->add_node(node);
