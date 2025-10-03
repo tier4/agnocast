@@ -2180,10 +2180,17 @@ static int agnocast_init(void)
   agnocast_init_device();
 
   ret = agnocast_init_kthread();
-  if (ret < 0) return ret;
+  if (ret < 0) {
+    agnocast_exit_device();
+    return ret;
+  }
 
   ret = agnocast_init_kprobe();
-  if (ret < 0) return ret;
+  if (ret < 0) {
+    agnocast_exit_kthread();
+    agnocast_exit_device();
+    return ret;
+  }
 
   init_memory_allocator();
 
