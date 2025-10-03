@@ -118,7 +118,7 @@ public:
     if (ptr_ == nullptr) return;
 
     if (entry_id_ > 0) {
-        decrement_rc(topic_name_, pubsub_id_, entry_id_);
+      decrement_rc(topic_name_, pubsub_id_, entry_id_);
     }
 
     ptr_ = nullptr;
