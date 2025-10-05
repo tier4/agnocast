@@ -18,6 +18,12 @@
 namespace agnocast
 {
 
+// The number of ipc_shared_ptr objects in this thread that have non-nullptr ptr_ field
+thread_local uint32_t ipc_shared_ptr_num = 0;
+
+void increment_ipc_shared_ptr_num();
+void decrement_ipc_shared_ptr_num();
+
 // These are cut out of the class for information hiding.
 void decrement_rc(
   const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
@@ -46,11 +52,12 @@ public:
   int64_t get_entry_id() const { return entry_id_; }
   void set_entry_id(const int64_t entry_id) { entry_id_ = entry_id; }
 
-  ipc_shared_ptr() = default;
+  ipc_shared_ptr() = default;  // CONSIDER: We reallly need this or not.
 
   explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
   : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id)
   {
+    increment_ipc_shared_ptr_num();
   }
 
   explicit ipc_shared_ptr(
@@ -58,6 +65,7 @@ public:
     const int64_t entry_id)
   : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id), entry_id_(entry_id)
   {
+    increment_ipc_shared_ptr_num();
   }
 
   ~ipc_shared_ptr() { reset(); }
@@ -65,7 +73,12 @@ public:
   ipc_shared_ptr(const ipc_shared_ptr & r)
   : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
-    if (ptr_ != nullptr) {
+    if (ptr_ == nullptr) {
+      return;
+    }
+    increment_ipc_shared_ptr_num();
+
+    if (entry_id_ > 0) {
       increment_rc(topic_name_, pubsub_id_, entry_id_);
     }
   }
@@ -78,7 +91,13 @@ public:
       topic_name_ = r.topic_name_;
       pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
-      if (ptr_ != nullptr) {
+
+      if (ptr_ == nullptr) {
+        return *this;
+      }
+      increment_ipc_shared_ptr_num();
+
+      if (entry_id_ > 0) {
         increment_rc(topic_name_, pubsub_id_, entry_id_);
       }
     }
@@ -117,7 +136,11 @@ public:
   {
     if (ptr_ == nullptr) return;
 
-    decrement_rc(topic_name_, pubsub_id_, entry_id_);
+    decrement_ipc_shared_ptr_num();
+
+    if (entry_id_ > 0) {
+      decrement_rc(topic_name_, pubsub_id_, entry_id_);
+    }
 
     ptr_ = nullptr;
   }
