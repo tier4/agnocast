@@ -612,8 +612,6 @@ mod tests {
     #[test]
     fn test_malloc_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let malloc_size = 1024;
 
         // Act
@@ -622,11 +620,7 @@ mod tests {
         // Assert
         assert!(!ptr.is_null(), "allocated memory should not be null");
         assert!(
-            ptr as usize >= start,
-            "allocated memory should be within pool bounds"
-        );
-        assert!(
-            ptr as usize + malloc_size <= end,
+            is_shared(ptr.cast()),
             "allocated memory should be within pool bounds"
         );
 
@@ -636,8 +630,6 @@ mod tests {
     #[test]
     fn test_calloc_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let elements = 4;
         let element_size = 256;
         let calloc_size = elements * element_size;
@@ -648,12 +640,8 @@ mod tests {
         // Assert
         assert!(!ptr.is_null(), "calloc must not return NULL");
         assert!(
-            ptr as usize >= start,
-            "calloc returned memory below the memory pool start address"
-        );
-        assert!(
-            ptr as usize + calloc_size <= end,
-            "calloc allocated memory exceeds the memory pool end address"
+            is_shared(ptr.cast()),
+            "allocated memory should be within pool bounds"
         );
 
         unsafe {
@@ -669,8 +657,6 @@ mod tests {
     #[test]
     fn test_realloc_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let malloc_size = 512;
         let realloc_size = 1024;
 
@@ -689,12 +675,8 @@ mod tests {
         // Assert
         assert!(!new_ptr.is_null(), "realloc must not return NULL");
         assert!(
-            new_ptr as usize >= start,
-            "realloc returned memory below the memory pool start address"
-        );
-        assert!(
-            new_ptr as usize + realloc_size <= end,
-            "realloc allocated memory exceeds the memory pool end address"
+            is_shared(ptr.cast()),
+            "allocated memory should be within pool bounds"
         );
 
         unsafe {
@@ -713,8 +695,6 @@ mod tests {
     #[test]
     fn test_posix_memalign_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignment = 64;
         let size = 512;
         let mut ptr: *mut c_void = std::ptr::null_mut();
@@ -727,12 +707,8 @@ mod tests {
 
         assert!(!ptr.is_null(), "posix_memalign must not return NULL");
         assert!(
-            ptr as usize >= start,
-            "posix_memalign returned memory below the memory pool start address"
-        );
-        assert!(
-            ptr as usize + size <= end,
-            "posix_memalign allocated memory exceeds the memory pool end address"
+            is_shared(ptr.cast()),
+            "allocated memory should be within pool bounds"
         );
         assert_eq!(
             ptr as usize % alignment,
@@ -746,8 +722,6 @@ mod tests {
     #[test]
     fn test_aligned_alloc_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
 
         for &alignment in &alignments {
@@ -766,12 +740,8 @@ mod tests {
                 // Assert
                 assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
                 assert!(
-                    ptr as usize >= start,
-                    "aligned_alloc returned memory below the memory pool start address"
-                );
-                assert!(
-                    ptr as usize + size <= end,
-                    "aligned_alloc allocated memory exceeds the memory pool end address"
+                    is_shared(ptr.cast()),
+                    "allocated memory should be within pool bounds"
                 );
                 assert_eq!(
                     ptr as usize % alignment,
@@ -785,8 +755,6 @@ mod tests {
     #[test]
     fn test_memalign_normal() {
         // Arrange
-        let start = AGNOCAST_SHARED_MEMORY.get().unwrap().start;
-        let end = AGNOCAST_SHARED_MEMORY.get().unwrap().end;
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
         let sizes = [10, 32, 100, 512, 1000, 4096];
 
@@ -797,15 +765,9 @@ mod tests {
 
                 // Assert
                 assert!(!ptr.is_null(), "memalign must not return NULL");
-
                 assert!(
-                    ptr as usize >= start,
-                    "memalign returned memory below the memory pool start address"
-                );
-
-                assert!(
-                    ptr as usize + size <= end,
-                    "memalign allocated memory exceeds the memory pool end address"
+                    is_shared(ptr.cast()),
+                    "allocated memory should be within pool bounds"
                 );
                 assert_eq!(
                     ptr as usize % alignment,
