@@ -32,6 +32,18 @@ target_include_directories(cie_listener PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_executable(client src/minimal_client.cpp)
+ament_target_dependencies(client rclcpp agnocastlib agnocast_sample_interfaces)
+target_include_directories(client PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(server src/minimal_service.cpp)
+ament_target_dependencies(server rclcpp agnocastlib agnocast_sample_interfaces)
+target_include_directories(server PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
 target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
@@ -57,6 +69,12 @@ install(TARGETS cie_talker
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS cie_listener
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS client
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS server
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

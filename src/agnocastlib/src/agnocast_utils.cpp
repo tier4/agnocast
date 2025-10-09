@@ -78,6 +78,17 @@ std::string create_shm_name(const pid_t pid)
   return "/agnocast@" + std::to_string(pid);
 }
 
+std::string create_service_request_topic_name(const std::string & service_name)
+{
+  return service_name + "_request";
+}
+
+std::string create_service_response_topic_name(
+  const std::string & service_name, const std::string & client_node_name)
+{
+  return service_name + "_response" + client_node_name;
+}
+
 uint64_t agnocast_get_timestamp()
 {
   auto now = std::chrono::system_clock::now();
