@@ -311,15 +311,14 @@ unsafe trait SharedMemoryAllocator {
     fn deallocate(&self, ptr: NonNull<u8>);
 }
 
-/// Returns true when glibc functions must be used.
-/// It is intended to be called from memory allocation functions such as `malloc` or `realloc`.
+/// Determines when to use the heap.
 ///
-/// We must use glibc functions when any of the following conditions hold:
+/// We must use the heap when any of the following conditions hold:
 /// * When the shared memory allocator is not initialized.
 /// * When in a forked process (since we do not expect forked processes to operate on shared memory).
 /// * When `agnocast_get_borrowed_publisher_num` returns 0, i.e., when the publisher is not using shared memory.
 #[cfg(not(test))]
-fn should_use_original_func() -> bool {
+fn should_use_heap() -> bool {
     extern "C" {
         fn agnocast_get_borrowed_publisher_num() -> u32;
     }
@@ -341,8 +340,8 @@ fn should_use_original_func() -> bool {
 }
 
 #[cfg(test)]
-fn should_use_original_func() -> bool {
-    // In tests, we use glibc functions only when the allocator is uninitialized.
+fn should_use_heap() -> bool {
+    // In tests, we use the heap only when the allocator is uninitialized.
     AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
 }
 
@@ -381,7 +380,7 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
@@ -411,25 +410,27 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
-    // SAFETY: `ptr` must be non-null.
-    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
-    let is_shared = is_shared(ptr.cast());
-    let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
-
-    match (is_shared, is_forked_child) {
-        (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => AGNOCAST_SHARED_MEMORY_ALLOCATOR
-            .get()
-            .unwrap()
-            .inner
-            .deallocate(non_null_ptr),
-        (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
+    if !is_shared(ptr.cast()) {
+        return (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
     }
+
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        // Ignore unexpected calls to `free`.
+        return;
+    }
+
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
+
+    AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .deallocate(non_null_ptr);
 }
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
@@ -467,40 +468,38 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
         return malloc(new_size);
     }
 
+    if !is_shared(ptr.cast()) {
+        return (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size);
+    }
+
+    if should_use_heap() {
+        // Ignore unexpected calls to `realloc`.
+        return ptr::null_mut();
+    }
+
     let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
-    let is_shared = is_shared(ptr.cast());
-    let should_use_original = should_use_original_func();
 
-    match (is_shared, should_use_original) {
-        (true, true) => {
-            // Ignore unexpected calls to `realloc`.
-            ptr::null_mut()
-        }
-        (true, false) => {
-            // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-            // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-            let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
-                Ok(layout) => layout,
-                Err(_) => return ptr::null_mut(),
-            };
+    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
+    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
+    let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
 
-            match AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                .get()
-                .unwrap()
-                .inner
-                .reallocate(non_null_ptr, new_layout)
-            {
-                Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-                None => ptr::null_mut(),
-            }
-        }
-        (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .reallocate(non_null_ptr, new_layout)
+    {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => ptr::null_mut(),
     }
 }
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_POSIX_MEMALIGN.get_or_init(init_original_posix_memalign))(
                 memptr, alignment, size,
@@ -534,7 +533,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
         };
@@ -563,7 +562,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
         };
