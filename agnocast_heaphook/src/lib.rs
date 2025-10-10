@@ -462,6 +462,12 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
+    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
+    if ptr.is_null() {
+        return malloc(new_size);
+    }
+
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
     let is_shared = is_shared(ptr.cast());
     let should_use_original = should_use_original_func();
 
@@ -478,40 +484,14 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
                 Err(_) => return ptr::null_mut(),
             };
 
-            match NonNull::new(ptr.cast()) {
-                Some(non_null_ptr) => {
-                    // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
-                    if new_layout.size() == 0 {
-                        AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                            .get()
-                            .unwrap()
-                            .inner
-                            .deallocate(non_null_ptr);
-                        return ptr::null_mut();
-                    }
-
-                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                        .get()
-                        .unwrap()
-                        .inner
-                        .reallocate(non_null_ptr, new_layout)
-                    {
-                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-                        None => ptr::null_mut(),
-                    }
-                }
-                None => {
-                    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
-                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                        .get()
-                        .unwrap()
-                        .inner
-                        .allocate(new_layout)
-                    {
-                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-                        None => ptr::null_mut(),
-                    }
-                }
+            match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                .get()
+                .unwrap()
+                .inner
+                .reallocate(non_null_ptr, new_layout)
+            {
+                Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+                None => ptr::null_mut(),
             }
         }
         (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
