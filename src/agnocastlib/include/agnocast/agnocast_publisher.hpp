@@ -225,6 +225,21 @@ public:
   {
     return ros2_publisher_->get_subscription_count() + get_subscription_count_core(topic_name_);
   }
+
+  uint32_t get_intra_process_subscription_count() const
+  {
+    return ros2_publisher_->get_intra_process_subscription_count();
+  }
+
+  rmw_gid_t get_gid() const
+  {
+    return ros2_publisher_->get_gid();
+  }
+
+  std::string get_topic_name() const
+  {
+    return ros2_publisher_->get_topic_name();
+  }
 };
 
 }  // namespace agnocast
