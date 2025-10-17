@@ -245,6 +245,16 @@ public:
   {
   }
 
+  ~AgnocastOnlyPublisher()
+  {
+    for (auto & [_, t] : opened_mqs_) {
+      mqd_t mq = std::get<0>(t);
+      if (mq_close(mq) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
+    }
+  }
+
   ipc_shared_ptr<MessageT> borrow_loaned_message()
   {
     increment_borrowed_publisher_num();
