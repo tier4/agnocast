@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
+#include "agnocast/agnocast_client.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_service.hpp"
@@ -114,6 +115,14 @@ typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
   return std::make_shared<PollingSubscriber<MessageT>>(node, topic_name, qos);
+}
+
+template <typename ServiceT>
+typename Client<ServiceT>::SharedPtr create_client(
+  rclcpp::Node * node, const std::string & service_name,
+  const rclcpp::QoS & qos = rclcpp::ServicesQoS(), rclcpp::CallbackGroup::SharedPtr group = nullptr)
+{
+  return std::make_shared<Client<ServiceT>>(node, service_name, qos, group);
 }
 
 template <typename ServiceT, typename Func>
