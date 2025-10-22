@@ -36,10 +36,11 @@ public:
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
+    uint64_t _sequence_number;
   };
   struct ResponseT : public ServiceT::Response
   {
-    int64_t _request_entry_id;
+    uint64_t _sequence_number;
   };
 
   using SharedPtr = std::shared_ptr<Client<ServiceT>>;
@@ -55,8 +56,9 @@ private:
     explicit ServiceCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
   };
 
-  std::mutex id2_service_call_info_mtx_;
-  std::unordered_map<int64_t, ServiceCallInfo> id2_service_call_info_;
+  std::atomic<uint64_t> next_sequence_number_;
+  std::mutex seqno2_service_call_info_mtx_;
+  std::unordered_map<uint64_t, ServiceCallInfo> seqno2_service_call_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
   // AgnocastOnlyPublisher is used since RequestT is not a compatible ROS message type.
@@ -73,17 +75,17 @@ public:
       node, create_service_request_topic_name(service_name_), qos))
   {
     auto subscriber_callback = [this](ipc_shared_ptr<ResponseT> && response) {
-      std::unique_lock<std::mutex> lock(id2_service_call_info_mtx_);
+      std::unique_lock<std::mutex> lock(seqno2_service_call_info_mtx_);
       /* --- critical section begin --- */
       // Get the corresponding ServiceCallInfo and remove it from the map
-      auto it = id2_service_call_info_.find(response->_request_entry_id);
-      if (it == id2_service_call_info_.end()) {
+      auto it = seqno2_service_call_info_.find(response->_sequence_number);
+      if (it == seqno2_service_call_info_.end()) {
         lock.unlock();
         RCLCPP_ERROR(node_->get_logger(), "Agnocast internal implementation error: bad entry id");
         return;
       }
       ServiceCallInfo info = std::move(it->second);
-      id2_service_call_info_.erase(it);
+      seqno2_service_call_info_.erase(it);
       /* --- critical section end --- */
       lock.unlock();
 
@@ -104,6 +106,7 @@ public:
   {
     auto request = publisher_->borrow_loaned_message();
     request->_node_name = node_->get_fully_qualified_name();
+    request->_sequence_number = next_sequence_number_.fetch_add(1);
     return request;
   }
 
@@ -120,32 +123,25 @@ public:
       std::chrono::duration_cast<std::chrono::nanoseconds>(timeout));
   }
 
-  /*
-   * NOTE on async_send_request implementation:
-   *   It is possible for `subscriber_` to receive a response before the corresponding service call
-   *   info is inserted into `id2_service_call_info_`. To handle such cases, we acquire the lock on
-   *   `id2_service_call_info_` before publishing the request.
-   *   However, this solution may block the `subscriber_` callback for a non-negligible amount of
-   *   time under heavy use of the service.
-   *   As an alternative, we could let the client generate service call IDs instead of using the
-   *   `entry_id` from `ipc_shared_ptr`, allowing us to publish the request before acquiring the
-   *   lock.
-   */
-
   void async_send_request(
     ipc_shared_ptr<RequestT> && request, std::function<void(SharedFuture)> callback)
   {
-    std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
-    int64_t entry_id = publisher_->publish(std::move(request));
-    id2_service_call_info_.try_emplace(entry_id, std::move(callback));
+    {
+      std::lock_guard<std::mutex> lock(seqno2_service_call_info_mtx_);
+      seqno2_service_call_info_.try_emplace(request->_sequence_number, std::move(callback));
+    }
+    publisher_->publish(std::move(request));
   }
 
   SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
   {
-    std::lock_guard<std::mutex> lock(id2_service_call_info_mtx_);
-    int64_t entry_id = publisher_->publish(std::move(request));
-    auto it = id2_service_call_info_.try_emplace(entry_id).first;
-    return it->second.promise.get_future().share();
+    std::unique_lock<std::mutex> lock(seqno2_service_call_info_mtx_);
+    auto it = seqno2_service_call_info_.try_emplace(request->_sequence_number).first;
+    SharedFuture ret = it->second.promise.get_future().share();
+    lock.unlock();
+
+    publisher_->publish(std::move(request));
+    return ret;
   }
 };
 
