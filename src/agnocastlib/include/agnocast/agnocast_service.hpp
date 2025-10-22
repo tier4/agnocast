@@ -26,7 +26,7 @@ public:
   };
   struct ResponseT : public ServiceT::Response
   {
-    int64_t _sequence_number;
+    uint64_t _sequence_number;
   };
 
 private:
