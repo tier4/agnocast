@@ -1,4 +1,4 @@
-use core::panic;
+use core::{panic, sync::atomic::AtomicUsize};
 use std::{
     alloc::Layout,
     ffi::CStr,
@@ -16,13 +16,6 @@ use crate::tlsf::TLSFAllocator;
 mod tlsf;
 
 extern "C" {
-    fn initialize_agnocast(
-        size: usize,
-        version: *const c_char,
-        version_str_length: usize,
-    ) -> *mut c_void;
-    fn agnocast_get_borrowed_publisher_num() -> u32;
-
     fn agnocast_child_initialize_pool(size: u64) -> *mut c_void;
 }
 
@@ -140,47 +133,29 @@ extern "C" fn post_fork_handler_in_child() {
     IS_FORKED_CHILD.store(true, Ordering::Relaxed);
 }
 
-static TLSF: OnceLock<TLSFAllocator> = OnceLock::new();
-
-/// A memory allocator that manages shared memory.
-///
-/// # Safety
-///
-/// The `AgnocastSharedMemoryAllocator` is an `unsafe` trait for a number of reasons, and implementors must ensure that they adhere to these contracts:
-///
-/// * The memory allocator must not unwind. A panic in any of its functions may lead to memory unsafety.
-unsafe trait AgnocastSharedMemoryAllocator {
-    /// Initializes the allocator with the given `pool`.
-    fn new(pool: &'static mut [u8]) -> Self;
-
-    /// Attemps to allocate a block of memory as described by the given `layout`.
-    ///
-    /// # Safety
-    ///
-    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
-    /// and satisfy the requirements of `layout`.
-    fn allocate(&self, layout: Layout) -> Option<NonNull<u8>>;
-
-    /// Attemps to reallocate the block of memory at the given `ptr` to fit the `new_layout`.
-    ///
-    /// # Safety
-    ///
-    /// * `ptr` must denote a block of memory currently allocated via this allocator.
-    /// * If this returns `Some`, then the returned pointer must be within the range of `pool` passed to `AgnocastSharedMemoryAllocator::new`
-    /// and satisfy the requirements of `new_layout`.
-    fn reallocate(&self, ptr: NonNull<u8>, new_layout: Layout) -> Option<NonNull<u8>>;
-
-    /// Deallocates the block of memory at the given `ptr`.
-    ///
-    /// # Safety
-    ///
-    /// * `ptr` must denote a block of memory currently allocated via this allocator.
-    fn deallocate(&self, ptr: NonNull<u8>);
+struct AgnocastSharedMemory {
+    start: usize,
+    end: usize,
 }
 
-#[cfg(not(test))]
-fn init_tlsf() {
-    let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
+impl AgnocastSharedMemory {
+    #[cfg(not(test))]
+    /// Initializes shared memory.
+    ///
+    /// # Safety
+    /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
+    unsafe fn new() -> Self {
+        use std::{ffi::CString, os::raw::c_char};
+
+        extern "C" {
+            fn initialize_agnocast(
+                size: usize,
+                version: *const c_char,
+                version_str_length: usize,
+            ) -> *mut c_void;
+        }
+
+        let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
 
         if result != 0 {
             panic!(
@@ -199,6 +174,8 @@ fn init_tlsf() {
 
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
+
+        MEMPOOL_SIZE.store(aligned_size, Ordering::Relaxed);
 
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
@@ -339,6 +316,38 @@ unsafe trait SharedMemoryAllocator {
     ///
     /// * `ptr` must denote a block of memory currently allocated via this allocator.
     fn deallocate(&self, ptr: NonNull<u8>);
+}
+
+#[no_mangle]
+unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
+    let mempool_size = MEMPOOL_SIZE.load(Ordering::Relaxed);
+    let child_mempool_ptr = agnocast_child_initialize_pool(mempool_size as u64);
+
+    if child_mempool_ptr.is_null() {
+        return false;
+    }
+
+    let shm = AgnocastSharedMemory {
+        start: child_mempool_ptr as usize,
+        end: (child_mempool_ptr as usize) + mempool_size,
+    };
+
+    if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
+        panic!("[ERROR] [Agnocast] Shared memory has already been initialized in daemon.");
+    }
+
+    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .set(AgnocastSharedMemoryAllocator::new(
+            AGNOCAST_SHARED_MEMORY.get().unwrap(),
+        ))
+        .is_err()
+    {
+        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized in daemon.");
+    }
+
+    IS_FORKED_CHILD.store(false, Ordering::Relaxed);
+
+    true
 }
 
 /// Returns true when glibc functions must be used.
