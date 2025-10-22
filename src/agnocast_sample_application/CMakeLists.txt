@@ -42,9 +42,68 @@ rclcpp_components_register_node(
   EXECUTABLE listener
 )
 
-ament_export_targets(export_listener_component)
+add_library(my_topic_2_subscriber_component SHARED src/my_topic_2_subscriber.cpp)
+ament_target_dependencies(my_topic_2_subscriber_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
+target_include_directories(my_topic_2_subscriber_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  my_topic_2_subscriber_component
+  PLUGIN "MyTopic2Subscriber"
+  EXECUTABLE my_topic_2_subscriber
+)
+
+add_library(take_subscriber_my_topic_2_component SHARED src/take_subscriber_my_topic_2.cpp)
+ament_target_dependencies(take_subscriber_my_topic_2_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
+target_include_directories(take_subscriber_my_topic_2_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  take_subscriber_my_topic_2_component
+  PLUGIN "TakeSubscriberMyTopic2"
+  EXECUTABLE take_subscriber_my_topic_2
+)
+
+add_library(agnocast_subscriber_my_topic_3_component SHARED src/agnocast_subscriber_my_topic_3.cpp)
+ament_target_dependencies(agnocast_subscriber_my_topic_3_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
+target_include_directories(agnocast_subscriber_my_topic_3_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  agnocast_subscriber_my_topic_3_component
+  PLUGIN "AgnocastSubscriberMyTopic3"
+  EXECUTABLE agnocast_subscriber_my_topic_3
+)
+
+ament_export_targets(export_cie_listener_component export_listener_component export_my_topic_2_subscriber_component export_take_subscriber_my_topic_2_component export_agnocast_subscriber_my_topic_3_component)
+
+install(TARGETS cie_listener_component
+        EXPORT export_cie_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
 install(TARGETS listener_component
         EXPORT export_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+install(TARGETS my_topic_2_subscriber_component
+        EXPORT export_my_topic_2_subscriber_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+install(TARGETS take_subscriber_my_topic_2_component
+        EXPORT export_take_subscriber_my_topic_2_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+install(TARGETS agnocast_subscriber_my_topic_3_component
+        EXPORT export_agnocast_subscriber_my_topic_3_component
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin

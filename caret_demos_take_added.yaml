@@ -1,0 +1,193 @@
+named_paths:
+- path_name: target
+  node_chain:
+  - node_name: /sensor_dummy_node
+    publish_topic_name: /topic1
+    subscribe_topic_name: UNDEFINED
+  - node_name: /filter_node
+    publish_topic_name: /topic2
+    subscribe_topic_name: /topic1
+  - node_name: /message_driven_node
+    publish_topic_name: /topic3
+    subscribe_topic_name: /topic2
+  - node_name: /timer_driven_node
+    publish_topic_name: /topic4
+    subscribe_topic_name: /topic3
+  - node_name: /actuator_dummy_node
+    publish_topic_name: UNDEFINED
+    subscribe_topic_name: /topic4
+executors:
+- executor_type: multi_threaded_executor
+  executor_name: executor_0
+  callback_group_names:
+  - /actuator_dummy_node/callback_group_0
+  - /drive_node/callback_group_0
+  - /filter_node/callback_group_0
+  - /message_driven_node/callback_group_0
+  - /sensor_dummy_node/callback_group_0
+  - /timer_driven_node/callback_group_0
+nodes:
+- node_name: /actuator_dummy_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /actuator_dummy_node/callback_group_0
+    callback_names:
+    - /actuator_dummy_node/callback_0
+  callbacks:
+  - callback_name: /actuator_dummy_node/callback_0
+    callback_type: subscription_callback
+    topic_name: /topic4
+    symbol: ActuatorDummy::ActuatorDummy(std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >)::{lambda(std::unique_ptr<sensor_msgs::msg::Image_<std::allocator<void>
+      >, std::default_delete<sensor_msgs::msg::Image_<std::allocator<void> > > >)#1}
+  subscribes:
+  - topic_name: /topic4
+    callback_name: /actuator_dummy_node/callback_0
+- node_name: /drive_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /drive_node/callback_group_0
+    callback_names:
+    - /drive_node/callback_0
+  callbacks:
+  - callback_name: /drive_node/callback_0
+    callback_type: timer_callback
+    period_ns: 100000000
+    symbol: SensorDummy::SensorDummy(std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, int)::{lambda()#1}
+  publishes:
+  - topic_name: /drive
+    callback_names:
+    - /drive_node/callback_0
+- node_name: /filter_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /filter_node/callback_group_0
+    callback_names:
+    - /filter_node/callback_0
+  callbacks:
+  - callback_name: /filter_node/callback_0
+    callback_type: subscription_callback
+    topic_name: /topic1
+    symbol: NoDependencyNode::NoDependencyNode(std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >)::{lambda(std::unique_ptr<sensor_msgs::msg::Image_<std::allocator<void>
+      >, std::default_delete<sensor_msgs::msg::Image_<std::allocator<void> > > >)#1}
+  publishes:
+  - topic_name: /topic2
+    callback_names:
+    - /filter_node/callback_0
+  subscribes:
+  - topic_name: /topic1
+    callback_name: /filter_node/callback_0
+  message_contexts:
+  - context_type: callback_chain
+    subscription_topic_name: /topic1
+    publisher_topic_name: /topic2
+    callbacks:
+    - /filter_node/callback_0
+- node_name: /message_driven_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /message_driven_node/callback_group_0
+    callback_names:
+    - /message_driven_node/callback_0
+    - /message_driven_node/callback_1
+  callbacks:
+  - callback_name: /message_driven_node/callback_0
+    callback_type: subscription_callback
+    topic_name: /topic2
+    symbol: SubDependencyNode::SubDependencyNode(std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >)::{lambda(std::unique_ptr<sensor_msgs::msg::Image_<std::allocator<void>
+      >, std::default_delete<sensor_msgs::msg::Image_<std::allocator<void> > > >)#1}
+  - callback_name: /message_driven_node/callback_1
+    callback_type: subscription_callback
+    topic_name: /drive
+    symbol: SubDependencyNode::SubDependencyNode(std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >)::{lambda(std::unique_ptr<sensor_msgs::msg::Image_<std::allocator<void>
+      >, std::default_delete<sensor_msgs::msg::Image_<std::allocator<void> > > >)#2}
+  variable_passings:
+  - callback_name_write: UNDEFINED
+    callback_name_read: UNDEFINED
+  publishes:
+  - topic_name: /topic3
+    callback_names:
+    - UNDEFINED
+  subscribes:
+  - topic_name: /drive
+    callback_name: /message_driven_node/callback_1
+  - topic_name: /topic2
+    callback_name: /message_driven_node/callback_0
+  message_contexts:
+  - context_type: use_latest_message
+    subscription_topic_name: /drive
+    publisher_topic_name: /topic3
+  - context_type: use_latest_message
+    subscription_topic_name: /topic2
+    publisher_topic_name: /topic3
+- node_name: /sensor_dummy_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /sensor_dummy_node/callback_group_0
+    callback_names:
+    - /sensor_dummy_node/callback_0
+  callbacks:
+  - callback_name: /sensor_dummy_node/callback_0
+    callback_type: timer_callback
+    period_ns: 100000000
+    symbol: SensorDummy::SensorDummy(std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, std::__cxx11::basic_string<char, std::char_traits<char>,
+      std::allocator<char> >, int)::{lambda()#1}
+  publishes:
+  - topic_name: /topic1
+    callback_names:
+    - /sensor_dummy_node/callback_0
+- node_name: /timer_driven_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /timer_driven_node/callback_group_0
+    callback_names:
+    - /timer_driven_node/callback_0
+  - callback_group_type: UNDEFINED
+    callback_group_name: /timer_driven_node/callback_group_1
+    callback_names:
+    - /timer_driven_node/callback_1
+  callbacks:
+  - callback_name: /timer_driven_node/callback_0
+    callback_type: timer_callback
+    period_ns: 100000000
+    symbol: TimerDependencyNode::TimerDependencyNode(std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, int)::{lambda()#2}
+  - callback_name: /timer_driven_node/callback_1
+    callback_type: subscription_callback
+    topic_name: /topic3
+    symbol: TimerDependencyNode::TimerDependencyNode(std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, std::__cxx11::basic_string<char,
+      std::char_traits<char>, std::allocator<char> >, int)::{lambda(std::unique_ptr<sensor_msgs::msg::Image_<std::allocator<void>
+      >, std::default_delete<sensor_msgs::msg::Image_<std::allocator<void> > > >)#1}
+  variable_passings:
+  - callback_name_write: UNDEFINED
+    callback_name_read: UNDEFINED
+  publishes:
+  - topic_name: /topic4
+    callback_names:
+    - UNDEFINED
+  subscribes:
+  - topic_name: /topic3
+    callback_name: /timer_driven_node/callback_1
+  message_contexts:
+  - context_type: use_latest_message
+    subscription_topic_name: /topic3
+    publisher_topic_name: /topic4

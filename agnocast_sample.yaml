@@ -1,0 +1,193 @@
+named_paths:
+- path_name: target
+  node_chain:
+  - node_name: /talker_node
+    publish_topic_name: /my_topic_agnocast
+    subscribe_topic_name: UNDEFINED
+  - node_name: /listener_node
+    publish_topic_name: /my_topic_2_agnocast
+    subscribe_topic_name: /my_topic_agnocast
+  - node_name: /my_topic_2_subscriber_node
+    publish_topic_name: UNDEFINED
+    subscribe_topic_name: /my_topic_2_agnocast
+- path_name: target_take
+  node_chain:
+  - node_name: /talker_node
+    publish_topic_name: /my_topic_agnocast
+    subscribe_topic_name: UNDEFINED
+  - node_name: /listener_node
+    publish_topic_name: /my_topic_2_agnocast
+    subscribe_topic_name: /my_topic_agnocast
+  - node_name: /take_subscriber_my_topic_2_node
+    publish_topic_name: /my_topic_3_agnocast
+    subscribe_topic_name: /my_topic_2_agnocast
+  - node_name: /agnocast_subscriber_my_topic_3_node
+    publish_topic_name: UNDEFINED
+    subscribe_topic_name: /my_topic_3_agnocast
+executors:
+- executor_type: agnocast_single_threaded_executor
+  executor_name: executor_00
+  callback_group_names:
+  - /listener_node/callback_group_0
+  - /listener_node/callback_group_1
+- executor_type: agnocast_single_threaded_executor
+  executor_name: executor_01
+  callback_group_names:
+  - /take_subscriber_my_topic_2_node/callback_group_0
+- executor_type: agnocast_single_threaded_executor
+  executor_name: executor_02
+  callback_group_names:
+  - /my_topic_2_subscriber_node/callback_group_0
+- executor_type: agnocast_single_threaded_executor
+  executor_name: executor_03
+  callback_group_names:
+  - /agnocast_subscriber_my_topic_3_node/callback_group_0
+- executor_type: agnocast_single_threaded_executor
+  executor_name: executor_13
+  callback_group_names:
+  - /talker_node/callback_group_0
+nodes:
+- node_name: /agnocast_subscriber_my_topic_3_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /agnocast_subscriber_my_topic_3_node/callback_group_0
+    callback_names:
+    - /agnocast_subscriber_my_topic_3_node/callback_0
+  callbacks:
+  - callback_name: /agnocast_subscriber_my_topic_3_node/callback_0
+    callback_type: subscription_callback
+    topic_name: /my_topic_3_agnocast
+    symbol: std::_Bind<void (AgnocastSubscriberMyTopic3::*(AgnocastSubscriberMyTopic3*,
+      std::_Placeholder<1>))(agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray_<std::allocator<void>
+      > > const&)>
+  subscribes:
+  - topic_name: /my_topic_3_agnocast
+    callback_name: /agnocast_subscriber_my_topic_3_node/callback_0
+- node_name: /launch_ros_52328
+  callback_groups: []
+- node_name: /launch_ros_52442
+  callback_groups: []
+- node_name: /launch_ros_52555
+  callback_groups: []
+- node_name: /launch_ros_52669
+  callback_groups: []
+- node_name: /listener_container
+  callback_groups: []
+- node_name: /listener_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /listener_node/callback_group_0
+    callback_names:
+    - /listener_node/callback_0
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /listener_node/callback_group_1
+    callback_names:
+    - /listener_node/callback_1
+  callbacks:
+  - callback_name: /listener_node/callback_0
+    callback_type: timer_callback
+    period_ns: 200000000
+    symbol: std::_Bind<void (MinimalSubscriber::*(MinimalSubscriber*))()>
+  - callback_name: /listener_node/callback_1
+    callback_type: subscription_callback
+    topic_name: /my_topic_agnocast
+    symbol: std::_Bind<void (MinimalSubscriber::*(MinimalSubscriber*, std::_Placeholder<1>))(agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray_<std::allocator<void>
+      > > const&)>
+  variable_passings:
+  - callback_name_write: UNDEFINED
+    callback_name_read: UNDEFINED
+  publishes:
+  - topic_name: /my_topic_2
+    callback_names:
+    - UNDEFINED
+  - topic_name: /my_topic_2_agnocast
+    callback_names:
+    - UNDEFINED
+  subscribes:
+  - topic_name: /my_topic_agnocast
+    callback_name: /listener_node/callback_1
+  message_contexts:
+  - context_type: use_latest_message
+    subscription_topic_name: /my_topic_agnocast
+    publisher_topic_name: /my_topic_2
+  - context_type: use_latest_message
+    subscription_topic_name: /my_topic_agnocast
+    publisher_topic_name: /my_topic_2_agnocast
+- node_name: /my_topic_2_subscriber_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /my_topic_2_subscriber_node/callback_group_0
+    callback_names:
+    - /my_topic_2_subscriber_node/callback_0
+  callbacks:
+  - callback_name: /my_topic_2_subscriber_node/callback_0
+    callback_type: subscription_callback
+    topic_name: /my_topic_2_agnocast
+    symbol: std::_Bind<void (MyTopic2Subscriber::*(MyTopic2Subscriber*, std::_Placeholder<1>))(agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray_<std::allocator<void>
+      > > const&)>
+  subscribes:
+  - topic_name: /my_topic_2_agnocast
+    callback_name: /my_topic_2_subscriber_node/callback_0
+- node_name: /ros2_subscriber_my_topic_3_container
+  callback_groups: []
+- node_name: /take_subscriber_my_topic_2_container
+  callback_groups: []
+- node_name: /take_subscriber_my_topic_2_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /take_subscriber_my_topic_2_node/callback_group_0
+    callback_names:
+    - /take_subscriber_my_topic_2_node/callback_0
+  - callback_group_type: UNDEFINED
+    callback_group_name: /take_subscriber_my_topic_2_node/callback_group_1
+    callback_names:
+    - /take_subscriber_my_topic_2_node/callback_1
+  callbacks:
+  - callback_name: /take_subscriber_my_topic_2_node/callback_0
+    callback_type: timer_callback
+    period_ns: 100000000
+    symbol: std::_Bind<void (TakeSubscriberMyTopic2::*(TakeSubscriberMyTopic2*))()>
+  - callback_name: /take_subscriber_my_topic_2_node/callback_1
+    callback_type: subscription_callback
+    topic_name: /my_topic_2_agnocast
+    symbol: dummy_take/my_topic_2
+  variable_passings:
+  - callback_name_write: UNDEFINED
+    callback_name_read: UNDEFINED
+  publishes:
+  - topic_name: /my_topic_3
+    callback_names:
+    - UNDEFINED
+  - topic_name: /my_topic_3_agnocast
+    callback_names:
+    - UNDEFINED
+  subscribes:
+  - topic_name: /my_topic_2_agnocast
+    callback_name: /take_subscriber_my_topic_2_node/callback_1
+  message_contexts:
+  - context_type: use_latest_message
+    subscription_topic_name: /my_topic_2_agnocast
+    publisher_topic_name: /my_topic_3
+  - context_type: use_latest_message
+    subscription_topic_name: /my_topic_2_agnocast
+    publisher_topic_name: /my_topic_3_agnocast
+- node_name: /talker_2_container
+  callback_groups: []
+- node_name: /talker_node
+  callback_groups:
+  - callback_group_type: mutually_exclusive
+    callback_group_name: /talker_node/callback_group_0
+    callback_names:
+    - /talker_node/callback_0
+  callbacks:
+  - callback_name: /talker_node/callback_0
+    callback_type: timer_callback
+    period_ns: 100000000
+    symbol: std::_Bind<void (MinimalPublisher::*(MinimalPublisher*))()>
+  publishes:
+  - topic_name: /my_topic
+    callback_names:
+    - /talker_node/callback_0
+  - topic_name: /my_topic_agnocast
+    callback_names:
+    - /talker_node/callback_0

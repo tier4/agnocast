@@ -1,0 +1,91 @@
+#!/bin/bash
+
+BUILD_INSTALL=${1:-false}
+
+# Build & Install
+if [ "$BUILD_INSTALL" = true ]; then
+	rm -rf /home/atsushi/autoware_agnocast_for_validation_agnocast/src/agnocast/build/agnocast_sample_interfaces/ament_cmake_python/agnocast_sample_interfaces/agnocast_sample_interfaces
+	rm -rf build install log
+
+	cd ~/ros2_caret_ws
+	rm -rf build install log
+	source /opt/ros/humble/setup.bash
+	colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+	source ~/ros2_caret_ws/install/setup.bash
+
+	cd ~/agnocast
+	colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+	if ! lsmod | grep -q agnocast; then
+		cd agnocast_kmod
+		make
+		sudo rmmod agnocast
+		sudo insmod agnocast.ko
+		cd ..
+	fi
+
+	cd ./agnocast_heaphook
+	cargo vendor
+	cargo build --release
+	cd ..
+	cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib
+fi
+
+PIDS_TO_BE_KILLED=()
+trap 'for pid in ${PIDS_TO_BE_KILLED[@]}; do kill -SIGINT "$pid"; done; wait; exit' SIGINT SIGTERM
+
+IGNORE_NODES=""
+IGNORE_TOPICS=""
+
+# Run CARET
+source ~/ros2_caret_ws/install/local_setup.bash
+ulimit -n 16384
+ros2 caret record --immediate --light -f 10000 -p ~/agnocast -s caret_record_sample_data &
+PIDS_TO_BE_KILLED+=("$!")
+
+# Run agnocast sample subscriber 3
+ulimit -n 16384
+source ~/ros2_caret_ws/setenv_caret.bash
+source install/setup.bash
+export CARET_IGNORE_NODES="$IGNORE_NODES"
+export CARET_IGNORE_TOPICS="$IGNORE_TOPICS"
+ros2 launch agnocast_sample_application agnocast_subscriber_my_topic_3.launch.xml &
+PIDS_TO_BE_KILLED+=("$!")
+
+# Run agnocast sample subscriber 2
+ulimit -n 16384
+source ~/ros2_caret_ws/setenv_caret.bash
+source install/setup.bash
+export CARET_IGNORE_NODES="$IGNORE_NODES"
+export CARET_IGNORE_TOPICS="$IGNORE_TOPICS"
+ros2 launch agnocast_sample_application listener_2.launch.xml &
+PIDS_TO_BE_KILLED+=("$!")
+
+# Run agnocast sample take subscriber
+ulimit -n 16384
+source ~/ros2_caret_ws/setenv_caret.bash
+source install/setup.bash
+export CARET_IGNORE_NODES="$IGNORE_NODES"
+export CARET_IGNORE_TOPICS="$IGNORE_TOPICS"
+ros2 launch agnocast_sample_application take_subscriber_my_topic_2.launch.xml &
+PIDS_TO_BE_KILLED+=("$!")
+
+# Run agnocast sample subscriber
+ulimit -n 16384
+source ~/ros2_caret_ws/setenv_caret.bash
+source install/setup.bash
+export CARET_IGNORE_NODES="$IGNORE_NODES"
+export CARET_IGNORE_TOPICS="$IGNORE_TOPICS"
+ros2 launch agnocast_sample_application listener.launch.xml &
+PIDS_TO_BE_KILLED+=("$!")
+
+# Run agnocast sample publisher
+ulimit -n 16384
+source ~/ros2_caret_ws/setenv_caret.bash
+source install/setup.bash
+export CARET_IGNORE_NODES="$IGNORE_NODES"
+export CARET_IGNORE_TOPICS="$IGNORE_TOPICS"
+ros2 launch agnocast_sample_application talker.launch.xml &
+PIDS_TO_BE_KILLED+=("$!")
+
+wait
