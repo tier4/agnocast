@@ -6,7 +6,10 @@
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
 #include <linux/slab.h>  // kmalloc, kfree
+#include <linux/slab.h>
 #include <linux/version.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -1388,6 +1391,114 @@ static int get_topic_publisher_info(
   return 0;
 }
 
+struct bridge_entry
+{
+  struct list_head list;  // リンクリストのためのメンバ
+  pid_t pid;
+  char topic_name[MAX_TOPIC_NAME_LEN];
+  const struct ipc_namespace * ipc_ns;
+};
+
+static LIST_HEAD(g_bridge_list);
+static DEFINE_MUTEX(g_bridge_list_mutex);
+
+int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry * new_entry;
+
+  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+  if (!new_entry) {
+    dev_err(agnocast_device, "kmalloc failed for new bridge entry\n");
+    return -ENOMEM;
+  }
+
+  new_entry->pid = pid;
+  strncpy(new_entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN - 1);
+  new_entry->topic_name[MAX_TOPIC_NAME_LEN - 1] = '\0';  // 安全のためのヌル終端
+  new_entry->ipc_ns = ipc_ns;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_add_tail(&new_entry->list, &g_bridge_list);  // リストの末尾に追加
+  mutex_unlock(&g_bridge_list_mutex);
+
+  return 0;
+}
+
+int unregister_bridge(const pid_t pid, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry *entry, *tmp;
+  bool found = false;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    if (entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns)) {
+      list_del(&entry->list);
+      kfree(entry);
+      found = true;
+      break;
+    }
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+
+  if (!found) {
+    dev_warn(agnocast_device, "Tried to unregister non-existent bridge PID %d\n", pid);
+  }
+  return 0;
+}
+
+int get_all_bridges(
+  const struct ipc_namespace * ipc_ns, union ioctl_get_all_bridges_args __user * user_args)
+{
+  struct ioctl_get_all_bridges_buffer * kern_buffer;
+  struct bridge_entry * entry;
+  uint64_t user_buffer_addr;
+  int i = 0;
+  int ret = 0;
+
+  // ユーザーが指定したバッファのアドレスを取得
+  if (get_user(user_buffer_addr, &user_args->buffer_addr)) return -EFAULT;
+
+  // カーネル内に一時バッファを確保
+  kern_buffer = kmalloc(sizeof(*kern_buffer), GFP_KERNEL);
+  if (!kern_buffer) return -ENOMEM;
+
+  memset(kern_buffer, 0, sizeof(*kern_buffer));
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (!ipc_eq(ipc_ns, entry->ipc_ns)) {
+      continue;
+    }
+    if (i >= MAX_BRIDGES) {
+      dev_warn(agnocast_device, "Bridge list exceeds MAX_BRIDGES\n");
+      break;
+    }
+
+    kern_buffer->bridges[i].pid = entry->pid;
+    strncpy(kern_buffer->bridges[i].topic_name, entry->topic_name, MAX_TOPIC_NAME_LEN);
+    i++;
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+
+  // ユーザー空間の巨大バッファに結果をコピー
+  if (copy_to_user((void __user *)user_buffer_addr, kern_buffer, sizeof(*kern_buffer))) {
+    ret = -EFAULT;
+    goto out;
+  }
+
+  // 取得したブリッジの数をユーザーに返す
+  if (put_user(i, &user_args->ret_count)) {
+    ret = -EFAULT;
+    goto out;
+  }
+
+out:
+  kfree(kern_buffer);
+  return ret;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1689,6 +1800,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
       goto return_EFAULT;
+  } else if (cmd == AGNOCAST_REGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    ret = register_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
+  } else if (cmd == AGNOCAST_UNREGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    ret = unregister_bridge(bridge_args.info.pid, ipc_ns);
+  } else if (cmd == AGNOCAST_GET_ALL_BRIDGES_CMD) {
+    ret = get_all_bridges(ipc_ns, (union ioctl_get_all_bridges_args __user *)arg);
   } else {
     goto return_EINVAL;
   }

@@ -5,9 +5,15 @@
 #include "agnocast/agnocast_version.hpp"
 
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>  // sleep() のために必要
 
 #include <atomic>
+#include <cerrno>   // errno のために必要
+#include <csignal>  // kill() のために必要
 #include <cstdint>
+#include <cstring>  // strerror() のために必要
+#include <memory>   // std::unique_ptr を使うために必要
 #include <mutex>
 
 extern "C" bool agnocast_heaphook_init_daemon();
@@ -37,9 +43,9 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-mqd_t open_bridge_receiver_queue()
+mqd_t open_bridge_receiver_queue(pid_t owner_pid)
 {
-  std::string mq_name = create_mq_name_for_bridge();
+  std::string mq_name = create_mq_name_for_bridge(owner_pid);
   struct mq_attr attr = {};
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = sizeof(MqMsgBridge);
@@ -82,8 +88,7 @@ static bool receive_message(mqd_t mq, MqMsgBridge & msg_buffer)
   return true;
 }
 
-static void fork_bridge_daemon(
-  const MqMsgBridge & msg_buffer, std::map<pid_t, std::string> & active_daemons)
+static void fork_bridge_daemon(const MqMsgBridge & msg_buffer)
 {
   pid_t pid = fork();
 
@@ -110,68 +115,90 @@ static void fork_bridge_daemon(
     exit(EXIT_SUCCESS);
   }
 
-  active_daemons[pid] = msg_buffer.args.topic_name;
-}
+  struct ioctl_bridge_args args = {};
+  args.info.pid = pid;
 
-static void monitor_active_daemons(std::map<pid_t, std::string> & active_daemons)
-{
-  for (auto it = active_daemons.begin(); it != active_daemons.end();) {
-    pid_t pid = it->first;
-    std::string topic_name_str = it->second;
+  snprintf(args.info.topic_name, MAX_TOPIC_NAME_LEN, "%s", msg_buffer.args.topic_name);
 
-    union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-    get_subscriber_count_args.topic_name = {topic_name_str.c_str(), topic_name_str.size()};
-
-    if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
-      RCLCPP_ERROR(
-        logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed for topic '%s': %s", topic_name_str.c_str(),
-        strerror(errno));
-      ++it;
-      continue;
-    }
-
-    if (get_subscriber_count_args.ret_subscriber_num == 0) {
-      if (kill(pid, SIGTERM) == -1) {
-        if (errno != ESRCH) {
-          RCLCPP_ERROR(logger, "Failed to send SIGTERM to PID %d: %s", pid, strerror(errno));
-        }
-      }
-      it = active_daemons.erase(it);
-    } else {
-      ++it;
-    }
+  if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) < 0) {
+    RCLCPP_ERROR(
+      logger, "Failed to register bridge PID %d for topic %s: %s", pid, msg_buffer.args.topic_name,
+      strerror(errno));
   }
 }
 
-void bridge_manager_daemon()
+static void sigchld_handler(int signum)
 {
+  (void)signum;
+  int saved_errno = errno;
+  while (waitpid((pid_t)(-1), 0, WNOHANG) > 0) {
+  }
+  errno = saved_errno;
+}
+
+void bridge_manager_daemon(int parent_pipe_fd)
+{
+  pid_t parent_pid = getppid();
+
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
+  struct sigaction sa;
+  sa.sa_handler = sigchld_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+
+  if (sigaction(SIGCHLD, &sa, 0) == -1) {
+    RCLCPP_ERROR(logger, "Failed to register SIGCHLD handler: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
   RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
 
-  mqd_t mq = open_bridge_receiver_queue();
+  mqd_t mq = open_bridge_receiver_queue(parent_pid);
   if (mq == (mqd_t)-1) {
     exit(EXIT_FAILURE);
   }
 
-  std::map<pid_t, std::string> active_daemons;
   MqMsgBridge msg_buffer;
 
   while (true) {
-    if (receive_message(mq, msg_buffer)) {
-      fork_bridge_daemon(msg_buffer, active_daemons);
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(mq, &fds);
+    FD_SET(parent_pipe_fd, &fds);
+
+    int max_fd = std::max(mq, parent_pipe_fd) + 1;
+
+    int ret = select(max_fd, &fds, NULL, NULL, NULL);
+
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      RCLCPP_ERROR(logger, "select failed: %s", strerror(errno));
+      break;
     }
 
-    // アクティブなBridgeデーモンを監視
-    monitor_active_daemons(active_daemons);
+    if (FD_ISSET(parent_pipe_fd, &fds)) {
+      char buf;
+      if (read(parent_pipe_fd, &buf, 1) <= 0) {
+        break;
+      }
+    }
+
+    if (FD_ISSET(mq, &fds)) {
+      if (receive_message(mq, msg_buffer)) {
+        fork_bridge_daemon(msg_buffer);
+      }
+    }
   }
 
   mq_close(mq);
-  mq_unlink(create_mq_name_for_bridge().c_str());
+  mq_unlink(create_mq_name_for_bridge(parent_pid).c_str());
   exit(0);
 }
 
@@ -200,6 +227,58 @@ void poll_for_unlink()
         shm_unlink(shm_name.c_str());
       }
     } while (get_exit_process_args.ret_pid > 0);
+
+    // --- ▼▼▼ ここからが修正部分 ▼▼▼ ---
+
+    // 2. 巨大なデータ構造をスタックではなくヒープに確保する
+    auto all_bridges_buffer = std::make_unique<ioctl_get_all_bridges_buffer>();
+
+    // 3. ioctlに渡すための小さな引数構造体を準備
+    union ioctl_get_all_bridges_args args = {};
+    // バッファのアドレスを引数に設定
+    args.buffer_addr = reinterpret_cast<uint64_t>(all_bridges_buffer.get());
+
+    // 4. ioctlを呼び出す
+    if (ioctl(agnocast_fd, AGNOCAST_GET_ALL_BRIDGES_CMD, &args) < 0) {
+      RCLCPP_ERROR(logger, "Failed to get all bridges list: %s", strerror(errno));
+      sleep(10);
+    } else {
+      // 5. カーネルから返された結果を使って監査を行う
+      int bridge_count = args.ret_count;
+      for (int i = 0; i < bridge_count; ++i) {
+        pid_t pid = all_bridges_buffer->bridges[i].pid;
+        const char * topic_name = all_bridges_buffer->bridges[i].topic_name;
+
+        // プロセスがまだ生きているか確認
+        if (kill(pid, 0) == -1 && errno == ESRCH) {
+          RCLCPP_WARN(
+            logger, "Bridge PID %d for topic %s not found. Unregistering.", pid, topic_name);
+          struct ioctl_bridge_args unreg_args = {};
+          unreg_args.info.pid = pid;
+          ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args);
+          continue;
+        }
+
+        // 購読者数をチェック
+        union ioctl_get_subscriber_num_args sub_num_args = {};
+        sub_num_args.topic_name = {topic_name, strlen(topic_name)};
+        if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &sub_num_args) < 0) {
+          RCLCPP_ERROR(
+            logger, "Failed to get subscriber count for %s: %s", topic_name, strerror(errno));
+          continue;
+        }
+
+        // 購読者が0なら、プロセスを終了させ、台帳から抹消
+        if (sub_num_args.ret_subscriber_num == 0) {
+          kill(pid, SIGTERM);
+
+          struct ioctl_bridge_args unreg_args = {};
+          unreg_args.info.pid = pid;
+          ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args);
+        }
+      }
+    }
+    // --- ▲▲▲ ここまでが修正部分 ▲▲▲ ---
 
     if (get_exit_process_args.ret_daemon_should_exit) {
       break;
@@ -437,6 +516,28 @@ void * initialize_agnocast(
       poll_for_unlink();
     }
   }
+
+  int pipe_fd[2];
+  if (pipe(pipe_fd) == -1) {
+    RCLCPP_ERROR(logger, "pipe failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  if (pid == 0) {
+    close(pipe_fd[1]);
+    bridge_manager_daemon(pipe_fd[0]);
+  }
+
+  close(pipe_fd[0]);
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {

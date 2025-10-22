@@ -108,7 +108,8 @@ public:
 private:
   void start_bridge_daemon(const rclcpp::QoS & qos)
   {
-    std::string mq_name = create_mq_name_for_bridge();
+    pid_t my_pid = getpid();
+    std::string mq_name = create_mq_name_for_bridge(my_pid);
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
     if (mq == (mqd_t)-1) {
       RCLCPP_ERROR(logger, "mq_open (sender) failed for %s: %s", mq_name.c_str(), strerror(errno));

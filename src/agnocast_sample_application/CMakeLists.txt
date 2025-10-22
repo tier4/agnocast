@@ -32,6 +32,12 @@ target_include_directories(cie_listener PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_executable(cie_listener_copy src/cie_subscriber_copy.cpp)
+ament_target_dependencies(cie_listener_copy rclcpp agnocastlib agnocast_sample_interfaces)
+target_include_directories(cie_listener_copy PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
 target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
@@ -57,6 +63,9 @@ install(TARGETS cie_talker
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS cie_listener
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS cie_listener_copy
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
