@@ -22,10 +22,11 @@ public:
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
+    uint64_t _sequence_number;
   };
   struct ResponseT : public ServiceT::Response
   {
-    int64_t _request_entry_id;
+    int64_t _sequence_number;
   };
 
 private:
@@ -72,7 +73,7 @@ public:
         }
 
         ipc_shared_ptr<ResponseT> response = publisher->borrow_loaned_message();
-        response->_request_entry_id = request.get_entry_id();
+        response->_sequence_number = request->_sequence_number;
 
         callback(request, response);
 
