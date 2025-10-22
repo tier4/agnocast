@@ -127,6 +127,13 @@ public:
     if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
       RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
     }
+
+    for (auto & [_, t] : opened_mqs_) {
+      mqd_t mq = std::get<0>(t);
+      if (mq_close(mq) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
+    }
   }
 
   void do_ros2_publish()
