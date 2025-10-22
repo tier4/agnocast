@@ -127,6 +127,13 @@ public:
     if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
       RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
     }
+
+    for (auto & [_, t] : opened_mqs_) {
+      mqd_t mq = std::get<0>(t);
+      if (mq_close(mq) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
+    }
   }
 
   void do_ros2_publish()
@@ -262,7 +269,7 @@ public:
     return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
   }
 
-  int64_t publish(ipc_shared_ptr<MessageT> && message)
+  void publish(ipc_shared_ptr<MessageT> && message)
   {
     if (!message || topic_name_ != message.get_topic_name()) {
       RCLCPP_ERROR(logger, "Invalid message to publish.");
@@ -283,8 +290,6 @@ public:
     }
 
     message.reset();
-
-    return publish_msg_args.ret_entry_id;
   }
 
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
