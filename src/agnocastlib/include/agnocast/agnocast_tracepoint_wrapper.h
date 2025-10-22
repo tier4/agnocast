@@ -28,13 +28,11 @@ DECLARE_TRACEPOINT(
 DECLARE_TRACEPOINT(
   agnocast_publish,
   const void * publisher_handle,
-  const void * message,
   const int64_t entry_id)
 
 DECLARE_TRACEPOINT(
   agnocast_create_callable,
   const void * callable,
-  const void * message,
   const int64_t entry_id,
   const uint64_t pid_ciid)
 

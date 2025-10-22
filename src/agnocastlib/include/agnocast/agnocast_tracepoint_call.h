@@ -63,12 +63,10 @@ TRACEPOINT_EVENT(
   agnocast_publish,
   TP_ARGS(
     const void *, publisher_handle_arg,
-    const void *, message_arg,
     const int64_t, entry_id_arg
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, publisher_handle, publisher_handle_arg)
-    ctf_integer_hex(const void *, message, message_arg)
     ctf_integer(const int64_t, entry_id, entry_id_arg)
   )
 )
@@ -78,13 +76,11 @@ TRACEPOINT_EVENT(
   agnocast_create_callable,
   TP_ARGS(
     const void *, callable_arg,
-    const void *, message_arg,
     const int64_t, entry_id_arg,
     const uint64_t, pid_ciid_arg
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, callable, callable_arg)
-    ctf_integer_hex(const void *, message, message_arg)
     ctf_integer(const int64_t, entry_id, entry_id_arg)
     ctf_integer(const uint64_t, pid_ciid, pid_ciid_arg)
   )

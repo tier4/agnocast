@@ -278,9 +278,9 @@ static int insert_subscriber_info(
 
   dev_info(
     agnocast_device,
-    "Subscriber (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
+    "Subscriber (topic_local_id=%d, pid=%d, node_name=%s) is added to the topic (topic_name=%s). "
     "(insert_subscriber_info)\n",
-    new_id, subscriber_pid, wrapper->key);
+    new_id, subscriber_pid, node_name, wrapper->key);
 
   // Check if the topic has any volatile publishers.
   if (qos_is_transient_local) {
@@ -372,9 +372,9 @@ static int insert_publisher_info(
 
   dev_info(
     agnocast_device,
-    "Publisher (topic_local_id=%d, pid=%d) is added to the topic (topic_name=%s). "
+    "Publisher (topic_local_id=%d, pid=%d, node_name=%s) is added to the topic (topic_name=%s). "
     "(insert_publisher_info)\n",
-    new_id, publisher_pid, wrapper->key);
+    new_id, publisher_pid, node_name, wrapper->key);
 
   // Check if the topic has any transient local subscribers.
   if (!qos_is_transient_local) {
@@ -2180,10 +2180,17 @@ static int agnocast_init(void)
   agnocast_init_device();
 
   ret = agnocast_init_kthread();
-  if (ret < 0) return ret;
+  if (ret < 0) {
+    agnocast_exit_device();
+    return ret;
+  }
 
   ret = agnocast_init_kprobe();
-  if (ret < 0) return ret;
+  if (ret < 0) {
+    agnocast_exit_kthread();
+    agnocast_exit_device();
+    return ret;
+  }
 
   init_memory_allocator();
 
