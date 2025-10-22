@@ -143,15 +143,15 @@ static void monitor_active_daemons(std::map<pid_t, std::string> & active_daemons
   }
 }
 
-void poll_for_unlink()
+void bridge_manager_daemon()
 {
   if (setsid() == -1) {
-    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  RCLCPP_INFO(logger, "[POLL PROCESS] PID: %d", getpid());
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
 
   mqd_t mq = open_bridge_receiver_queue();
   if (mq == (mqd_t)-1) {
@@ -166,8 +166,26 @@ void poll_for_unlink()
       fork_bridge_daemon(msg_buffer, active_daemons);
     }
 
+    // アクティブなBridgeデーモンを監視
     monitor_active_daemons(active_daemons);
+  }
 
+  mq_close(mq);
+  mq_unlink(create_mq_name_for_bridge().c_str());
+  exit(0);
+}
+
+void poll_for_unlink()
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  RCLCPP_INFO(logger, "[POLL PROCESS] PID: %d", getpid());
+
+  while (true) {
     struct ioctl_get_exit_process_args get_exit_process_args = {};
     do {
       get_exit_process_args = {};
@@ -180,10 +198,6 @@ void poll_for_unlink()
       if (get_exit_process_args.ret_pid > 0) {
         const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
         shm_unlink(shm_name.c_str());
-
-        if (active_daemons.count(get_exit_process_args.ret_pid)) {
-          active_daemons.erase(get_exit_process_args.ret_pid);
-        }
       }
     } while (get_exit_process_args.ret_pid > 0);
 
@@ -192,8 +206,6 @@ void poll_for_unlink()
     }
   }
 
-  mq_close(mq);
-  mq_unlink(create_mq_name_for_bridge().c_str());
   exit(0);
 }
 
