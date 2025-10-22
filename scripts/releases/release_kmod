@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-VERSION="2.1.1"
+VERSION="2.1.2"
 RELEASE="1"
 
 CHANGES_FILE="agnocast-kmod-v${VERSION}_${VERSION}-${RELEASE}_source.changes"

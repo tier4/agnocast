@@ -255,6 +255,7 @@ public:
     }
 
     if (take_args.ret_addr == 0) {
+      TRACEPOINT(agnocast_take, static_cast<void *>(this), 0, 0);
       return agnocast::ipc_shared_ptr<const MessageT>();
     }
 
