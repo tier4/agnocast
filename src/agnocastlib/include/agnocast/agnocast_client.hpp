@@ -47,18 +47,18 @@ public:
   using SharedFuture = std::shared_future<ipc_shared_ptr<ResponseT>>;
 
 private:
-  struct ServiceCallInfo
+  struct ResponseCallInfo
   {
     std::promise<ipc_shared_ptr<ResponseT>> promise;
     std::optional<std::function<void(SharedFuture)>> callback;
 
-    ServiceCallInfo() = default;
-    explicit ServiceCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
+    ResponseCallInfo() = default;
+    explicit ResponseCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
   };
 
   std::atomic<uint64_t> next_sequence_number_;
-  std::mutex seqno2_service_call_info_mtx_;
-  std::unordered_map<uint64_t, ServiceCallInfo> seqno2_service_call_info_;
+  std::mutex seqno2_response_call_info_mtx_;
+  std::unordered_map<uint64_t, ResponseCallInfo> seqno2_response_call_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
   // AgnocastOnlyPublisher is used since RequestT is not a compatible ROS message type.
@@ -75,17 +75,17 @@ public:
       node, create_service_request_topic_name(service_name_), qos))
   {
     auto subscriber_callback = [this](ipc_shared_ptr<ResponseT> && response) {
-      std::unique_lock<std::mutex> lock(seqno2_service_call_info_mtx_);
+      std::unique_lock<std::mutex> lock(seqno2_response_call_info_mtx_);
       /* --- critical section begin --- */
-      // Get the corresponding ServiceCallInfo and remove it from the map
-      auto it = seqno2_service_call_info_.find(response->_sequence_number);
-      if (it == seqno2_service_call_info_.end()) {
+      // Get the corresponding ResponseCallInfo and remove it from the map
+      auto it = seqno2_response_call_info_.find(response->_sequence_number);
+      if (it == seqno2_response_call_info_.end()) {
         lock.unlock();
         RCLCPP_ERROR(node_->get_logger(), "Agnocast internal implementation error: bad entry id");
         return;
       }
-      ServiceCallInfo info = std::move(it->second);
-      seqno2_service_call_info_.erase(it);
+      ResponseCallInfo info = std::move(it->second);
+      seqno2_response_call_info_.erase(it);
       /* --- critical section end --- */
       lock.unlock();
 
@@ -127,16 +127,16 @@ public:
     ipc_shared_ptr<RequestT> && request, std::function<void(SharedFuture)> callback)
   {
     {
-      std::lock_guard<std::mutex> lock(seqno2_service_call_info_mtx_);
-      seqno2_service_call_info_.try_emplace(request->_sequence_number, std::move(callback));
+      std::lock_guard<std::mutex> lock(seqno2_response_call_info_mtx_);
+      seqno2_response_call_info_.try_emplace(request->_sequence_number, std::move(callback));
     }
     publisher_->publish(std::move(request));
   }
 
   SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
   {
-    std::unique_lock<std::mutex> lock(seqno2_service_call_info_mtx_);
-    auto it = seqno2_service_call_info_.try_emplace(request->_sequence_number).first;
+    std::unique_lock<std::mutex> lock(seqno2_response_call_info_mtx_);
+    auto it = seqno2_response_call_info_.try_emplace(request->_sequence_number).first;
     SharedFuture ret = it->second.promise.get_future().share();
     lock.unlock();
 
