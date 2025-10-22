@@ -228,28 +228,18 @@ void poll_for_unlink()
       }
     } while (get_exit_process_args.ret_pid > 0);
 
-    // --- ▼▼▼ ここからが修正部分 ▼▼▼ ---
-
-    // 2. 巨大なデータ構造をスタックではなくヒープに確保する
     auto all_bridges_buffer = std::make_unique<ioctl_get_all_bridges_buffer>();
-
-    // 3. ioctlに渡すための小さな引数構造体を準備
     union ioctl_get_all_bridges_args args = {};
-    // バッファのアドレスを引数に設定
     args.buffer_addr = reinterpret_cast<uint64_t>(all_bridges_buffer.get());
 
-    // 4. ioctlを呼び出す
     if (ioctl(agnocast_fd, AGNOCAST_GET_ALL_BRIDGES_CMD, &args) < 0) {
       RCLCPP_ERROR(logger, "Failed to get all bridges list: %s", strerror(errno));
-      sleep(10);
     } else {
-      // 5. カーネルから返された結果を使って監査を行う
       int bridge_count = args.ret_count;
       for (int i = 0; i < bridge_count; ++i) {
         pid_t pid = all_bridges_buffer->bridges[i].pid;
         const char * topic_name = all_bridges_buffer->bridges[i].topic_name;
 
-        // プロセスがまだ生きているか確認
         if (kill(pid, 0) == -1 && errno == ESRCH) {
           RCLCPP_WARN(
             logger, "Bridge PID %d for topic %s not found. Unregistering.", pid, topic_name);
@@ -259,7 +249,6 @@ void poll_for_unlink()
           continue;
         }
 
-        // 購読者数をチェック
         union ioctl_get_subscriber_num_args sub_num_args = {};
         sub_num_args.topic_name = {topic_name, strlen(topic_name)};
         if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &sub_num_args) < 0) {
@@ -268,7 +257,6 @@ void poll_for_unlink()
           continue;
         }
 
-        // 購読者が0なら、プロセスを終了させ、台帳から抹消
         if (sub_num_args.ret_subscriber_num == 0) {
           kill(pid, SIGTERM);
 
@@ -278,7 +266,6 @@ void poll_for_unlink()
         }
       }
     }
-    // --- ▲▲▲ ここまでが修正部分 ▲▲▲ ---
 
     if (get_exit_process_args.ret_daemon_should_exit) {
       break;
