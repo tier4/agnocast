@@ -65,80 +65,71 @@ target_link_libraries(agnocast_component_container_mt
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
-# ### ▼▼▼ Start of generic bridge daemon configuration ▼▼▼
+### ▼▼▼ Start of generic bridge daemon ▼▼▼
 
-# # 1. Generate a file specifying the list of messages to be built
-# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
-# execute_process(
-#   COMMAND ros2 interface list -m
-#   OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
-#   RESULT_VARIABLE ros2_list_res
-#   OUTPUT_STRIP_TRAILING_WHITESPACE
-# )
+set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
+execute_process(
+  COMMAND ros2 interface list -m
+  OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
+  RESULT_VARIABLE ros2_list_res
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT ros2_list_res EQUAL 0)
+  message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
+endif()
 
-# if(NOT ros2_list_res EQUAL 0)
-#   message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'. Is ROS2 sourced correctly?")
-# endif()
+set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
+set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
+set(CLEAN_MESSAGE_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/clean_ros2_interfaces.txt") 
+set(PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_plugin_registrations.py")
 
-# if(NOT EXISTS "${MESSAGE_TYPES_FILE}")
-#   message(FATAL_ERROR "Temporary message list file not found: ${MESSAGE_TYPES_FILE}")
-# endif()
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} "${PLUGIN_GENERATION_SCRIPT}"
+          "${MESSAGE_TYPES_FILE}"
+          "${GENERATED_PLUGINS_SRC_DIR}"
+          "${GENERATED_DEPENDENCIES_TXT}"
+          "${CLEAN_MESSAGE_LIST_FILE}"
+  RESULT_VARIABLE script_res
+)
+if(NOT script_res EQUAL 0)
+  message(FATAL_ERROR "Python script for plugin generation failed.")
+endif()
 
-# # 2. Generate C++ code and a dependency list using a Python script
-# set(GENERATED_TYPES_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_types")
-# set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
-# set(REGISTRATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_registrations.py")
+file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
+foreach(dep ${auto_dependencies})
+  find_package(${dep} REQUIRED)
+endforeach()
 
-# execute_process(
-#   COMMAND ${Python3_EXECUTABLE} "${REGISTRATION_SCRIPT}"
-#           "${MESSAGE_TYPES_FILE}"
-#           "${GENERATED_TYPES_DIR}"
-#           "${GENERATED_DEPENDENCIES_TXT}"
-#   RESULT_VARIABLE script_res
-# )
-# if(NOT script_res EQUAL 0)
-#   message(FATAL_ERROR "Python script for code generation failed with exit code ${script_res}")
-# endif()
+file(STRINGS "${CLEAN_MESSAGE_LIST_FILE}" all_message_types)
+foreach(msg_type ${all_message_types})
+  string(REPLACE "/" "_" safe_msg_name ${msg_type})
 
-# # 3. Read the generated dependency list
-# file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
-# file(GLOB GENERATED_REGISTRATION_FILES "${GENERATED_TYPES_DIR}/*.cpp")
+  set(plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_${safe_msg_name}.cpp")
+  set(plugin_target_name "bridge_plugin_${safe_msg_name}")
 
-# # 4. Add the generic bridge daemon executable
-# add_executable(agnocast_ros2_forwarder_daemon
-#   src/agnocast_ros2_forwarder_daemon.cpp
-#   ${GENERATED_REGISTRATION_FILES}
-# )
+  add_library(${plugin_target_name} SHARED ${plugin_src_file})
 
-# # 5. Set include directories for this target itself
-# target_include_directories(agnocast_ros2_forwarder_daemon PRIVATE
-#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#   $<INSTALL_INTERFACE:include>
-#   ${agnocast_sample_interfaces_INCLUDE_DIRS}
-# )
+  string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
 
-# # 6. Process all found dependencies
-# foreach(dep ${auto_dependencies})
-#   find_package(${dep} REQUIRED)
-#   target_include_directories(agnocast_ros2_forwarder_daemon PRIVATE
-#     ${${dep}_INCLUDE_DIRS}
-#   )
-# endforeach()
+  target_link_libraries(${plugin_target_name}
+    PRIVATE
+      agnocast
+      ${${msg_package}_LIBRARIES}
+  )
 
-# # 7. Set linked libraries and ament dependencies
-# target_link_libraries(agnocast_ros2_forwarder_daemon agnocast)
-# ament_target_dependencies(agnocast_ros2_forwarder_daemon
-#   rclcpp
-#   ${auto_dependencies}
-# )
+  target_include_directories(${plugin_target_name}
+    PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      ${${msg_package}_INCLUDE_DIRS}
+  )
 
-# # 8. Trigger CMake reconfiguration if critical files change.
-# set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-#   "${MESSAGE_TYPES_FILE}"
-#   "${REGISTRATION_SCRIPT}"
-# )
+  install(
+    TARGETS ${plugin_target_name}
+    DESTINATION lib/${PROJECT_NAME}/bridge_plugins
+  )
+endforeach()
 
-# ### ▲▲▲ End of generic bridge daemon configuration ▲▲▲
+### ▲▲▲ End of generic bridge daemon ▲▲▲
 
 install(
   TARGETS agnocast_component_container agnocast_component_container_mt
@@ -157,11 +148,6 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
-
-# install(
-#   TARGETS agnocast_ros2_forwarder_daemon
-#   DESTINATION lib/${PROJECT_NAME}
-# )
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
