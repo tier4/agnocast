@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <mutex>
 
+extern "C" bool agnocast_heaphook_init_daemon();
+
 namespace agnocast
 {
 
@@ -34,6 +36,50 @@ std::mutex mmap_mtx;
 // Root Cause: T2's callback uses `shm_addr` that T1 fetched but hadn't initialized/mapped yet.
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
+
+void bridge_manager_daemon(int parent_pipe_fd)
+{
+  pid_t parent_pid = getppid();
+
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
+
+  if (!agnocast_heaphook_init_daemon()) {
+    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
+  }
+
+  while (true) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(parent_pipe_fd, &fds);
+
+    int max_fd = parent_pipe_fd + 1;
+
+    int ret = select(max_fd, &fds, NULL, NULL, NULL);
+
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      RCLCPP_ERROR(logger, "select failed: %s", strerror(errno));
+      break;
+    }
+
+    if (FD_ISSET(parent_pipe_fd, &fds)) {
+      char buf;
+      if (read(parent_pipe_fd, &buf, 1) <= 0) {
+        break;
+      }
+    }
+  }
+
+  exit(0);
+}
 
 void poll_for_unlink()
 {
@@ -146,15 +192,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -302,6 +342,46 @@ void * initialize_agnocast(
     if (pid == 0) {
       poll_for_unlink();
     }
+
+    int pipe_fd[2];
+    if (pipe(pipe_fd) == -1) {
+      RCLCPP_ERROR(logger, "pipe failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    pid_t pid2 = fork();
+
+    if (pid2 < 0) {
+      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (pid2 == 0) {
+      close(pipe_fd[1]);
+      bridge_manager_daemon(pipe_fd[0]);
+    }
+
+    close(pipe_fd[0]);
+  }
+
+  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  if (mempool_ptr == nullptr) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  return mempool_ptr;
+}
+
+extern "C" void * agnocast_child_initialize_pool(const uint64_t shm_size)
+{
+  union ioctl_add_process_args add_process_args = {};
+  add_process_args.shm_size = shm_size;
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);

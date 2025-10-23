@@ -1,4 +1,4 @@
-use core::panic;
+use core::{panic, sync::atomic::AtomicUsize};
 use std::{
     alloc::Layout,
     ffi::CStr,
@@ -14,6 +14,10 @@ use std::{
 use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
+
+extern "C" {
+    fn agnocast_child_initialize_pool(size: u64) -> *mut c_void;
+}
 
 // See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
 #[allow(clippy::if_same_then_else)]
@@ -122,6 +126,7 @@ fn init_original_memalign() -> MemalignType {
 }
 
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
+static MEMPOOL_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(not(test))]
 extern "C" fn post_fork_handler_in_child() {
@@ -169,6 +174,8 @@ impl AgnocastSharedMemory {
 
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
+
+        MEMPOOL_SIZE.store(aligned_size, Ordering::Relaxed);
 
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
@@ -309,6 +316,38 @@ unsafe trait SharedMemoryAllocator {
     ///
     /// * `ptr` must denote a block of memory currently allocated via this allocator.
     fn deallocate(&self, ptr: NonNull<u8>);
+}
+
+#[no_mangle]
+unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
+    let mempool_size = MEMPOOL_SIZE.load(Ordering::Relaxed);
+    let child_mempool_ptr = agnocast_child_initialize_pool(mempool_size as u64);
+
+    if child_mempool_ptr.is_null() {
+        return false;
+    }
+
+    let shm = AgnocastSharedMemory {
+        start: child_mempool_ptr as usize,
+        end: (child_mempool_ptr as usize) + mempool_size,
+    };
+
+    if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
+        panic!("[ERROR] [Agnocast] Shared memory has already been initialized in daemon.");
+    }
+
+    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .set(AgnocastSharedMemoryAllocator::new(
+            AGNOCAST_SHARED_MEMORY.get().unwrap(),
+        ))
+        .is_err()
+    {
+        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized in daemon.");
+    }
+
+    IS_FORKED_CHILD.store(false, Ordering::Relaxed);
+
+    true
 }
 
 /// Returns true when glibc functions must be used.
