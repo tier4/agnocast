@@ -39,8 +39,6 @@ std::mutex mmap_mtx;
 
 void bridge_manager_daemon(int parent_pipe_fd)
 {
-  pid_t parent_pid = getppid();
-
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
     close(agnocast_fd);
@@ -53,20 +51,33 @@ void bridge_manager_daemon(int parent_pipe_fd)
     RCLCPP_ERROR(logger, "Heaphook init FAILED.");
   }
 
+  const char * mq_name = create_mq_name_for_bridge().c_str();
+  struct mq_attr attr;
+  attr.mq_flags = 0;
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = sizeof(BridgeRequest);
+  attr.mq_curmsgs = 0;
+
+  mq_unlink(mq_name);
+  mqd_t mq = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
+  if (mq == (mqd_t)-1) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   while (true) {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(parent_pipe_fd, &fds);
+    FD_SET(mq, &fds);
 
-    int max_fd = parent_pipe_fd + 1;
+    int max_fd = std::max(parent_pipe_fd, static_cast<int>(mq)) + 1;
 
     int ret = select(max_fd, &fds, NULL, NULL, NULL);
 
     if (ret < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      RCLCPP_ERROR(logger, "select failed: %s", strerror(errno));
+      if (errno == EINTR) continue;
+      RCLCPP_ERROR(logger, "select() failed: %s", strerror(errno));
       break;
     }
 
@@ -76,8 +87,21 @@ void bridge_manager_daemon(int parent_pipe_fd)
         break;
       }
     }
+
+    if (FD_ISSET(mq, &fds)) {
+      BridgeRequest req;
+      if (mq_receive(mq, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
+        RCLCPP_INFO(
+          logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name,
+          req.message_type);
+
+        // 新しいスレッドでブリッジ作成処理を開始
+      }
+    }
   }
 
+  mq_close(mq);
+  mq_unlink(mq_name);
   exit(0);
 }
 
