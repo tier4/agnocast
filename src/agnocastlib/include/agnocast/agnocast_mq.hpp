@@ -1,6 +1,6 @@
 #pragma once
 
-constexpr size_t kMaxNameLen = 256;
+inline constexpr size_t MAX_NAME_LENGTH = 256;
 
 namespace agnocast
 {
@@ -16,8 +16,8 @@ struct MqMsgROS2Publish
 
 struct BridgeRequest
 {
-  char topic_name[kMaxNameLen];
-  char message_type[kMaxNameLen];
+  char topic_name[MAX_NAME_LENGTH];
+  char message_type[MAX_NAME_LENGTH];
 };
 
 }  // namespace agnocast

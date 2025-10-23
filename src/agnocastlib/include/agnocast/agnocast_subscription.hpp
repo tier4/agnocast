@@ -61,55 +61,36 @@ inline std::vector<std::string> qos_to_args(const rclcpp::QoS & qos)
 }
 
 template <typename MessageT>
-inline void launch_bridge_daemon_process(
-  const std::string & topic_name, const rclcpp::QoS & qos, rclcpp::Logger logger)
+inline void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  std::string daemon_name = "agnocast_ros2_forwarder_daemon";
-  std::string executable_path;
-  try {
-    std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
-    executable_path = package_prefix + "/lib/agnocastlib/" + daemon_name;
-  } catch (const ament_index_cpp::PackageNotFoundError & e) {
+  (void)qos;  // 現在は未使用なので、コンパイラの警告を抑制
+
+  const std::string mq_name_str = create_mq_name_for_bridge();
+  const char * mq_name = mq_name_str.c_str();
+  mqd_t mq = mq_open(mq_name, O_WRONLY);
+
+  if (mq == (mqd_t)-1) {
     RCLCPP_ERROR(
-      logger, "Could not find package 'agnocastlib' to locate bridge daemon. Error: %s", e.what());
+      logger,
+      "Failed to open bridge manager message queue '%s'. Is the manager daemon running? Error: %s",
+      mq_name, strerror(errno));
     return;
   }
 
+  BridgeRequest req = {};
   const std::string message_type_name = rosidl_generator_traits::name<MessageT>();
 
-  RCLCPP_INFO(
-    logger, "Attempting to launch generic bridge daemon for type %s from path: %s",
-    message_type_name.c_str(), executable_path.c_str());
+  strncpy(req.topic_name, topic_name.c_str(), MAX_NAME_LENGTH - 1);
+  strncpy(req.message_type, message_type_name.c_str(), MAX_NAME_LENGTH - 1);
 
-  pid_t pid = fork();
-
-  if (pid < 0) {
-    RCLCPP_ERROR(logger, "fork() failed for bridge daemon: %s", strerror(errno));
-    return;
+  if (mq_send(mq, (const char *)&req, sizeof(BridgeRequest), 0) == -1) {
+    RCLCPP_ERROR(
+      logger, "Failed to send bridge request to manager daemon. Error: %s", strerror(errno));
+  } else {
+    RCLCPP_INFO(
+      logger, "Sent bridge request for topic '%s' to manager daemon.", topic_name.c_str());
   }
-
-  if (pid == 0) {
-    std::vector<std::string> string_args;
-    string_args.push_back(daemon_name);
-    string_args.push_back(topic_name);
-    string_args.push_back(message_type_name);
-
-    std::vector<std::string> qos_args_vec = qos_to_args(qos);
-    string_args.insert(string_args.end(), qos_args_vec.begin(), qos_args_vec.end());
-
-    std::vector<char *> argv;
-    argv.reserve(string_args.size() + 1);
-
-    std::transform(
-      string_args.begin(), string_args.end(), std::back_inserter(argv),
-      [](const std::string & s) { return const_cast<char *>(s.c_str()); });
-
-    argv.push_back(nullptr);
-
-    execv(executable_path.c_str(), argv.data());
-    perror(("execv failed for " + executable_path).c_str());
-    _exit(EXIT_FAILURE);
-  }
+  mq_close(mq);
 }
 
 struct SubscriptionOptions
@@ -169,8 +150,8 @@ public:
 
       if (get_subscriber_count_args.ret_subscriber_num == 0) {
         RCLCPP_INFO(
-          logger, "First subscriber, launching bridge daemon for topic: %s", topic_name_.c_str());
-        launch_bridge_daemon_process<MessageT>(topic_name_, qos, logger);
+          logger, "First subscriber, sending bridge request for topic: %s", topic_name_.c_str());
+        send_bridge_request<MessageT>(topic_name_, qos);
       }
 
       union ioctl_add_subscriber_args add_subscriber_args =

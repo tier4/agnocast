@@ -51,7 +51,8 @@ void bridge_manager_daemon(int parent_pipe_fd)
     RCLCPP_ERROR(logger, "Heaphook init FAILED.");
   }
 
-  const char * mq_name = create_mq_name_for_bridge().c_str();
+  const std::string mq_name_str = create_mq_name_for_bridge();
+  const char * mq_name = mq_name_str.c_str();
   struct mq_attr attr;
   attr.mq_flags = 0;
   attr.mq_maxmsg = 10;
