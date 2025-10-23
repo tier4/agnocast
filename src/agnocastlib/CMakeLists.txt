@@ -23,8 +23,6 @@ find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 
-set(AGNOCAST_HEAPHOOK_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../agnocast_heaphook/target/release")
-
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
@@ -32,15 +30,14 @@ add_library(agnocast SHARED
   src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c src/agnocast_bridge_daemon.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
-target_link_directories(agnocast PRIVATE ${AGNOCAST_HEAPHOOK_LIB_DIR})
+set(AGNOCAST_HEAPHOOK_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../agnocast_heaphook/target/release/libagnocast_heaphook.so")
 
 target_link_libraries(agnocast
   PUBLIC
     ${rclcpp_LIBRARIES}
     ${tracetools_LIBRARIES}
     ${LTTNGUST_LIBRARIES}
-  PRIVATE
-    agnocast_heaphook          
+    ${AGNOCAST_HEAPHOOK_LIBRARY}
 )
 
 target_include_directories(agnocast PUBLIC
