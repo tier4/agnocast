@@ -69,22 +69,6 @@ inline void send_bridge_request(const std::string & topic_name, const rclcpp::Qo
   const char * mq_name = mq_name_str.c_str();
   mqd_t mq = mq_open(mq_name, O_WRONLY);
 
-  constexpr int max_retries = 5;
-  constexpr auto retry_delay = std::chrono::milliseconds(100);
-
-  for (int i = 0; i < max_retries; ++i) {
-    mq = mq_open(mq_name, O_WRONLY);
-    if (mq != (mqd_t)-1) {
-      break;
-    }
-
-    if (errno != ENOENT) {
-      break;
-    }
-
-    std::this_thread::sleep_for(retry_delay);
-  }
-
   if (mq == (mqd_t)-1) {
     RCLCPP_ERROR(
       logger, "Failed to open bridge manager message queue '%s'. Error: %s", mq_name,

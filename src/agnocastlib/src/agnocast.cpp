@@ -52,15 +52,15 @@ void launch_bridge_thread(
   std::vector<ActiveBridge> & active_bridges, std::mutex & mutex)
 {
   auto logger = node->get_logger();
-  std::string plugin_path;
+  std::string r2a_plugin_path;
   try {
     const std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
 
     std::string type_name = request.message_type;
     std::replace(type_name.begin(), type_name.end(), '/', '_');
 
-    plugin_path =
-      package_prefix + "/lib/agnocastlib/bridge_plugins/libbridge_plugin_" + type_name + ".so";
+    r2a_plugin_path =
+      package_prefix + "/lib/agnocastlib/bridge_plugins/libr2a_bridge_plugin_" + type_name + ".so";
 
   } catch (const ament_index_cpp::PackageNotFoundError & e) {
     RCLCPP_ERROR(
@@ -68,42 +68,39 @@ void launch_bridge_thread(
     return;
   }
 
-  RCLCPP_INFO(logger, "[BRIDGE THREAD] Attempting to load plugin from: %s", plugin_path.c_str());
-
-  void * handle = dlopen(plugin_path.c_str(), RTLD_LAZY);
-  if (!handle) {
+  void * r2a_handle = dlopen(r2a_plugin_path.c_str(), RTLD_LAZY);
+  if (!r2a_handle) {
     RCLCPP_ERROR(
-      logger, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", plugin_path.c_str(),
+      logger, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", r2a_plugin_path.c_str(),
       dlerror());
     return;
   }
-  RCLCPP_INFO(logger, "[BRIDGE THREAD] Plugin loaded successfully.");
 
-  CreateBridgeFunc create_bridge_ptr =
-    reinterpret_cast<CreateBridgeFunc>(dlsym(handle, "create_bridge"));
+  CreateR2ABridgeFunc create_r2a_bridge_ptr =
+    reinterpret_cast<CreateR2ABridgeFunc>(dlsym(r2a_handle, "create_r2a_bridge"));
 
   const char * dlsym_error = dlerror();
   if (dlsym_error != nullptr) {
     RCLCPP_ERROR(
-      logger, "[BRIDGE THREAD] Failed to find symbol 'create_bridge' in '%s'. Error: %s",
-      plugin_path.c_str(), dlsym_error);
-    dlclose(handle);
+      logger, "[BRIDGE THREAD] Failed to find symbol 'create_r2a_bridge' in '%s'. Error: %s",
+      r2a_plugin_path.c_str(), dlsym_error);
+    dlclose(r2a_handle);
     return;
   }
-  RCLCPP_INFO(logger, "[BRIDGE THREAD] Found 'create_bridge' function symbol.");
-  auto subscription = create_bridge_ptr(node, std::string(request.topic_name), rclcpp::QoS(10));
+  auto subscription = create_r2a_bridge_ptr(node, std::string(request.topic_name), rclcpp::QoS(10));
 
   if (subscription) {
     std::lock_guard<std::mutex> lock(mutex);
-    active_bridges.push_back({subscription, handle});
+    active_bridges.push_back({subscription, r2a_handle});
     RCLCPP_INFO(
       logger, "[BRIDGE THREAD] Bridge for topic '%s' created and is now active.",
       request.topic_name);
   } else {
     RCLCPP_ERROR(
-      logger, "[BRIDGE THREAD] create_bridge function returned a null subscription for topic '%s'.",
+      logger,
+      "[BRIDGE THREAD] create_r2a_bridge function returned a null subscription for topic '%s'.",
       request.topic_name);
-    dlclose(handle);
+    dlclose(r2a_handle);
   }
 }
 

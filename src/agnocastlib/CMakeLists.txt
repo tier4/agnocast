@@ -104,27 +104,27 @@ file(STRINGS "${CLEAN_MESSAGE_LIST_FILE}" all_message_types)
 foreach(msg_type ${all_message_types})
   string(REPLACE "/" "_" safe_msg_name ${msg_type})
 
-  set(plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_${safe_msg_name}.cpp")
-  set(plugin_target_name "bridge_plugin_${safe_msg_name}")
+  set(r2a_plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_r2a_${safe_msg_name}.cpp")
+  set(r2a_plugin_target_name "r2a_bridge_plugin_${safe_msg_name}")
 
-  add_library(${plugin_target_name} SHARED ${plugin_src_file})
+  add_library(${r2a_plugin_target_name} SHARED ${r2a_plugin_src_file})
 
   string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
 
-  target_link_libraries(${plugin_target_name}
+  target_link_libraries(${r2a_plugin_target_name}
     PRIVATE
       agnocast
       ${${msg_package}_LIBRARIES}
   )
 
-  target_include_directories(${plugin_target_name}
+  target_include_directories(${r2a_plugin_target_name}
     PRIVATE
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       ${${msg_package}_INCLUDE_DIRS}
   )
 
   install(
-    TARGETS ${plugin_target_name}
+    TARGETS ${r2a_plugin_target_name}
     DESTINATION lib/${PROJECT_NAME}/bridge_plugins
   )
 endforeach()

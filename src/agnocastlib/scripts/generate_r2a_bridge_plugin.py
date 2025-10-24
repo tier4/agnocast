@@ -25,7 +25,7 @@ def main():
         message_types = []
 
     for msg_type in message_types:
-        safe_filename = "register_" + msg_type.replace('/', '_') + ".cpp"
+        safe_filename = "register_r2a_" + msg_type.replace('/', '_') + ".cpp"
         output_cpp_path = os.path.join(output_dir, safe_filename)
 
         cpp_type = msg_type.replace('/', '::')
@@ -39,7 +39,7 @@ def main():
             f.write('#include "agnocast/agnocast_publisher.hpp"\n')
             f.write(f'#include "{header_path}"\n\n')
 
-            f.write('extern "C" rclcpp::SubscriptionBase::SharedPtr create_bridge(\n')
+            f.write('extern "C" rclcpp::SubscriptionBase::SharedPtr create_r2a_bridge(\n')
             f.write('  rclcpp::Node::SharedPtr node,\n')
             f.write('  const std::string & topic_name,\n')
             f.write('  const rclcpp::QoS & qos)\n')
