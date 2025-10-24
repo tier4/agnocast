@@ -3,31 +3,24 @@
 #include "agnocast/agnocast_ioctl.hpp"
 
 #include <chrono>
+#include <memory>
 
 namespace agnocast
 {
 
 uint32_t get_agnocast_sub_count(const std::string & topic_name)
 {
-  struct topic_info_ret * topic_info_ret_buffer = static_cast<struct topic_info_ret *>(
-    malloc(MAX_TOPIC_INFO_RET_NUM * sizeof(struct topic_info_ret)));
-  if (topic_info_ret_buffer == nullptr) {
-    RCLCPP_ERROR(logger, "Memory allocation failed\n");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
+  auto topic_info_buffer = std::make_unique<topic_info_ret[]>(MAX_TOPIC_INFO_RET_NUM);
 
-  union ioctl_topic_info_args topic_info_args = {};
+  ioctl_topic_info_args topic_info_args = {};
   topic_info_args.topic_name = {topic_name.c_str(), topic_name.size()};
-  topic_info_args.topic_info_ret_buffer_addr = reinterpret_cast<uint64_t>(topic_info_ret_buffer);
+  topic_info_args.topic_info_ret_buffer_addr = reinterpret_cast<uint64_t>(topic_info_buffer.get());
   if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD, &topic_info_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD failed: %s", strerror(errno));
-    free(topic_info_ret_buffer);
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  free(topic_info_ret_buffer);
   return topic_info_args.ret_topic_info_ret_num;
 }
 
