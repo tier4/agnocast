@@ -46,6 +46,7 @@ def main():
             f.write('{\n')
 
             f.write(f'  agnocast::PublisherOptions pub_options;\n')
+            f.write(f'  pub_options.send_a2r_bridge_request = false;\n\n')
             f.write(f'  auto agno_publisher = std::make_shared<agnocast::Publisher<{cpp_type}>>(node.get(), topic_name, qos, pub_options);\n\n')
 
             f.write(f'  auto ros2_callback = [agno_publisher](const {cpp_type}::ConstSharedPtr msg) {{\n')

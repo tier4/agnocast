@@ -1,0 +1,7 @@
+<launch>
+    <node 
+        pkg="agnocast_sample_application" 
+        exec="ros2_listener" 
+        name="minimal_ros2_listener"
+        output="screen"/>
+</launch>

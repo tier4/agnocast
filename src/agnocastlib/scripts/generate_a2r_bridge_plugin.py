@@ -55,6 +55,7 @@ def main():
             f.write(f'  }};\n\n')
 
             f.write(f'  agnocast::SubscriptionOptions sub_options;\n')
+            f.write(f'  sub_options.send_r2a_bridge_request = false;\n')
             f.write(f'  auto agnocast_sub = std::make_shared<agnocast::Subscription<{cpp_type}>>(\n')
             f.write(f'    node.get(), topic_name, qos, agnocast_callback, sub_options);\n\n')
 

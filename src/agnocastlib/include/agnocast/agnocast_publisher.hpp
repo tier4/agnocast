@@ -46,6 +46,8 @@ struct PublisherOptions
   bool do_always_ros2_publish = true;
   // No overrides allowed by default.
   rclcpp::QosOverridingOptions qos_overriding_options;
+
+  bool send_a2r_bridge_request = true;
 };
 
 template <typename MessageT>
@@ -72,6 +74,10 @@ public:
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
+    if (options.send_a2r_bridge_request) {
+      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
+    }
+
     rclcpp::PublisherOptions pub_options;
     pub_options.qos_overriding_options = options.qos_overriding_options;
     ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
@@ -107,7 +113,7 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
+    // ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
   }
 
   ~Publisher()
@@ -118,7 +124,7 @@ public:
       RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
     }
 
-    ros2_publish_thread_.join();
+    // ros2_publish_thread_.join();
 
     if (mq_close(ros2_publish_mq_) == -1) {
       RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
@@ -207,25 +213,26 @@ public:
       delete release_ptr;
     }
 
-    if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
-      {
-        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
-        ros2_message_queue_.push(std::move(message));
-      }
+    // if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
+    //   {
+    //     std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+    //     ros2_message_queue_.push(std::move(message));
+    //   }
 
-      MqMsgROS2Publish mq_msg = {};
-      mq_msg.should_terminate = false;
-      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
-        // thread hasn't received it yet. Thus, there's no need to send it again since the
-        // notification has already been sent.
-        if (errno != EAGAIN) {
-          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
-        }
-      }
-    } else {
-      message.reset();
-    }
+    //   MqMsgROS2Publish mq_msg = {};
+    //   mq_msg.should_terminate = false;
+    //   if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1)
+    //   {
+    //     // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
+    //     // thread hasn't received it yet. Thus, there's no need to send it again since the
+    //     // notification has already been sent.
+    //     if (errno != EAGAIN) {
+    //       RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+    //     }
+    //   }
+    // } else {
+    //   message.reset();
+    // }
   }
 
   uint32_t get_subscription_count() const

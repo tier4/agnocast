@@ -41,15 +41,23 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-struct ActiveBridge
+struct ActiveBridgeR2A
 {
+  std::string topic_name;
   rclcpp::SubscriptionBase::SharedPtr subscription;
   void * plugin_handle;
 };
 
-void launch_bridge_thread(
+struct ActiveBridgeA2R
+{
+  std::string topic_name;
+  std::shared_ptr<agnocast::SubscriptionBase> subscription;
+  void * plugin_handle;
+};
+
+void launch_r2a_bridge_thread(
   rclcpp::Node::SharedPtr node, const BridgeRequest request,
-  std::vector<ActiveBridge> & active_bridges, std::mutex & mutex)
+  std::vector<ActiveBridgeR2A> & active_bridges, std::mutex & mutex)
 {
   auto logger = node->get_logger();
   std::string r2a_plugin_path;
@@ -91,9 +99,9 @@ void launch_bridge_thread(
 
   if (subscription) {
     std::lock_guard<std::mutex> lock(mutex);
-    active_bridges.push_back({subscription, r2a_handle});
+    active_bridges.push_back({request.topic_name, subscription, r2a_handle});
     RCLCPP_INFO(
-      logger, "[BRIDGE THREAD] Bridge for topic '%s' created and is now active.",
+      logger, "[BRIDGE THREAD] R2A Bridge for topic '%s' created and is now active.",
       request.topic_name);
   } else {
     RCLCPP_ERROR(
@@ -101,6 +109,63 @@ void launch_bridge_thread(
       "[BRIDGE THREAD] create_r2a_bridge function returned a null subscription for topic '%s'.",
       request.topic_name);
     dlclose(r2a_handle);
+  }
+}
+
+void launch_a2r_bridge_thread(
+  rclcpp::Node::SharedPtr node, const BridgeRequest request,
+  std::vector<ActiveBridgeA2R> & active_bridges, std::mutex & mutex)
+{
+  auto logger = node->get_logger();
+  std::string a2r_plugin_path;
+  try {
+    const std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
+
+    std::string type_name = request.message_type;
+    std::replace(type_name.begin(), type_name.end(), '/', '_');
+
+    a2r_plugin_path =
+      package_prefix + "/lib/agnocastlib/bridge_plugins/liba2r_bridge_plugin_" + type_name + ".so";
+
+  } catch (const ament_index_cpp::PackageNotFoundError & e) {
+    RCLCPP_ERROR(
+      logger, "Could not find package 'agnocastlib' to locate plugins. Error: %s", e.what());
+    return;
+  }
+
+  void * a2r_handle = dlopen(a2r_plugin_path.c_str(), RTLD_LAZY);
+  if (!a2r_handle) {
+    RCLCPP_ERROR(
+      logger, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", a2r_plugin_path.c_str(),
+      dlerror());
+    return;
+  }
+
+  CreateA2RBridgeFunc create_a2r_bridge_ptr =
+    reinterpret_cast<CreateA2RBridgeFunc>(dlsym(a2r_handle, "create_a2r_bridge"));
+
+  const char * dlsym_error = dlerror();
+  if (dlsym_error != nullptr) {
+    RCLCPP_ERROR(
+      logger, "[BRIDGE THREAD] Failed to find symbol 'create_a2r_bridge' in '%s'. Error: %s",
+      a2r_plugin_path.c_str(), dlsym_error);
+    dlclose(a2r_handle);
+    return;
+  }
+  auto subscription = create_a2r_bridge_ptr(node, std::string(request.topic_name), rclcpp::QoS(10));
+
+  if (subscription) {
+    std::lock_guard<std::mutex> lock(mutex);
+    active_bridges.push_back({request.topic_name, subscription, a2r_handle});
+    RCLCPP_INFO(
+      logger, "[BRIDGE THREAD] A2R Bridge for topic '%s' created and is now active.",
+      request.topic_name);
+  } else {
+    RCLCPP_ERROR(
+      logger,
+      "[BRIDGE THREAD] create_a2r_bridge function returned a null subscription for topic '%s'.",
+      request.topic_name);
+    dlclose(a2r_handle);
   }
 }
 
@@ -113,7 +178,8 @@ void bridge_manager_daemon(int parent_pipe_fd)
   }
 
   std::vector<std::thread> worker_threads;
-  std::vector<ActiveBridge> active_bridges;
+  std::vector<ActiveBridgeR2A> active_r2a_bridges;
+  std::vector<ActiveBridgeA2R> active_a2r_bridges;
   std::mutex bridge_mutex;
 
   rclcpp::init(0, nullptr);
@@ -141,7 +207,14 @@ void bridge_manager_daemon(int parent_pipe_fd)
     exit(EXIT_FAILURE);
   }
 
-  std::thread spin_thread([&]() { rclcpp::spin(node); });
+  // std::thread spin_thread([&]() { rclcpp::spin(node); });
+
+  agnocast::SingleThreadedAgnocastExecutor executor;
+  executor.add_node(node);
+  std::thread spin_thread([&]() {
+    RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Starting AgnoCast Executor spin thread.");
+    executor.spin();
+  });
 
   while (true) {
     fd_set fds;
@@ -172,8 +245,43 @@ void bridge_manager_daemon(int parent_pipe_fd)
         RCLCPP_INFO(
           logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name,
           req.message_type);
-        worker_threads.emplace_back(
-          launch_bridge_thread, node, req, std::ref(active_bridges), std::ref(bridge_mutex));
+
+        std::lock_guard<std::mutex> lock(bridge_mutex);
+        bool already_exists = false;
+
+        for (const auto & bridge : active_r2a_bridges) {
+          if (
+            bridge.topic_name == std::string(req.topic_name) &&
+            req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+            already_exists = true;
+            break;
+          }
+        }
+
+        for (const auto & bridge : active_a2r_bridges) {
+          if (
+            bridge.topic_name == std::string(req.topic_name) &&
+            req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+            already_exists = true;
+            break;
+          }
+        }
+
+        if (already_exists) {
+          RCLCPP_INFO(
+            logger, "Bridge for Topic='%s' (Direction=%s) already exists. Skipping launch.",
+            req.topic_name, (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "R2A" : "A2R");
+        } else {
+          if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+            worker_threads.emplace_back(
+              launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges),
+              std::ref(bridge_mutex));
+          } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+            worker_threads.emplace_back(
+              launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges),
+              std::ref(bridge_mutex));
+          }
+        }
       }
     }
   }
@@ -190,10 +298,15 @@ void bridge_manager_daemon(int parent_pipe_fd)
     }
   }
 
-  for (auto & bridge : active_bridges) {
+  for (auto & bridge : active_r2a_bridges) {
     dlclose(bridge.plugin_handle);
   }
-  active_bridges.clear();
+  active_r2a_bridges.clear();
+
+  for (auto & bridge : active_a2r_bridges) {
+    dlclose(bridge.plugin_handle);
+  }
+  active_a2r_bridges.clear();
 
   mq_close(mq);
   mq_unlink(mq_name);
@@ -486,6 +599,8 @@ void * initialize_agnocast(
 
     close(pipe_fd[0]);
   }
+
+  sleep(1);
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {

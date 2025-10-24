@@ -32,7 +32,6 @@ namespace agnocast
 {
 
 extern std::mutex mmap_mtx;
-extern std::mutex subscription_init_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
@@ -60,44 +59,14 @@ inline std::vector<std::string> qos_to_args(const rclcpp::QoS & qos)
   return args;
 }
 
-template <typename MessageT>
-inline void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos)
-{
-  (void)qos;
-
-  const std::string mq_name_str = create_mq_name_for_bridge();
-  const char * mq_name = mq_name_str.c_str();
-  mqd_t mq = mq_open(mq_name, O_WRONLY);
-
-  if (mq == (mqd_t)-1) {
-    RCLCPP_ERROR(
-      logger, "Failed to open bridge manager message queue '%s'. Error: %s", mq_name,
-      strerror(errno));
-    return;
-  }
-
-  BridgeRequest req = {};
-  const std::string message_type_name = rosidl_generator_traits::name<MessageT>();
-
-  strncpy(req.topic_name, topic_name.c_str(), MAX_NAME_LENGTH - 1);
-  strncpy(req.message_type, message_type_name.c_str(), MAX_NAME_LENGTH - 1);
-
-  if (mq_send(mq, (const char *)&req, sizeof(BridgeRequest), 0) == -1) {
-    RCLCPP_ERROR(
-      logger, "Failed to send bridge request to manager daemon. Error: %s", strerror(errno));
-  } else {
-    RCLCPP_INFO(
-      logger, "Sent bridge request for topic '%s' to manager daemon.", topic_name.c_str());
-  }
-  mq_close(mq);
-}
-
 struct SubscriptionOptions
 {
   bool ros2_bridge_transient_local = false;
   int64_t ros2_bridge_qos_depth = 10;
 
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+
+  bool send_r2a_bridge_request = true;
 };
 
 // These are cut out of the class for information hiding.
@@ -136,28 +105,14 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    {
-      std::lock_guard<std::mutex> lock(agnocast::subscription_init_mtx);
-
-      union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
-      get_subscriber_count_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
-      if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
-        RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      if (get_subscriber_count_args.ret_subscriber_num == 0) {
-        RCLCPP_INFO(
-          logger, "First subscriber, sending bridge request for topic: %s", topic_name_.c_str());
-        send_bridge_request<MessageT>(topic_name_, qos);
-      }
-
-      union ioctl_add_subscriber_args add_subscriber_args =
-        initialize(qos, false, node->get_fully_qualified_name());
-
-      id_ = add_subscriber_args.ret_id;
+    if (options_.send_r2a_bridge_request) {
+      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::ROS2_TO_AGNOCAST);
     }
+
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, false, node->get_fully_qualified_name());
+
+    id_ = add_subscriber_args.ret_id;
 
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
     auto node_base = node->get_node_base_interface();
@@ -202,12 +157,9 @@ public:
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
 
-    {
-      std::lock_guard<std::mutex> lock(agnocast::subscription_init_mtx);
-      union ioctl_add_subscriber_args add_subscriber_args =
-        initialize(qos, true, node->get_fully_qualified_name());
-      id_ = add_subscriber_args.ret_id;
-    }
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, true, node->get_fully_qualified_name());
+    id_ = add_subscriber_args.ret_id;
   }
 
   agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
