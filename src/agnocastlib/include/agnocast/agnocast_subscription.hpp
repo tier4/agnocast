@@ -63,17 +63,32 @@ inline std::vector<std::string> qos_to_args(const rclcpp::QoS & qos)
 template <typename MessageT>
 inline void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  (void)qos;  // 現在は未使用なので、コンパイラの警告を抑制
+  (void)qos;
 
   const std::string mq_name_str = create_mq_name_for_bridge();
   const char * mq_name = mq_name_str.c_str();
   mqd_t mq = mq_open(mq_name, O_WRONLY);
 
+  constexpr int max_retries = 5;
+  constexpr auto retry_delay = std::chrono::milliseconds(100);
+
+  for (int i = 0; i < max_retries; ++i) {
+    mq = mq_open(mq_name, O_WRONLY);
+    if (mq != (mqd_t)-1) {
+      break;
+    }
+
+    if (errno != ENOENT) {
+      break;
+    }
+
+    std::this_thread::sleep_for(retry_delay);
+  }
+
   if (mq == (mqd_t)-1) {
     RCLCPP_ERROR(
-      logger,
-      "Failed to open bridge manager message queue '%s'. Is the manager daemon running? Error: %s",
-      mq_name, strerror(errno));
+      logger, "Failed to open bridge manager message queue '%s'. Error: %s", mq_name,
+      strerror(errno));
     return;
   }
 

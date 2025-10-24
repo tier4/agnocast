@@ -1,9 +1,13 @@
 #include "agnocast/agnocast.hpp"
 
+#include "agnocast/agnocast_bridge_plugin_api.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
+#include <ament_index_cpp/get_package_prefix.hpp>
+
+#include <dlfcn.h>
 #include <sys/types.h>
 
 #include <atomic>
@@ -37,6 +41,72 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+struct ActiveBridge
+{
+  rclcpp::SubscriptionBase::SharedPtr subscription;
+  void * plugin_handle;
+};
+
+void launch_bridge_thread(
+  rclcpp::Node::SharedPtr node, const BridgeRequest request,
+  std::vector<ActiveBridge> & active_bridges, std::mutex & mutex)
+{
+  auto logger = node->get_logger();
+  std::string plugin_path;
+  try {
+    const std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
+
+    std::string type_name = request.message_type;
+    std::replace(type_name.begin(), type_name.end(), '/', '_');
+
+    plugin_path =
+      package_prefix + "/lib/agnocastlib/bridge_plugins/libbridge_plugin_" + type_name + ".so";
+
+  } catch (const ament_index_cpp::PackageNotFoundError & e) {
+    RCLCPP_ERROR(
+      logger, "Could not find package 'agnocastlib' to locate plugins. Error: %s", e.what());
+    return;
+  }
+
+  RCLCPP_INFO(logger, "[BRIDGE THREAD] Attempting to load plugin from: %s", plugin_path.c_str());
+
+  void * handle = dlopen(plugin_path.c_str(), RTLD_LAZY);
+  if (!handle) {
+    RCLCPP_ERROR(
+      logger, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", plugin_path.c_str(),
+      dlerror());
+    return;
+  }
+  RCLCPP_INFO(logger, "[BRIDGE THREAD] Plugin loaded successfully.");
+
+  CreateBridgeFunc create_bridge_ptr =
+    reinterpret_cast<CreateBridgeFunc>(dlsym(handle, "create_bridge"));
+
+  const char * dlsym_error = dlerror();
+  if (dlsym_error != nullptr) {
+    RCLCPP_ERROR(
+      logger, "[BRIDGE THREAD] Failed to find symbol 'create_bridge' in '%s'. Error: %s",
+      plugin_path.c_str(), dlsym_error);
+    dlclose(handle);
+    return;
+  }
+  RCLCPP_INFO(logger, "[BRIDGE THREAD] Found 'create_bridge' function symbol.");
+  auto subscription = create_bridge_ptr(node, std::string(request.topic_name), rclcpp::QoS(10));
+
+  if (subscription) {
+    std::lock_guard<std::mutex> lock(mutex);
+    active_bridges.push_back({subscription, handle});
+    RCLCPP_INFO(
+      logger, "[BRIDGE THREAD] Bridge for topic '%s' created and is now active.",
+      request.topic_name);
+  } else {
+    RCLCPP_ERROR(
+      logger, "[BRIDGE THREAD] create_bridge function returned a null subscription for topic '%s'.",
+      request.topic_name);
+    dlclose(handle);
+  }
+}
+
 void bridge_manager_daemon(int parent_pipe_fd)
 {
   if (setsid() == -1) {
@@ -45,11 +115,19 @@ void bridge_manager_daemon(int parent_pipe_fd)
     exit(EXIT_FAILURE);
   }
 
-  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
+  std::vector<std::thread> worker_threads;
+  std::vector<ActiveBridge> active_bridges;
+  std::mutex bridge_mutex;
+
+  rclcpp::init(0, nullptr);
+  auto node = std::make_shared<rclcpp::Node>("agnocast_bridge_manager");
+  auto logger = node->get_logger();
 
   if (!agnocast_heaphook_init_daemon()) {
     RCLCPP_ERROR(logger, "Heaphook init FAILED.");
   }
+
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
 
   const std::string mq_name_str = create_mq_name_for_bridge();
   const char * mq_name = mq_name_str.c_str();
@@ -65,6 +143,8 @@ void bridge_manager_daemon(int parent_pipe_fd)
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  std::thread spin_thread([&]() { rclcpp::spin(node); });
 
   while (true) {
     fd_set fds;
@@ -95,11 +175,28 @@ void bridge_manager_daemon(int parent_pipe_fd)
         RCLCPP_INFO(
           logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name,
           req.message_type);
-
-        // 新しいスレッドでブリッジ作成処理を開始
+        worker_threads.emplace_back(
+          launch_bridge_thread, node, req, std::ref(active_bridges), std::ref(bridge_mutex));
       }
     }
   }
+
+  rclcpp::shutdown();
+
+  if (spin_thread.joinable()) {
+    spin_thread.join();
+  }
+
+  for (auto & th : worker_threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  for (auto & bridge : active_bridges) {
+    dlclose(bridge.plugin_handle);
+  }
+  active_bridges.clear();
 
   mq_close(mq);
   mq_unlink(mq_name);
@@ -113,6 +210,8 @@ void poll_for_unlink()
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  RCLCPP_INFO(logger, "[POLL FOR UNLINK] PID: %d", getpid());
 
   while (true) {
     sleep(1);
