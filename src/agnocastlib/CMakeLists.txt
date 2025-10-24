@@ -81,18 +81,31 @@ endif()
 set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
 set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
 set(CLEAN_MESSAGE_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/clean_ros2_interfaces.txt") 
-set(PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_r2a_bridge_plugin.py")
 
+set(R2A_PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_r2a_bridge_plugin.py")
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} "${PLUGIN_GENERATION_SCRIPT}"
+  COMMAND ${Python3_EXECUTABLE} "${R2A_PLUGIN_GENERATION_SCRIPT}"
           "${MESSAGE_TYPES_FILE}"
           "${GENERATED_PLUGINS_SRC_DIR}"
           "${GENERATED_DEPENDENCIES_TXT}"
           "${CLEAN_MESSAGE_LIST_FILE}"
-  RESULT_VARIABLE script_res
+  RESULT_VARIABLE r2a_script_res
 )
-if(NOT script_res EQUAL 0)
-  message(FATAL_ERROR "Python script for plugin generation failed.")
+if(NOT r2a_script_res EQUAL 0)
+  message(FATAL_ERROR "Python script for r2a plugin generation failed.")
+endif()
+
+set(A2R_PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_a2r_bridge_plugin.py")
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} "${A2R_PLUGIN_GENERATION_SCRIPT}"
+          "${MESSAGE_TYPES_FILE}"
+          "${GENERATED_PLUGINS_SRC_DIR}"
+          "${GENERATED_DEPENDENCIES_TXT}"
+          "${CLEAN_MESSAGE_LIST_FILE}"
+  RESULT_VARIABLE a2r_script_res
+)
+if(NOT a2r_script_res EQUAL 0)
+  message(FATAL_ERROR "Python script for a2r plugin generation failed.")
 endif()
 
 file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
@@ -103,28 +116,31 @@ endforeach()
 file(STRINGS "${CLEAN_MESSAGE_LIST_FILE}" all_message_types)
 foreach(msg_type ${all_message_types})
   string(REPLACE "/" "_" safe_msg_name ${msg_type})
+  string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
 
   set(r2a_plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_r2a_${safe_msg_name}.cpp")
   set(r2a_plugin_target_name "r2a_bridge_plugin_${safe_msg_name}")
-
   add_library(${r2a_plugin_target_name} SHARED ${r2a_plugin_src_file})
-
-  string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
-
-  target_link_libraries(${r2a_plugin_target_name}
-    PRIVATE
-      agnocast
-      ${${msg_package}_LIBRARIES}
+  target_link_libraries(${r2a_plugin_target_name} PRIVATE agnocast ${${msg_package}_LIBRARIES})
+  target_include_directories(${r2a_plugin_target_name} PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${${msg_package}_INCLUDE_DIRS}
   )
-
-  target_include_directories(${r2a_plugin_target_name}
-    PRIVATE
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      ${${msg_package}_INCLUDE_DIRS}
-  )
-
   install(
     TARGETS ${r2a_plugin_target_name}
+    DESTINATION lib/${PROJECT_NAME}/bridge_plugins 
+  )
+
+  set(a2r_plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_a2r_${safe_msg_name}.cpp")
+  set(a2r_plugin_target_name "a2r_bridge_plugin_${safe_msg_name}")
+  add_library(${a2r_plugin_target_name} SHARED ${a2r_plugin_src_file})
+  target_link_libraries(${a2r_plugin_target_name} PRIVATE agnocast ${${msg_package}_LIBRARIES})
+  target_include_directories(${a2r_plugin_target_name} PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${${msg_package}_INCLUDE_DIRS}
+  )
+  install(
+    TARGETS ${a2r_plugin_target_name}
     DESTINATION lib/${PROJECT_NAME}/bridge_plugins
   )
 endforeach()
