@@ -13,7 +13,7 @@ namespace agnocast
 
 uint32_t get_agnocast_sub_count(const std::string & topic_name)
 {
-  std::array<topic_info_ret, MAX_TOPIC_INFO_RET_NUM> topic_info_buffer;
+  std::array<topic_info_ret, MAX_TOPIC_INFO_RET_NUM> topic_info_buffer{};
 
   ioctl_topic_info_args topic_info_args = {};
   topic_info_args.topic_name = {topic_name.c_str(), topic_name.size()};
