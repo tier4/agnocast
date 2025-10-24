@@ -65,71 +65,71 @@ target_link_libraries(agnocast_component_container_mt
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
-# ### ▼▼▼ Start of generic bridge daemon ▼▼▼
+### ▼▼▼ Start of generic bridge daemon ▼▼▼
 
-# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
-# execute_process(
-#   COMMAND ros2 interface list -m
-#   OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
-#   RESULT_VARIABLE ros2_list_res
-#   OUTPUT_STRIP_TRAILING_WHITESPACE
-# )
-# if(NOT ros2_list_res EQUAL 0)
-#   message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
-# endif()
+set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
+execute_process(
+  COMMAND ros2 interface list -m
+  OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
+  RESULT_VARIABLE ros2_list_res
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT ros2_list_res EQUAL 0)
+  message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
+endif()
 
-# set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
-# set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
-# set(CLEAN_MESSAGE_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/clean_ros2_interfaces.txt") 
-# set(PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_plugin_registrations.py")
+set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
+set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
+set(CLEAN_MESSAGE_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/clean_ros2_interfaces.txt") 
+set(PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_r2a_bridge_plugin.py")
 
-# execute_process(
-#   COMMAND ${Python3_EXECUTABLE} "${PLUGIN_GENERATION_SCRIPT}"
-#           "${MESSAGE_TYPES_FILE}"
-#           "${GENERATED_PLUGINS_SRC_DIR}"
-#           "${GENERATED_DEPENDENCIES_TXT}"
-#           "${CLEAN_MESSAGE_LIST_FILE}"
-#   RESULT_VARIABLE script_res
-# )
-# if(NOT script_res EQUAL 0)
-#   message(FATAL_ERROR "Python script for plugin generation failed.")
-# endif()
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} "${PLUGIN_GENERATION_SCRIPT}"
+          "${MESSAGE_TYPES_FILE}"
+          "${GENERATED_PLUGINS_SRC_DIR}"
+          "${GENERATED_DEPENDENCIES_TXT}"
+          "${CLEAN_MESSAGE_LIST_FILE}"
+  RESULT_VARIABLE script_res
+)
+if(NOT script_res EQUAL 0)
+  message(FATAL_ERROR "Python script for plugin generation failed.")
+endif()
 
-# file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
-# foreach(dep ${auto_dependencies})
-#   find_package(${dep} REQUIRED)
-# endforeach()
+file(STRINGS "${GENERATED_DEPENDENCIES_TXT}" auto_dependencies)
+foreach(dep ${auto_dependencies})
+  find_package(${dep} REQUIRED)
+endforeach()
 
-# file(STRINGS "${CLEAN_MESSAGE_LIST_FILE}" all_message_types)
-# foreach(msg_type ${all_message_types})
-#   string(REPLACE "/" "_" safe_msg_name ${msg_type})
+file(STRINGS "${CLEAN_MESSAGE_LIST_FILE}" all_message_types)
+foreach(msg_type ${all_message_types})
+  string(REPLACE "/" "_" safe_msg_name ${msg_type})
 
-#   set(plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_${safe_msg_name}.cpp")
-#   set(plugin_target_name "bridge_plugin_${safe_msg_name}")
+  set(plugin_src_file "${GENERATED_PLUGINS_SRC_DIR}/register_${safe_msg_name}.cpp")
+  set(plugin_target_name "bridge_plugin_${safe_msg_name}")
 
-#   add_library(${plugin_target_name} SHARED ${plugin_src_file})
+  add_library(${plugin_target_name} SHARED ${plugin_src_file})
 
-#   string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
+  string(REGEX MATCH "^[a-zA-Z0-9_]+" msg_package ${msg_type})
 
-#   target_link_libraries(${plugin_target_name}
-#     PRIVATE
-#       agnocast
-#       ${${msg_package}_LIBRARIES}
-#   )
+  target_link_libraries(${plugin_target_name}
+    PRIVATE
+      agnocast
+      ${${msg_package}_LIBRARIES}
+  )
 
-#   target_include_directories(${plugin_target_name}
-#     PRIVATE
-#       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#       ${${msg_package}_INCLUDE_DIRS}
-#   )
+  target_include_directories(${plugin_target_name}
+    PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      ${${msg_package}_INCLUDE_DIRS}
+  )
 
-#   install(
-#     TARGETS ${plugin_target_name}
-#     DESTINATION lib/${PROJECT_NAME}/bridge_plugins
-#   )
-# endforeach()
+  install(
+    TARGETS ${plugin_target_name}
+    DESTINATION lib/${PROJECT_NAME}/bridge_plugins
+  )
+endforeach()
 
-# ### ▲▲▲ End of generic bridge daemon ▲▲▲
+### ▲▲▲ End of generic bridge daemon ▲▲▲
 
 install(
   TARGETS agnocast_component_container agnocast_component_container_mt
