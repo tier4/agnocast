@@ -23,7 +23,7 @@ namespace agnocast
 
 bool service_is_ready_core(const std::string & service_name);
 bool wait_for_service_nanoseconds(
-  rclcpp::Context::SharedPtr context, const std::string & service_name,
+  const rclcpp::Context::SharedPtr & context, const std::string & service_name,
   std::chrono::nanoseconds timeout);
 
 extern int agnocast_fd;
