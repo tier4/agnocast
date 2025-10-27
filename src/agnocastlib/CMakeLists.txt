@@ -141,4 +141,17 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_package()
+
+# Reference: rclcpp/rclcpp_components/CMakeLists.txt (lines 64-82, 146-149)
+# agnocast_components_register_node用のファイルをインストール
+install(FILES
+  cmake/agnocast_node_main.cpp.in
+  cmake/agnocast_components_register_node.cmake
+  DESTINATION share/${PROJECT_NAME}/cmake
+)
+
+# 依存関係のエクスポート
+ament_export_dependencies(rclcpp rclcpp_components class_loader)
+
+# extras.cmakeを使用してマクロを自動ロード
+ament_package(CONFIG_EXTRAS cmake/agnocastlib-extras.cmake.in)

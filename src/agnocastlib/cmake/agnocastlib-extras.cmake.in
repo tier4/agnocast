@@ -1,0 +1,13 @@
+# Reference: rclcpp/rclcpp_components/rclcpp_components-extras.cmake.in
+# This extras file is based on rclcpp_components-extras.cmake.in
+
+# agnocast_components_register_nodeマクロのロード
+if(NOT TARGET agnocast)
+  find_package(agnocastlib REQUIRED)
+endif()
+
+# CMakeモジュールパスに追加
+list(APPEND CMAKE_MODULE_PATH "${agnocastlib_DIR}/../cmake")
+
+# マクロファイルをインクルード
+include("${agnocastlib_DIR}/../cmake/agnocast_components_register_node.cmake")

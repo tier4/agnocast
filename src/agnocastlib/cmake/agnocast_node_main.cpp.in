@@ -1,0 +1,54 @@
+// Reference: rclcpp/rclcpp_components/src/node_main.cpp.in
+// This template is based on the standard rclcpp_components node_main template,
+// modified to use Agnocast executors instead of standard rclcpp executors.
+
+#include "agnocast/agnocast.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/node_factory.hpp"
+#include "class_loader/class_loader.hpp"
+#include <memory>
+#include <string>
+#include <vector>
+
+int main(int argc, char * argv[])
+{
+  try {
+    rclcpp::init(argc, argv);
+
+    // class_loaderでcomponentをロード
+    auto loader = std::make_shared<class_loader::ClassLoader>("@library_name@");
+    auto factory = loader->createInstance<rclcpp_components::NodeFactory>("@class_name@");
+
+    // NodeOptionsの設定（コマンドライン引数から）
+    rclcpp::NodeOptions options;
+    options.arguments(std::vector<std::string>(argv + 1, argv + argc));
+    options.allow_undeclared_parameters(true);
+    options.automatically_declare_parameters_from_overrides(true);
+
+    // componentからnodeを生成
+    auto node_wrapper = factory->create_node_instance(options);
+    auto node_base = node_wrapper.get_node_base_interface();
+
+    // Agnocast Executorの設定
+@executor_setup@
+
+    executor->add_node(node_base);
+    executor->spin();
+
+    rclcpp::shutdown();
+  } catch (const std::exception & ex) {
+    std::cerr << "Exception in main: " << ex.what() << std::endl;
+    if (agnocast::agnocast_fd >= 0) {
+      close(agnocast::agnocast_fd);
+    }
+    return EXIT_FAILURE;
+  } catch (...) {
+    std::cerr << "Unknown exception in main" << std::endl;
+    if (agnocast::agnocast_fd >= 0) {
+      close(agnocast::agnocast_fd);
+    }
+    return EXIT_FAILURE;
+  }
+
+  return 0;
+}
