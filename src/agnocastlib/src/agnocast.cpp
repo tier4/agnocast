@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <fstream>
 #include <mutex>
 
 extern "C" bool agnocast_heaphook_init_daemon();
@@ -192,6 +193,50 @@ void bridge_manager_daemon(int parent_pipe_fd)
 
   RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
 
+  std::unordered_set<std::string> allowed_topics;
+  const char * filter_file_path = getenv("AGNOCAST_BRIDGE_FILTER_FILE");
+
+  if (filter_file_path) {
+    RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Loading topic filter from: %s", filter_file_path);
+    std::ifstream filter_file(filter_file_path);
+    if (filter_file.is_open()) {
+      std::string topic_name;
+      while (std::getline(filter_file, topic_name)) {
+        if (!topic_name.empty() && topic_name[0] != '#') {
+          allowed_topics.insert(topic_name);
+        }
+      }
+      RCLCPP_INFO(
+        logger, "[BRIDGE MANAGER DAEMON] Loaded %zu topics into the filter.",
+        allowed_topics.size());
+    } else {
+      RCLCPP_WARN(
+        logger,
+        "[BRIDGE MANAGER DAEMON] Could not open filter file: %s. All topics will be allowed.",
+        filter_file_path);
+    }
+  } else {
+    RCLCPP_INFO(
+      logger, "[BRIDGE MANAGER DAEMON] No filter file specified. All topics will be allowed.");
+  }
+
+  std::unique_ptr<rclcpp::Executor> executor;
+
+  const char * executor_type_env = getenv("AGNOCAST_EXECUTOR_TYPE");
+  std::string executor_type = executor_type_env ? executor_type_env : "single";
+
+  if (executor_type == "multi") {
+    RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using MultiThreadedAgnocastExecutor.");
+    // std::make_unique<...>(4))
+    executor = std::make_unique<agnocast::MultiThreadedAgnocastExecutor>();
+  } else if (executor_type == "isolated") {
+    RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using CallbackIsolatedAgnocastExecutor.");
+    executor = std::make_unique<agnocast::CallbackIsolatedAgnocastExecutor>();
+  } else {
+    RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using SingleThreadedAgnocastExecutor (default).");
+    executor = std::make_unique<agnocast::SingleThreadedAgnocastExecutor>();
+  }
+
   const std::string mq_name_str = create_mq_name_for_bridge();
   const char * mq_name = mq_name_str.c_str();
   struct mq_attr attr;
@@ -207,13 +252,10 @@ void bridge_manager_daemon(int parent_pipe_fd)
     exit(EXIT_FAILURE);
   }
 
-  // std::thread spin_thread([&]() { rclcpp::spin(node); });
-
-  agnocast::SingleThreadedAgnocastExecutor executor;
-  executor.add_node(node);
+  executor->add_node(node);
   std::thread spin_thread([&]() {
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Starting AgnoCast Executor spin thread.");
-    executor.spin();
+    executor->spin();
   });
 
   while (true) {
@@ -242,6 +284,14 @@ void bridge_manager_daemon(int parent_pipe_fd)
     if (FD_ISSET(mq, &fds)) {
       BridgeRequest req;
       if (mq_receive(mq, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
+        if (
+          !allowed_topics.empty() &&
+          allowed_topics.find(std::string(req.topic_name)) == allowed_topics.end()) {
+          RCLCPP_INFO(
+            logger, "Bridge request for Topic='%s' was ignored due to filter rules.",
+            req.topic_name);
+          continue;
+        }
         RCLCPP_INFO(
           logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name,
           req.message_type);
