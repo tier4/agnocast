@@ -14,6 +14,10 @@ namespace agnocast
 #define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
 #define VERSION_BUFFER_LEN 32  // Maximum size of version number represented as a string
 
+#define MAX_TOPIC_INFO_RET_NUM std::max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
+
+#define NODE_NAME_BUFFER_SIZE 256
+
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
 {
@@ -157,6 +161,25 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
+struct topic_info_ret
+{
+  char node_name[NODE_NAME_BUFFER_SIZE];
+  uint32_t qos_depth;
+  bool qos_is_transient_local;
+};
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_topic_info_args {
+  struct
+  {
+    struct name_info topic_name;
+    uint64_t topic_info_ret_buffer_addr;
+  };
+  uint32_t ret_topic_info_ret_num;
+};
+#pragma GCC diagnostic pop
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -168,5 +191,6 @@ struct ioctl_get_exit_process_args
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast
