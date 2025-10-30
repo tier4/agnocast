@@ -157,23 +157,29 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_ext_subscriber_num_args {
   struct
   {
     struct name_info topic_name;
     pid_t exclude_pid;
   };
-  uint32_t ret_external_subscriber_num;
+  uint32_t ret_ext_subscriber_num;
 };
+#pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_ext_publisher_num_args {
   struct
   {
     struct name_info topic_name;
     pid_t exclude_pid;
   };
-  uint32_t ret_external_publisher_num;
+  uint32_t ret_ext_publisher_num;
 };
+#pragma GCC diagnostic pop
 
 struct ioctl_get_active_process_num_args
 {

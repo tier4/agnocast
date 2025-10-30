@@ -138,7 +138,7 @@ union ioctl_get_ext_subscriber_num_args {
     struct name_info topic_name;
     pid_t exclude_pid;
   };
-  uint32_t ret_external_subscriber_num;
+  uint32_t ret_ext_subscriber_num;
 };
 
 union ioctl_get_ext_publisher_num_args {
@@ -147,7 +147,7 @@ union ioctl_get_ext_publisher_num_args {
     struct name_info topic_name;
     pid_t exclude_pid;
   };
-  uint32_t ret_external_publisher_num;
+  uint32_t ret_ext_publisher_num;
 };
 
 struct ioctl_get_active_process_num_args

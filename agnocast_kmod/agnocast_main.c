@@ -1401,9 +1401,9 @@ int get_ext_subscriber_num(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper, ioctl_ret->exclude_pid);
+    ioctl_ret->ret_ext_subscriber_num = get_size_sub_info_htable(wrapper, ioctl_ret->exclude_pid);
   } else {
-    ioctl_ret->ret_subscriber_num = 0;
+    ioctl_ret->ret_ext_subscriber_num = 0;
   }
 
   return 0;
@@ -1415,9 +1415,9 @@ int get_ext_publisher_num(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper, ioctl_ret->exclude_pid);
+    ioctl_ret->ret_ext_publisher_num = get_size_pub_info_htable(wrapper, ioctl_ret->exclude_pid);
   } else {
-    ioctl_ret->ret_publisher_num = 0;
+    ioctl_ret->ret_ext_publisher_num = 0;
   }
 
   return 0;
