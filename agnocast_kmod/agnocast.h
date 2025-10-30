@@ -132,6 +132,16 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
+union ioctl_get_publisher_num_args {
+  struct name_info topic_name;
+  uint32_t ret_publisher_num;
+};
+
+struct ioctl_get_active_process_num_args
+{
+  uint32_t ret_active_process_num;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -143,6 +153,8 @@ struct ioctl_get_exit_process_args
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_publisher_num_args)
+#define AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD _IOR(0xA6, 13, struct ioctl_get_active_process_num_args)
 
 // ================================================
 // ros2cli ioctls
