@@ -54,11 +54,6 @@ void send_bridge_request(
   if (mq_send(mq, (const char *)&req, sizeof(BridgeRequest), 0) == -1) {
     RCLCPP_ERROR(
       logger, "Failed to send bridge request to manager daemon. Error: %s", strerror(errno));
-  } else {
-    RCLCPP_INFO(
-      logger, "[%s]: Sent bridge request for topic '%s' to manager daemon.",
-      direction == BridgeDirection::ROS2_TO_AGNOCAST ? "ROS2_TO_AGNOCAST" : "AGNOCAST_TO_ROS2",
-      topic_name.c_str());
   }
   mq_close(mq);
 }

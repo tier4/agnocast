@@ -235,8 +235,6 @@ void handle_bridge_request(
         logger, "Bridge request for Topic='%s' was ignored due to filter rules.", req.topic_name);
       return;
     }
-    RCLCPP_INFO(
-      logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name, req.message_type);
 
     std::lock_guard<std::mutex> lock(bridge_mutex);
     bool already_exists = false;
@@ -260,19 +258,15 @@ void handle_bridge_request(
     }
 
     if (already_exists) {
-      RCLCPP_INFO(
-        logger, "Bridge for Topic='%s' (Direction=%s) already exists. Skipping launch.",
-        req.topic_name, (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "R2A" : "A2R");
-    } else {
-      if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        worker_threads.emplace_back(
-          launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges),
-          std::ref(bridge_mutex));
-      } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-        worker_threads.emplace_back(
-          launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges),
-          std::ref(bridge_mutex));
-      }
+      return;
+    }
+
+    if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+      worker_threads.emplace_back(
+        launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges), std::ref(bridge_mutex));
+    } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+      worker_threads.emplace_back(
+        launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges), std::ref(bridge_mutex));
     }
   }
 }
