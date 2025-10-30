@@ -308,7 +308,81 @@ void shutdown_manager(
   mq_unlink(mq_name.c_str());
 }
 
-void bridge_manager_daemon(int parent_pipe_fd)
+void check_and_shutdown_idle_bridges(
+  rclcpp::Logger logger, std::vector<ActiveBridgeR2A> & r2a_bridges,
+  std::vector<ActiveBridgeA2R> & a2r_bridges, std::mutex & mutex)
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  const pid_t self_pid = getpid();
+
+  r2a_bridges.erase(
+    std::remove_if(
+      r2a_bridges.begin(), r2a_bridges.end(),
+      [&](const ActiveBridgeR2A & bridge) {
+        union ioctl_get_ext_subscriber_num_args args = {};
+        args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
+        args.exclude_pid = self_pid;
+
+        if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
+          RCLCPP_WARN(
+            logger, "Failed to get external subscriber count for '%s'", bridge.topic_name.c_str());
+          return false;
+        }
+
+        if (args.ret_ext_subscriber_num == 0) {
+          dlclose(bridge.plugin_handle);
+          return true;
+        }
+        return false;
+      }),
+    r2a_bridges.end());
+
+  a2r_bridges.erase(
+    std::remove_if(
+      a2r_bridges.begin(), a2r_bridges.end(),
+      [&](const ActiveBridgeA2R & bridge) {
+        union ioctl_get_ext_publisher_num_args args = {};
+        args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
+        args.exclude_pid = self_pid;
+
+        if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
+          RCLCPP_WARN(
+            logger, "Failed to get external publisher count for '%s'", bridge.topic_name.c_str());
+          return false;
+        }
+
+        if (args.ret_ext_publisher_num == 0) {
+          dlclose(bridge.plugin_handle);
+          return true;
+        }
+        return false;
+      }),
+    a2r_bridges.end());
+}
+
+void check_and_shutdown_daemon_if_idle(
+  rclcpp::Logger logger, std::vector<ActiveBridgeR2A> & r2a_bridges,
+  std::vector<ActiveBridgeA2R> & a2r_bridges, std::mutex & mutex)
+{
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!r2a_bridges.empty() || !a2r_bridges.empty()) {
+      return;
+    }
+  }
+
+  struct ioctl_get_active_process_num_args args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD, &args) < 0) {
+    RCLCPP_WARN(logger, "Failed to get active process count from kernel module.");
+    return;
+  }
+
+  if (args.ret_active_process_num <= 1) {
+    rclcpp::shutdown();
+  }
+}
+
+void bridge_manager_daemon()
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
@@ -329,13 +403,6 @@ void bridge_manager_daemon(int parent_pipe_fd)
     RCLCPP_ERROR(logger, "Heaphook init FAILED.");
   }
 
-  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
-
-  std::unordered_set<std::string> allowed_topics;
-  load_filter_file(allowed_topics, logger);
-
-  auto executor = select_executor(logger);
-
   const std::string mq_name_str = create_mq_name_for_bridge();
   const char * mq_name = mq_name_str.c_str();
   struct mq_attr attr;
@@ -343,7 +410,6 @@ void bridge_manager_daemon(int parent_pipe_fd)
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = sizeof(BridgeRequest);
   attr.mq_curmsgs = 0;
-
   mq_unlink(mq_name);
   mqd_t mq = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
   if (mq == (mqd_t)-1) {
@@ -351,19 +417,24 @@ void bridge_manager_daemon(int parent_pipe_fd)
     exit(EXIT_FAILURE);
   }
 
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
+
+  std::unordered_set<std::string> allowed_topics;
+  load_filter_file(allowed_topics, logger);
+  auto executor = select_executor(logger);
+
   executor->add_node(node);
   std::thread spin_thread([&]() {
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Starting AgnoCast Executor spin thread.");
     executor->spin();
   });
 
-  while (true) {
+  while (rclcpp::ok()) {
     fd_set fds;
     FD_ZERO(&fds);
-    FD_SET(parent_pipe_fd, &fds);
     FD_SET(mq, &fds);
 
-    int max_fd = std::max(parent_pipe_fd, static_cast<int>(mq)) + 1;
+    int max_fd = static_cast<int>(mq) + 1;
 
     struct timeval timeout;
     timeout.tv_sec = 1;
@@ -378,23 +449,17 @@ void bridge_manager_daemon(int parent_pipe_fd)
     }
 
     if (ret == 0) {
-      RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Performing periodic check...");
-      // check_and_shutdown_idle_bridges(...);
-
+      check_and_shutdown_idle_bridges(logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
+      check_and_shutdown_daemon_if_idle(
+        logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
       continue;
-    }
-
-    if (FD_ISSET(parent_pipe_fd, &fds)) {
-      char buf;
-      if (read(parent_pipe_fd, &buf, 1) <= 0) {
-        break;
-      }
     }
 
     if (FD_ISSET(mq, &fds)) {
       handle_bridge_request(
         mq, node, allowed_topics, active_r2a_bridges, active_a2r_bridges, worker_threads,
         bridge_mutex);
+      check_and_shutdown_idle_bridges(logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
     }
   }
 
@@ -667,13 +732,6 @@ void * initialize_agnocast(
       poll_for_unlink();
     }
 
-    int pipe_fd[2];
-    if (pipe(pipe_fd) == -1) {
-      RCLCPP_ERROR(logger, "pipe failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
     pid_t pid2 = fork();
 
     if (pid2 < 0) {
@@ -683,14 +741,29 @@ void * initialize_agnocast(
     }
 
     if (pid2 == 0) {
-      close(pipe_fd[1]);
-      bridge_manager_daemon(pipe_fd[0]);
+      bridge_manager_daemon();
     }
-
-    close(pipe_fd[0]);
   }
 
-  sleep(1);
+  const std::string mq_name_str = create_mq_name_for_bridge();
+  constexpr int max_retries = 10;
+  constexpr auto retry_delay = std::chrono::milliseconds(100);
+  bool mq_ready = false;
+
+  for (int i = 0; i < max_retries; ++i) {
+    mqd_t mq_test = mq_open(mq_name_str.c_str(), O_WRONLY);
+    if (mq_test != (mqd_t)-1) {
+      mq_close(mq_test);
+      mq_ready = true;
+      break;
+    }
+    std::this_thread::sleep_for(retry_delay);
+  }
+
+  if (!mq_ready) {
+    RCLCPP_ERROR(logger, "Failed to connect to bridge manager message queue after timeout.");
+    exit(EXIT_FAILURE);
+  }
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {
