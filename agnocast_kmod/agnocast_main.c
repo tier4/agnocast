@@ -38,6 +38,9 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of topic info ret
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
+// Special PID to indicate no exclusion
+#define AGNOCAST_EXCLUDE_NONE ((pid_t) - 1)
+
 struct process_info
 {
   bool exited;
@@ -192,14 +195,16 @@ static int add_topic(
   return 0;
 }
 
-static int get_size_sub_info_htable(struct topic_wrapper * wrapper)
+static int get_size_sub_info_htable(struct topic_wrapper * wrapper, pid_t exclude_pid)
 {
   int count = 0;
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
-    count++;
+    if (sub_info->pid != exclude_pid) {
+      count++;
+    }
   }
   return count;
 }
@@ -233,7 +238,7 @@ static int insert_subscriber_info(
     return -EINVAL;
   }
 
-  int count = get_size_sub_info_htable(wrapper);
+  int count = get_size_sub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE);
   if (count == MAX_SUBSCRIBER_NUM) {
     dev_warn(
       agnocast_device,
@@ -302,14 +307,16 @@ static int insert_subscriber_info(
   return 0;
 }
 
-static int get_size_pub_info_htable(struct topic_wrapper * wrapper)
+static int get_size_pub_info_htable(struct topic_wrapper * wrapper, pid_t exclude_pid)
 {
   int count = 0;
   struct publisher_info * pub_info;
   int bkt_pub_info;
   hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
   {
-    count++;
+    if (pub_info->pid != exclude_pid) {
+      count++;
+    }
   }
   return count;
 }
@@ -333,7 +340,7 @@ static int insert_publisher_info(
   struct topic_wrapper * wrapper, const char * node_name, const pid_t publisher_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, struct publisher_info ** new_info)
 {
-  int count = get_size_pub_info_htable(wrapper);
+  int count = get_size_pub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE);
   if (count == MAX_PUBLISHER_NUM) {
     dev_warn(
       agnocast_device,
@@ -1120,7 +1127,7 @@ int get_subscriber_num(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE);
   } else {
     ioctl_ret->ret_subscriber_num = 0;
   }
@@ -1388,13 +1395,27 @@ static int get_topic_publisher_info(
   return 0;
 }
 
-int get_publisher_num(
+int get_ext_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  union ioctl_get_publisher_num_args * ioctl_ret)
+  union ioctl_get_ext_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper);
+    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper, ioctl_ret->exclude_pid);
+  } else {
+    ioctl_ret->ret_subscriber_num = 0;
+  }
+
+  return 0;
+}
+
+int get_ext_publisher_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_ext_publisher_num_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (wrapper) {
+    ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper, ioctl_ret->exclude_pid);
   } else {
     ioctl_ret->ret_publisher_num = 0;
   }
@@ -1717,27 +1738,49 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_PUBLISHER_NUM_CMD) {
-    union ioctl_get_publisher_num_args get_publisher_num_args;
+  } else if (cmd == AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD) {
+    union ioctl_get_ext_subscriber_num_args get_ext_subscriber_num_args;
     if (copy_from_user(
-          &get_publisher_num_args, (union ioctl_get_publisher_num_args __user *)arg,
-          sizeof(get_publisher_num_args)))
+          &get_ext_subscriber_num_args, (union ioctl_get_ext_subscriber_num_args __user *)arg,
+          sizeof(get_ext_subscriber_num_args)))
       goto return_EFAULT;
-    if (get_publisher_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
-    char * topic_name_buf = kmalloc(get_publisher_num_args.topic_name.len + 1, GFP_KERNEL);
+    if (get_ext_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_ext_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
-          topic_name_buf, (char __user *)get_publisher_num_args.topic_name.ptr,
-          get_publisher_num_args.topic_name.len)) {
+          topic_name_buf, (char __user *)get_ext_subscriber_num_args.topic_name.ptr,
+          get_ext_subscriber_num_args.topic_name.len)) {
       kfree(topic_name_buf);
       goto return_EFAULT;
     }
-    topic_name_buf[get_publisher_num_args.topic_name.len] = '\0';
-    ret = get_publisher_num(topic_name_buf, ipc_ns, &get_publisher_num_args);
+    topic_name_buf[get_ext_subscriber_num_args.topic_name.len] = '\0';
+    ret = get_ext_subscriber_num(topic_name_buf, ipc_ns, &get_ext_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
-          (union ioctl_get_publisher_num_args __user *)arg, &get_publisher_num_args,
-          sizeof(get_publisher_num_args)))
+          (union ioctl_get_ext_subscriber_num_args __user *)arg, &get_ext_subscriber_num_args,
+          sizeof(get_ext_subscriber_num_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD) {
+    union ioctl_get_ext_publisher_num_args get_ext_publisher_num_args;
+    if (copy_from_user(
+          &get_ext_publisher_num_args, (union ioctl_get_ext_publisher_num_args __user *)arg,
+          sizeof(get_ext_publisher_num_args)))
+      goto return_EFAULT;
+    if (get_ext_publisher_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_ext_publisher_num_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)get_ext_publisher_num_args.topic_name.ptr,
+          get_ext_publisher_num_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[get_ext_publisher_num_args.topic_name.len] = '\0';
+    ret = get_ext_publisher_num(topic_name_buf, ipc_ns, &get_ext_publisher_num_args);
+    kfree(topic_name_buf);
+    if (copy_to_user(
+          (union ioctl_get_ext_publisher_num_args __user *)arg, &get_ext_publisher_num_args,
+          sizeof(get_ext_publisher_num_args)))
       goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD) {
     struct ioctl_get_active_process_num_args args;
@@ -1889,7 +1932,7 @@ int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_
   if (!wrapper) {
     return 0;
   }
-  return get_size_pub_info_htable(wrapper);
+  return get_size_pub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE);
 }
 
 bool is_in_publisher_htable(
@@ -2088,7 +2131,9 @@ void process_exit_cleanup(const pid_t pid)
     pre_handler_subscriber_exit(wrapper, pid);
 
     // Check if we can release the topic_wrapper
-    if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
+    if (
+      get_size_pub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE) == 0 &&
+      get_size_sub_info_htable(wrapper, AGNOCAST_EXCLUDE_NONE) == 0) {
       hash_del(&wrapper->node);
       if (wrapper->key) {
         kfree(wrapper->key);

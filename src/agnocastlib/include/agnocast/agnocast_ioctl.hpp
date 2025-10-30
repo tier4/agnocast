@@ -157,9 +157,22 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
-union ioctl_get_publisher_num_args {
-  struct name_info topic_name;
-  uint32_t ret_publisher_num;
+union ioctl_get_ext_subscriber_num_args {
+  struct
+  {
+    struct name_info topic_name;
+    pid_t exclude_pid;
+  };
+  uint32_t ret_external_subscriber_num;
+};
+
+union ioctl_get_ext_publisher_num_args {
+  struct
+  {
+    struct name_info topic_name;
+    pid_t exclude_pid;
+  };
+  uint32_t ret_external_publisher_num;
 };
 
 struct ioctl_get_active_process_num_args
@@ -178,7 +191,8 @@ struct ioctl_get_active_process_num_args
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
-#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_publisher_num_args)
-#define AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD _IOR(0xA6, 13, struct ioctl_get_active_process_num_args)
+#define AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_ext_subscriber_num_args)
+#define AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD _IOWR(0xA6, 13, union ioctl_get_ext_publisher_num_args)
+#define AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD _IOR(0xA6, 14, struct ioctl_get_active_process_num_args)
 
 }  // namespace agnocast
