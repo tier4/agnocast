@@ -170,30 +170,8 @@ void launch_a2r_bridge_thread(
   }
 }
 
-void bridge_manager_daemon(int parent_pipe_fd)
+void load_filter_file(std::unordered_set<std::string> & allowed_topics, rclcpp::Logger logger)
 {
-  if (setsid() == -1) {
-    RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  std::vector<std::thread> worker_threads;
-  std::vector<ActiveBridgeR2A> active_r2a_bridges;
-  std::vector<ActiveBridgeA2R> active_a2r_bridges;
-  std::mutex bridge_mutex;
-
-  rclcpp::init(0, nullptr);
-  auto node = std::make_shared<rclcpp::Node>("agnocast_bridge_manager");
-  auto logger = node->get_logger();
-
-  if (!agnocast_heaphook_init_daemon()) {
-    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
-  }
-
-  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
-
-  std::unordered_set<std::string> allowed_topics;
   const char * filter_file_path = getenv("AGNOCAST_BRIDGE_FILTER_FILE");
 
   if (filter_file_path) {
@@ -219,9 +197,11 @@ void bridge_manager_daemon(int parent_pipe_fd)
     RCLCPP_INFO(
       logger, "[BRIDGE MANAGER DAEMON] No filter file specified. All topics will be allowed.");
   }
+}
 
+std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
+{
   std::unique_ptr<rclcpp::Executor> executor;
-
   const char * executor_type_env = getenv("AGNOCAST_EXECUTOR_TYPE");
   std::string executor_type = executor_type_env ? executor_type_env : "single";
 
@@ -236,6 +216,125 @@ void bridge_manager_daemon(int parent_pipe_fd)
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using SingleThreadedAgnocastExecutor (default).");
     executor = std::make_unique<agnocast::SingleThreadedAgnocastExecutor>();
   }
+
+  return executor;
+}
+
+void handle_bridge_request(
+  mqd_t mq, rclcpp::Node::SharedPtr node, std::unordered_set<std::string> & allowed_topics,
+  std::vector<ActiveBridgeR2A> & active_r2a_bridges,
+  std::vector<ActiveBridgeA2R> & active_a2r_bridges, std::vector<std::thread> & worker_threads,
+  std::mutex & bridge_mutex)
+{
+  BridgeRequest req;
+  if (mq_receive(mq, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
+    if (
+      !allowed_topics.empty() &&
+      allowed_topics.find(std::string(req.topic_name)) == allowed_topics.end()) {
+      RCLCPP_INFO(
+        logger, "Bridge request for Topic='%s' was ignored due to filter rules.", req.topic_name);
+      return;
+    }
+    RCLCPP_INFO(
+      logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name, req.message_type);
+
+    std::lock_guard<std::mutex> lock(bridge_mutex);
+    bool already_exists = false;
+
+    for (const auto & bridge : active_r2a_bridges) {
+      if (
+        bridge.topic_name == std::string(req.topic_name) &&
+        req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+        already_exists = true;
+        break;
+      }
+    }
+
+    for (const auto & bridge : active_a2r_bridges) {
+      if (
+        bridge.topic_name == std::string(req.topic_name) &&
+        req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+        already_exists = true;
+        break;
+      }
+    }
+
+    if (already_exists) {
+      RCLCPP_INFO(
+        logger, "Bridge for Topic='%s' (Direction=%s) already exists. Skipping launch.",
+        req.topic_name, (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "R2A" : "A2R");
+    } else {
+      if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+        worker_threads.emplace_back(
+          launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges),
+          std::ref(bridge_mutex));
+      } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+        worker_threads.emplace_back(
+          launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges),
+          std::ref(bridge_mutex));
+      }
+    }
+  }
+}
+
+void shutdown_manager(
+  std::thread & spin_thread, std::vector<std::thread> & worker_threads,
+  std::vector<ActiveBridgeR2A> & active_r2a_bridges,
+  std::vector<ActiveBridgeA2R> & active_a2r_bridges, mqd_t mq, const std::string & mq_name)
+{
+  rclcpp::shutdown();
+
+  if (spin_thread.joinable()) {
+    spin_thread.join();
+  }
+
+  for (auto & th : worker_threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  for (auto & bridge : active_r2a_bridges) {
+    dlclose(bridge.plugin_handle);
+  }
+  active_r2a_bridges.clear();
+
+  for (auto & bridge : active_a2r_bridges) {
+    dlclose(bridge.plugin_handle);
+  }
+  active_a2r_bridges.clear();
+
+  mq_close(mq);
+  mq_unlink(mq_name.c_str());
+}
+
+void bridge_manager_daemon(int parent_pipe_fd)
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for bridge manager daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  std::vector<std::thread> worker_threads;
+  std::vector<ActiveBridgeR2A> active_r2a_bridges;
+  std::vector<ActiveBridgeA2R> active_a2r_bridges;
+  std::mutex bridge_mutex;
+
+  rclcpp::init(0, nullptr);
+  auto node = std::make_shared<rclcpp::Node>("agnocast_bridge_manager");
+  auto logger = node->get_logger();
+
+  if (!agnocast_heaphook_init_daemon()) {
+    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
+  }
+
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
+
+  std::unordered_set<std::string> allowed_topics;
+  load_filter_file(allowed_topics, logger);
+
+  auto executor = select_executor(logger);
 
   const std::string mq_name_str = create_mq_name_for_bridge();
   const char * mq_name = mq_name_str.c_str();
@@ -266,12 +365,23 @@ void bridge_manager_daemon(int parent_pipe_fd)
 
     int max_fd = std::max(parent_pipe_fd, static_cast<int>(mq)) + 1;
 
-    int ret = select(max_fd, &fds, NULL, NULL, NULL);
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    int ret = select(max_fd, &fds, NULL, NULL, &timeout);
 
     if (ret < 0) {
       if (errno == EINTR) continue;
       RCLCPP_ERROR(logger, "select() failed: %s", strerror(errno));
       break;
+    }
+
+    if (ret == 0) {
+      RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Performing periodic check...");
+      // check_and_shutdown_idle_bridges(...);
+
+      continue;
     }
 
     if (FD_ISSET(parent_pipe_fd, &fds)) {
@@ -282,84 +392,14 @@ void bridge_manager_daemon(int parent_pipe_fd)
     }
 
     if (FD_ISSET(mq, &fds)) {
-      BridgeRequest req;
-      if (mq_receive(mq, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
-        if (
-          !allowed_topics.empty() &&
-          allowed_topics.find(std::string(req.topic_name)) == allowed_topics.end()) {
-          RCLCPP_INFO(
-            logger, "Bridge request for Topic='%s' was ignored due to filter rules.",
-            req.topic_name);
-          continue;
-        }
-        RCLCPP_INFO(
-          logger, "Bridge request received: Topic='%s', Type='%s'", req.topic_name,
-          req.message_type);
-
-        std::lock_guard<std::mutex> lock(bridge_mutex);
-        bool already_exists = false;
-
-        for (const auto & bridge : active_r2a_bridges) {
-          if (
-            bridge.topic_name == std::string(req.topic_name) &&
-            req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-            already_exists = true;
-            break;
-          }
-        }
-
-        for (const auto & bridge : active_a2r_bridges) {
-          if (
-            bridge.topic_name == std::string(req.topic_name) &&
-            req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-            already_exists = true;
-            break;
-          }
-        }
-
-        if (already_exists) {
-          RCLCPP_INFO(
-            logger, "Bridge for Topic='%s' (Direction=%s) already exists. Skipping launch.",
-            req.topic_name, (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "R2A" : "A2R");
-        } else {
-          if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-            worker_threads.emplace_back(
-              launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges),
-              std::ref(bridge_mutex));
-          } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-            worker_threads.emplace_back(
-              launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges),
-              std::ref(bridge_mutex));
-          }
-        }
-      }
+      handle_bridge_request(
+        mq, node, allowed_topics, active_r2a_bridges, active_a2r_bridges, worker_threads,
+        bridge_mutex);
     }
   }
 
-  rclcpp::shutdown();
-
-  if (spin_thread.joinable()) {
-    spin_thread.join();
-  }
-
-  for (auto & th : worker_threads) {
-    if (th.joinable()) {
-      th.join();
-    }
-  }
-
-  for (auto & bridge : active_r2a_bridges) {
-    dlclose(bridge.plugin_handle);
-  }
-  active_r2a_bridges.clear();
-
-  for (auto & bridge : active_a2r_bridges) {
-    dlclose(bridge.plugin_handle);
-  }
-  active_a2r_bridges.clear();
-
-  mq_close(mq);
-  mq_unlink(mq_name);
+  shutdown_manager(
+    spin_thread, worker_threads, active_r2a_bridges, active_a2r_bridges, mq, mq_name_str);
   exit(0);
 }
 
