@@ -80,13 +80,13 @@ std::string create_shm_name(const pid_t pid)
 
 std::string create_service_request_topic_name(const std::string & service_name)
 {
-  return service_name + "_request";
+  return "/AGNOCAST_SRV_REQUEST" + service_name;
 }
 
 std::string create_service_response_topic_name(
   const std::string & service_name, const std::string & client_node_name)
 {
-  return service_name + "_response_" + client_node_name;
+  return "/AGNOCAST_SRV_RESPONSE" + service_name + "_SEP_" + client_node_name;
 }
 
 uint64_t agnocast_get_timestamp()
