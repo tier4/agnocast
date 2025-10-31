@@ -132,7 +132,16 @@ public:
     }
   }
 
-  ~Subscription() { remove_mq(mq_subscription_); }
+  ~Subscription()
+  {
+    struct ioctl_remove_subscriber_args remove_subscriber_args = {};
+    remove_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_subscriber_args.subscriber_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_SUBSCRIBER_CMD, &remove_subscriber_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to unregister subscriber (id=%d) from kernel.", id_);
+    }
+    remove_mq(mq_subscription_);
+  }
 };
 
 template <typename MessageT>

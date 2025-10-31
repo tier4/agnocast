@@ -118,6 +118,13 @@ public:
 
   ~Publisher()
   {
+    struct ioctl_remove_publisher_args remove_publisher_args = {};
+    remove_publisher_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_publisher_args.publisher_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_PUBLISHER_CMD, &remove_publisher_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to unregister publisher (id=%d) from kernel.", id_);
+    }
+
     MqMsgROS2Publish mq_msg = {};
     mq_msg.should_terminate = true;
     if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {

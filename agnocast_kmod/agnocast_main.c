@@ -1437,6 +1437,86 @@ static int get_active_proc_num(const struct ipc_namespace * ipc_ns)
   return count;
 }
 
+static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en);
+
+static int remove_subscriber(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t subscriber_id)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    return -EINVAL;
+  }
+
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    return -ENODATA;
+  }
+
+  hash_del(&sub_info->node);
+  kfree(sub_info->node_name);
+  kfree(sub_info);
+
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node;
+  for (node = rb_first(root); node; node = rb_next(node)) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+      if (en->referencing_ids[i] == subscriber_id) {
+        remove_reference_by_index(en, i);
+        break;
+      }
+    }
+  }
+
+  dev_info(
+    agnocast_device, "Subscriber (id=%d) removed from topic %s.\n", subscriber_id, topic_name);
+  return 0;
+}
+
+static int remove_publisher(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t publisher_id)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    return -EINVAL;
+  }
+
+  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    return -ENODATA;
+  }
+
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  while (node) {
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+
+    if (en->publisher_id != publisher_id) continue;
+
+    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+      if (en->referencing_ids[i] == publisher_id) {
+        remove_reference_by_index(en, i);
+        break;
+      }
+    }
+
+    if (!is_referenced(en)) {
+      pub_info->entries_num--;
+      remove_entry_node(wrapper, en);
+    }
+  }
+
+  if (pub_info->entries_num == 0) {
+    hash_del(&pub_info->node);
+    kfree(pub_info->node_name);
+    kfree(pub_info);
+  }
+
+  dev_info(agnocast_device, "Publisher (id=%d) removed from topic %s.\n", publisher_id, topic_name);
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1786,6 +1866,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     struct ioctl_get_active_process_num_args args;
     args.ret_active_process_num = get_active_proc_num(ipc_ns);
     if (copy_to_user((void __user *)arg, &args, sizeof(args))) goto return_EFAULT;
+  } else if (cmd == AGNOCAST_REMOVE_SUBSCRIBER_CMD) {
+    struct ioctl_remove_subscriber_args args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&args, (void __user *)arg, sizeof(args))) goto return_EFAULT;
+    if (strncpy_from_user(topic_name_buf, args.topic_name.ptr, TOPIC_NAME_BUFFER_SIZE) < 0)
+      goto return_EFAULT;
+    ret = remove_subscriber(topic_name_buf, ipc_ns, args.subscriber_id);
+  } else if (cmd == AGNOCAST_REMOVE_PUBLISHER_CMD) {
+    struct ioctl_remove_publisher_args args;
+    char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
+    if (copy_from_user(&args, (void __user *)arg, sizeof(args))) goto return_EFAULT;
+    if (strncpy_from_user(topic_name_buf, args.topic_name.ptr, TOPIC_NAME_BUFFER_SIZE) < 0)
+      goto return_EFAULT;
+    ret = remove_publisher(topic_name_buf, ipc_ns, args.publisher_id);
   } else {
     goto return_EINVAL;
   }
