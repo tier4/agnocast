@@ -14,7 +14,7 @@ struct MqMsgROS2Publish
   bool should_terminate;
 };
 
-enum class BridgeDirection { ROS2_TO_AGNOCAST, AGNOCAST_TO_ROS2 };
+enum class BridgeDirection { ROS2_TO_AGNOCAST, AGNOCAST_TO_ROS2, BIDIRECTIONAL };
 
 struct BridgeRequest
 {

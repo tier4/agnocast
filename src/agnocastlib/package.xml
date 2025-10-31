@@ -27,6 +27,7 @@
   <depend>tracetools</depend>
   <depend>liblttng-ust-dev</depend>
   <depend>ament_index_cpp</depend>
+  <depend>yaml-cpp</depend>
 
   <!-- Add your custom message here if you have one.-->
   <depend>agnocast_sample_interfaces</depend> 
