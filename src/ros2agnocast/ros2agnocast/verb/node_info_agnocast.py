@@ -8,17 +8,16 @@ from ros2topic.api import get_topic_names_and_types
 from ros2node.verb import VerbExtension
 
 def service_name_from_request_topic(topic_name):
-    # The logic depends on the `create_service_request_topic_name` function from agnocastlib.
-    suffix = '_request'
-    if not topic_name.endswith(suffix):
+    prefix = '/AGNOCAST_SRV_REQUEST'
+    if not topic_name.startswith(prefix):
         return None
-    return topic_name[:-len(suffix)]
+    return topic_name[len(prefix):]
 
 def service_name_from_response_topic(topic_name):
-    # The logic depends on the `create_service_response_topic_name` function from agnocastlib.
-    if not '_response_' in topic_name:
+    prefix = '/AGNOCAST_SRV_RESPONSE'
+    if not topic_name.startswith(prefix):
         return None
-    return topic_name.split('_response_')[0]
+    return topic_name[len(prefix):].split('_SEP_')[0]
 
 class NodeInfoAgnocastVerb(VerbExtension):
     "Output information about a node including Agnocast"
@@ -47,9 +46,13 @@ class NodeInfoAgnocastVerb(VerbExtension):
 
             node_name_bytes = args.node_name.encode('utf-8')
 
+            # Topic names of the owned Agnocast subscribers
             agnocast_subscribers = []
+            # Topic names of the owned Agnocast publishers
             agnocast_publishers = []
+            # Service names of the owned Agnocast servers
             agnocast_servers = []
+            # Service names of the owned Agnocast clients
             agnocast_clients = []
 
             sub_topic_count = ctypes.c_int()
@@ -77,11 +80,15 @@ class NodeInfoAgnocastVerb(VerbExtension):
             for i in range(pub_topic_count.value):
                 topic_ptr = ctypes.cast(pub_topic_array[i], ctypes.c_char_p)
                 topic_name = topic_ptr.value.decode('utf-8')
+
+                # Skip topic names used by services.
+                # They have already been accounted for during the subscription topic scan.
                 if (
                     service_name_from_request_topic(topic_name) is not None
                     or service_name_from_response_topic(topic_name) is not None
                 ):
                     continue
+
                 agnocast_publishers.append(topic_name)
             if sub_topic_count.value != 0:
                 lib.free_agnocast_topics(pub_topic_array, pub_topic_count)

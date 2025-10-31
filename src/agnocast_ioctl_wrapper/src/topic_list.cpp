@@ -14,30 +14,13 @@
 namespace
 {
 
-bool is_service_request_topic(const std::string & topic_name)
-{
-  // The logic depends on the `create_service_request_topic_name` function from agnocastlib.
-  const std::string suffix = "_request";
-  if (topic_name.size() < suffix.size()) {
-    return false;
-  }
-  return topic_name.substr(topic_name.size() - suffix.size()) == suffix;
-}
-
-bool is_service_response_topic(const std::string & topic_name)
-{
-  // The logic depends on the `create_service_response_topic_name` function from agnocastlib.
-  const std::string substr = "_response_";
-  if (topic_name.find(substr) == std::string::npos) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
 bool is_service_topic(const std::string & topic_name)
 {
-  return is_service_request_topic(topic_name) || is_service_response_topic(topic_name);
+  const std::string prefix = "/AGNOCAST_SRV_";
+  if (topic_name.size() < prefix.size()) {
+    return false;
+  }
+  return topic_name.compare(0, prefix.size(), prefix) == 0;
 }
 
 std::tuple<int, std::vector<std::string>> get_agnocast_topics()
