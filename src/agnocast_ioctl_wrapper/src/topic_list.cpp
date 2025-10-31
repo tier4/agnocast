@@ -71,7 +71,7 @@ std::vector<std::string> get_ros2_topics()
     [](const auto & pair) { return pair.first; });
 
   rclcpp::shutdown();
-  return std::move(ros2_topics);
+  return ros2_topics;
 }
 
 }  // namespace
