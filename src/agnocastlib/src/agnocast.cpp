@@ -384,6 +384,8 @@ void bridge_manager_daemon()
     exit(EXIT_FAILURE);
   }
 
+  signal(SIGINT, SIG_IGN);
+
   std::vector<std::thread> worker_threads;
   std::vector<ActiveBridgeR2A> active_r2a_bridges;
   std::vector<ActiveBridgeA2R> active_a2r_bridges;
