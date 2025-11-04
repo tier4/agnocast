@@ -90,7 +90,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
                     continue
 
                 agnocast_publishers.append(topic_name)
-            if sub_topic_count.value != 0:
+            if pub_topic_count.value != 0:
                 lib.free_agnocast_topics(pub_topic_array, pub_topic_count)
 
 
@@ -105,7 +105,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
             # ======== Subscribers ========
             print("  Subscribers:")
             for sub in subscribers:
-                if sub in agnocast_subscribers:
+                if sub.name in agnocast_subscribers:
                     print(f"    {sub.name}: {', '.join(sub.types)} (Agnocast enabled)")
                 else:
                     print(f"    {sub.name}: {', '.join(sub.types)}")

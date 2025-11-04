@@ -7,8 +7,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <optional>
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace
@@ -23,12 +23,12 @@ bool is_service_topic(const std::string & topic_name)
   return topic_name.compare(0, prefix.size(), prefix) == 0;
 }
 
-std::tuple<int, std::vector<std::string>> get_agnocast_topics()
+std::optional<std::vector<std::string>> get_agnocast_topics()
 {
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
-    return {-1, {}};
+    return std::nullopt;
   }
 
   std::array<char, MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE> agnocast_topic_buffer{};
@@ -38,12 +38,12 @@ std::tuple<int, std::vector<std::string>> get_agnocast_topics()
   if (ioctl(fd, AGNOCAST_GET_TOPIC_LIST_CMD, &topic_list_args) < 0) {
     perror("AGNOCAST_GET_TOPIC_LIST_CMD failed");
     close(fd);
-    return {-1, {}};
+    return std::nullopt;
   }
 
   std::vector<std::string> agnocast_topics;
   agnocast_topics.reserve(topic_list_args.ret_topic_num);
-  for (size_t i = 0; i < topic_list_args.ret_topic_num; ++i) {
+  for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
     std::string topic_name = agnocast_topic_buffer.data() + i * TOPIC_NAME_BUFFER_SIZE;
     // Filter out topics used for service/client.
     if (!is_service_topic(topic_name)) {
@@ -52,7 +52,7 @@ std::tuple<int, std::vector<std::string>> get_agnocast_topics()
   }
 
   close(fd);
-  return {0, std::move(agnocast_topics)};
+  return agnocast_topics;
 }
 
 std::vector<std::string> get_ros2_topics()
@@ -78,10 +78,11 @@ std::vector<std::string> get_ros2_topics()
 
 extern "C" int topic_list()
 {
-  auto [code, agnocast_topics] = get_agnocast_topics();
-  if (code == -1) {
+  std::optional<std::vector<std::string>> agnocast_topics_opt = get_agnocast_topics();
+  if (!agnocast_topics_opt.has_value()) {
     return -1;
   }
+  std::vector<std::string> & agnocast_topics = agnocast_topics_opt.value();
 
   auto ros2_topics = get_ros2_topics();
 
@@ -91,18 +92,18 @@ extern "C" int topic_list()
   std::sort(agnocast_topics.begin(), agnocast_topics.end());
   std::sort(ros2_topics.begin(), ros2_topics.end());
 
-  int agnocast_topic_index = 0;
-  int ros2_topic_index = 0;
+  size_t agnocast_topic_index = 0;
+  size_t ros2_topic_index = 0;
   while (agnocast_topic_index < agnocast_topics.size() || ros2_topic_index < ros2_topics.size()) {
     if (agnocast_topic_index == agnocast_topics.size()) {
-      for (int i = ros2_topic_index; i < ros2_topics.size(); i++) {
+      for (size_t i = ros2_topic_index; i < ros2_topics.size(); i++) {
         std::cout << ros2_topics[i] << std::endl;
       }
       break;
     }
 
     if (ros2_topic_index == ros2_topics.size()) {
-      for (int i = agnocast_topic_index; i < agnocast_topics.size(); i++) {
+      for (size_t i = agnocast_topic_index; i < agnocast_topics.size(); i++) {
         std::cout << agnocast_topics[i] << " (Agnocast enabled)" << std::endl;
       }
       break;
