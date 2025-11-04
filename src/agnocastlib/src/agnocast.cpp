@@ -188,8 +188,42 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
 
   if (executor_type == "multi") {
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using MultiThreadedAgnocastExecutor.");
-    // std::make_unique<...>(4))
-    executor = std::make_unique<agnocast::MultiThreadedAgnocastExecutor>();
+    size_t num_threads = 0;
+    const char * thread_num_env = getenv("AGNOCAST_MULTI_THREAD_NUM");
+
+    if (thread_num_env) {
+      try {
+        num_threads = std::stoul(thread_num_env);
+      } catch (const std::invalid_argument & e) {
+        RCLCPP_WARN(
+          logger,
+          "[BRIDGE MANAGER DAEMON] Invalid AGNOCAST_MULTI_THREAD_NUM. Using hardware concurrency.");
+      } catch (const std::out_of_range & e) {
+        RCLCPP_WARN(
+          logger,
+          "[BRIDGE MANAGER DAEMON] AGNOCAST_MULTI_THREAD_NUM out of range. Using hardware "
+          "concurrency.");
+      }
+    }
+
+    if (num_threads == 0) {
+      num_threads = std::thread::hardware_concurrency();
+      if (num_threads == 0) {
+        RCLCPP_WARN(
+          logger,
+          "[BRIDGE MANAGER DAEMON] Could not detect hardware concurrency. Defaulting to 4 "
+          "threads.");
+        num_threads = 4;
+      }
+      RCLCPP_INFO(
+        logger, "[BRIDGE MANAGER DAEMON] Using default hardware concurrency: %zu threads",
+        num_threads);
+    }
+
+    RCLCPP_INFO(
+      logger, "[BRIDGE MANAGER DAEMON] Using MultiThreadedAgnocastExecutor with %zu threads.",
+      num_threads);
+    executor = std::make_unique<agnocast::MultiThreadedAgnocastExecutor>(num_threads);
   } else if (executor_type == "isolated") {
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using CallbackIsolatedAgnocastExecutor.");
     executor = std::make_unique<agnocast::CallbackIsolatedAgnocastExecutor>();
