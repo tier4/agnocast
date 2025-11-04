@@ -601,112 +601,207 @@ mod tests {
 
     #[test]
     fn test_malloc_normal() {
-        // Arrange
-        let malloc_size = 1024;
+        let sizes = (1..=MIN_ALIGN * 2).filter(|x| x.is_power_of_two());
 
-        // Act
-        let ptr = unsafe { libc::malloc(malloc_size) };
+        for size in sizes {
+            let ptr = unsafe { libc::malloc(size) } as *mut u8;
 
-        // Assert
-        assert!(!ptr.is_null(), "allocated memory should not be null");
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+        }
+    }
+
+    #[test]
+    fn test_malloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::malloc(0) };
+    }
+
+    #[test]
+    fn test_malloc_with_excessive_size() {
         assert!(
-            is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            unsafe { libc::malloc(usize::MAX) }.is_null(),
+            "malloc should return NULL if the requested size is excessively large."
         );
-
-        unsafe { libc::free(ptr) };
     }
 
     #[test]
     fn test_calloc_normal() {
-        // Arrange
-        let elements = 4;
-        let element_size = 256;
-        let calloc_size = elements * element_size;
+        let obj_sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let obj_nums = [1, 2];
 
-        // Act
-        let ptr = unsafe { libc::calloc(elements, element_size) };
+        for obj_size in obj_sizes {
+            for obj_num in obj_nums {
+                let total_size = obj_size * obj_num;
 
-        // Assert
-        assert!(!ptr.is_null(), "calloc must not return NULL");
-        assert!(
-            is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
-        );
+                let ptr = unsafe { libc::calloc(obj_num, obj_size) };
+                assert!(!ptr.is_null());
+                assert!(is_shared(ptr.cast()));
 
-        unsafe {
-            for i in 0..calloc_size {
-                let byte = *((ptr as *const u8).add(i));
-                assert_eq!(byte, 0, "memory should be zero-initialized");
+                // Is it possible to relax the constraint by replacing `total_size` with `obj_size`?
+                let alignment = if total_size <= MIN_ALIGN {
+                    total_size
+                } else {
+                    MIN_ALIGN
+                };
+
+                assert!(
+                    ptr as usize % alignment == 0,
+                    "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+                );
+
+                for i in 0..total_size {
+                    let val = unsafe { *(ptr as *mut u8).byte_add(i) };
+                    assert!(val == 0, "The allocated memory must be zero-initialized.");
+                }
             }
         }
+    }
 
-        unsafe { libc::free(ptr) };
+    #[test]
+    fn test_calloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::calloc(0, 1) };
+        let _ = unsafe { libc::calloc(1, 0) };
+    }
+
+    #[test]
+    fn test_calloc_with_overflow_size() {
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 2) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 2) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
     }
 
     #[test]
     fn test_realloc_normal() {
-        // Arrange
-        let malloc_size = 512;
-        let realloc_size = 1024;
+        let old_size = MIN_ALIGN;
+        let new_size = old_size * 2;
 
-        let ptr = unsafe { libc::malloc(malloc_size) };
-        assert!(!ptr.is_null(), "allocated memory should not be null");
+        let old_ptr = unsafe { libc::malloc(old_size) };
+        assert!(!old_ptr.is_null());
+        assert!(is_shared(old_ptr.cast()));
 
-        unsafe {
-            for i in 0..malloc_size {
-                *((ptr as *mut u8).add(i)) = (i % 255) as u8;
-            }
+        for i in 0..old_size {
+            unsafe { *((old_ptr as *mut u8).byte_add(i)) = i as u8 };
         }
 
-        // Act
-        let new_ptr = unsafe { libc::realloc(ptr, realloc_size) };
+        let new_ptr = unsafe { libc::realloc(old_ptr, new_size) };
+        assert!(!new_ptr.is_null());
+        assert!(is_shared(new_ptr.cast()));
 
-        // Assert
-        assert!(!new_ptr.is_null(), "realloc must not return NULL");
+        let copy_size = new_size.min(old_size);
+        for i in 0..copy_size {
+            let val = unsafe { *(new_ptr as *mut u8).byte_add(i) };
+            assert!(val == i as u8, "The contents of the new object shall be the same as that of the old object up to the lesser of the new and old sizes.");
+        }
+    }
+
+    #[test]
+    fn test_realloc_with_null_pointer() {
+        // If the pointer with `NULL`, `realloc` bahaves like `malloc`.
+
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::realloc(ptr::null_mut(), 0) };
+
+        let sizes = (1..=MIN_ALIGN * 2).filter(|x| x.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::malloc(size) } as *mut u8;
+
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+        }
+    }
+
+    #[test]
+    fn test_realloc_with_excessive_size() {
         assert!(
-            is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            unsafe { libc::realloc(ptr::null_mut(), usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
         );
 
-        unsafe {
-            for i in 0..malloc_size {
-                assert_eq!(
-                    *((new_ptr as *const u8).add(i)),
-                    (i % 255) as u8,
-                    "realloc should preserve original data"
-                );
-            }
-        }
-
-        unsafe { libc::free(new_ptr) };
+        let ptr = unsafe { libc::malloc(1) };
+        assert!(!ptr.is_null());
+        assert!(
+            unsafe { libc::realloc(ptr, usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
+        );
     }
 
     #[test]
     fn test_posix_memalign_normal() {
-        // Arrange
-        let alignment = 64;
-        let size = 512;
-        let mut ptr: *mut c_void = std::ptr::null_mut();
+        let alignment = size_of::<*mut c_void>();
+        let sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
 
-        // Act
-        let r = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
+        // NOTE:
+        // Unlike `aligned_alloc`, `posix_memalign` only needs to satisfy the specified alignment requirement.
+        // That is, for example, when the size is 16 and the alignment is 8, it is allowed to return an 8 byte-aligned pointer.
+        // `aligned_alloc`, on the other hand, must return a 16-byte aligned pointer even in this case.
+        for size in sizes {
+            let mut ptr = ptr::null_mut();
+            let result = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
+            assert!(result == 0);
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+            assert!(
+                ptr as usize % alignment == 0,
+                "The pointer must satisfy the specified alignment requirement."
+            );
+        }
+    }
 
-        // Assert
-        assert_eq!(r, 0, "posix_memalign should return 0 on success");
+    #[test]
+    fn test_posix_memalign_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let mut ptr: *mut c_void = ptr::null_mut();
+        let _ = unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), 0) };
+    }
 
-        assert!(!ptr.is_null(), "posix_memalign must not return NULL");
-        assert!(
-            is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
-        );
+    #[test]
+    fn test_posix_memalign_with_invalid_alignment() {
+        let mut ptr: *mut c_void = ptr::null_mut();
+
         assert_eq!(
-            ptr as usize % alignment,
-            0,
-            "posix_memalign memory should be aligned to the specified boundary"
+            unsafe { libc::posix_memalign(&mut ptr, 0, 1) },
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a power of two"
         );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer must eihter remain unchanged or be NULL.");
 
-        unsafe { libc::free(ptr) };
+        assert_eq!(
+            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 1)},
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer must eihter remain unchanged or be NULL.");
+    }
+
+    #[test]
+    fn test_posix_memalign_with_excessive_size() {
+        let mut ptr: *mut c_void = ptr::null_mut();
+        assert_eq!(
+            unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), usize::MAX) },
+            libc::ENOMEM,
+            "posix_memalign should return ENOMEM if the requested size is excessively large."
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer must eihter remain unchanged or be NULL.");
     }
 
     #[test]
@@ -738,133 +833,71 @@ mod tests {
                 ptr as usize % alignment == 0,
                 "the pointer must be aligned to the requested alignment."
             );
-            unsafe { libc::free(ptr) };
         }
     }
 
     #[test]
-    fn test_memalign_normal() {
-        // Arrange
-        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-        let sizes = [10, 32, 100, 512, 1000, 4096];
-
-        for &alignment in &alignments {
-            for &size in &sizes {
-                // Act
-                let ptr = unsafe { libc::memalign(alignment, size) };
-
-                // Assert
-                assert!(!ptr.is_null(), "memalign must not return NULL");
-                assert!(
-                    is_shared(ptr.cast()),
-                    "allocated memory should be within pool bounds"
-                );
-                assert_eq!(
-                    ptr as usize % alignment,
-                    0,
-                    "memalign memory should be aligned to the specified boundary"
-                );
-                unsafe { libc::free(ptr) };
-            }
-        }
+    fn test_aligned_alloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::aligned_alloc(1, 0) };
     }
 
     #[test]
-    fn test_memory_limit() {
-        // Arrange
-        let huge_size = isize::MAX as usize;
-        let alignment = 64;
-        let mut posix_ptr: *mut c_void = std::ptr::null_mut();
-        let normal_ptr = unsafe { libc::malloc(1024) };
-
-        // Act & Assert
+    fn test_aligned_alloc_with_invalid_alignment() {
         assert!(
-            unsafe { libc::malloc(huge_size) }.is_null(),
-            "malloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::calloc(huge_size, 1) }.is_null(),
-            "calloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::aligned_alloc(alignment, huge_size) }.is_null(),
-            "aligned_alloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::memalign(alignment, huge_size) }.is_null(),
-            "memalign should return NULL for huge size"
-        );
-
-        // Act
-        let result = unsafe { libc::posix_memalign(&mut posix_ptr, alignment, huge_size) };
-
-        // Assert
-        assert_eq!(
-            result,
-            libc::ENOMEM,
-            "posix_memalign should return ENOMEM for huge size"
-        );
-        assert!(
-            posix_ptr.is_null(),
-            "posix_memalign should not set pointer on failure"
-        );
-
-        // Act
-        let realloc_ptr = unsafe { libc::realloc(normal_ptr, huge_size) };
-
-        // Assert
-        assert!(
-            realloc_ptr.is_null(),
-            "realloc should return NULL for huge size"
-        );
-        if realloc_ptr.is_null() {
-            unsafe { libc::free(normal_ptr) };
-        } else {
-            unsafe { libc::free(realloc_ptr) };
-        }
-    }
-
-    #[test]
-    fn test_posix_memalign_should_fail() {
-        let mut ptr: *mut c_void = ptr::null_mut();
-
-        assert_eq!(
-            unsafe { libc::posix_memalign(&mut ptr, 0, 8) },
-            libc::EINVAL,
-            "posix_memalign should return EINVAL if the alignment is not a power of two"
-        );
-
-        assert_eq!(
-            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 8)},
-            libc::EINVAL,
-            "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
-        );
-    }
-
-    #[test]
-    fn test_aligned_alloc_should_fail() {
-        assert_eq!(
-            unsafe { libc::aligned_alloc(0, 8) },
-            ptr::null_mut(),
+            unsafe { libc::aligned_alloc(0, 8) }.is_null(),
             "aligned_alloc should return NULL if the alignment is not a power of two"
         );
 
-        assert_eq!(
-            unsafe { libc::aligned_alloc(2, 7) },
-            ptr::null_mut(),
+        assert!(
+            unsafe { libc::aligned_alloc(2, 7) }.is_null(),
             "aligned_alloc should return NULL if the size is not a multiple of the alignment"
         );
     }
 
     #[test]
-    fn test_memalign_should_fail() {
-        assert_eq!(
-            unsafe { libc::memalign(0, 8) },
-            ptr::null_mut(),
+    fn test_aligned_alloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::aligned_alloc(1, usize::MAX) }.is_null(),
+            "aligned_alloc should return NULL if the requested size is excessively large."
+        );
+    }
+
+    #[test]
+    fn test_memalign_normal() {
+        // Assume that alignmets up to 2048 are supported. This assumption may change in the future.
+        let alignments = (1..4096usize).filter(|x| x.is_power_of_two());
+        let size = MIN_ALIGN;
+
+        // NOTE:
+        // `memalign` is already obsolute, and C23 does not define its behavior.
+        // Therefore, it is unclear wheter `memalign` should satisfy the same alignment constaints as `aligned_alloc`.
+        // Currently, this constraint is not required, and `memalign` only checks that the alignment is a power of two.
+        // This behavior may change in the future.
+        for alignment in alignments {
+            let ptr = unsafe { libc::memalign(alignment, size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be aligned to the requested alignment."
+            );
+        }
+    }
+
+    #[test]
+    fn test_memalign_with_invalid_alignment() {
+        assert!(
+            unsafe { libc::memalign(0, 8) }.is_null(),
             "memalign should return NULL if the alignment is not a power of two"
+        );
+    }
+
+    #[test]
+    fn test_memalign_with_excessive_size() {
+        assert!(
+            unsafe { libc::memalign(1, usize::MAX) }.is_null(),
+            "memalign should return NULL if the requested size is excessively large."
         );
     }
 }
