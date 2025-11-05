@@ -8,6 +8,7 @@
 #include <ament_index_cpp/get_package_prefix.hpp>
 
 #include <dlfcn.h>
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <yaml-cpp/yaml.h>
 
@@ -195,11 +196,11 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
       try {
         num_threads = std::stoul(thread_num_env);
       } catch (const std::invalid_argument & e) {
-        RCLCPP_WARN(
+        RCLCPP_ERROR(
           logger,
           "[BRIDGE MANAGER DAEMON] Invalid AGNOCAST_MULTI_THREAD_NUM. Using hardware concurrency.");
       } catch (const std::out_of_range & e) {
-        RCLCPP_WARN(
+        RCLCPP_ERROR(
           logger,
           "[BRIDGE MANAGER DAEMON] AGNOCAST_MULTI_THREAD_NUM out of range. Using hardware "
           "concurrency.");
@@ -209,7 +210,7 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
     if (num_threads == 0) {
       num_threads = std::thread::hardware_concurrency();
       if (num_threads == 0) {
-        RCLCPP_WARN(
+        RCLCPP_ERROR(
           logger,
           "[BRIDGE MANAGER DAEMON] Could not detect hardware concurrency. Defaulting to 4 "
           "threads.");
@@ -223,7 +224,8 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
     RCLCPP_INFO(
       logger, "[BRIDGE MANAGER DAEMON] Using MultiThreadedAgnocastExecutor with %zu threads.",
       num_threads);
-    executor = std::make_unique<agnocast::MultiThreadedAgnocastExecutor>(num_threads);
+    rclcpp::ExecutorOptions options;
+    executor = std::make_unique<agnocast::MultiThreadedAgnocastExecutor>(options, num_threads);
   } else if (executor_type == "isolated") {
     RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Using CallbackIsolatedAgnocastExecutor.");
     executor = std::make_unique<agnocast::CallbackIsolatedAgnocastExecutor>();
@@ -666,47 +668,56 @@ void bridge_manager_daemon()
     executor->spin();
   });
 
+  int epoll_fd = epoll_create1(0);
+  if (epoll_fd == -1) {
+    RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.fd = mq;
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mq, &ev) == -1) {
+    RCLCPP_ERROR(logger, "epoll_ctl failed to add mq: %s", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  constexpr int MAX_EVENTS = 10;
+  struct epoll_event events[MAX_EVENTS];
+
   while (rclcpp::ok()) {
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(mq, &fds);
+    int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
 
-    int max_fd = static_cast<int>(mq) + 1;
-
-    struct timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-
-    int ret = select(max_fd, &fds, NULL, NULL, &timeout);
-
-    if (ret < 0) {
+    if (num_events < 0) {
       if (errno == EINTR) continue;
-      RCLCPP_ERROR(logger, "select() failed: %s", strerror(errno));
+      RCLCPP_ERROR(logger, "epoll_wait() failed: %s", strerror(errno));
       break;
     }
 
     if (g_reload_filter_request.load()) {
       g_reload_filter_request.store(false);
-      RCLCPP_INFO(logger, "SIGHUP received, reloading and updating bridges...");
       reload_and_update_bridges(
         node, bridge_config, active_r2a_bridges, active_a2r_bridges, worker_threads, bridge_mutex);
     }
 
-    if (ret == 0) {
+    if (num_events == 0) {
       check_and_shutdown_idle_bridges(logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
       check_and_shutdown_daemon_if_idle(
         logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
-      continue;
     }
 
-    if (FD_ISSET(mq, &fds)) {
-      check_and_shutdown_idle_bridges(logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
-      handle_bridge_request(
-        mq, node, bridge_config, active_r2a_bridges, active_a2r_bridges, worker_threads,
-        bridge_mutex);
+    for (int i = 0; i < num_events; i++) {
+      if (events[i].data.fd == mq) {
+        check_and_shutdown_idle_bridges(
+          logger, active_r2a_bridges, active_a2r_bridges, bridge_mutex);
+        handle_bridge_request(
+          mq, node, bridge_config, active_r2a_bridges, active_a2r_bridges, worker_threads,
+          bridge_mutex);
+      }
     }
   }
 
+  close(epoll_fd);
   shutdown_manager(
     spin_thread, worker_threads, active_r2a_bridges, active_a2r_bridges, mq, mq_name_str);
   exit(0);
