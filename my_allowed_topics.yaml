@@ -1,7 +1,0 @@
-agnocast_sample_interfaces/msg/DynamicSizeArray:
-  bidirectional:
-    - /my_topic
-  # a2r:
-  #   - /my_topic
-  # r2a:
-  #   - /my_topic

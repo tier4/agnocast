@@ -174,13 +174,6 @@ void launch_a2r_bridge_thread(
   }
 }
 
-struct BridgeConfigEntry
-{
-  std::string topic_name;
-  std::string message_type;
-  BridgeDirection direction;
-};
-
 std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
 {
   std::unique_ptr<rclcpp::Executor> executor;
@@ -237,8 +230,111 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
   return executor;
 }
 
+struct BridgeConfigEntry
+{
+  std::string topic_name;
+  std::string message_type;
+  BridgeDirection direction;
+};
+
+enum class FilterMode { ALLOW_ALL, BLACKLIST, WHITELIST };
+
+struct BridgeConfig
+{
+  std::vector<BridgeConfigEntry> rules;
+  FilterMode mode = FilterMode::ALLOW_ALL;
+};
+
+BridgeConfig parse_bridge_config(rclcpp::Logger logger)
+{
+  BridgeConfig config;
+  const char * file_path = getenv("AGNOCAST_BRIDGE_FILTER_FILE");
+  if (!file_path) {
+    config.mode = FilterMode::ALLOW_ALL;
+    return config;
+  }
+
+  YAML::Node yaml_doc;
+  try {
+    yaml_doc = YAML::LoadFile(file_path);
+  } catch (const YAML::Exception & e) {
+    RCLCPP_ERROR(logger, "Failed to parse YAML filter file '%s': %s", file_path, e.what());
+    config.mode = FilterMode::ALLOW_ALL;
+    return config;
+  }
+
+  if (yaml_doc["filter_mode"] && yaml_doc["filter_mode"].IsScalar()) {
+    std::string mode_str = yaml_doc["filter_mode"].as<std::string>();
+    if (mode_str == "whitelist") {
+      config.mode = FilterMode::WHITELIST;
+      RCLCPP_INFO(logger, "Filter mode set to WHITELIST.");
+    } else {
+      config.mode = FilterMode::BLACKLIST;
+      RCLCPP_INFO(logger, "Filter mode set to BLACKLIST.");
+    }
+  } else {
+    config.mode = FilterMode::BLACKLIST;
+  }
+
+  if (!yaml_doc["rules"] || !yaml_doc["rules"].IsMap()) {
+    RCLCPP_ERROR(logger, "No valid rules found in filter file '%s'.", file_path);
+    return config;
+  }
+
+  YAML::Node rules = yaml_doc["rules"];
+  for (const auto & msg_type_pair : rules) {
+    if (!msg_type_pair.first.IsScalar() || !msg_type_pair.second.IsMap()) {
+      RCLCPP_ERROR(logger, "Skipping invalid rule structure (expected MsgType -> Map).");
+      continue;
+    }
+
+    std::string message_type = msg_type_pair.first.as<std::string>();
+    YAML::Node direction_map = msg_type_pair.second;
+
+    for (const auto & direction_pair : direction_map) {
+      if (!direction_pair.first.IsScalar() || !direction_pair.second.IsSequence()) {
+        RCLCPP_ERROR(logger, "Skipping invalid rule structure (expected Direction -> List).");
+        continue;
+      }
+
+      std::string direction_str = direction_pair.first.as<std::string>();
+      YAML::Node topic_list = direction_pair.second;
+
+      BridgeDirection direction_enum;
+      if (direction_str == "r2a") {
+        direction_enum = BridgeDirection::ROS2_TO_AGNOCAST;
+      } else if (direction_str == "a2r") {
+        direction_enum = BridgeDirection::AGNOCAST_TO_ROS2;
+      } else if (direction_str == "bidirectional") {
+        direction_enum = BridgeDirection::BIDIRECTIONAL;
+      } else {
+        RCLCPP_ERROR(logger, "Skipping unknown direction key: %s", direction_str.c_str());
+        continue;
+      }
+
+      for (const auto & topic_node : topic_list) {
+        if (!topic_node.IsScalar()) {
+          RCLCPP_ERROR(logger, "Skipping invalid topic name (not a scalar).");
+          continue;
+        }
+
+        std::string topic_name = topic_node.as<std::string>();
+
+        BridgeConfigEntry entry;
+        entry.topic_name = topic_name;
+        entry.message_type = message_type;
+        entry.direction = direction_enum;
+
+        config.rules.push_back(entry);
+      }
+    }
+  }
+
+  return config;
+}
+
 void handle_bridge_request(
-  mqd_t mq, rclcpp::Node::SharedPtr node, std::vector<BridgeConfigEntry> & bridge_config,
+  mqd_t mq, rclcpp::Node::SharedPtr node, BridgeConfig & bridge_config,
   std::vector<ActiveBridgeR2A> & active_r2a_bridges,
   std::vector<ActiveBridgeA2R> & active_a2r_bridges, std::vector<std::thread> & worker_threads,
   std::mutex & bridge_mutex)
@@ -246,24 +342,39 @@ void handle_bridge_request(
   BridgeRequest req;
   if (mq_receive(mq, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
     bool is_allowed = false;
-    if (bridge_config.empty()) {
-      is_allowed = true;
-    } else {
-      for (const auto & entry : bridge_config) {
-        if (
-          entry.topic_name == std::string(req.topic_name) &&
-          entry.message_type == std::string(req.message_type) && entry.direction == req.direction) {
-          is_allowed = true;
-          break;
-        }
 
-        if (
-          entry.topic_name == std::string(req.topic_name) &&
-          entry.message_type == std::string(req.message_type) &&
-          entry.direction == BridgeDirection::BIDIRECTIONAL) {
-          is_allowed = true;
-          break;
+    switch (bridge_config.mode) {
+      case FilterMode::ALLOW_ALL:
+        is_allowed = true;
+        break;
+      case FilterMode::WHITELIST: {
+        is_allowed = false;
+        for (const auto & entry : bridge_config.rules) {
+          if (
+            entry.topic_name == std::string(req.topic_name) &&
+            entry.message_type == std::string(req.message_type) &&
+            (entry.direction == req.direction ||
+             entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+            is_allowed = true;
+            break;
+          }
         }
+        break;
+      }
+
+      case FilterMode::BLACKLIST: {
+        is_allowed = true;
+        for (const auto & entry : bridge_config.rules) {
+          if (
+            entry.topic_name == std::string(req.topic_name) &&
+            entry.message_type == std::string(req.message_type) &&
+            (entry.direction == req.direction ||
+             entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+            is_allowed = false;
+            break;
+          }
+        }
+        break;
       }
     }
 
@@ -420,201 +531,199 @@ void sighup_handler(int signum)
   }
 }
 
-std::vector<BridgeConfigEntry> parse_bridge_config(rclcpp::Logger logger)
-{
-  std::vector<BridgeConfigEntry> config_entries;
-  const char * file_path = getenv("AGNOCAST_BRIDGE_FILTER_FILE");
-  if (!file_path) {
-    return config_entries;
-  }
-
-  YAML::Node config;
-  try {
-    config = YAML::LoadFile(file_path);
-  } catch (const YAML::Exception & e) {
-    RCLCPP_ERROR(logger, "Failed to parse YAML filter file '%s': %s", file_path, e.what());
-    return {};
-  }
-
-  if (!config.IsMap()) {
-    RCLCPP_ERROR(logger, "Invalid YAML format in '%s': Top level must be a map.", file_path);
-    return {};
-  }
-
-  for (auto const & msg_type_node : config) {
-    const std::string msg_type = msg_type_node.first.as<std::string>();
-    const YAML::Node directions_node = msg_type_node.second;
-
-    if (!directions_node.IsMap()) {
-      RCLCPP_ERROR(
-        logger, "Skipping invalid entry for '%s': value must be a map of directions.",
-        msg_type.c_str());
-      continue;
-    }
-
-    std::set<std::string> processed_topics;
-
-    for (auto const & dir_node : directions_node) {
-      const std::string direction_key = dir_node.first.as<std::string>();
-      const YAML::Node topics_node = dir_node.second;
-
-      if (!topics_node.IsSequence()) {
-        RCLCPP_ERROR(
-          logger, "Skipping invalid direction '%s' for '%s': value must be a list of topics.",
-          direction_key.c_str(), msg_type.c_str());
-        continue;
-      }
-
-      for (auto const & topic_node : topics_node) {
-        const std::string topic_name = topic_node.as<std::string>();
-
-        if (processed_topics.count(topic_name)) {
-          RCLCPP_ERROR(
-            logger,
-            "Conflicting definition for topic '%s' under message type '%s'. Ignoring duplicate.",
-            topic_name.c_str(), msg_type.c_str());
-          continue;
-        }
-        processed_topics.insert(topic_name);
-
-        if (direction_key == "bidirectional") {
-          config_entries.push_back({topic_name, msg_type, BridgeDirection::ROS2_TO_AGNOCAST});
-          config_entries.push_back({topic_name, msg_type, BridgeDirection::AGNOCAST_TO_ROS2});
-        } else if (direction_key == "r2a") {
-          config_entries.push_back({topic_name, msg_type, BridgeDirection::ROS2_TO_AGNOCAST});
-        } else if (direction_key == "a2r") {
-          config_entries.push_back({topic_name, msg_type, BridgeDirection::AGNOCAST_TO_ROS2});
-        } else {
-          RCLCPP_ERROR(
-            logger, "Unknown direction key '%s' for message type '%s'. Ignoring.",
-            direction_key.c_str(), msg_type.c_str());
-        }
-      }
-    }
-  }
-
-  return config_entries;
-}
-
 void reload_and_update_bridges(
-  rclcpp::Node::SharedPtr node, std::vector<BridgeConfigEntry> & current_config,
+  rclcpp::Node::SharedPtr node, BridgeConfig & current_config,
   std::vector<ActiveBridgeR2A> & active_r2a_bridges,
   std::vector<ActiveBridgeA2R> & active_a2r_bridges, std::vector<std::thread> & worker_threads,
   std::mutex & mutex)
 {
   auto logger = node->get_logger();
 
-  std::vector<BridgeConfigEntry> new_config = parse_bridge_config(logger);
-  RCLCPP_INFO(logger, "Reloaded config. Found %zu bridge directives.", new_config.size());
+  BridgeConfig new_config = parse_bridge_config(logger);
 
   std::vector<BridgeConfigEntry> to_add;
+  std::vector<ActiveBridgeR2A> to_remove_r2a;
+  std::vector<ActiveBridgeA2R> to_remove_a2r;
 
   {
     std::lock_guard<std::mutex> lock(mutex);
 
+    auto is_r2a_allowed = [&](const ActiveBridgeR2A & bridge) {
+      if (new_config.mode == FilterMode::ALLOW_ALL) return true;
+      bool found = false;
+      for (const auto & entry : new_config.rules) {
+        if (
+          entry.topic_name == bridge.topic_name &&
+          (entry.direction == BridgeDirection::ROS2_TO_AGNOCAST ||
+           entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+          found = true;
+          break;
+        }
+      }
+      return (new_config.mode == FilterMode::WHITELIST) ? found : !found;
+    };
     active_r2a_bridges.erase(
       std::remove_if(
         active_r2a_bridges.begin(), active_r2a_bridges.end(),
         [&](const ActiveBridgeR2A & bridge) {
-          for (const auto & entry : new_config) {
-            if (
-              entry.topic_name == bridge.topic_name &&
-              entry.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-              return false;
-            }
+          if (is_r2a_allowed(bridge)) {
+            return false;
           }
-          dlclose(bridge.plugin_handle);
+          to_remove_r2a.push_back(bridge);
           return true;
         }),
       active_r2a_bridges.end());
 
+    auto is_a2r_allowed = [&](const ActiveBridgeA2R & bridge) {
+      if (new_config.mode == FilterMode::ALLOW_ALL) return true;
+      bool found = false;
+      for (const auto & entry : new_config.rules) {
+        if (
+          entry.topic_name == bridge.topic_name &&
+          (entry.direction == BridgeDirection::AGNOCAST_TO_ROS2 ||
+           entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+          found = true;
+          break;
+        }
+      }
+      return (new_config.mode == FilterMode::WHITELIST) ? found : !found;
+    };
     active_a2r_bridges.erase(
       std::remove_if(
         active_a2r_bridges.begin(), active_a2r_bridges.end(),
         [&](const ActiveBridgeA2R & bridge) {
-          for (const auto & entry : new_config) {
-            if (
-              entry.topic_name == bridge.topic_name &&
-              entry.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-              return false;
-            }
+          if (is_a2r_allowed(bridge)) {
+            return false;
           }
-          dlclose(bridge.plugin_handle);
+          to_remove_a2r.push_back(bridge);
           return true;
         }),
       active_a2r_bridges.end());
 
-    for (const auto & entry : new_config) {
-      bool exists = false;
-      if (entry.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        for (const auto & bridge : active_r2a_bridges) {
-          if (entry.topic_name == bridge.topic_name) {
-            exists = true;
-            break;
+    if (new_config.mode == FilterMode::WHITELIST) {
+      for (const auto & entry : new_config.rules) {
+        bool r2a_needed =
+          (entry.direction == BridgeDirection::ROS2_TO_AGNOCAST ||
+           entry.direction == BridgeDirection::BIDIRECTIONAL);
+        bool a2r_needed =
+          (entry.direction == BridgeDirection::AGNOCAST_TO_ROS2 ||
+           entry.direction == BridgeDirection::BIDIRECTIONAL);
+
+        bool r2a_exists = false;
+        if (r2a_needed) {
+          for (const auto & bridge : active_r2a_bridges) {
+            if (entry.topic_name == bridge.topic_name) {
+              r2a_exists = true;
+              break;
+            }
           }
         }
-      } else {
-        for (const auto & bridge : active_a2r_bridges) {
-          if (entry.topic_name == bridge.topic_name) {
-            exists = true;
-            break;
+
+        bool a2r_exists = false;
+        if (a2r_needed) {
+          for (const auto & bridge : active_a2r_bridges) {
+            if (entry.topic_name == bridge.topic_name) {
+              a2r_exists = true;
+              break;
+            }
           }
         }
-      }
-      if (!exists) {
-        to_add.push_back(entry);
+
+        if (
+          r2a_needed && !r2a_exists && a2r_needed && !a2r_exists &&
+          entry.direction == BridgeDirection::BIDIRECTIONAL) {
+          to_add.push_back(entry);
+        }
+
+        else if (r2a_needed && !r2a_exists) {
+          BridgeConfigEntry r2a_entry = entry;
+          r2a_entry.direction = BridgeDirection::ROS2_TO_AGNOCAST;
+          to_add.push_back(r2a_entry);
+        }
+
+        else if (a2r_needed && !a2r_exists) {
+          BridgeConfigEntry a2r_entry = entry;
+          a2r_entry.direction = BridgeDirection::AGNOCAST_TO_ROS2;
+          to_add.push_back(a2r_entry);
+        }
       }
     }
   }
 
-  const pid_t self_pid = getpid();
+  for (const auto & bridge : to_remove_r2a) {
+    RCLCPP_INFO(logger, "Stopping R2A bridge for topic: %s", bridge.topic_name.c_str());
+    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
+  }
+  for (const auto & bridge : to_remove_a2r) {
+    RCLCPP_INFO(logger, "Stopping A2R bridge for topic: %s", bridge.topic_name.c_str());
+    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
+  }
 
+  const pid_t self_pid = getpid();
   for (const auto & entry : to_add) {
     bool is_needed = false;
-    if (entry.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+
+    if (
+      entry.direction == BridgeDirection::ROS2_TO_AGNOCAST ||
+      entry.direction == BridgeDirection::BIDIRECTIONAL) {
       union ioctl_get_ext_subscriber_num_args args = {};
       args.topic_name = {entry.topic_name.c_str(), entry.topic_name.size()};
       args.exclude_pid = self_pid;
       if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
-        RCLCPP_ERROR(
-          logger, "Failed to get external subscriber count for '%s'", entry.topic_name.c_str());
-        return;
+        RCLCPP_ERROR(logger, "Failed to get ext sub count for '%s'", entry.topic_name.c_str());
+        continue;
       }
-      if (args.ret_ext_subscriber_num > 0) is_needed = true;
-    } else {
+      if (args.ret_ext_subscriber_num > 0) {
+        is_needed = true;
+        RCLCPP_DEBUG(
+          logger, "R2A bridge needed for '%s' (ext subs: %d)", entry.topic_name.c_str(),
+          args.ret_ext_subscriber_num);
+      }
+    }
+
+    if (
+      entry.direction == BridgeDirection::AGNOCAST_TO_ROS2 ||
+      entry.direction == BridgeDirection::BIDIRECTIONAL) {
       union ioctl_get_ext_publisher_num_args args = {};
       args.topic_name = {entry.topic_name.c_str(), entry.topic_name.size()};
       args.exclude_pid = self_pid;
       if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
-        RCLCPP_ERROR(
-          logger, "Failed to get external publisher count for '%s'", entry.topic_name.c_str());
-        return;
+        RCLCPP_ERROR(logger, "Failed to get ext pub count for '%s'", entry.topic_name.c_str());
+        continue;
       }
-      if (args.ret_ext_publisher_num > 0) is_needed = true;
+      if (args.ret_ext_publisher_num > 0) {
+        is_needed = true;
+      }
     }
 
     if (is_needed) {
-      RCLCPP_INFO(
-        logger, "[CONFIG UPDATE] Creating new bridge for topic '%s'", entry.topic_name.c_str());
       BridgeRequest req = {};
       strncpy(req.topic_name, entry.topic_name.c_str(), MAX_NAME_LENGTH - 1);
       strncpy(req.message_type, entry.message_type.c_str(), MAX_NAME_LENGTH - 1);
       req.direction = entry.direction;
 
-      std::lock_guard<std::mutex> lock(mutex);
       if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
         worker_threads.emplace_back(
           launch_r2a_bridge_thread, node, req, std::ref(active_r2a_bridges), std::ref(mutex));
-      } else {
+      } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
         worker_threads.emplace_back(
           launch_a2r_bridge_thread, node, req, std::ref(active_a2r_bridges), std::ref(mutex));
+      } else if (req.direction == BridgeDirection::BIDIRECTIONAL) {
+        BridgeRequest req_r2a = req;
+        req_r2a.direction = BridgeDirection::ROS2_TO_AGNOCAST;
+        worker_threads.emplace_back(
+          launch_r2a_bridge_thread, node, req_r2a, std::ref(active_r2a_bridges), std::ref(mutex));
+
+        BridgeRequest req_a2r = req;
+        req_a2r.direction = BridgeDirection::AGNOCAST_TO_ROS2;
+        worker_threads.emplace_back(
+          launch_a2r_bridge_thread, node, req_a2r, std::ref(active_a2r_bridges), std::ref(mutex));
       }
     }
   }
 
   current_config = new_config;
 }
-
 void bridge_manager_daemon()
 {
   if (setsid() == -1) {
@@ -654,7 +763,7 @@ void bridge_manager_daemon()
 
   RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
 
-  std::vector<BridgeConfigEntry> bridge_config;
+  BridgeConfig bridge_config;
   bridge_config = parse_bridge_config(logger);
   auto executor = select_executor(logger);
 
