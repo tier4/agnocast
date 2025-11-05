@@ -271,29 +271,31 @@ void handle_bridge_request(
       return;
     }
 
-    std::lock_guard<std::mutex> lock(bridge_mutex);
-    bool already_exists = false;
+    {
+      std::lock_guard<std::mutex> lock(bridge_mutex);
+      bool already_exists = false;
 
-    for (const auto & bridge : active_r2a_bridges) {
-      if (
-        bridge.topic_name == std::string(req.topic_name) &&
-        req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        already_exists = true;
-        break;
+      for (const auto & bridge : active_r2a_bridges) {
+        if (
+          bridge.topic_name == std::string(req.topic_name) &&
+          req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+          already_exists = true;
+          break;
+        }
       }
-    }
 
-    for (const auto & bridge : active_a2r_bridges) {
-      if (
-        bridge.topic_name == std::string(req.topic_name) &&
-        req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-        already_exists = true;
-        break;
+      for (const auto & bridge : active_a2r_bridges) {
+        if (
+          bridge.topic_name == std::string(req.topic_name) &&
+          req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+          already_exists = true;
+          break;
+        }
       }
-    }
 
-    if (already_exists) {
-      return;
+      if (already_exists) {
+        return;
+      }
     }
 
     if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
