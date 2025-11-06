@@ -5,8 +5,6 @@
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
 
-#include <ament_index_cpp/get_package_prefix.hpp>
-
 #include <dlfcn.h>
 #include <signal.h>
 #include <sys/epoll.h>
@@ -124,102 +122,15 @@ void BridgeManager::run()
 
 void BridgeManager::launch_r2a_bridge_thread(const BridgeRequest & request)
 {
-  std::string r2a_plugin_path;
-  try {
-    const std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
-    std::string type_name = request.message_type;
-    std::replace(type_name.begin(), type_name.end(), '/', '_');
-    r2a_plugin_path =
-      package_prefix + "/lib/agnocastlib/bridge_plugins/libr2a_bridge_plugin_" + type_name + ".so";
-  } catch (const ament_index_cpp::PackageNotFoundError & e) {
-    RCLCPP_ERROR(
-      logger_, "Could not find package 'agnocastlib' to locate plugins. Error: %s", e.what());
-    return;
-  }
-
-  void * r2a_handle = dlopen(r2a_plugin_path.c_str(), RTLD_LAZY);
-  if (!r2a_handle) {
-    RCLCPP_ERROR(
-      logger_, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", r2a_plugin_path.c_str(),
-      dlerror());
-    return;
-  }
-
-  CreateR2ABridgeFunc create_r2a_bridge_ptr =
-    reinterpret_cast<CreateR2ABridgeFunc>(dlsym(r2a_handle, "create_r2a_bridge"));
-
-  const char * dlsym_error = dlerror();
-  if (dlsym_error != nullptr) {
-    RCLCPP_ERROR(
-      logger_, "[BRIDGE THREAD] Failed to find symbol 'create_r2a_bridge' in '%s'. Error: %s",
-      r2a_plugin_path.c_str(), dlsym_error);
-    dlclose(r2a_handle);
-    return;
-  }
-
-  auto subscription =
-    create_r2a_bridge_ptr(node_, std::string(request.topic_name), rclcpp::QoS(10));
-
-  if (subscription) {
-    std::lock_guard<std::mutex> lock(bridge_mutex_);
-    active_r2a_bridges_.push_back({request.topic_name, subscription, r2a_handle});
-  } else {
-    RCLCPP_ERROR(
-      logger_,
-      "[BRIDGE THREAD] create_r2a_bridge function returned a null subscription for topic '%s'.",
-      request.topic_name);
-    dlclose(r2a_handle);
-  }
+  load_and_launch_plugin<ActiveBridgeR2A, CreateR2ABridgeFunc, rclcpp::SubscriptionBase::SharedPtr>(
+    request, this->active_r2a_bridges_, "r2a", "create_r2a_bridge");
 }
 
 void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
 {
-  std::string a2r_plugin_path;
-  try {
-    const std::string package_prefix = ament_index_cpp::get_package_prefix("agnocastlib");
-    std::string type_name = request.message_type;
-    std::replace(type_name.begin(), type_name.end(), '/', '_');
-    a2r_plugin_path =
-      package_prefix + "/lib/agnocastlib/bridge_plugins/liba2r_bridge_plugin_" + type_name + ".so";
-  } catch (const ament_index_cpp::PackageNotFoundError & e) {
-    RCLCPP_ERROR(
-      logger_, "Could not find package 'agnocastlib' to locate plugins. Error: %s", e.what());
-    return;
-  }
-
-  void * a2r_handle = dlopen(a2r_plugin_path.c_str(), RTLD_LAZY);
-  if (!a2r_handle) {
-    RCLCPP_ERROR(
-      logger_, "[BRIDGE THREAD] Failed to load plugin '%s'. Error: %s", a2r_plugin_path.c_str(),
-      dlerror());
-    return;
-  }
-
-  CreateA2RBridgeFunc create_a2r_bridge_ptr =
-    reinterpret_cast<CreateA2RBridgeFunc>(dlsym(a2r_handle, "create_a2r_bridge"));
-
-  const char * dlsym_error = dlerror();
-  if (dlsym_error != nullptr) {
-    RCLCPP_ERROR(
-      logger_, "[BRIDGE THREAD] Failed to find symbol 'create_a2r_bridge' in '%s'. Error: %s",
-      a2r_plugin_path.c_str(), dlsym_error);
-    dlclose(a2r_handle);
-    return;
-  }
-
-  auto subscription =
-    create_a2r_bridge_ptr(node_, std::string(request.topic_name), rclcpp::QoS(10));
-
-  if (subscription) {
-    std::lock_guard<std::mutex> lock(bridge_mutex_);
-    active_a2r_bridges_.push_back({request.topic_name, subscription, a2r_handle});
-  } else {
-    RCLCPP_ERROR(
-      logger_,
-      "[BRIDGE THREAD] create_a2r_bridge function returned a null subscription for topic '%s'.",
-      request.topic_name);
-    dlclose(a2r_handle);
-  }
+  load_and_launch_plugin<
+    ActiveBridgeA2R, CreateA2RBridgeFunc, std::shared_ptr<agnocast::SubscriptionBase> >(
+    request, this->active_a2r_bridges_, "a2r", "create_a2r_bridge");
 }
 
 void BridgeManager::handle_bridge_request()
