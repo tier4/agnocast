@@ -133,83 +133,79 @@ void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
     request, this->active_a2r_bridges_, "a2r", "create_a2r_bridge");
 }
 
+bool BridgeManager::is_request_allowed(const BridgeRequest & req) const
+{
+  switch (bridge_config_.mode) {
+    case FilterMode::ALLOW_ALL:
+      return true;
+    case FilterMode::WHITELIST: {
+      for (const auto & entry : bridge_config_.rules) {
+        if (
+          entry.topic_name == std::string(req.topic_name) &&
+          entry.message_type == std::string(req.message_type) &&
+          (entry.direction == req.direction || entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case FilterMode::BLACKLIST: {
+      for (const auto & entry : bridge_config_.rules) {
+        if (
+          entry.topic_name == std::string(req.topic_name) &&
+          entry.message_type == std::string(req.message_type) &&
+          (entry.direction == req.direction || entry.direction == BridgeDirection::BIDIRECTIONAL)) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
+{
+  if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    for (const auto & bridge : active_r2a_bridges_) {
+      if (bridge.topic_name == std::string(req.topic_name)) {
+        return true;
+      }
+    }
+  } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+    for (const auto & bridge : active_a2r_bridges_) {
+      if (bridge.topic_name == std::string(req.topic_name)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void BridgeManager::handle_bridge_request()
 {
   BridgeRequest req;
-  if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) >= 0) {
-    bool is_allowed = false;
+  if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) < 0) {
+    return;
+  }
 
-    switch (bridge_config_.mode) {
-      case FilterMode::ALLOW_ALL:
-        is_allowed = true;
-        break;
-      case FilterMode::WHITELIST: {
-        is_allowed = false;
-        for (const auto & entry : bridge_config_.rules) {
-          if (
-            entry.topic_name == std::string(req.topic_name) &&
-            entry.message_type == std::string(req.message_type) &&
-            (entry.direction == req.direction ||
-             entry.direction == BridgeDirection::BIDIRECTIONAL)) {
-            is_allowed = true;
-            break;
-          }
-        }
-        break;
-      }
+  if (!is_request_allowed(req)) {
+    RCLCPP_DEBUG(logger_, "Bridge request rejected by filter: %s", req.topic_name);
+    return;
+  }
 
-      case FilterMode::BLACKLIST: {
-        is_allowed = true;
-        for (const auto & entry : bridge_config_.rules) {
-          if (
-            entry.topic_name == std::string(req.topic_name) &&
-            entry.message_type == std::string(req.message_type) &&
-            (entry.direction == req.direction ||
-             entry.direction == BridgeDirection::BIDIRECTIONAL)) {
-            is_allowed = false;
-            break;
-          }
-        }
-        break;
-      }
-    }
-
-    if (!is_allowed) {
+  {
+    std::lock_guard<std::mutex> lock(bridge_mutex_);
+    if (does_bridge_exist(req)) {
+      RCLCPP_DEBUG(logger_, "Bridge request ignored (already exists): %s", req.topic_name);
       return;
     }
+  }
 
-    {
-      std::lock_guard<std::mutex> lock(bridge_mutex_);
-      bool already_exists = false;
-
-      for (const auto & bridge : active_r2a_bridges_) {
-        if (
-          bridge.topic_name == std::string(req.topic_name) &&
-          req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-          already_exists = true;
-          break;
-        }
-      }
-
-      for (const auto & bridge : active_a2r_bridges_) {
-        if (
-          bridge.topic_name == std::string(req.topic_name) &&
-          req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-          already_exists = true;
-          break;
-        }
-      }
-
-      if (already_exists) {
-        return;
-      }
-    }
-
-    if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-      worker_threads_.emplace_back(&BridgeManager::launch_r2a_bridge_thread, this, req);
-    } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-      worker_threads_.emplace_back(&BridgeManager::launch_a2r_bridge_thread, this, req);
-    }
+  if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    worker_threads_.emplace_back(&BridgeManager::launch_r2a_bridge_thread, this, req);
+  } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+    worker_threads_.emplace_back(&BridgeManager::launch_a2r_bridge_thread, this, req);
   }
 }
 

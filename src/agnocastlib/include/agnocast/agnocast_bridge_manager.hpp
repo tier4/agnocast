@@ -46,6 +46,8 @@ private:
 
   void launch_r2a_bridge_thread(const BridgeRequest & request);
   void launch_a2r_bridge_thread(const BridgeRequest & request);
+  bool is_request_allowed(const BridgeRequest & req) const;
+  bool does_bridge_exist(const BridgeRequest & req) const;
   void handle_bridge_request();
   void reload_and_update_bridges();
 
