@@ -1,4 +1,4 @@
-use core::{panic, sync::atomic::AtomicUsize};
+use core::panic;
 use std::{
     alloc::Layout,
     ffi::CStr,
@@ -126,7 +126,6 @@ fn init_original_memalign() -> MemalignType {
 }
 
 static IS_FORKED_CHILD: AtomicBool = AtomicBool::new(false);
-static MEMPOOL_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(not(test))]
 extern "C" fn post_fork_handler_in_child() {
@@ -174,8 +173,6 @@ impl AgnocastSharedMemory {
 
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
-
-        MEMPOOL_SIZE.store(aligned_size, Ordering::Relaxed);
 
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
@@ -318,9 +315,13 @@ unsafe trait SharedMemoryAllocator {
     fn deallocate(&self, ptr: NonNull<u8>);
 }
 
+const GIB: usize = 1024 * 1024 * 1024;
+const MAX_MEMPOOL_SIZE: usize = 8 * GIB;
+
 #[no_mangle]
 unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
-    let mempool_size = MEMPOOL_SIZE.load(Ordering::Relaxed);
+    let page_size = libc::sysconf(libc::_SC_PAGESIZE) as usize;
+    let mempool_size = (MAX_MEMPOOL_SIZE + page_size - 1) & !(page_size - 1);
     let child_mempool_ptr = agnocast_child_initialize_pool(mempool_size as u64);
 
     if child_mempool_ptr.is_null() {
