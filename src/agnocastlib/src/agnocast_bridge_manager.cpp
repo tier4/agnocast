@@ -24,68 +24,48 @@ namespace agnocast
 std::atomic<bool> BridgeManager::reload_filter_request_(false);
 
 BridgeManager::BridgeManager()
-: node_(std::make_shared<rclcpp::Node>("agnocast_bridge_manager")),
+: bridge_config_(parse_bridge_config()),
+  node_(std::make_shared<rclcpp::Node>("agnocast_bridge_manager")),
   logger_(node_->get_logger()),
+  executor_(select_executor()),
   mq_((mqd_t)-1),
-  epoll_fd_(-1)
+  epoll_fd_(-1),
+  mq_name_str_(create_mq_name_for_bridge())
 {
-  mq_name_str_ = create_mq_name_for_bridge();
-  const char * mq_name = mq_name_str_.c_str();
-  struct mq_attr attr;
-  attr.mq_flags = 0;
-  attr.mq_maxmsg = MAX_MSG;
-  attr.mq_msgsize = sizeof(BridgeRequest);
-  attr.mq_curmsgs = 0;
-  mq_unlink(mq_name);
+  try {
+    setup_message_queue();
+    setup_signal_handler();
+    setup_epoll();
+    start_executor_thread();
 
-  mq_ = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
-  if (mq_ == (mqd_t)-1) {
-    RCLCPP_ERROR(logger_, "mq_open failed: %s", strerror(errno));
-    throw std::runtime_error("Failed to open message queue");
+    RCLCPP_INFO(logger_, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger_, "BridgeManager initialization failed: %s", e.what());
+    throw;
   }
-
-  RCLCPP_INFO(logger_, "[BRIDGE MANAGER DAEMON] PID: %d", getpid());
-
-  bridge_config_ = parse_bridge_config();
-  executor_ = select_executor();
-
-  struct sigaction sa;
-  sa.sa_handler = BridgeManager::sighup_handler;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sigaction(SIGHUP, &sa, NULL);
-
-  executor_->add_node(node_);
-  spin_thread_ = std::thread([this]() { this->executor_->spin(); });
-
-  epoll_fd_ = epoll_create1(0);
-  if (epoll_fd_ == -1) {
-    RCLCPP_ERROR(logger_, "epoll_create1 failed: %s", strerror(errno));
-    mq_close(mq_);
-    mq_unlink(mq_name_str_.c_str());
-  }
-
-  struct epoll_event ev;
-  ev.events = EPOLLIN;
-  ev.data.fd = mq_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_, &ev) == -1) {
-    RCLCPP_ERROR(logger_, "epoll_ctl failed to add mq: %s", strerror(errno));
-    close(epoll_fd_);
-    mq_close(mq_);
-    mq_unlink(mq_name_str_.c_str());
-  }
-
-  RCLCPP_INFO(logger_, "BridgeManager initialized successfully.");
 }
 
 BridgeManager::~BridgeManager()
 {
-  if (epoll_fd_ != -1) {
-    close(epoll_fd_);
+  if (executor_) {
+    executor_->cancel();
   }
-
   if (spin_thread_.joinable()) {
     spin_thread_.join();
+  }
+
+  if (epoll_fd_ != -1) {
+    close(epoll_fd_);
+    epoll_fd_ = -1;
+  }
+
+  if (mq_ != (mqd_t)-1) {
+    mq_close(mq_);
+    mq_ = (mqd_t)-1;
+  }
+
+  if (!mq_name_str_.empty()) {
+    mq_unlink(mq_name_str_.c_str());
   }
 }
 
@@ -121,6 +101,60 @@ void BridgeManager::run()
   }
 
   shutdown_manager_internal();
+}
+
+void BridgeManager::setup_message_queue()
+{
+  const char * mq_name = mq_name_str_.c_str();
+  struct mq_attr attr{};
+  attr.mq_maxmsg = MAX_MSG;
+  attr.mq_msgsize = sizeof(BridgeRequest);
+
+  mq_unlink(mq_name);
+
+  mq_ = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
+  if (mq_ == (mqd_t)-1) {
+    RCLCPP_ERROR(logger_, "mq_open failed: %s", strerror(errno));
+    throw std::runtime_error("Failed to open message queue");
+  }
+}
+
+void BridgeManager::setup_signal_handler()
+{
+  struct sigaction sa{};
+  sa.sa_handler = BridgeManager::sighup_handler;
+  sigemptyset(&sa.sa_mask);
+
+  if (sigaction(SIGHUP, &sa, NULL) == -1) {
+    RCLCPP_ERROR(logger_, "sigaction(SIGHUP) failed: %s", strerror(errno));
+    throw std::runtime_error("Failed to set SIGHUP handler");
+  }
+}
+
+void BridgeManager::setup_epoll()
+{
+  epoll_fd_ = epoll_create1(0);
+  if (epoll_fd_ == -1) {
+    RCLCPP_ERROR(logger_, "epoll_create1 failed: %s", strerror(errno));
+    throw std::runtime_error("epoll_create1 failed");
+  }
+
+  struct epoll_event ev{};
+  ev.events = EPOLLIN;
+  ev.data.fd = mq_;
+
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_, &ev) == -1) {
+    RCLCPP_ERROR(logger_, "epoll_ctl failed to add mq: %s", strerror(errno));
+    close(epoll_fd_);
+    epoll_fd_ = -1;
+    throw std::runtime_error("epoll_ctl failed");
+  }
+}
+
+void BridgeManager::start_executor_thread()
+{
+  executor_->add_node(node_);
+  spin_thread_ = std::thread([this]() { this->executor_->spin(); });
 }
 
 void BridgeManager::launch_r2a_bridge_thread(const BridgeRequest & request)

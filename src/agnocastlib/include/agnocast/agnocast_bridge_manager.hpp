@@ -29,6 +29,8 @@ public:
   void run();
 
 private:
+  static std::atomic<bool> reload_filter_request_;
+
   std::vector<ActiveBridgeR2A> active_r2a_bridges_;
   std::vector<ActiveBridgeA2R> active_a2r_bridges_;
   std::vector<std::thread> worker_threads_;
@@ -43,6 +45,11 @@ private:
   mqd_t mq_;
   int epoll_fd_;
   std::string mq_name_str_;
+
+  void setup_message_queue();
+  void setup_signal_handler();
+  void setup_epoll();
+  void start_executor_thread();
 
   void launch_r2a_bridge_thread(const BridgeRequest & request);
   void launch_a2r_bridge_thread(const BridgeRequest & request);
@@ -65,7 +72,6 @@ private:
   BridgeConfig parse_bridge_config();
   std::unique_ptr<rclcpp::Executor> select_executor();
 
-  static std::atomic<bool> reload_filter_request_;
   static void sighup_handler(int signum);
 
   template <typename ActiveBridgeT, typename CreateFuncT, typename SubscriptionT>
