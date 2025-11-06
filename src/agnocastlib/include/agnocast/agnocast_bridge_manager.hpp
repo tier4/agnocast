@@ -49,6 +49,13 @@ private:
   bool is_request_allowed(const BridgeRequest & req) const;
   bool does_bridge_exist(const BridgeRequest & req) const;
   void handle_bridge_request();
+  void calculate_bridge_diff(
+    const BridgeConfig & new_config, std::vector<BridgeConfigEntry> & to_add,
+    std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  void shutdown_removed_bridges(
+    const std::vector<ActiveBridgeR2A> & to_remove_r2a,
+    const std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
   void reload_and_update_bridges();
 
   void check_and_shutdown_idle_bridges();
