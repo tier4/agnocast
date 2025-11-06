@@ -15,6 +15,10 @@
 #include <cerrno>
 #include <cstring>
 
+constexpr long MAX_MSG = 10;
+constexpr int MAX_EVENTS = 10;
+constexpr int WHILE_POLL_DELAY_MS = 1000;
+
 namespace agnocast
 {
 std::atomic<bool> BridgeManager::reload_filter_request_(false);
@@ -29,7 +33,7 @@ BridgeManager::BridgeManager()
   const char * mq_name = mq_name_str_.c_str();
   struct mq_attr attr;
   attr.mq_flags = 0;
-  attr.mq_maxmsg = 10;
+  attr.mq_maxmsg = MAX_MSG;
   attr.mq_msgsize = sizeof(BridgeRequest);
   attr.mq_curmsgs = 0;
   mq_unlink(mq_name);
@@ -87,11 +91,10 @@ BridgeManager::~BridgeManager()
 
 void BridgeManager::run()
 {
-  constexpr int MAX_EVENTS = 10;
   struct epoll_event events[MAX_EVENTS];
 
   while (rclcpp::ok()) {
-    int num_events = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
+    int num_events = epoll_wait(epoll_fd_, events, MAX_EVENTS, WHILE_POLL_DELAY_MS);
 
     if (num_events < 0) {
       if (errno == EINTR) continue;
@@ -135,49 +138,34 @@ void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
 
 bool BridgeManager::is_request_allowed(const BridgeRequest & req) const
 {
+  auto rule_matches = [&](const BridgeConfigEntry & entry) {
+    return entry.topic_name == std::string(req.topic_name) &&
+           entry.message_type == std::string(req.message_type) &&
+           (entry.direction == req.direction || entry.direction == BridgeDirection::BIDIRECTIONAL);
+  };
+
   switch (bridge_config_.mode) {
     case FilterMode::ALLOW_ALL:
       return true;
-    case FilterMode::WHITELIST: {
-      for (const auto & entry : bridge_config_.rules) {
-        if (
-          entry.topic_name == std::string(req.topic_name) &&
-          entry.message_type == std::string(req.message_type) &&
-          (entry.direction == req.direction || entry.direction == BridgeDirection::BIDIRECTIONAL)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    case FilterMode::BLACKLIST: {
-      for (const auto & entry : bridge_config_.rules) {
-        if (
-          entry.topic_name == std::string(req.topic_name) &&
-          entry.message_type == std::string(req.message_type) &&
-          (entry.direction == req.direction || entry.direction == BridgeDirection::BIDIRECTIONAL)) {
-          return false;
-        }
-      }
-      return true;
-    }
+    case FilterMode::WHITELIST:
+      return std::any_of(bridge_config_.rules.begin(), bridge_config_.rules.end(), rule_matches);
+    case FilterMode::BLACKLIST:
+      return !std::any_of(bridge_config_.rules.begin(), bridge_config_.rules.end(), rule_matches);
   }
+
   return false;
 }
 
 bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
 {
+  auto topic_matches = [&](const auto & bridge) {
+    return bridge.topic_name == std::string(req.topic_name);
+  };
+
   if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    for (const auto & bridge : active_r2a_bridges_) {
-      if (bridge.topic_name == std::string(req.topic_name)) {
-        return true;
-      }
-    }
+    return std::any_of(active_r2a_bridges_.begin(), active_r2a_bridges_.end(), topic_matches);
   } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-    for (const auto & bridge : active_a2r_bridges_) {
-      if (bridge.topic_name == std::string(req.topic_name)) {
-        return true;
-      }
-    }
+    return std::any_of(active_a2r_bridges_.begin(), active_a2r_bridges_.end(), topic_matches);
   }
   return false;
 }
