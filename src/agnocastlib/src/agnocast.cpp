@@ -1,6 +1,7 @@
 #include "agnocast/agnocast.hpp"
 
 #include "agnocast/agnocast_bridge_plugin_api.hpp"
+#include "agnocast/agnocast_bridge_types.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -45,20 +46,6 @@ static std::atomic<bool> g_reload_filter_request(false);
 // Root Cause: T2's callback uses `shm_addr` that T1 fetched but hadn't initialized/mapped yet.
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
-
-struct ActiveBridgeR2A
-{
-  std::string topic_name;
-  rclcpp::SubscriptionBase::SharedPtr subscription;
-  void * plugin_handle;
-};
-
-struct ActiveBridgeA2R
-{
-  std::string topic_name;
-  std::shared_ptr<agnocast::SubscriptionBase> subscription;
-  void * plugin_handle;
-};
 
 void launch_r2a_bridge_thread(
   rclcpp::Node::SharedPtr node, const BridgeRequest request,
@@ -229,21 +216,6 @@ std::unique_ptr<rclcpp::Executor> select_executor(rclcpp::Logger logger)
 
   return executor;
 }
-
-struct BridgeConfigEntry
-{
-  std::string topic_name;
-  std::string message_type;
-  BridgeDirection direction;
-};
-
-enum class FilterMode { ALLOW_ALL, BLACKLIST, WHITELIST };
-
-struct BridgeConfig
-{
-  std::vector<BridgeConfigEntry> rules;
-  FilterMode mode = FilterMode::ALLOW_ALL;
-};
 
 BridgeConfig parse_bridge_config(rclcpp::Logger logger)
 {
@@ -724,6 +696,7 @@ void reload_and_update_bridges(
 
   current_config = new_config;
 }
+
 void bridge_manager_daemon()
 {
   if (setsid() == -1) {
