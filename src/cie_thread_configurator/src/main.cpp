@@ -95,6 +95,7 @@ static void spin_thread_configurator_node(const std::string & config_filename)
         "SCHED_DEADLINE tasks:");
       std::cin.get();
     }
+    RCLCPP_INFO(node->get_logger(), "Success: All of the configurations are applied.");
   } else {
     node->print_all_unapplied();
   }
