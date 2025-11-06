@@ -65,7 +65,6 @@ void CallbackIsolatedAgnocastExecutor::spin()
 
     threads.emplace_back([executor]() {
       auto tid = static_cast<pid_t>(syscall(SYS_gettid));
-      RCLCPP_INFO(rclcpp::get_logger("agnocast"), "Linux TID: %d", tid);
       executor->spin();
     });
   }
