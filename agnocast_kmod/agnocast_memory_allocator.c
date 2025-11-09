@@ -12,7 +12,6 @@ void init_memory_allocator(void)
 {
   uint64_t addr = 0x40000000000;
 
-  // Initialize default size pools
   for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
     mempool_entries[i].addr = addr;
     mempool_entries[i].pool_size = MEMPOOL_DEFAULT_SIZE;
@@ -23,7 +22,6 @@ void init_memory_allocator(void)
     addr += MEMPOOL_DEFAULT_SIZE;
   }
 
-  // Initialize double size pools
   for (int i = 0; i < MEMPOOL_DOUBLE_NUM; i++) {
     mempool_entries[i + MEMPOOL_DEFAULT_NUM].addr = addr;
     mempool_entries[i + MEMPOOL_DEFAULT_NUM].pool_size = MEMPOOL_DOUBLE_SIZE;
@@ -42,7 +40,6 @@ struct mempool_entry * assign_memory(const pid_t pid, uint64_t size)
     size = MEMPOOL_DEFAULT_SIZE;
   }
 
-  // Assign from default size pools
   if (size <= MEMPOOL_DEFAULT_SIZE) {
     for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
@@ -53,7 +50,6 @@ struct mempool_entry * assign_memory(const pid_t pid, uint64_t size)
     }
   }
 
-  // Assign from double size pools
   if (size <= MEMPOOL_DOUBLE_SIZE) {
     for (int i = MEMPOOL_DEFAULT_NUM; i < MEMPOOL_DEFAULT_NUM + MEMPOOL_DOUBLE_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
