@@ -27,7 +27,7 @@ class ThreadConfiguratorNode : public rclcpp::Node
   };
 
 public:
-  ThreadConfiguratorNode(const YAML::Node & yaml);
+  explicit ThreadConfiguratorNode(const YAML::Node & yaml);
   ~ThreadConfiguratorNode();
   bool all_applied();
   void print_all_unapplied();

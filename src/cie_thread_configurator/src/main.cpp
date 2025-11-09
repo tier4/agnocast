@@ -120,7 +120,7 @@ int main(int argc, char * argv[])
   std::vector<std::string> args = rclcpp::remove_ros_arguments(argc, argv);
 
   bool prerun_mode = false;
-  for (auto & arg : args)
+  for (const auto & arg : args)
     if (arg == "--prerun") {
       prerun_mode = true;
     }
@@ -131,7 +131,7 @@ int main(int argc, char * argv[])
     bool next = false;
     std::string filename;
 
-    for (auto & arg : args) {
+    for (const auto & arg : args) {
       if (next) {
         filename = arg;
         break;
