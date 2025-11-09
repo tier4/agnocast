@@ -122,30 +122,30 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
       return;
     }
 
-    auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>();
+    auto executor =
+      std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(rclcpp::ExecutorOptions{}, 0);
     executor->dedicate_to_callback_group(callback_group, node);
 
     auto it = node_id_to_executor_wrappers_[node_id].begin();
     it = node_id_to_executor_wrappers_[node_id].emplace(it, executor);
     auto & executor_wrapper = *it;
 
-    executor_wrapper.thread =
-      std::thread([&executor_wrapper, group_id, this]() {
-        auto tid = syscall(SYS_gettid);
+    executor_wrapper.thread = std::thread([&executor_wrapper, group_id, this]() {
+      auto tid = syscall(SYS_gettid);
 
-        // dirty
-        for (int i = 0; i < 3; i++) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          {
-            std::lock_guard<std::mutex> lock{this->client_publisher_mutex_};
-            cie_thread_configurator::publish_callback_group_info(
-              this->client_publisher_, tid, group_id);
-          }
+      // dirty
+      for (int i = 0; i < 3; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        {
+          std::lock_guard<std::mutex> lock{this->client_publisher_mutex_};
+          cie_thread_configurator::publish_callback_group_info(
+            this->client_publisher_, tid, group_id);
         }
+      }
 
-        executor_wrapper.thread_initialized = true;
-        executor_wrapper.executor->spin();
-      });
+      executor_wrapper.thread_initialized = true;
+      executor_wrapper.executor->spin();
+    });
   });
 }
 
@@ -188,8 +188,8 @@ int main(int argc, char * argv[])
   auto node = std::make_shared<rclcpp_components::ComponentManagerCallbackIsolated>();
   const int get_next_timeout_ms = node->get_parameter_or("get_next_timeout_ms", 50);
 
-  auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
-    rclcpp::ExecutorOptions{}, get_next_timeout_ms);
+  auto executor =
+    std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(rclcpp::ExecutorOptions{}, 0);
 
   executor->add_node(node);
   executor->spin();
