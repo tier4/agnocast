@@ -159,13 +159,12 @@ impl AgnocastSharedMemory {
             )
         }
 
-        let mempool_size_env = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
-
-        let mempool_size = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
+        let mempool_size = match std::env::var("AGNOCAST_MEMPOOL_SIZE") {
+            Ok(val) => val.parse::<usize>().unwrap_or_else(|error| {
+                panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
+            }),
+            Err(_) => 0, // Use 0 to let kernel module decide the default size
+        };
 
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
