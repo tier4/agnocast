@@ -8,6 +8,8 @@
 
 #include <dlfcn.h>
 #include <mqueue.h>
+#include <sys/ioctl.h>
+#include <yaml-cpp/yaml.h>
 
 #include <atomic>
 #include <memory>
@@ -53,23 +55,32 @@ private:
 
   void launch_r2a_bridge_thread(const BridgeRequest & request);
   void launch_a2r_bridge_thread(const BridgeRequest & request);
+
   bool is_request_allowed(const BridgeRequest & req) const;
   bool does_bridge_exist(const BridgeRequest & req) const;
   void handle_bridge_request();
+
+  void remove_bridges_by_config(
+    const BridgeConfig & new_config, std::vector<ActiveBridgeR2A> & to_remove_r2a,
+    std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  void calculate_new_bridges_to_add(
+    const BridgeConfig & new_config, std::vector<BridgeConfigEntry> & to_add);
   void calculate_bridge_diff(
-    const BridgeConfig & new_config, std::vector<BridgeConfigEntry> & to_add,
-    std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  void shutdown_removed_bridges(
+    const BridgeConfig & new_config, std::vector<ActiveBridgeR2A> & to_remove_r2a,
+    std::vector<ActiveBridgeA2R> & to_remove_a2r, std::vector<BridgeConfigEntry> & to_add);
+
+  void removed_bridges(
     const std::vector<ActiveBridgeR2A> & to_remove_r2a,
     const std::vector<ActiveBridgeA2R> & to_remove_a2r);
   void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
   void reload_and_update_bridges();
 
-  void check_and_shutdown_idle_bridges();
-  void check_and_shutdown_daemon_if_idle();
-  void shutdown_manager_internal();
+  void check_and_remove_bridges();
+  void check_and_request_rclcpp_shutdown();
+  void cleanup_resources();
 
   BridgeConfig parse_bridge_config();
+  void parse_rules_node(const YAML::Node & rules, BridgeConfig & config);
   std::unique_ptr<rclcpp::Executor> select_executor();
 
   static void sighup_handler(int signum);
@@ -122,6 +133,35 @@ private:
     } else {
       dlclose(handle);
     }
+  }
+
+  template <typename BridgeType, typename IoctlArgs>
+  void check_and_shutdown_collection(
+    std::vector<BridgeType> & bridges, pid_t self_pid, unsigned long ioctl_cmd,
+    const char * entity_type_name, std::function<int(const IoctlArgs &)> get_count_func)
+  {
+    bridges.erase(
+      std::remove_if(
+        bridges.begin(), bridges.end(),
+        [&](const BridgeType & bridge) {
+          IoctlArgs args = {};
+          args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
+          args.exclude_pid = self_pid;
+
+          if (ioctl(agnocast_fd, ioctl_cmd, &args) < 0) {
+            RCLCPP_ERROR(
+              logger_, "Failed to get external %s count for '%s'", entity_type_name,
+              bridge.topic_name.c_str());
+            return false;
+          }
+
+          if (get_count_func(args) == 0) {
+            dlclose(bridge.plugin_handle);
+            return true;
+          }
+          return false;
+        }),
+      bridges.end());
   }
 };
 }  // namespace agnocast

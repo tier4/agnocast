@@ -48,7 +48,7 @@ std::mutex mmap_mtx;
 void bridge_manager_daemon()
 {
   if (setsid() == -1) {
-    fprintf(stderr, "setsid failed for unlink daemon: %s\n", strerror(errno));
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s\n", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -58,7 +58,7 @@ void bridge_manager_daemon()
   rclcpp::init(0, nullptr);
 
   if (!agnocast_heaphook_init_daemon()) {
-    fprintf(stderr, "Heaphook init FAILED.\n");
+    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
