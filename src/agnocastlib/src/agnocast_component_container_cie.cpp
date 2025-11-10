@@ -35,6 +35,7 @@ public:
   ComponentManagerCallbackIsolated(Args &&... args)
   : rclcpp_components::ComponentManager(std::forward<Args>(args)...)
   {
+    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", 50);
     client_publisher_ = create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
       "/cie_thread_configurator/callback_group_info", rclcpp::QoS(1000).keep_all());
   }
@@ -52,6 +53,7 @@ private:
   std::unordered_map<uint64_t, std::list<ExecutorWrapper>> node_id_to_executor_wrappers_;
   rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
   std::mutex client_publisher_mutex_;
+  int get_next_timeout_ms_;
 };
 
 ComponentManagerCallbackIsolated::~ComponentManagerCallbackIsolated()
@@ -122,8 +124,8 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
       return;
     }
 
-    auto executor =
-      std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(rclcpp::ExecutorOptions{}, 0);
+    auto executor = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(
+      rclcpp::ExecutorOptions{}, get_next_timeout_ms_);
     executor->dedicate_to_callback_group(callback_group, node);
 
     auto it = node_id_to_executor_wrappers_[node_id].begin();
@@ -186,10 +188,8 @@ int main(int argc, char * argv[])
   options.automatically_declare_parameters_from_overrides(true);
 
   auto node = std::make_shared<rclcpp_components::ComponentManagerCallbackIsolated>();
-  const int get_next_timeout_ms = node->get_parameter_or("get_next_timeout_ms", 50);
 
-  auto executor =
-    std::make_shared<agnocast::SingleThreadedAgnocastExecutor>(rclcpp::ExecutorOptions{}, 0);
+  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
   executor->add_node(node);
   executor->spin();
