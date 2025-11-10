@@ -53,10 +53,32 @@ BridgeManager::~BridgeManager()
   if (spin_thread_.joinable()) {
     spin_thread_.join();
   }
+
+  for (auto & fut : worker_futures_) {
+    if (fut.valid()) {
+      fut.wait();
+    }
+  }
+  worker_futures_.clear();
+
+  {
+    std::lock_guard<std::mutex> lock(bridges_mutex_);
+    for (auto & bridge : active_r2a_bridges_) {
+      dlclose(bridge.plugin_handle);
+    }
+    active_r2a_bridges_.clear();
+
+    for (auto & bridge : active_a2r_bridges_) {
+      dlclose(bridge.plugin_handle);
+    }
+    active_a2r_bridges_.clear();
+  }
+
   if (epoll_fd_ != -1) {
     close(epoll_fd_);
     epoll_fd_ = -1;
   }
+
   if (mq_ != (mqd_t)-1) {
     mq_close(mq_);
     mq_ = (mqd_t)-1;
@@ -107,8 +129,6 @@ void BridgeManager::run()
 
     cleanup_finished_futures();
   }
-
-  cleanup_resources();
 }
 
 void BridgeManager::setup_message_queue()
@@ -422,36 +442,6 @@ void BridgeManager::check_and_request_rclcpp_shutdown()
   if (args.ret_active_process_num <= 1) {
     rclcpp::shutdown();
   }
-}
-
-void BridgeManager::cleanup_resources()
-{
-  if (spin_thread_.joinable()) {
-    spin_thread_.join();
-  }
-
-  for (auto & fut : worker_futures_) {
-    if (fut.valid()) {
-      fut.wait();
-    }
-  }
-  worker_futures_.clear();
-
-  {
-    std::lock_guard<std::mutex> lock(bridges_mutex_);
-    for (auto & bridge : active_r2a_bridges_) {
-      dlclose(bridge.plugin_handle);
-    }
-    active_r2a_bridges_.clear();
-
-    for (auto & bridge : active_a2r_bridges_) {
-      dlclose(bridge.plugin_handle);
-    }
-    active_a2r_bridges_.clear();
-  }
-
-  mq_close(mq_);
-  mq_unlink(mq_name_str_.c_str());
 }
 
 BridgeConfig BridgeManager::parse_bridge_config()
