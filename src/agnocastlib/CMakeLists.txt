@@ -22,6 +22,8 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
+find_package(cie_config_msgs REQUIRED)
+find_package(cie_thread_configurator REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -29,7 +31,7 @@ add_library(agnocast SHARED
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c
   src/agnocast_client.cpp)
-# ament_target_dependencies(agnocast rclcpp)
+ament_target_dependencies(agnocast cie_thread_configurator)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -141,4 +143,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
+ament_export_dependencies(cie_thread_configurator cie_config_msgs)
 ament_package()
