@@ -122,8 +122,7 @@ void BridgeManager::setup_message_queue()
 
   mq_ = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
   if (mq_ == (mqd_t)-1) {
-    RCLCPP_ERROR(logger_, "mq_open failed: %s", strerror(errno));
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("mq_open failed: " + std::string(strerror(errno)));
   }
 }
 
@@ -134,8 +133,7 @@ void BridgeManager::setup_signal_handler()
   sigemptyset(&sa.sa_mask);
 
   if (sigaction(SIGHUP, &sa, NULL) == -1) {
-    RCLCPP_ERROR(logger_, "sigaction(SIGHUP) failed: %s", strerror(errno));
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("sigaction failed: " + std::string(strerror(errno)));
   }
 }
 
@@ -143,8 +141,7 @@ void BridgeManager::setup_epoll()
 {
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ == -1) {
-    RCLCPP_ERROR(logger_, "epoll_create1 failed: %s", strerror(errno));
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
   struct epoll_event ev{};
@@ -152,10 +149,8 @@ void BridgeManager::setup_epoll()
   ev.data.fd = mq_;
 
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_, &ev) == -1) {
-    RCLCPP_ERROR(logger_, "epoll_ctl failed to add mq: %s", strerror(errno));
     close(epoll_fd_);
-    epoll_fd_ = -1;
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("epoll_ctl failed to add mq: " + std::string(strerror(errno)));
   }
 }
 

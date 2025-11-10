@@ -19,6 +19,8 @@
 #include <thread>
 #include <vector>
 
+constexpr int DEFAULT_BRIDGE_QOS_DEPTH = 10;
+
 namespace agnocast
 {
 
@@ -127,11 +129,18 @@ private:
       return;
     }
 
-    SubscriptionT subscription =
-      create_bridge_ptr(this->node_, std::string(request.topic_name), rclcpp::QoS(10));
+    SubscriptionT subscription = create_bridge_ptr(
+      this->node_, std::string(request.topic_name), rclcpp::QoS(DEFAULT_BRIDGE_QOS_DEPTH));
 
     if (subscription) {
       std::lock_guard<std::mutex> lock(this->bridges_mutex_);
+      auto topic_matches = [&](const auto & bridge) {
+        return bridge.topic_name == std::string(request.topic_name);
+      };
+      if (std::any_of(active_bridges_vec.begin(), active_bridges_vec.end(), topic_matches)) {
+        dlclose(handle);
+        return;
+      }
       active_bridges_vec.push_back({request.topic_name, subscription, handle});
     } else {
       dlclose(handle);
