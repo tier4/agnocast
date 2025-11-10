@@ -82,7 +82,6 @@ private:
 
   void check_and_remove_bridges();
   void check_and_request_rclcpp_shutdown();
-  void cleanup_resources();
 
   BridgeConfig parse_bridge_config();
   void parse_rules_node(const YAML::Node & rules, BridgeConfig & config);
