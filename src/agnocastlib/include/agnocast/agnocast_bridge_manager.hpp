@@ -36,7 +36,7 @@ private:
   std::vector<ActiveBridgeR2A> active_r2a_bridges_;
   std::vector<ActiveBridgeA2R> active_a2r_bridges_;
   std::vector<std::thread> worker_threads_;
-  std::mutex bridge_mutex_;
+  mutable std::mutex bridge_mutex_;
   BridgeConfig bridge_config_;
 
   rclcpp::Node::SharedPtr node_;
@@ -56,18 +56,16 @@ private:
   void launch_r2a_bridge_thread(const BridgeRequest & request);
   void launch_a2r_bridge_thread(const BridgeRequest & request);
 
+  bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
+
   bool is_request_allowed(const BridgeRequest & req) const;
+  bool is_topic_allowed(const std::string & topic_name, BridgeDirection direction) const;
   bool does_bridge_exist(const BridgeRequest & req) const;
-  void handle_bridge_request();
+  void handle_bridge_request(const BridgeRequest & req);
 
   void remove_bridges_by_config(
-    const BridgeConfig & new_config, std::vector<ActiveBridgeR2A> & to_remove_r2a,
-    std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  void calculate_new_bridges_to_add(
-    const BridgeConfig & new_config, std::vector<BridgeConfigEntry> & to_add);
-  void calculate_bridge_diff(
-    const BridgeConfig & new_config, std::vector<ActiveBridgeR2A> & to_remove_r2a,
-    std::vector<ActiveBridgeA2R> & to_remove_a2r, std::vector<BridgeConfigEntry> & to_add);
+    std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  void calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
 
   void removed_bridges(
     const std::vector<ActiveBridgeR2A> & to_remove_r2a,
@@ -133,6 +131,21 @@ private:
     } else {
       dlclose(handle);
     }
+  }
+
+  template <typename Matcher>
+  bool check_filter_rules(
+    FilterMode mode, const std::vector<BridgeConfigEntry> & rules, Matcher matcher) const
+  {
+    switch (mode) {
+      case FilterMode::ALLOW_ALL:
+        return true;
+      case FilterMode::WHITELIST:
+        return std::any_of(rules.begin(), rules.end(), matcher);
+      case FilterMode::BLACKLIST:
+        return !std::any_of(rules.begin(), rules.end(), matcher);
+    }
+    return false;
   }
 
   template <typename BridgeType, typename IoctlArgs>
