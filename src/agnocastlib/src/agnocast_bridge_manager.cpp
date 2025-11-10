@@ -73,8 +73,9 @@ void BridgeManager::run()
   while (rclcpp::ok()) {
     int num_events = epoll_wait(epoll_fd_, events, MAX_EVENTS, WHILE_POLL_DELAY_MS);
 
-    if (num_events < 0) {
-      if (errno == EINTR) continue;
+    if (num_events < 0 && errno == EINTR) {
+      continue;
+    } else if (num_events < 0) {
       RCLCPP_ERROR(logger_, "epoll_wait() failed: %s", strerror(errno));
       break;
     }
@@ -82,6 +83,7 @@ void BridgeManager::run()
     if (reload_filter_request_.load()) {
       reload_filter_request_.store(false);
       reload_and_update_bridges();
+      RCLCPP_INFO(logger_, "Reloaded bridge filter configuration.");
     }
 
     if (num_events == 0) {
@@ -90,18 +92,20 @@ void BridgeManager::run()
     }
 
     for (int i = 0; i < num_events; i++) {
-      if (events[i].data.fd == mq_) {
-        check_and_remove_bridges();
-
-        BridgeRequest req;
-        if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) < 0) {
-          RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
-          continue;
-        }
-
-        handle_bridge_request(req);
+      if (events[i].data.fd != mq_) {
+        continue;
       }
+
+      BridgeRequest req;
+      if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) < 0) {
+        RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
+        continue;
+      }
+
+      handle_bridge_request(req);
     }
+
+    cleanup_finished_futures();
   }
 
   cleanup_resources();
@@ -155,6 +159,17 @@ void BridgeManager::setup_epoll()
   }
 }
 
+void BridgeManager::cleanup_finished_futures()
+{
+  worker_futures_.erase(
+    std::remove_if(
+      worker_futures_.begin(), worker_futures_.end(),
+      [](const std::future<void> & f) {
+        return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+      }),
+    worker_futures_.end());
+}
+
 void BridgeManager::launch_r2a_bridge_thread(const BridgeRequest & request)
 {
   load_and_launch_plugin<ActiveBridgeR2A, BridgeEntryR2A, rclcpp::SubscriptionBase::SharedPtr>(
@@ -175,7 +190,6 @@ bool BridgeManager::direction_matches(BridgeDirection entry, BridgeDirection req
 
 bool BridgeManager::is_request_allowed(const BridgeRequest & req) const
 {
-  std::scoped_lock lock(bridge_mutex_);
   auto rule_matches = [&](const BridgeConfigEntry & entry) {
     return entry.topic_name == std::string(req.topic_name) &&
            entry.message_type == std::string(req.message_type) &&
@@ -197,10 +211,11 @@ bool BridgeManager::is_topic_allowed(
 
 bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
 {
-  std::scoped_lock lock(bridge_mutex_);
   auto topic_matches = [&](const auto & bridge) {
     return bridge.topic_name == std::string(req.topic_name);
   };
+
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
 
   if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     return std::any_of(active_r2a_bridges_.begin(), active_r2a_bridges_.end(), topic_matches);
@@ -217,27 +232,31 @@ void BridgeManager::handle_bridge_request(const BridgeRequest & req)
   }
 
   if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    worker_threads_.emplace_back(&BridgeManager::launch_r2a_bridge_thread, this, req);
+    worker_futures_.push_back(
+      std::async(std::launch::async, &BridgeManager::launch_r2a_bridge_thread, this, req));
   } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-    worker_threads_.emplace_back(&BridgeManager::launch_a2r_bridge_thread, this, req);
+    worker_futures_.push_back(
+      std::async(std::launch::async, &BridgeManager::launch_a2r_bridge_thread, this, req));
   }
 }
 
 void BridgeManager::remove_bridges_by_config(
   std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r)
 {
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
+
   auto remove_list_by_direction =
     [&](auto & active_bridges, auto & to_remove_list, BridgeDirection direction) {
+      auto removal_predicate = [&](const auto & bridge) {
+        bool should_remove = !is_topic_allowed(bridge.topic_name, direction);
+        if (should_remove) {
+          to_remove_list.push_back(bridge);
+        }
+        return should_remove;
+      };
+
       active_bridges.erase(
-        std::remove_if(
-          active_bridges.begin(), active_bridges.end(),
-          [&](const auto & bridge) {
-            bool should_remove = !is_topic_allowed(bridge.topic_name, direction);
-            if (should_remove) {
-              to_remove_list.push_back(bridge);
-            }
-            return should_remove;
-          }),
+        std::remove_if(active_bridges.begin(), active_bridges.end(), removal_predicate),
         active_bridges.end());
     };
 
@@ -247,13 +266,18 @@ void BridgeManager::remove_bridges_by_config(
 
 void BridgeManager::calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add)
 {
-  std::set<std::string> active_r2a_topics;
-  for (const auto & bridge : active_r2a_bridges_) {
-    active_r2a_topics.insert(bridge.topic_name);
-  }
   std::set<std::string> active_a2r_topics;
-  for (const auto & bridge : active_a2r_bridges_) {
-    active_a2r_topics.insert(bridge.topic_name);
+  std::set<std::string> active_r2a_topics;
+
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
+  {
+    for (const auto & bridge : active_r2a_bridges_) {
+      active_r2a_topics.insert(bridge.topic_name);
+    }
+
+    for (const auto & bridge : active_a2r_bridges_) {
+      active_a2r_topics.insert(bridge.topic_name);
+    }
   }
 
   if (bridge_config_.mode == FilterMode::WHITELIST) {
@@ -291,6 +315,52 @@ void BridgeManager::removed_bridges(
   }
 }
 
+bool BridgeManager::check_r2a_demand(const std::string & topic_name, pid_t self_pid) const
+{
+  union ioctl_get_ext_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  args.exclude_pid = self_pid;
+  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger_, "Failed to get ext sub count for '%s'", topic_name.c_str());
+    return false;
+  }
+  return args.ret_ext_subscriber_num > 0;
+}
+
+bool BridgeManager::check_a2r_demand(const std::string & topic_name, pid_t self_pid) const
+{
+  union ioctl_get_ext_publisher_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  args.exclude_pid = self_pid;
+  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger_, "Failed to get ext pub count for '%s'", topic_name.c_str());
+    return false;
+  }
+  return args.ret_ext_publisher_num > 0;
+}
+
+void BridgeManager::launch_bridge_from_request(const BridgeConfigEntry & entry)
+{
+  BridgeRequest req = {};
+  snprintf(req.topic_name, MAX_NAME_LENGTH, "%s", entry.topic_name.c_str());
+  snprintf(req.message_type, MAX_NAME_LENGTH, "%s", entry.message_type.c_str());
+  req.direction = entry.direction;
+
+  if (direction_matches(req.direction, BridgeDirection::ROS2_TO_AGNOCAST)) {
+    BridgeRequest req_r2a = req;
+    req_r2a.direction = BridgeDirection::ROS2_TO_AGNOCAST;
+    worker_futures_.push_back(
+      std::async(std::launch::async, &BridgeManager::launch_r2a_bridge_thread, this, req_r2a));
+  }
+
+  if (direction_matches(req.direction, BridgeDirection::AGNOCAST_TO_ROS2)) {
+    BridgeRequest req_a2r = req;
+    req_a2r.direction = BridgeDirection::AGNOCAST_TO_ROS2;
+    worker_futures_.push_back(
+      std::async(std::launch::async, &BridgeManager::launch_a2r_bridge_thread, this, req_a2r));
+  }
+}
+
 void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add)
 {
   const pid_t self_pid = getpid();
@@ -298,52 +368,15 @@ void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to
     bool is_needed = false;
 
     if (direction_matches(entry.direction, BridgeDirection::ROS2_TO_AGNOCAST)) {
-      union ioctl_get_ext_subscriber_num_args args = {};
-      args.topic_name = {entry.topic_name.c_str(), entry.topic_name.size()};
-      args.exclude_pid = self_pid;
-      if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
-        RCLCPP_ERROR(logger_, "Failed to get ext sub count for '%s'", entry.topic_name.c_str());
-        continue;
-      }
-      if (args.ret_ext_subscriber_num > 0) {
-        is_needed = true;
-        RCLCPP_DEBUG(
-          logger_, "R2A bridge needed for '%s' (ext subs: %d)", entry.topic_name.c_str(),
-          args.ret_ext_subscriber_num);
-      }
+      is_needed |= check_r2a_demand(entry.topic_name, self_pid);
     }
 
     if (direction_matches(entry.direction, BridgeDirection::AGNOCAST_TO_ROS2)) {
-      union ioctl_get_ext_publisher_num_args args = {};
-      args.topic_name = {entry.topic_name.c_str(), entry.topic_name.size()};
-      args.exclude_pid = self_pid;
-      if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
-        RCLCPP_ERROR(logger_, "Failed to get ext pub count for '%s'", entry.topic_name.c_str());
-        continue;
-      }
-      if (args.ret_ext_publisher_num > 0) {
-        is_needed = true;
-      }
+      is_needed |= check_a2r_demand(entry.topic_name, self_pid);
     }
 
     if (is_needed) {
-      BridgeRequest req = {};
-      strncpy(req.topic_name, entry.topic_name.c_str(), MAX_NAME_LENGTH - 1);
-      strncpy(req.message_type, entry.message_type.c_str(), MAX_NAME_LENGTH - 1);
-      req.direction = entry.direction;
-
-      if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        worker_threads_.emplace_back(&BridgeManager::launch_r2a_bridge_thread, this, req);
-      } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-        worker_threads_.emplace_back(&BridgeManager::launch_a2r_bridge_thread, this, req);
-      } else if (req.direction == BridgeDirection::BIDIRECTIONAL) {
-        BridgeRequest req_r2a = req;
-        req_r2a.direction = BridgeDirection::ROS2_TO_AGNOCAST;
-        worker_threads_.emplace_back(&BridgeManager::launch_r2a_bridge_thread, this, req_r2a);
-        BridgeRequest req_a2r = req;
-        req_a2r.direction = BridgeDirection::AGNOCAST_TO_ROS2;
-        worker_threads_.emplace_back(&BridgeManager::launch_a2r_bridge_thread, this, req_a2r);
-      }
+      launch_bridge_from_request(entry);
     }
   }
 }
@@ -357,7 +390,6 @@ void BridgeManager::reload_and_update_bridges()
   std::vector<ActiveBridgeA2R> to_remove_a2r;
   std::vector<BridgeConfigEntry> to_add;
 
-  std::lock_guard<std::mutex> lock(bridge_mutex_);
   remove_bridges_by_config(to_remove_r2a, to_remove_a2r);
   calculate_new_bridges_to_add(to_add);
   removed_bridges(to_remove_r2a, to_remove_a2r);
@@ -366,7 +398,6 @@ void BridgeManager::reload_and_update_bridges()
 
 void BridgeManager::check_and_remove_bridges()
 {
-  std::lock_guard<std::mutex> lock(bridge_mutex_);
   const pid_t self_pid = getpid();
 
   check_and_shutdown_collection<ActiveBridgeR2A, ioctl_get_ext_subscriber_num_args>(
@@ -381,7 +412,7 @@ void BridgeManager::check_and_remove_bridges()
 void BridgeManager::check_and_request_rclcpp_shutdown()
 {
   {
-    std::lock_guard<std::mutex> lock(bridge_mutex_);
+    std::lock_guard<std::mutex> lock(bridges_mutex_);
     if (!active_r2a_bridges_.empty() || !active_a2r_bridges_.empty()) {
       return;
     }
@@ -404,21 +435,25 @@ void BridgeManager::cleanup_resources()
     spin_thread_.join();
   }
 
-  for (auto & th : worker_threads_) {
-    if (th.joinable()) {
-      th.join();
+  for (auto & fut : worker_futures_) {
+    if (fut.valid()) {
+      fut.wait();
     }
   }
+  worker_futures_.clear();
 
-  for (auto & bridge : active_r2a_bridges_) {
-    dlclose(bridge.plugin_handle);
-  }
-  active_r2a_bridges_.clear();
+  {
+    std::lock_guard<std::mutex> lock(bridges_mutex_);
+    for (auto & bridge : active_r2a_bridges_) {
+      dlclose(bridge.plugin_handle);
+    }
+    active_r2a_bridges_.clear();
 
-  for (auto & bridge : active_a2r_bridges_) {
-    dlclose(bridge.plugin_handle);
+    for (auto & bridge : active_a2r_bridges_) {
+      dlclose(bridge.plugin_handle);
+    }
+    active_a2r_bridges_.clear();
   }
-  active_a2r_bridges_.clear();
 
   mq_close(mq_);
   mq_unlink(mq_name_str_.c_str());
@@ -451,8 +486,6 @@ BridgeConfig BridgeManager::parse_bridge_config()
       config.mode = FilterMode::WHITELIST;
     }
   }
-  RCLCPP_INFO(
-    logger_, "MODE: %s", (config.mode == FilterMode::WHITELIST) ? "WHITELIST" : "BLACKLIST");
 
   YAML::Node rules_node = yaml_doc["rules"];
   if (!rules_node || !rules_node.IsMap()) {

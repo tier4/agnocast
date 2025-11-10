@@ -12,6 +12,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <atomic>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -35,9 +36,10 @@ private:
 
   std::vector<ActiveBridgeR2A> active_r2a_bridges_;
   std::vector<ActiveBridgeA2R> active_a2r_bridges_;
-  std::vector<std::thread> worker_threads_;
-  mutable std::mutex bridge_mutex_;
+  std::vector<std::future<void>> worker_futures_;
   BridgeConfig bridge_config_;
+
+  mutable std::mutex bridges_mutex_;
 
   rclcpp::Node::SharedPtr node_;
   rclcpp::Logger logger_;
@@ -51,7 +53,7 @@ private:
   void setup_message_queue();
   void setup_signal_handler();
   void setup_epoll();
-  void start_executor_thread();
+  void cleanup_finished_futures();
 
   void launch_r2a_bridge_thread(const BridgeRequest & request);
   void launch_a2r_bridge_thread(const BridgeRequest & request);
@@ -70,6 +72,9 @@ private:
   void removed_bridges(
     const std::vector<ActiveBridgeR2A> & to_remove_r2a,
     const std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  bool check_r2a_demand(const std::string & topic_name, pid_t self_pid) const;
+  bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
+  void launch_bridge_from_request(const BridgeConfigEntry & entry);
   void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
   void reload_and_update_bridges();
 
@@ -126,7 +131,7 @@ private:
       create_bridge_ptr(this->node_, std::string(request.topic_name), rclcpp::QoS(10));
 
     if (subscription) {
-      std::lock_guard<std::mutex> lock(this->bridge_mutex_);
+      std::lock_guard<std::mutex> lock(this->bridges_mutex_);
       active_bridges_vec.push_back({request.topic_name, subscription, handle});
     } else {
       dlclose(handle);
@@ -153,28 +158,37 @@ private:
     std::vector<BridgeType> & bridges, pid_t self_pid, unsigned long ioctl_cmd,
     const char * entity_type_name, std::function<int(const IoctlArgs &)> get_count_func)
   {
-    bridges.erase(
-      std::remove_if(
-        bridges.begin(), bridges.end(),
-        [&](const BridgeType & bridge) {
-          IoctlArgs args = {};
-          args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
-          args.exclude_pid = self_pid;
+    std::vector<void *> handles_to_close;
+    {
+      std::lock_guard<std::mutex> lock(this->bridges_mutex_);
+      bridges.erase(
+        std::remove_if(
+          bridges.begin(), bridges.end(),
+          [&](const BridgeType & bridge) {
+            IoctlArgs args = {};
+            args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
+            args.exclude_pid = self_pid;
 
-          if (ioctl(agnocast_fd, ioctl_cmd, &args) < 0) {
-            RCLCPP_ERROR(
-              logger_, "Failed to get external %s count for '%s'", entity_type_name,
-              bridge.topic_name.c_str());
+            if (ioctl(agnocast_fd, ioctl_cmd, &args) < 0) {
+              RCLCPP_ERROR(
+                logger_, "Failed to get external %s count for '%s'", entity_type_name,
+                bridge.topic_name.c_str());
+              return false;
+            }
+
+            if (get_count_func(args) == 0) {
+              handles_to_close.push_back(bridge.plugin_handle);
+              return true;
+            }
             return false;
-          }
+          }),
+        bridges.end());
+    }
 
-          if (get_count_func(args) == 0) {
-            dlclose(bridge.plugin_handle);
-            return true;
-          }
-          return false;
-        }),
-      bridges.end());
+    for (void * handle : handles_to_close) {
+      dlclose(handle);
+    }
   }
 };
+
 }  // namespace agnocast
