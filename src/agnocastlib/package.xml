@@ -27,6 +27,9 @@
   <depend>tracetools</depend>
   <depend>liblttng-ust-dev</depend>
 
+  <depend>cie_config_msgs</depend>
+  <depend>cie_thread_configurator</depend>
+
   <!-- Uncomment when agnocast_kmod is released from PPA -->
   <!-- <exec_depend>agnocast_kmod</exec_depend> -->
 
