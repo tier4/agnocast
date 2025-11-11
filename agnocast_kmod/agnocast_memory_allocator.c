@@ -31,7 +31,7 @@ void init_memory_allocator(void)
   }
 }
 
-struct mempool_entry * assign_memory(const pid_t pid, uint64_t size)
+struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size)
 {
   if (size <= MEMPOOL_DEFAULT_SIZE) {
     for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
