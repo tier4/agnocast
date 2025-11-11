@@ -108,11 +108,6 @@ void BridgeManager::run()
       RCLCPP_INFO(logger_, "Reloaded bridge filter configuration.");
     }
 
-    if (num_events == 0) {
-      check_and_remove_bridges();
-      check_and_request_rclcpp_shutdown();
-    }
-
     for (int i = 0; i < num_events; i++) {
       if (events[i].data.fd != mq_) {
         continue;
@@ -127,7 +122,9 @@ void BridgeManager::run()
       handle_bridge_request(req);
     }
 
+    check_and_remove_bridges();
     cleanup_finished_futures();
+    check_and_request_rclcpp_shutdown();
   }
 }
 
@@ -226,9 +223,8 @@ bool BridgeManager::is_topic_allowed(
 
 bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
 {
-  auto topic_matches = [&](const auto & bridge) {
-    return bridge.topic_name == std::string(req.topic_name);
-  };
+  const std::string topic_name_str(req.topic_name);
+  auto topic_matches = [&](const auto & bridge) { return bridge.topic_name == topic_name_str; };
 
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
