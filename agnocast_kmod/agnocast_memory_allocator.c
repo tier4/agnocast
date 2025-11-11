@@ -4,7 +4,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-static const uint64_t MEMPOOL_DOUBLE_SIZE = MEMPOOL_DEFAULT_SIZE * 2;  // 16GB
+static const uint64_t MEMPOOL_DOUBLE_SIZE = MEMPOOL_DEFAULT_SIZE * 2;
 
 static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
@@ -35,11 +35,6 @@ void init_memory_allocator(void)
 
 struct mempool_entry * assign_memory(const pid_t pid, uint64_t size)
 {
-  // If size is 0, use default size
-  if (size == 0) {
-    size = MEMPOOL_DEFAULT_SIZE;
-  }
-
   if (size <= MEMPOOL_DEFAULT_SIZE) {
     for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {

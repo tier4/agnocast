@@ -920,8 +920,6 @@ int publish_msg(
 
   uint64_t mempool_start = proc_info->mempool_entry->addr;
   uint64_t mempool_end = mempool_start + proc_info->mempool_entry->pool_size;
-  printk("KUNIT_TEST: mempool_start=%llx, mempool_end=%llx, msg_virtual_address=%llx\n",
-         mempool_start, mempool_end, msg_virtual_address);
   if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
     dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (publish_msg)\n");
     return -EINVAL;
