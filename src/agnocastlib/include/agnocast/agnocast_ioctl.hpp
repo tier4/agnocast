@@ -44,6 +44,7 @@ union ioctl_add_process_args {
   struct
   {
     uint64_t ret_addr;
+    uint64_t ret_shm_size;
     bool ret_unlink_daemon_exist;
   };
 };

@@ -43,7 +43,6 @@ struct process_info
   bool exited;
   pid_t global_pid;
   pid_t local_pid;
-  uint64_t shm_size;
   struct mempool_entry * mempool_entry;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
@@ -674,7 +673,7 @@ static int set_publisher_shm_info(
 #endif
 
     pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
-    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
+    pub_shm_info->shm_sizes[publisher_num] = proc_info->mempool_entry->pool_size;
     publisher_num++;
   }
 
@@ -734,8 +733,6 @@ int add_process(
 #else
   new_proc_info->local_pid = pid;
 #endif
-  new_proc_info->shm_size = shm_size;
-
   new_proc_info->mempool_entry = assign_memory(pid, shm_size);
   if (!new_proc_info->mempool_entry) {
     dev_warn(
@@ -752,6 +749,7 @@ int add_process(
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
+  ioctl_ret->ret_shm_size = new_proc_info->mempool_entry->pool_size;
   return 0;
 }
 
@@ -921,7 +919,9 @@ int publish_msg(
   }
 
   uint64_t mempool_start = proc_info->mempool_entry->addr;
-  uint64_t mempool_end = mempool_start + proc_info->shm_size;
+  uint64_t mempool_end = mempool_start + proc_info->mempool_entry->pool_size;
+  printk("KUNIT_TEST: mempool_start=%llx, mempool_end=%llx, msg_virtual_address=%llx\n",
+         mempool_start, mempool_end, msg_virtual_address);
   if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
     dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (publish_msg)\n");
     return -EINVAL;
