@@ -6,7 +6,7 @@
 #include <kunit/test.h>
 
 static pid_t pid = 1000;
-static const int max_process_num = MEMPOOL_TOTAL_NUM;
+static const int max_process_num = MEMPOOL_DEFAULT_NUM;
 
 void test_case_add_process_normal(struct kunit * test)
 {
@@ -78,7 +78,7 @@ void test_case_add_process_too_big(struct kunit * test)
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
   uint64_t local_pid = pid++;
-  uint64_t shm_size = MEMPOOL_DOUBLE_SIZE + PAGE_SIZE;
+  uint64_t shm_size = MEMPOOL_DEFAULT_SIZE + PAGE_SIZE;
   union ioctl_add_process_args args;
   int ret = add_process(local_pid, current->nsproxy->ipc_ns, shm_size, &args);
 
