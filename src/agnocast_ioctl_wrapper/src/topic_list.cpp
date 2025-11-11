@@ -7,43 +7,56 @@
 
 #include <algorithm>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
-extern "C" int topic_list()
+namespace
 {
-  // ======== Get Agnocast topics ========
 
+bool is_service_topic(const std::string & topic_name)
+{
+  const std::string prefix = "/AGNOCAST_SRV_";
+  if (topic_name.size() < prefix.size()) {
+    return false;
+  }
+  return topic_name.compare(0, prefix.size(), prefix) == 0;
+}
+
+std::optional<std::vector<std::string>> get_agnocast_topics()
+{
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
     perror("Failed to open /dev/agnocast");
-    return -1;
+    return std::nullopt;
   }
 
-  char * agnocast_topic_buffer =
-    static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
+  std::array<char, MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE> agnocast_topic_buffer{};
 
-  union ioctl_topic_list_args topic_list_args = {};
-  topic_list_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
+  ioctl_topic_list_args topic_list_args = {};
+  topic_list_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer.data());
   if (ioctl(fd, AGNOCAST_GET_TOPIC_LIST_CMD, &topic_list_args) < 0) {
     perror("AGNOCAST_GET_TOPIC_LIST_CMD failed");
-    free(agnocast_topic_buffer);
     close(fd);
-    return -1;
+    return std::nullopt;
   }
 
-  std::vector<std::string> agnocast_topics(topic_list_args.ret_topic_num);
+  std::vector<std::string> agnocast_topics;
+  agnocast_topics.reserve(topic_list_args.ret_topic_num);
   for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
-    agnocast_topics[i] = agnocast_topic_buffer + static_cast<size_t>(i) * TOPIC_NAME_BUFFER_SIZE;
+    std::string topic_name = agnocast_topic_buffer.data() + i * TOPIC_NAME_BUFFER_SIZE;
+    // Filter out topics used for service/client.
+    if (!is_service_topic(topic_name)) {
+      agnocast_topics.push_back(std::move(topic_name));
+    }
   }
 
-  std::sort(agnocast_topics.begin(), agnocast_topics.end());
-
-  free(agnocast_topic_buffer);
   close(fd);
+  return agnocast_topics;
+}
 
-  // ======== Get ROS 2 topics ========
-
+std::vector<std::string> get_ros2_topics()
+{
   rclcpp::init(0, nullptr);
   auto node = rclcpp::Node::make_shared("agnocast_topic_list_all");
 
@@ -57,25 +70,40 @@ extern "C" int topic_list()
     ros2_topic_names_and_types.begin(), ros2_topic_names_and_types.end(), ros2_topics.begin(),
     [](const auto & pair) { return pair.first; });
 
-  std::sort(ros2_topics.begin(), ros2_topics.end());
-
   rclcpp::shutdown();
+  return ros2_topics;
+}
+
+}  // namespace
+
+extern "C" int topic_list()
+{
+  std::optional<std::vector<std::string>> agnocast_topics_opt = get_agnocast_topics();
+  if (!agnocast_topics_opt.has_value()) {
+    return -1;
+  }
+  std::vector<std::string> & agnocast_topics = agnocast_topics_opt.value();
+
+  auto ros2_topics = get_ros2_topics();
 
   // ======== Print topics ========
+  // Before printing, merge topics that exist in both vectors to avoid duplicates.
 
-  int agnocast_topic_index = 0;
-  int ros2_topic_index = 0;
-  while (agnocast_topic_index < topic_list_args.ret_topic_num ||
-         ros2_topic_index < ros2_topics.size()) {
-    if (agnocast_topic_index == topic_list_args.ret_topic_num) {
-      for (int i = ros2_topic_index; i < ros2_topics.size(); i++) {
+  std::sort(agnocast_topics.begin(), agnocast_topics.end());
+  std::sort(ros2_topics.begin(), ros2_topics.end());
+
+  size_t agnocast_topic_index = 0;
+  size_t ros2_topic_index = 0;
+  while (agnocast_topic_index < agnocast_topics.size() || ros2_topic_index < ros2_topics.size()) {
+    if (agnocast_topic_index == agnocast_topics.size()) {
+      for (size_t i = ros2_topic_index; i < ros2_topics.size(); i++) {
         std::cout << ros2_topics[i] << std::endl;
       }
       break;
     }
 
     if (ros2_topic_index == ros2_topics.size()) {
-      for (int i = agnocast_topic_index; i < topic_list_args.ret_topic_num; i++) {
+      for (size_t i = agnocast_topic_index; i < agnocast_topics.size(); i++) {
         std::cout << agnocast_topics[i] << " (Agnocast enabled)" << std::endl;
       }
       break;
