@@ -1,6 +1,7 @@
 #include <agnocast/agnocast.hpp>
 #include <agnocast/agnocast_callback_isolated_executor.hpp>
 #include <agnocast/agnocast_single_threaded_executor.hpp>
+#include <cie_thread_configurator/cie_thread_configurator.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace agnocast
@@ -59,15 +60,26 @@ void CallbackIsolatedAgnocastExecutor::spin()
     }
   }  // guard mutex_
 
+  std::mutex client_publisher_mutex;
+  auto client_publisher = cie_thread_configurator::create_client_publisher();
+
   for (auto [group, node] : groups_and_nodes) {
     auto executor = std::make_shared<SingleThreadedAgnocastExecutor>();
     executor->dedicate_to_callback_group(group, node);
+    auto callback_group_id = cie_thread_configurator::create_callback_group_id(group, node);
 
-    threads.emplace_back([executor]() {
-      auto tid = static_cast<pid_t>(syscall(SYS_gettid));
-      RCLCPP_INFO(rclcpp::get_logger("agnocast"), "Linux TID: %d", tid);
-      executor->spin();
-    });
+    threads.emplace_back(
+      [executor, callback_group_id, &client_publisher, &client_publisher_mutex]() {
+        auto tid = static_cast<pid_t>(syscall(SYS_gettid));
+
+        {
+          std::lock_guard<std::mutex> lock{client_publisher_mutex};
+          cie_thread_configurator::publish_callback_group_info(
+            client_publisher, tid, callback_group_id);
+        }
+
+        executor->spin();
+      });
   }
 
   for (auto & thread : threads) {

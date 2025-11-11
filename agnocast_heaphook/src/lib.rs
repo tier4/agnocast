@@ -546,7 +546,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         return ptr::null_mut();
     }
 
-    let layout = match Layout::from_size_align(size, alignment) {
+    let layout = match Layout::from_size_align(size, alignment.max(MIN_ALIGN)) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
     };
@@ -712,38 +712,38 @@ mod tests {
     }
 
     #[test]
-    fn test_aligned_alloc_normal() {
-        // Arrange
-        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-
-        for &alignment in &alignments {
-            let sizes = [
-                alignment,
-                alignment * 2,
-                alignment * 4,
-                alignment * 8,
-                alignment * 16,
-            ];
-
-            for &size in &sizes {
-                // Act
-                let ptr = unsafe { libc::aligned_alloc(alignment, size) };
-
-                // Assert
-                assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
-                assert!(
-                    is_shared(ptr.cast()),
-                    "allocated memory should be within pool bounds"
-                );
-                assert_eq!(
-                    ptr as usize % alignment,
-                    0,
-                    "aligned_alloc memory should be aligned to the specified boundary"
-                );
-                unsafe { libc::free(ptr) };
-            }
+    fn test_aligned_alloc_with_fundamental_alignments() {
+        let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let size = MIN_ALIGN;
+        for alignment in alignments {
+            let ptr = unsafe { libc::aligned_alloc(alignment, size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+            assert!(
+                ptr as usize % MIN_ALIGN == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
         }
     }
+
+    #[test]
+    fn test_aligned_alloc_with_extended_alignments() {
+        // Assume that alignmets up to 2048 are supported. This assumption may change in the future.
+        let alignments = (MIN_ALIGN + 1..4096).filter(|x| x.is_power_of_two());
+
+        for alignment in alignments {
+            let size = alignment;
+            let ptr = unsafe { libc::aligned_alloc(alignment, size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be aligned to the requested alignment."
+            );
+            unsafe { libc::free(ptr) };
+        }
+    }
+
     #[test]
     fn test_memalign_normal() {
         // Arrange
