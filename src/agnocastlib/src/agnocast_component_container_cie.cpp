@@ -58,7 +58,7 @@ private:
 
 ComponentManagerCallbackIsolated::~ComponentManagerCallbackIsolated()
 {
-  if (node_wrappers_.size() == 0) return;
+  if (node_wrappers_.empty()) return;
 
   for (auto & p : node_id_to_executor_wrappers_) {
     auto & executor_wrappers = p.second;
