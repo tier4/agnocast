@@ -167,7 +167,10 @@ impl AgnocastSharedMemory {
 
         let mempool_size = match std::env::var("AGNOCAST_MEMPOOL_SIZE") {
             Ok(val) => val.parse::<usize>().unwrap_or_else(|error| {
-                panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
+                panic!(
+                    "[ERROR] [Agnocast] failed to parse AGNOCAST_MEMPOOL_SIZE ('{}'): {}",
+                    val, error
+                );
             }),
             Err(_) => 0, // Use 0 to let kernel module decide the default size
         };
