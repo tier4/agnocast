@@ -434,9 +434,12 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
+    let Some(size) = num.checked_mul(size) else {
+        return ptr::null_mut();
+    };
+
     // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
     // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-    let size = num * size;
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -642,6 +645,18 @@ mod tests {
         }
 
         unsafe { libc::free(ptr) };
+    }
+
+    #[test]
+    fn test_calloc_with_overflow_size() {
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 2) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
+        assert!(
+            unsafe { libc::calloc(2, usize::MAX) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
     }
 
     #[test]
