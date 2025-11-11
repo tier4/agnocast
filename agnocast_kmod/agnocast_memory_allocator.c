@@ -4,8 +4,6 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-static const uint64_t MEMPOOL_DOUBLE_SIZE = MEMPOOL_DEFAULT_SIZE * 2;
-
 static struct mempool_entry mempool_entries[MEMPOOL_TOTAL_NUM];
 
 void init_memory_allocator(void)
