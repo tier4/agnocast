@@ -11,11 +11,6 @@ struct MqMsgAgnocast
 {
 };
 
-struct MqMsgROS2Publish
-{
-  bool should_terminate;
-};
-
 struct BridgeRequest
 {
   char topic_name[MAX_NAME_LENGTH];
