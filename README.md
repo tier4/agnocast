@@ -7,7 +7,6 @@ The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/doc
 
 - T. Ishikawa–Aso and S. Kato, “ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC,” in *Proc. 28th Int. Symp. Real-Time Distributed Computing (ISORC)*, 2025, pp. 1–10.
 
-
 <details>
 <summary>BibTeX</summary>
 
