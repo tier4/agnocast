@@ -9,6 +9,8 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
 {
   RCLCPP_DISABLE_COPY(CallbackIsolatedAgnocastExecutor)
 
+  const int next_exec_timeout_ms_;
+
   // Nodes associated with this AgnocastCallbackIsolatedExecutor, appended by add_node() and removed
   // by remove_node()
   std::set<
@@ -30,8 +32,6 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
   std::vector<rclcpp::CallbackGroup::WeakPtr>
   get_automatically_added_callback_groups_from_nodes_internal() const
     RCPPUTILS_TSA_REQUIRES(mutex_);
-
-  const int next_exec_timeout_ms_;
 
 public:
   RCLCPP_PUBLIC
