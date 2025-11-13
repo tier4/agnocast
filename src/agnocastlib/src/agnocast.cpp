@@ -55,20 +55,20 @@ void bridge_manager_daemon()
 
   signal(SIGINT, SIG_IGN);
 
-  rclcpp::init(0, nullptr);
+  try {
+    BridgeManager manager;
 
-  if (!agnocast_heaphook_init_daemon()) {
-    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
+    manager.run();
+
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "BridgeManager daemon failed: %s", e.what());
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
-  {
-    BridgeManager manager;
-    manager.run();
-  }
-
-  rclcpp::shutdown();
+  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Shutting down cleanly.");
+  close(agnocast_fd);
+  exit(EXIT_SUCCESS);
 }
 
 void poll_for_unlink()

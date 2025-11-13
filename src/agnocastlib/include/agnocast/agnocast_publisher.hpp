@@ -60,9 +60,10 @@ public:
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
-    if (options.send_a2r_bridge_request) {
-      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
-    }
+    (void)options;
+    // if (options.send_a2r_bridge_request) {
+    //   send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
+    // }
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
