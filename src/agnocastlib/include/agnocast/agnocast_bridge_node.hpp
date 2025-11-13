@@ -8,6 +8,8 @@
 namespace agnocast
 {
 
+using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);
+
 void bridge_process_main(const MqMsgBridge & msg);
 QoSFlat flatten_qos(const rclcpp::QoS & qos);
 rclcpp::QoS reconstruct_qos(const QoSFlat & q);
@@ -51,5 +53,3 @@ std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
 }
 
 }  // namespace agnocast
-
-using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const agnocast::BridgeArgs &);

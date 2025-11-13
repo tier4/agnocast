@@ -8,9 +8,6 @@
 
 #include <memory>
 
-using DlClosePtrType = int (*)(void *);
-using DlHandlePtr = std::unique_ptr<void, DlClosePtrType>;
-
 namespace agnocast
 {
 
@@ -24,6 +21,9 @@ public:
   void run();
 
 private:
+  using DlClosePtrType = int (*)(void *);
+  using DlHandlePtr = std::unique_ptr<void, DlClosePtrType>;
+
   static void bridge_signal_handler(int signum);
   void setup_signal_handlers();
   void load_bridge_function();
