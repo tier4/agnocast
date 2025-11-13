@@ -17,8 +17,6 @@
 #include <fstream>
 #include <mutex>
 
-extern "C" bool agnocast_heaphook_init_daemon();
-
 namespace agnocast
 {
 
