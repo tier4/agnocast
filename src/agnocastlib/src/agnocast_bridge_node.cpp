@@ -1,9 +1,12 @@
 #include "agnocast/agnocast_bridge_node.hpp"
 
+#include "agnocast/agnocast.hpp"
+
 #include <dlfcn.h>
 #include <signal.h>
 
 extern int agnocast_fd;
+extern "C" bool agnocast_heaphook_init_daemon();
 
 namespace agnocast
 {
@@ -36,26 +39,38 @@ rclcpp::QoS reconstruct_qos(const QoSFlat & q)
   return qos;
 }
 
-void bridge_signal_handler(int signum)
+void bridge_signal_handler([[maybe_unused]] int signum)
 {
-  (void)signum;
   rclcpp::shutdown();
 }
 
 void bridge_process_main(const MqMsgBridge & req)
 {
-  std::signal(SIGPIPE, SIG_IGN);
-  std::signal(SIGTERM, bridge_signal_handler);
-  std::signal(SIGINT, bridge_signal_handler);
-
   rclcpp::init(0, nullptr);
-  rclcpp::executors::SingleThreadedExecutor executor;
-
+  agnocast::SingleThreadedAgnocastExecutor executor;
   auto logger = rclcpp::get_logger("agnocast_bridge_daemon");
 
+  RCLCPP_INFO(logger, "[BRIDGE PROCESS] PID: %d", getpid());
+
+  if (!agnocast_heaphook_init_daemon()) {
+    RCLCPP_ERROR(logger, "Heaphook init FAILED.");
+  }
+
+  struct sigaction sa_pipe;
+  sa_pipe.sa_handler = SIG_IGN;
+  sigemptyset(&sa_pipe.sa_mask);
+  sa_pipe.sa_flags = 0;
+  sigaction(SIGPIPE, &sa_pipe, nullptr);
+
+  struct sigaction sa_shutdown;
+  sa_shutdown.sa_handler = bridge_signal_handler;
+  sigemptyset(&sa_shutdown.sa_mask);
+  sa_shutdown.sa_flags = 0;
+  sigaction(SIGTERM, &sa_shutdown, nullptr);
+  sigaction(SIGINT, &sa_shutdown, nullptr);
+
   if (req.fn_ptr == 0) {
-    RCLCPP_FATAL(logger, "[Bridge Process Error] Received a null function pointer!");
-    close(agnocast_fd);
+    RCLCPP_FATAL(logger, "Received a null function pointer!");
     rclcpp::shutdown();
     exit(EXIT_FAILURE);
   }
@@ -70,8 +85,7 @@ void bridge_process_main(const MqMsgBridge & req)
     handle = dlopen(lib_path, RTLD_NOW);
 
     if (!handle) {
-      RCLCPP_FATAL(logger, "[Bridge Process Error] dlopen failed for %s: %s", lib_path, dlerror());
-      close(agnocast_fd);
+      RCLCPP_FATAL(logger, "dlopen failed for %s: %s", lib_path, dlerror());
       rclcpp::shutdown();
       exit(EXIT_FAILURE);
     }
@@ -79,10 +93,8 @@ void bridge_process_main(const MqMsgBridge & req)
 
     if (!raw_func) {
       RCLCPP_FATAL(
-        logger, "[Bridge Process Error] dlsym failed for symbol %s in %s: %s", req.symbol_name,
-        lib_path, dlerror());
+        logger, "dlsym failed for symbol %s in %s: %s", req.symbol_name, lib_path, dlerror());
       dlclose(handle);
-      close(agnocast_fd);
       rclcpp::shutdown();
       exit(EXIT_FAILURE);
     }
@@ -96,19 +108,15 @@ void bridge_process_main(const MqMsgBridge & req)
     executor.spin();
   } catch (const std::exception & e) {
     RCLCPP_FATAL(
-      logger, "[Bridge Process FATAL ERROR] Unhandled std::exception: %s for topic: %s", e.what(),
-      req.args.topic_name);
+      logger, "Unhandled std::exception: %s for topic: %s", e.what(), req.args.topic_name);
   } catch (...) {
-    RCLCPP_FATAL(
-      logger, "[Bridge Process FATAL ERROR] Unhandled unknown exception for topic: %s",
-      req.args.topic_name);
+    RCLCPP_FATAL(logger, "Unhandled unknown exception for topic: %s", req.args.topic_name);
   }
 
   if (handle) {
     dlclose(handle);
   }
 
-  close(agnocast_fd);
   rclcpp::shutdown();
   exit(EXIT_SUCCESS);
 }

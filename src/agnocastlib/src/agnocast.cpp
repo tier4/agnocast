@@ -55,9 +55,7 @@ void bridge_manager_daemon()
 
   try {
     BridgeManager manager;
-
     manager.run();
-
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "BridgeManager daemon failed: %s", e.what());
     close(agnocast_fd);

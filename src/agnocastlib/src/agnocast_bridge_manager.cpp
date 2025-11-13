@@ -1,26 +1,22 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
-// #include "agnocast/agnocast_callback_isolated_executor.hpp"
-// #include "agnocast/agnocast_multi_threaded_executor.hpp"
-// #include "agnocast/agnocast_single_threaded_executor.hpp"
+#include <rclcpp/rclcpp.hpp>
 
-#include <dlfcn.h>
-#include <fcntl.h>  // open 用
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <unistd.h>  // dup2, close 用
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
-
-extern "C" bool agnocast_heaphook_init_daemon();
+#include <stdexcept>
 
 constexpr long MAX_MSG = 10;
 constexpr int MAX_EVENTS = 10;
 constexpr int WHILE_POLL_DELAY_MS = 1000;
-constexpr pid_t NO_OPPOSITE_BRIDGE_PID = -1;
 
 namespace agnocast
 {
@@ -30,16 +26,7 @@ BridgeManager::BridgeManager()
 : mq_((mqd_t)-1), epoll_fd_(-1), mq_name_str_(create_mq_name_for_bridge())
 {
   try {
-    std::signal(SIGPIPE, SIG_IGN);
-
-    struct sigaction sa;
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-    if (sigaction(SIGCHLD, &sa, 0) == -1) {
-      throw std::runtime_error("Failed to register SIGCHLD handler");
-    }
-
+    setup_signal_handlers();
     setup_message_queue();
     setup_epoll();
 
@@ -68,16 +55,6 @@ BridgeManager::~BridgeManager()
 
 void BridgeManager::run()
 {
-  std::string log_path = "/tmp/agnocast_bridge.log";
-  int log_fd = open(log_path.c_str(), O_RDWR | O_CREAT | O_APPEND, 0644);
-
-  if (log_fd != -1) {
-    dup2(log_fd, STDOUT_FILENO);
-    dup2(log_fd, STDERR_FILENO);
-
-    close(log_fd);
-  }
-
   struct epoll_event events[MAX_EVENTS];
 
   while (running_) {
@@ -96,7 +73,7 @@ void BridgeManager::run()
       }
 
       MqMsgBridge req;
-      if (mq_receive(mq_, (char *)&req, sizeof(MqMsgBridge), NULL) < 0) {
+      if (mq_receive(mq_, reinterpret_cast<char *>(&req), sizeof(MqMsgBridge), nullptr) < 0) {
         RCLCPP_WARN(logger, "mq_receive failed: %s", strerror(errno));
         continue;
       }
@@ -143,32 +120,67 @@ void BridgeManager::setup_epoll()
   }
 }
 
-void BridgeManager::sigchld_handler(int sig)
+void BridgeManager::setup_signal_handlers()
 {
-  (void)sig;
+  std::signal(SIGPIPE, SIG_IGN);
+
+  struct sigaction sa;
+  sa.sa_handler = sigchld_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+
+  if (sigaction(SIGCHLD, &sa, 0) == -1) {
+    throw std::runtime_error("Failed to register SIGCHLD handler");
+  }
+
+  struct sigaction sa_shutdown;
+  sa_shutdown.sa_handler = shutdown_handler;
+  sigemptyset(&sa_shutdown.sa_mask);
+  sa_shutdown.sa_flags = 0;
+
+  if (sigaction(SIGINT, &sa_shutdown, 0) == -1) {
+    throw std::runtime_error("Failed to register SIGINT handler");
+  }
+  if (sigaction(SIGTERM, &sa_shutdown, 0) == -1) {
+    throw std::runtime_error("Failed to register SIGTERM handler");
+  }
+}
+
+void BridgeManager::sigchld_handler([[maybe_unused]] int sig)
+{
   while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
-bool BridgeManager::does_bridge_exist(const MqMsgBridge & req) const
+void BridgeManager::shutdown_handler([[maybe_unused]] int sig)
+{
+  running_.store(false);
+}
+
+std::vector<agnocast::BridgeManager::ActiveBridge> & BridgeManager::get_bridge_list(
+  BridgeDirection direction)
+{
+  if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    return active_r2a_bridges_;
+  } else {
+    return active_a2r_bridges_;
+  }
+}
+
+bool BridgeManager::does_bridge_exist(BridgeDirection direction, const std::string & topic_name)
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-  const std::string topic_name_str(req.args.topic_name);
-  auto topic_matches = [&](const ActiveBridge & bridge) {
-    return bridge.topic_name == topic_name_str;
-  };
+  auto & bridge_list = get_bridge_list(direction);
+  auto topic_matches = [&](const ActiveBridge & bridge) { return bridge.topic_name == topic_name; };
 
-  if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    return std::any_of(active_r2a_bridges_.begin(), active_r2a_bridges_.end(), topic_matches);
-  } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-    return std::any_of(active_a2r_bridges_.begin(), active_a2r_bridges_.end(), topic_matches);
-  }
-  return false;
+  return std::any_of(bridge_list.begin(), bridge_list.end(), topic_matches);
 }
 
 void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 {
-  if (does_bridge_exist(req)) {
+  const std::string topic_name_str(req.args.topic_name);
+
+  if (does_bridge_exist(req.direction, topic_name_str)) {
     return;
   }
 
@@ -176,21 +188,14 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 
   if (pid < 0) {
     RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    return;
   }
 
   if (pid == 0) {
     if (setsid() == -1) {
-      RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+      RCLCPP_ERROR(logger, "setsid failed for unlink manager: %s", strerror(errno));
       close(agnocast_fd);
       exit(EXIT_FAILURE);
-    }
-
-    RCLCPP_INFO(logger, "[BRIDGE PROCESS] PID: %d", getpid());
-
-    if (!agnocast_heaphook_init_daemon()) {
-      RCLCPP_ERROR(logger, "Heaphook init FAILED.");
     }
 
     bridge_process_main(req);
@@ -199,100 +204,63 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 
   {
     std::lock_guard<std::mutex> lock(bridges_mutex_);
-    ActiveBridge new_bridge = {pid, std::string(req.args.topic_name)};
+    ActiveBridge new_bridge = {pid, topic_name_str};
 
-    if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-      active_r2a_bridges_.push_back(new_bridge);
-    } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-      active_a2r_bridges_.push_back(new_bridge);
-    }
+    auto & bridge_list = get_bridge_list(req.direction);
+    bridge_list.push_back(new_bridge);
+
     RCLCPP_INFO(logger, "Launched new bridge PID %d for topic %s", pid, req.args.topic_name);
   }
 }
 
+void BridgeManager::remove_bridges(
+  std::vector<ActiveBridge> & bridges, std::function<bool(const std::string &)> check_demand)
+{
+  bridges.erase(
+    std::remove_if(
+      bridges.begin(), bridges.end(),
+      [&](ActiveBridge & bridge) {
+        if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
+          return true;
+        }
+
+        if (!check_demand(bridge.topic_name)) {
+          kill(bridge.pid, SIGTERM);
+          return true;
+        }
+
+        return false;
+      }),
+    bridges.end());
+}
+
 bool BridgeManager::check_r2a_demand(const std::string & topic_name) const
 {
-  pid_t opposite_pid = NO_OPPOSITE_BRIDGE_PID;
-
-  auto it = std::find_if(
-    active_a2r_bridges_.begin(), active_a2r_bridges_.end(),
-    [&](const ActiveBridge & bridge) { return bridge.topic_name == topic_name; });
-
-  if (it != active_a2r_bridges_.end()) {
-    opposite_pid = it->pid;
-  }
-
-  union ioctl_get_ext_subscriber_num_args args = {};
-  args.topic_name = {topic_name.c_str(), topic_name.size()};
-  args.exclude_pid = opposite_pid;
-
-  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "Failed to get ext sub count for '%s'", topic_name.c_str());
-    return false;
-  }
-
-  return args.ret_ext_subscriber_num > 0;
+  return check_demand_internal<union ioctl_get_ext_subscriber_num_args>(
+    topic_name, active_a2r_bridges_, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
+    [](const union ioctl_get_ext_subscriber_num_args & args) {
+      return args.ret_ext_subscriber_num;
+    });
 }
 
 bool BridgeManager::check_a2r_demand(const std::string & topic_name) const
 {
-  pid_t opposite_pid = NO_OPPOSITE_BRIDGE_PID;
-
-  auto it = std::find_if(
-    active_r2a_bridges_.begin(), active_r2a_bridges_.end(),
-    [&](const ActiveBridge & bridge) { return bridge.topic_name == topic_name; });
-
-  if (it != active_r2a_bridges_.end()) {
-    opposite_pid = it->pid;
-  }
-
-  union ioctl_get_ext_publisher_num_args args = {};
-  args.topic_name = {topic_name.c_str(), topic_name.size()};
-  args.exclude_pid = opposite_pid;
-  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "Failed to get ext pub count for '%s'", topic_name.c_str());
-    return false;
-  }
-  return args.ret_ext_publisher_num > 0;
+  return check_demand_internal<union ioctl_get_ext_publisher_num_args>(
+    topic_name, active_r2a_bridges_, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
+    [](const union ioctl_get_ext_publisher_num_args & args) { return args.ret_ext_publisher_num; });
 }
 
 void BridgeManager::check_and_remove_bridges()
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-  active_r2a_bridges_.erase(
-    std::remove_if(
-      active_r2a_bridges_.begin(), active_r2a_bridges_.end(),
-      [&](ActiveBridge & bridge) {
-        if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
-          return true;
-        }
+  remove_bridges(active_r2a_bridges_, [&](const std::string & topic_name) {
+    return check_r2a_demand(topic_name);
+  });
 
-        if (!check_r2a_demand(bridge.topic_name)) {
-          kill(bridge.pid, SIGTERM);
-          return false;
-        }
-
-        return false;
-      }),
-    active_r2a_bridges_.end());
-
-  active_a2r_bridges_.erase(
-    std::remove_if(
-      active_a2r_bridges_.begin(), active_a2r_bridges_.end(),
-      [&](ActiveBridge & bridge) {
-        if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
-          return false;
-        }
-
-        if (!check_a2r_demand(bridge.topic_name)) {
-          kill(bridge.pid, SIGTERM);
-          return true;
-        }
-
-        return false;
-      }),
-    active_a2r_bridges_.end());
+  remove_bridges(active_a2r_bridges_, [&](const std::string & topic_name) {
+    return check_a2r_demand(topic_name);
+  });
 }
 
 void BridgeManager::check_and_request_shutdown()
