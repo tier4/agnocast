@@ -49,8 +49,7 @@ public:
   {
     get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
     client_publisher_ = create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info",
-      rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
+      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
   }
 
   ~ComponentManagerCallbackIsolated() override;
