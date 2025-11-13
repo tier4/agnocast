@@ -6,6 +6,7 @@
 #include <sys/syscall.h>
 
 #include <chrono>
+#include <iostream>
 #include <list>
 #include <thread>
 #include <unordered_map>
@@ -198,21 +199,30 @@ void ComponentManagerCallbackIsolated::cancel_executor(ExecutorWrapper & executo
 
 }  // namespace rclcpp_components
 
-int main(int argc, char * argv[]) noexcept(false)
+int main(int argc, char * argv[])
 {
-  rclcpp::init(argc, argv);
+  try {
+    rclcpp::init(argc, argv);
 
-  rclcpp::NodeOptions options;
-  options.allow_undeclared_parameters(true);
-  options.automatically_declare_parameters_from_overrides(true);
+    rclcpp::NodeOptions options;
+    options.allow_undeclared_parameters(true);
+    options.automatically_declare_parameters_from_overrides(true);
 
-  auto node = std::make_shared<rclcpp_components::ComponentManagerCallbackIsolated>(
-    std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
+    auto node = std::make_shared<rclcpp_components::ComponentManagerCallbackIsolated>(
+      std::weak_ptr<rclcpp::Executor>(), "ComponentManager", options);
 
-  auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+    auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
 
-  executor->add_node(node);
-  executor->spin();
+    executor->add_node(node);
+    executor->spin();
 
-  rclcpp::shutdown();
+    rclcpp::shutdown();
+  } catch (const std::exception & e) {
+    std::cerr << "Exception in main: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown exception in main" << std::endl;
+    return 1;
+  }
+  return 0;
 }
