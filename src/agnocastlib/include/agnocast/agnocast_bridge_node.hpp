@@ -24,6 +24,7 @@ public:
     rclcpp::QoS qos = reconstruct_qos(args.qos);
 
     agnocast::PublisherOptions pub_options;
+    pub_options.send_a2r_bridge_request = false;
     agnocast_pub_ =
       std::make_shared<agnocast::Publisher<MessageT>>(this, topic_name, qos, pub_options);
 

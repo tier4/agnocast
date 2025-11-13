@@ -64,7 +64,6 @@ void bridge_manager_daemon()
     exit(EXIT_FAILURE);
   }
 
-  RCLCPP_INFO(logger, "[BRIDGE MANAGER DAEMON] Shutting down cleanly.");
   close(agnocast_fd);
   exit(EXIT_SUCCESS);
 }

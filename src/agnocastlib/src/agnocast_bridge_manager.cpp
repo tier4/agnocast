@@ -68,19 +68,14 @@ BridgeManager::~BridgeManager()
 
 void BridgeManager::run()
 {
-  // ログファイルを開く (例: /tmp/bridge_PID.log)
   std::string log_path = "/tmp/agnocast_bridge.log";
   int log_fd = open(log_path.c_str(), O_RDWR | O_CREAT | O_APPEND, 0644);
 
   if (log_fd != -1) {
-    // 標準出力(fd=1) と 標準エラー(fd=2) をログファイルに向ける
     dup2(log_fd, STDOUT_FILENO);
     dup2(log_fd, STDERR_FILENO);
-    // 元の log_fd は不要なので閉じる
+
     close(log_fd);
-  } else {
-    // ログファイルが開けなかった (致命的ではないが進める)
-    // (この場合、出力は /dev/null に向かう可能性が高い)
   }
 
   struct epoll_event events[MAX_EVENTS];
@@ -109,11 +104,10 @@ void BridgeManager::run()
       handle_bridge_request(req);
     }
 
-    check_and_remove_bridges();
-
-    RCLCPP_INFO(logger, "TEST 10");
-
-    check_and_request_shutdown();
+    if (num_events == 0) {
+      check_and_remove_bridges();
+      check_and_request_shutdown();
+    }
   }
 }
 
@@ -209,7 +203,6 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 
     if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
       active_r2a_bridges_.push_back(new_bridge);
-      RCLCPP_INFO(logger, "Puhs R2A");
     } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
       active_a2r_bridges_.push_back(new_bridge);
     }
@@ -229,8 +222,6 @@ bool BridgeManager::check_r2a_demand(const std::string & topic_name) const
     opposite_pid = it->pid;
   }
 
-  RCLCPP_INFO(logger, "EXT_PID = %d", opposite_pid);
-
   union ioctl_get_ext_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   args.exclude_pid = opposite_pid;
@@ -239,9 +230,6 @@ bool BridgeManager::check_r2a_demand(const std::string & topic_name) const
     RCLCPP_ERROR(logger, "Failed to get ext sub count for '%s'", topic_name.c_str());
     return false;
   }
-
-  auto sub_num = args.ret_ext_subscriber_num;
-  RCLCPP_INFO(logger, "SUB_NUM = %d", sub_num);
 
   return args.ret_ext_subscriber_num > 0;
 }
@@ -272,24 +260,19 @@ void BridgeManager::check_and_remove_bridges()
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-  RCLCPP_INFO(logger, "Start remove check");
-
   active_r2a_bridges_.erase(
     std::remove_if(
       active_r2a_bridges_.begin(), active_r2a_bridges_.end(),
       [&](ActiveBridge & bridge) {
         if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
-          RCLCPP_INFO(logger, "Kill 1");
           return true;
         }
 
         if (!check_r2a_demand(bridge.topic_name)) {
           kill(bridge.pid, SIGTERM);
-          RCLCPP_INFO(logger, "Kill 2");
-          return true;
+          return false;
         }
 
-        RCLCPP_INFO(logger, "Not Kill");
         return false;
       }),
     active_r2a_bridges_.end());
@@ -299,7 +282,7 @@ void BridgeManager::check_and_remove_bridges()
       active_a2r_bridges_.begin(), active_a2r_bridges_.end(),
       [&](ActiveBridge & bridge) {
         if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
-          return true;
+          return false;
         }
 
         if (!check_a2r_demand(bridge.topic_name)) {
@@ -324,12 +307,7 @@ void BridgeManager::check_and_request_shutdown()
     std::lock_guard<std::mutex> lock(bridges_mutex_);
     if (active_r2a_bridges_.empty() && active_a2r_bridges_.empty()) {
       running_.store(false);
-      RCLCPP_INFO(logger, "Shutdown");
-    } else {
-      RCLCPP_INFO(logger, "Not shutdown");
     }
-  } else {
-    RCLCPP_INFO(logger, "Not Process one");
   }
 }
 
