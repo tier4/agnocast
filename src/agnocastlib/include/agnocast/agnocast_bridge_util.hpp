@@ -1,4 +1,5 @@
 #pragma once
+
 #include "agnocast/agnocast_bridge_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -8,16 +9,9 @@
 namespace agnocast
 {
 
-static void safe_strncpy(char * dest, const char * src, size_t dest_size)
-{
-  if (dest_size == 0) return;
-  if (src == nullptr) {
-    dest[0] = '\0';
-    return;
-  }
-  std::strncpy(dest, src, dest_size - 1);
-  dest[dest_size - 1] = '\0';
-}
+QoSFlat flatten_qos(const rclcpp::QoS & qos);
+
+void safe_strncpy(char * dest, const char * src, size_t dest_size);
 
 template <typename MessageT>
 void send_bridge_request(

@@ -8,11 +8,24 @@
 namespace agnocast
 {
 
-using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);
+inline rclcpp::QoS reconstruct_qos(const QoSFlat & q)
+{
+  rclcpp::QoS qos(q.depth);
+  if (q.history == 1) {
+    qos.keep_all();
+  }
+  if (q.reliability == 1) {
+    qos.reliable();
+  } else if (q.reliability == 2) {
+    qos.best_effort();
+  }
+  if (q.durability == 1) {
+    qos.transient_local();
+  }
+  return qos;
+}
 
-void bridge_process_main(const MqMsgBridge & msg);
-QoSFlat flatten_qos(const rclcpp::QoS & qos);
-rclcpp::QoS reconstruct_qos(const QoSFlat & q);
+using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);
 
 template <typename MessageT>
 class BridgeNode : public rclcpp::Node

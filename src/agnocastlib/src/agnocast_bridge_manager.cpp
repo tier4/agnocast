@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
+#include "agnocast/agnocast_bridge_main.hpp"
+
 #include <rclcpp/rclcpp.hpp>
 
 #include <fcntl.h>
@@ -198,7 +200,7 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
       exit(EXIT_FAILURE);
     }
 
-    bridge_process_main(req);
+    bridge_main(req);
     exit(EXIT_SUCCESS);
   }
 
