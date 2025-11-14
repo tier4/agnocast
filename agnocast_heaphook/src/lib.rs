@@ -620,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn test_malloc_fundamental_alignments() {
+    fn test_malloc_alignment() {
         let sizes = (1..=MIN_ALIGN * 2).filter(|n| n.is_power_of_two());
 
         for size in sizes {
@@ -666,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn test_calloc_fundamental_alignments() {
+    fn test_calloc_alignment() {
         let obj_sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
         let obj_nums = [1, 2];
 
@@ -746,7 +746,7 @@ mod tests {
     }
 
     #[test]
-    fn test_realloc_fundamental_alignments() {
+    fn test_realloc_alignment() {
         let old_ptr = unsafe { libc::malloc(MIN_ALIGN / 2) };
         assert!(!old_ptr.is_null());
         assert!(is_shared(old_ptr.cast()));
