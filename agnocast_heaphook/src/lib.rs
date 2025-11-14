@@ -15,7 +15,12 @@ use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
 
-// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+///  An alignment equal to `alignof(max_align_t)`.
+///
+/// According to [C23](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf), when allocation succeeds,
+/// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitable aligned
+/// for storing **any** obuject with a *fundamental alignment* requirement and size less than or equal to the size requested.
+/// The *fundamental alignment* is a nonnegative integral power of two less than or equal to `alignof(max_align_t)`.
 #[allow(clippy::if_same_then_else)]
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
@@ -384,8 +389,6 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -438,8 +441,6 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return ptr::null_mut();
     };
 
-    // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -482,8 +483,6 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
     let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
 
-    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
     let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
