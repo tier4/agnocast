@@ -18,7 +18,7 @@ mod tlsf;
 ///  An alignment equal to `alignof(max_align_t)`.
 ///
 /// According to [C23](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf), when allocation succeeds,
-/// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitable aligned
+/// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitably aligned
 /// for storing **any** obuject with a *fundamental alignment* requirement and size less than or equal to the size requested.
 /// The *fundamental alignment* is a nonnegative integral power of two less than or equal to `alignof(max_align_t)`.
 #[allow(clippy::if_same_then_else)]
@@ -620,6 +620,25 @@ mod tests {
     }
 
     #[test]
+    fn test_malloc_fundamental_alignments() {
+        let sizes = (1..=MIN_ALIGN * 2).filter(|n| n.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::malloc(size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
     fn test_calloc_normal() {
         // Arrange
         let elements = 4;
@@ -644,6 +663,36 @@ mod tests {
         }
 
         unsafe { libc::free(ptr) };
+    }
+
+    #[test]
+    fn test_calloc_fundamental_alignments() {
+        let obj_sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let obj_nums = [1, 2];
+
+        for obj_size in obj_sizes {
+            for obj_num in obj_nums {
+                let total_size = obj_size * obj_num;
+
+                let ptr = unsafe { libc::calloc(obj_num, obj_size) };
+                assert!(!ptr.is_null());
+                assert!(is_shared(ptr.cast()));
+
+                // NOTE: Is it possible to relax the constraint by replacing `total_size` with `obj_size`?
+                let alignment = if total_size <= MIN_ALIGN {
+                    total_size
+                } else {
+                    MIN_ALIGN
+                };
+
+                assert!(
+                    ptr as usize % alignment == 0,
+                    "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+                );
+
+                unsafe { libc::free(ptr) };
+            }
+        }
     }
 
     #[test]
@@ -697,6 +746,23 @@ mod tests {
     }
 
     #[test]
+    fn test_realloc_fundamental_alignments() {
+        let old_ptr = unsafe { libc::malloc(MIN_ALIGN / 2) };
+        assert!(!old_ptr.is_null());
+        assert!(is_shared(old_ptr.cast()));
+
+        let new_ptr = unsafe { libc::realloc(old_ptr, MIN_ALIGN) };
+        assert!(!new_ptr.is_null());
+        assert!(is_shared(new_ptr.cast()));
+        assert!(
+            new_ptr as usize % MIN_ALIGN == 0,
+            "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+        );
+
+        unsafe { libc::free(new_ptr) };
+    }
+
+    #[test]
     fn test_posix_memalign_normal() {
         // Arrange
         let alignment = 64;
@@ -725,6 +791,7 @@ mod tests {
 
     #[test]
     fn test_aligned_alloc_with_fundamental_alignments() {
+        // The alignment requirements related to the fundamental alignment also apply even if the requested alignment is less strict.
         let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
         let size = MIN_ALIGN;
         for alignment in alignments {
@@ -735,6 +802,7 @@ mod tests {
                 ptr as usize % MIN_ALIGN == 0,
                 "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
             );
+            unsafe { libc::free(ptr) };
         }
     }
 
