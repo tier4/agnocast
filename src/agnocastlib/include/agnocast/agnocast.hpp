@@ -25,7 +25,13 @@
 namespace agnocast
 {
 
-extern "C" void * initialize_agnocast(
+struct initialize_agnocast_result
+{
+  void * mempool_ptr;
+  uint64_t mempool_size;
+};
+
+extern "C" struct initialize_agnocast_result initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
   const size_t heaphook_version_str_len);
 
