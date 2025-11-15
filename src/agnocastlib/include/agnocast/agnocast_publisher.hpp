@@ -162,7 +162,7 @@ public:
         ipc_shared_ptr<MessageT> message;
 
         {
-          std::scoped_lock lock(ros2_publish_mtx_);
+          std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
           if (ros2_message_queue_.empty()) {
             break;
           }
