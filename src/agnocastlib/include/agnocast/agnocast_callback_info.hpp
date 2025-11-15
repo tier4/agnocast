@@ -112,6 +112,11 @@ void receive_message(
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
+void wait_and_handle_epoll_event_impl(
+  const int epoll_fd, const pid_t my_pid, const int timeout_ms,
+  std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables);
+
 template <class ValidateFn>
 void prepare_epoll_impl(
   const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
