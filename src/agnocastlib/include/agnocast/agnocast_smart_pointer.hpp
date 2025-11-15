@@ -117,7 +117,10 @@ public:
   {
     if (ptr_ == nullptr) return;
 
-    decrement_rc(topic_name_, pubsub_id_, entry_id_);
+    // Only decrement rc if the message has been published (entry_id_ != -1 means it exists in kmod)
+    if (entry_id_ != -1) {
+      decrement_rc(topic_name_, pubsub_id_, entry_id_);
+    }
 
     ptr_ = nullptr;
   }
