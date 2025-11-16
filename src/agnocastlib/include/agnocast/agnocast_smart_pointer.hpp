@@ -117,7 +117,9 @@ public:
   {
     if (ptr_ == nullptr) return;
 
-    // Only decrement rc if the message has been published (entry_id_ != -1 means it exists in kmod)
+    // Do not call decrement_rc() when entry_id is -1 since there is no corresponding
+    // entry_node in kmod. This happens when reset() is called after borrow_loaned_message()
+    // without calling publish() (i.e., the borrowed message was never published).
     if (entry_id_ != -1) {
       decrement_rc(topic_name_, pubsub_id_, entry_id_);
     }
