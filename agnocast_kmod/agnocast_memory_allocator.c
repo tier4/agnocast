@@ -1,29 +1,41 @@
 #include "agnocast_memory_allocator.h"
 
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 static struct mempool_entry mempool_entries[MEMPOOL_DEFAULT_NUM];
 
+// Module parameter: mempool size in GB (default: 8GB)
+int mempool_size_gb = 8;
+module_param(mempool_size_gb, int, 0444);
+MODULE_PARM_DESC(mempool_size_gb, "Default mempool size in GB (default: 8)");
+
+uint64_t mempool_size_bytes = 0;
+
 void init_memory_allocator(void)
 {
   uint64_t addr = 0x40000000000;
 
+  mempool_size_bytes = (uint64_t)mempool_size_gb * 1024ULL * 1024ULL * 1024ULL;
+
+  pr_info("Agnocast: Initializing memory allocator with pool size: %llu bytes (%d GB)\n",
+          mempool_size_bytes, mempool_size_gb);
+
   for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
     mempool_entries[i].addr = addr;
-    mempool_entries[i].pool_size = MEMPOOL_DEFAULT_SIZE;
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
       mempool_entries[i].mapped_pids[j] = -1;
     }
-    addr += MEMPOOL_DEFAULT_SIZE;
+    addr += mempool_size_bytes;
   }
 }
 
 struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size)
 {
-  if (size <= MEMPOOL_DEFAULT_SIZE) {
+  if (size <= mempool_size_bytes) {
     for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
       if (mempool_entries[i].mapped_num == 0) {
         mempool_entries[i].mapped_num = 1;

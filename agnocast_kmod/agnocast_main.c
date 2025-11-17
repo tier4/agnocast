@@ -749,7 +749,7 @@ int add_process(
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
-  ioctl_ret->ret_shm_size = new_proc_info->mempool_entry->pool_size;
+  ioctl_ret->ret_shm_size = mempool_size_bytes;
   return 0;
 }
 

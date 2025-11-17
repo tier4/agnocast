@@ -5,13 +5,20 @@
 // Maximum number of processes that can be mapped to a memory pool
 #define MAX_PROCESS_NUM_PER_MEMPOOL 32
 
-#define MEMPOOL_DEFAULT_SIZE 8589934592ULL  // 8GB
+// Number of mempool entries
 #define MEMPOOL_DEFAULT_NUM 1000
+
+// Module parameter for mempool size (defined in agnocast_memory_allocator.c)
+// Default is 8GB, can be overridden by insmod parameter mempool_size_gb
+// Example: insmod agnocast.ko mempool_size_gb=16
+extern int mempool_size_gb;
+
+// Mempool size in bytes (calculated from mempool_size_gb)
+extern uint64_t mempool_size_bytes;
 
 struct mempool_entry
 {
   uint64_t addr;
-  uint64_t pool_size;
   uint32_t mapped_num;
   pid_t mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL];
 };

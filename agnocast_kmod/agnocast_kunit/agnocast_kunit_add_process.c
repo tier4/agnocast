@@ -78,7 +78,7 @@ void test_case_add_process_too_big(struct kunit * test)
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
   uint64_t local_pid = pid++;
-  uint64_t shm_size = MEMPOOL_DEFAULT_SIZE + PAGE_SIZE;
+  uint64_t shm_size = mempool_size_bytes + PAGE_SIZE;
   union ioctl_add_process_args args;
   int ret = add_process(local_pid, current->nsproxy->ipc_ns, shm_size, &args);
 
