@@ -704,16 +704,8 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
 }
 
 int add_process(
-  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
-  union ioctl_add_process_args * ioctl_ret)
+  const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret)
 {
-  if (shm_size % PAGE_SIZE != 0) {
-    dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process)\n", shm_size,
-      PAGE_SIZE);
-    return -EINVAL;
-  }
-
   if (find_process_info(pid)) {
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
     return -EINVAL;
@@ -733,11 +725,9 @@ int add_process(
 #else
   new_proc_info->local_pid = pid;
 #endif
-  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
+  new_proc_info->mempool_entry = assign_memory(pid);
   if (!new_proc_info->mempool_entry) {
-    dev_warn(
-      agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process)\n", pid, shm_size);
+    dev_warn(agnocast_device, "Process (pid=%d) failed to allocate memory. (add_process)\n", pid);
     kfree(new_proc_info);
     return -ENOMEM;
   }
@@ -1407,7 +1397,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
       goto return_EFAULT;
-    ret = add_process(pid, ipc_ns, add_process_args.shm_size, &add_process_args);
+    ret = add_process(pid, ipc_ns, &add_process_args);
     if (copy_to_user(
           (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
       goto return_EFAULT;

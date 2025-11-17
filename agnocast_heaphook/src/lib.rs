@@ -150,7 +150,6 @@ impl AgnocastSharedMemory {
 
         extern "C" {
             fn initialize_agnocast(
-                size: usize,
                 version: *const c_char,
                 version_str_length: usize,
             ) -> InitializeAgnocastResult;
@@ -165,21 +164,11 @@ impl AgnocastSharedMemory {
             )
         }
 
-        let mempool_size = match std::env::var("AGNOCAST_MEMPOOL_SIZE") {
-            Ok(val) => val.parse::<usize>().unwrap_or_else(|error| {
-                panic!(
-                    "[ERROR] [Agnocast] failed to parse AGNOCAST_MEMPOOL_SIZE ('{}'): {}",
-                    val, error
-                );
-            }),
-            Err(_) => 0, // Use 0 to let kernel module decide the default size
-        };
-
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
 
         let result = unsafe {
-            initialize_agnocast(mempool_size, c_version.as_ptr(), c_version.as_bytes().len())
+            initialize_agnocast(c_version.as_ptr(), c_version.as_bytes().len())
         };
 
         let start = result.mempool_ptr as usize;

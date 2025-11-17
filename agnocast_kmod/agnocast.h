@@ -30,7 +30,6 @@ struct ioctl_get_version_args
 };
 
 union ioctl_add_process_args {
-  uint64_t shm_size;
   struct
   {
     uint64_t ret_addr;

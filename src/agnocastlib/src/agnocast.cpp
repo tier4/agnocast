@@ -255,8 +255,7 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 struct initialize_agnocast_result initialize_agnocast(
-  const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
-  const size_t heaphook_version_str_len)
+  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
 {
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
@@ -282,7 +281,6 @@ struct initialize_agnocast_result initialize_agnocast(
   }
 
   union ioctl_add_process_args add_process_args = {};
-  add_process_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
     close(agnocast_fd);

@@ -34,15 +34,13 @@ void init_memory_allocator(void)
   }
 }
 
-struct mempool_entry * assign_memory(const pid_t pid, const uint64_t size)
+struct mempool_entry * assign_memory(const pid_t pid)
 {
-  if (size <= mempool_size_bytes) {
-    for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
-      if (mempool_entries[i].mapped_num == 0) {
-        mempool_entries[i].mapped_num = 1;
-        mempool_entries[i].mapped_pids[0] = pid;
-        return &mempool_entries[i];
-      }
+  for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
+    if (mempool_entries[i].mapped_num == 0) {
+      mempool_entries[i].mapped_num = 1;
+      mempool_entries[i].mapped_pids[0] = pid;
+      return &mempool_entries[i];
     }
   }
 

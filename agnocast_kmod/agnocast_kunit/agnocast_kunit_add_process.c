@@ -14,7 +14,7 @@ void test_case_add_process_normal(struct kunit * test)
 
   uint64_t local_pid = pid++;
   union ioctl_add_process_args args;
-  int ret = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+  int ret = add_process(local_pid, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 1);
@@ -32,12 +32,12 @@ void test_case_add_process_many(struct kunit * test)
   for (int i = 0; i < max_process_num - 1; i++) {
     uint64_t local_pid = pid++;
     union ioctl_add_process_args args;
-    add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+    add_process(local_pid, current->nsproxy->ipc_ns, &args);
   }
 
   uint64_t local_pid = pid++;
   union ioctl_add_process_args args;
-  int ret = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+  int ret = add_process(local_pid, current->nsproxy->ipc_ns, &args);
 
   // ================================================
   // Assert
@@ -49,41 +49,18 @@ void test_case_add_process_many(struct kunit * test)
   }
 }
 
-void test_case_add_process_not_aligned(struct kunit * test)
-{
-  uint64_t local_pid = pid++;
-  union ioctl_add_process_args args;
-  int ret = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE + 1, &args);
-
-  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
-}
-
 void test_case_add_process_twice(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
 
   pid_t local_pid = pid++;
   union ioctl_add_process_args args;
-  int ret1 = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
-  int ret2 = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+  int ret1 = add_process(local_pid, current->nsproxy->ipc_ns, &args);
+  int ret2 = add_process(local_pid, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, ret2, -EINVAL);
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 1);
-  KUNIT_EXPECT_FALSE(test, is_proc_exited(local_pid));
-}
-
-void test_case_add_process_too_big(struct kunit * test)
-{
-  KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 0);
-
-  uint64_t local_pid = pid++;
-  uint64_t shm_size = mempool_size_bytes + PAGE_SIZE;
-  union ioctl_add_process_args args;
-  int ret = add_process(local_pid, current->nsproxy->ipc_ns, shm_size, &args);
-
-  KUNIT_EXPECT_EQ(test, ret, -ENOMEM);
-  KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 0);
   KUNIT_EXPECT_FALSE(test, is_proc_exited(local_pid));
 }
 
@@ -97,11 +74,11 @@ void test_case_add_process_too_many(struct kunit * test)
   for (int i = 0; i < max_process_num; i++) {
     uint64_t local_pid = pid++;
     union ioctl_add_process_args args;
-    add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+    add_process(local_pid, current->nsproxy->ipc_ns, &args);
   }
   uint64_t local_pid = pid++;
   union ioctl_add_process_args args;
-  int ret = add_process(local_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &args);
+  int ret = add_process(local_pid, current->nsproxy->ipc_ns, &args);
 
   // ================================================
   // Assert
