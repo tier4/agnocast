@@ -35,6 +35,8 @@ BridgeManager::BridgeManager()
     setup_signal_handler();
     setup_epoll();
 
+    self_node_name_ = node_->get_fully_qualified_name();
+
     executor_->add_node(node_);
     spin_thread_ = std::thread([this]() { this->executor_->spin(); });
 
@@ -380,7 +382,7 @@ void BridgeManager::discover_ros2_topics_for_allow_all()
     }
     const std::string & message_type = topic_pair.second[0];
 
-    if (!node_->get_publishers_info_by_topic(topic_name).empty()) {
+    if (has_external_ros2_publisher(topic_name)) {
       BridgeRequest req_r2a = {};
       snprintf(req_r2a.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
       snprintf(req_r2a.message_type, MAX_NAME_LENGTH, "%s", message_type.c_str());
@@ -392,7 +394,7 @@ void BridgeManager::discover_ros2_topics_for_allow_all()
       }
     }
 
-    if (!node_->get_subscriptions_info_by_topic(topic_name).empty()) {
+    if (has_external_ros2_subscriber(topic_name)) {
       BridgeRequest req_a2r = {};
       snprintf(req_a2r.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
       snprintf(req_a2r.message_type, MAX_NAME_LENGTH, "%s", message_type.c_str());
@@ -655,6 +657,40 @@ bool BridgeManager::check_a2r_demand(const std::string & topic_name, pid_t self_
 bool BridgeManager::direction_matches(BridgeDirection entry, BridgeDirection required) const
 {
   return entry == required || entry == BridgeDirection::BIDIRECTIONAL;
+}
+
+bool BridgeManager::has_external_ros2_publisher(const std::string & topic_name) const
+{
+  std::string self_base_name = self_node_name_;
+  size_t last_slash = self_node_name_.rfind('/');
+  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
+    self_base_name = self_node_name_.substr(last_slash + 1);
+  }
+
+  auto pub_info_list = node_->get_publishers_info_by_topic(topic_name);
+  for (const auto & info : pub_info_list) {
+    if (info.node_name() != self_base_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool BridgeManager::has_external_ros2_subscriber(const std::string & topic_name) const
+{
+  std::string self_base_name = self_node_name_;
+  size_t last_slash = self_node_name_.rfind('/');
+  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
+    self_base_name = self_node_name_.substr(last_slash + 1);
+  }
+
+  auto sub_info_list = node_->get_subscriptions_info_by_topic(topic_name);
+  for (const auto & info : sub_info_list) {
+    if (info.node_name() != self_base_name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace agnocast

@@ -47,6 +47,7 @@ private:
   std::vector<ActiveBridgeA2R> active_a2r_bridges_;
   std::vector<std::future<void>> worker_futures_;  // Futures for bridge worker threads
   mutable std::mutex bridges_mutex_;               // Protects active bridge vectors
+  std::string self_node_name_;
 
   // ---------------------------------------------------------------------------
   // 3. Data Members (Core Components)
@@ -112,62 +113,8 @@ private:
   bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
   bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
 
-  // static std::atomic<bool> reload_filter_request_;
-
-  // std::vector<ActiveBridgeR2A> active_r2a_bridges_;
-  // std::vector<ActiveBridgeA2R> active_a2r_bridges_;
-  // std::vector<std::future<void>> worker_futures_;
-
-  // mutable std::mutex bridges_mutex_;
-
-  // rclcpp::Node::SharedPtr node_;
-  // rclcpp::Logger logger_;
-  // BridgeConfig bridge_config_;
-  // std::unique_ptr<rclcpp::Executor> executor_;
-  // std::thread spin_thread_;
-
-  // mqd_t mq_;
-  // int epoll_fd_;
-  // std::string mq_name_str_;
-
-  // void setup_message_queue();
-  // void setup_signal_handler();
-  // void setup_epoll();
-  // void cleanup_finished_futures();
-
-  // void launch_r2a_bridge_thread(const BridgeRequest & request);
-  // void launch_a2r_bridge_thread(const BridgeRequest & request);
-
-  // bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
-
-  // bool is_request_allowed(const BridgeRequest & req) const;
-  // bool is_topic_allowed(const std::string & topic_name, BridgeDirection direction) const;
-  // bool does_bridge_exist(const BridgeRequest & req) const;
-  // void handle_bridge_request(const BridgeRequest & req);
-
-  // void remove_bridges_by_config(
-  //   std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  // void calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
-
-  // bool check_r2a_demand(const std::string & topic_name, pid_t self_pid) const;
-  // bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
-  // void launch_bridge_from_request(const BridgeConfigEntry & entry);
-  // void removed_bridges(
-  //   const std::vector<ActiveBridgeR2A> & to_remove_r2a,
-  //   const std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  // void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
-  // void reload_and_update_bridges();
-
-  // void discover_ros2_topics_for_allow_all();
-  // void check_and_remove_bridges();
-  // void check_and_request_rclcpp_shutdown();
-
-  // BridgeConfig parse_bridge_config();
-  // void parse_rules_node(const YAML::Node & rules, BridgeConfig & config);
-  // std::unique_ptr<rclcpp::Executor> select_executor();
-
-  // static void sighup_handler(int signum);
-
+  bool has_external_ros2_publisher(const std::string & topic_name) const;
+  bool has_external_ros2_subscriber(const std::string & topic_name) const;
   // ---------------------------------------------------------------------------
   // 10. Template Functions
   // ---------------------------------------------------------------------------
@@ -214,8 +161,11 @@ private:
     SubscriptionT subscription = create_bridge_ptr(
       this->node_, std::string(request.topic_name), rclcpp::QoS(DEFAULT_BRIDGE_QOS_DEPTH));
 
+    RCLCPP_INFO(
+      this->logger_, "Bridge created for topic: '%s' [Type: %s, Direction: %s]", request.topic_name,
+      request.message_type, plugin_suffix.c_str());
+
     if (subscription) {
-      std::lock_guard<std::mutex> lock(this->bridges_mutex_);
       auto topic_matches = [&](const auto & bridge) {
         return bridge.topic_name == std::string(request.topic_name);
       };
@@ -300,7 +250,7 @@ private:
               }
             }
 
-            if (!agnocast_demand && !ros2_demand) {
+            if (!agnocast_demand || !ros2_demand) {
               handles_to_close.push_back(bridge.plugin_handle);
               return true;
             }
