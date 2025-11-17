@@ -26,6 +26,7 @@ BridgeManager::BridgeManager()
   logger_(node_->get_logger()),
   bridge_config_(parse_bridge_config()),
   executor_(select_executor()),
+  self_node_name_(node_->get_fully_qualified_name()),
   mq_((mqd_t)-1),
   epoll_fd_(-1),
   mq_name_str_(create_mq_name_for_bridge())
@@ -34,8 +35,6 @@ BridgeManager::BridgeManager()
     setup_message_queue();
     setup_signal_handler();
     setup_epoll();
-
-    self_node_name_ = node_->get_fully_qualified_name();
 
     executor_->add_node(node_);
     spin_thread_ = std::thread([this]() { this->executor_->spin(); });
