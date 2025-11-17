@@ -80,7 +80,7 @@ private:
   // ---------------------------------------------------------------------------
   void handle_bridge_request(const BridgeRequest & req);
   void reload_and_update_bridges();
-  void discover_ros2_topics_for_allow_all();
+  void discover_and_launch_bridges();
   void check_and_remove_bridges();
   void check_and_request_rclcpp_shutdown();
   void cleanup_finished_futures();
@@ -94,28 +94,29 @@ private:
   // ---------------------------------------------------------------------------
   // Config Reload Helpers (Called by reload_and_update_bridges())
   // ---------------------------------------------------------------------------
-  void remove_bridges_by_config(
+  void collect_bridges_to_remove(
     std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  void calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
+  void collect_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
   void removed_bridges(
     const std::vector<ActiveBridgeR2A> & to_remove_r2a,
     const std::vector<ActiveBridgeA2R> & to_remove_a2r);
-  void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
+  void check_demand_and_launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
 
   // ---------------------------------------------------------------------------
   // General Check / Helper Functions
   // ---------------------------------------------------------------------------
+  bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
   bool is_request_allowed(const BridgeRequest & req) const;
   bool is_topic_allowed(const std::string & topic_name, BridgeDirection direction) const;
   bool does_bridge_exist(const BridgeRequest & req) const;
   bool has_external_agnocast_subscriber(const std::string & topic_name, pid_t self_pid) const;
   bool has_external_agnocast_publisher(const std::string & topic_name, pid_t self_pid) const;
-  bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
+  bool has_external_ros2_subscriber(const std::string & topic_name) const;
+  bool has_external_ros2_publisher(const std::string & topic_name) const;
+
   void try_launch_discovered_bridge(
     const std::string & topic_name, const std::string & message_type, BridgeDirection direction,
     pid_t self_pid);
-  bool has_external_ros2_publisher(const std::string & topic_name) const;
-  bool has_external_ros2_subscriber(const std::string & topic_name) const;
 
   // ---------------------------------------------------------------------------
   // Template Functions
@@ -197,7 +198,7 @@ private:
   }
 
   template <typename BridgeType, typename IoctlArgs>
-  void check_and_remove_bridges(
+  void check_and_remove_bridge(
     std::vector<BridgeType> & bridges, pid_t self_pid, BridgeDirection direction)
   {
     std::set<void *> handles_to_remove;

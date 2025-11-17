@@ -129,7 +129,7 @@ void BridgeManager::run()
     }
 
     if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
-      discover_ros2_topics_for_allow_all();
+      discover_and_launch_bridges();
     }
 
     check_and_remove_bridges();
@@ -357,13 +357,13 @@ void BridgeManager::reload_and_update_bridges()
   std::vector<ActiveBridgeA2R> to_remove_a2r;
   std::vector<BridgeConfigEntry> to_add;
 
-  remove_bridges_by_config(to_remove_r2a, to_remove_a2r);
-  calculate_new_bridges_to_add(to_add);
+  collect_bridges_to_remove(to_remove_r2a, to_remove_a2r);
+  collect_bridges_to_add(to_add);
   removed_bridges(to_remove_r2a, to_remove_a2r);
-  launch_new_bridges(to_add);
+  check_demand_and_launch_new_bridges(to_add);
 }
 
-void BridgeManager::discover_ros2_topics_for_allow_all()
+void BridgeManager::discover_and_launch_bridges()
 {
   auto topic_names_and_types = node_->get_topic_names_and_types();
   const pid_t self_pid = getpid();
@@ -459,7 +459,7 @@ void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
 // Config Reload Helpers (Called by reload_and_update_bridges())
 // ---------------------------------------------------------------------------
 
-void BridgeManager::remove_bridges_by_config(
+void BridgeManager::collect_bridges_to_remove(
   std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r)
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
@@ -483,7 +483,7 @@ void BridgeManager::remove_bridges_by_config(
   remove_list_by_direction(active_a2r_bridges_, to_remove_a2r, BridgeDirection::AGNOCAST_TO_ROS2);
 }
 
-void BridgeManager::calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add)
+void BridgeManager::collect_bridges_to_add(std::vector<BridgeConfigEntry> & to_add)
 {
   std::set<std::string> active_a2r_topics;
   std::set<std::string> active_r2a_topics;
@@ -532,7 +532,8 @@ void BridgeManager::removed_bridges(
   }
 }
 
-void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add)
+void BridgeManager::check_demand_and_launch_new_bridges(
+  const std::vector<BridgeConfigEntry> & to_add)
 {
   const pid_t self_pid = getpid();
   for (const auto & entry : to_add) {
@@ -572,6 +573,11 @@ void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to
 // ---------------------------------------------------------------------------
 // General Check / Helper Functions
 // ---------------------------------------------------------------------------
+bool BridgeManager::direction_matches(BridgeDirection entry, BridgeDirection required) const
+{
+  return entry == required || entry == BridgeDirection::BIDIRECTIONAL;
+}
+
 bool BridgeManager::is_request_allowed(const BridgeRequest & req) const
 {
   auto rule_matches = [&](const BridgeConfigEntry & entry) {
@@ -633,9 +639,38 @@ bool BridgeManager::has_external_agnocast_publisher(
   return args.ret_ext_publisher_num > 0;
 }
 
-bool BridgeManager::direction_matches(BridgeDirection entry, BridgeDirection required) const
+bool BridgeManager::has_external_ros2_subscriber(const std::string & topic_name) const
 {
-  return entry == required || entry == BridgeDirection::BIDIRECTIONAL;
+  std::string self_base_name = self_node_name_;
+  size_t last_slash = self_node_name_.rfind('/');
+  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
+    self_base_name = self_node_name_.substr(last_slash + 1);
+  }
+
+  auto sub_info_list = node_->get_subscriptions_info_by_topic(topic_name);
+  for (const auto & info : sub_info_list) {
+    if (info.node_name() != self_base_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool BridgeManager::has_external_ros2_publisher(const std::string & topic_name) const
+{
+  std::string self_base_name = self_node_name_;
+  size_t last_slash = self_node_name_.rfind('/');
+  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
+    self_base_name = self_node_name_.substr(last_slash + 1);
+  }
+
+  auto pub_info_list = node_->get_publishers_info_by_topic(topic_name);
+  for (const auto & info : pub_info_list) {
+    if (info.node_name() != self_base_name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void BridgeManager::try_launch_discovered_bridge(
@@ -662,40 +697,6 @@ void BridgeManager::try_launch_discovered_bridge(
         std::async(std::launch::async, &BridgeManager::launch_a2r_bridge_thread, this, req));
     }
   }
-}
-
-bool BridgeManager::has_external_ros2_publisher(const std::string & topic_name) const
-{
-  std::string self_base_name = self_node_name_;
-  size_t last_slash = self_node_name_.rfind('/');
-  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
-    self_base_name = self_node_name_.substr(last_slash + 1);
-  }
-
-  auto pub_info_list = node_->get_publishers_info_by_topic(topic_name);
-  for (const auto & info : pub_info_list) {
-    if (info.node_name() != self_base_name) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool BridgeManager::has_external_ros2_subscriber(const std::string & topic_name) const
-{
-  std::string self_base_name = self_node_name_;
-  size_t last_slash = self_node_name_.rfind('/');
-  if (last_slash != std::string::npos && last_slash + 1 < self_node_name_.length()) {
-    self_base_name = self_node_name_.substr(last_slash + 1);
-  }
-
-  auto sub_info_list = node_->get_subscriptions_info_by_topic(topic_name);
-  for (const auto & info : sub_info_list) {
-    if (info.node_name() != self_base_name) {
-      return true;
-    }
-  }
-  return false;
 }
 
 }  // namespace agnocast
