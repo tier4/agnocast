@@ -39,12 +39,12 @@ private:
   std::vector<ActiveBridgeR2A> active_r2a_bridges_;
   std::vector<ActiveBridgeA2R> active_a2r_bridges_;
   std::vector<std::future<void>> worker_futures_;
-  BridgeConfig bridge_config_;
 
   mutable std::mutex bridges_mutex_;
 
   rclcpp::Node::SharedPtr node_;
   rclcpp::Logger logger_;
+  BridgeConfig bridge_config_;
   std::unique_ptr<rclcpp::Executor> executor_;
   std::thread spin_thread_;
 
@@ -71,15 +71,16 @@ private:
     std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
   void calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
 
-  void removed_bridges(
-    const std::vector<ActiveBridgeR2A> & to_remove_r2a,
-    const std::vector<ActiveBridgeA2R> & to_remove_a2r);
   bool check_r2a_demand(const std::string & topic_name, pid_t self_pid) const;
   bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
   void launch_bridge_from_request(const BridgeConfigEntry & entry);
+  void removed_bridges(
+    const std::vector<ActiveBridgeR2A> & to_remove_r2a,
+    const std::vector<ActiveBridgeA2R> & to_remove_a2r);
   void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
   void reload_and_update_bridges();
 
+  void discover_ros2_topics_for_allow_all();
   void check_and_remove_bridges();
   void check_and_request_rclcpp_shutdown();
 
@@ -164,7 +165,8 @@ private:
   template <typename BridgeType, typename IoctlArgs>
   void check_and_shutdown_collection(
     std::vector<BridgeType> & bridges, pid_t self_pid, unsigned long ioctl_cmd,
-    const char * entity_type_name, std::function<int(const IoctlArgs &)> get_count_func)
+    BridgeDirection direction, const char * entity_type_name,
+    std::function<int(const IoctlArgs &)> get_count_func)
   {
     std::vector<void *> handles_to_close;
     {
@@ -176,6 +178,7 @@ private:
             IoctlArgs args = {};
             args.topic_name = {bridge.topic_name.c_str(), bridge.topic_name.size()};
             args.exclude_pid = self_pid;
+            bool agnocast_demand = true;
 
             if (ioctl(agnocast_fd, ioctl_cmd, &args) < 0) {
               RCLCPP_ERROR(
@@ -185,9 +188,41 @@ private:
             }
 
             if (get_count_func(args) == 0) {
+              agnocast_demand = false;
+            }
+
+            bool ros2_demand = true;
+            if (this->bridge_config_.mode == FilterMode::ALLOW_ALL) {
+              if (!this->node_) {
+                ros2_demand = false;
+              } else {
+                const std::string topic_name_str(bridge.topic_name);
+                try {
+                  if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+                    auto publishers_info =
+                      this->node_->get_publishers_info_by_topic(topic_name_str);
+                    ros2_demand = !publishers_info.empty();
+                  } else if (direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+                    auto subscriptions_info =
+                      this->node_->get_subscriptions_info_by_topic(topic_name_str);
+                    ros2_demand = !subscriptions_info.empty();
+                  } else {
+                    ros2_demand = false;
+                  }
+                } catch (const std::exception & e) {
+                  RCLCPP_ERROR(
+                    this->logger_, "Failed to check ROS 2 entity for topic '%s': %s",
+                    topic_name_str.c_str(), e.what());
+                  ros2_demand = false;
+                }
+              }
+            }
+
+            if (!agnocast_demand && !ros2_demand) {
               handles_to_close.push_back(bridge.plugin_handle);
               return true;
             }
+
             return false;
           }),
         bridges.end());

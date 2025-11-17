@@ -22,9 +22,9 @@ namespace agnocast
 std::atomic<bool> BridgeManager::reload_filter_request_(false);
 
 BridgeManager::BridgeManager()
-: bridge_config_(parse_bridge_config()),
-  node_(std::make_shared<rclcpp::Node>("agnocast_bridge_manager")),
+: node_(std::make_shared<rclcpp::Node>("agnocast_bridge_manager")),
   logger_(node_->get_logger()),
+  bridge_config_(parse_bridge_config()),
   executor_(select_executor()),
   mq_((mqd_t)-1),
   epoll_fd_(-1),
@@ -113,6 +113,10 @@ void BridgeManager::run()
         continue;
       }
 
+      if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
+        break;
+      }
+
       BridgeRequest req;
       if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) < 0) {
         RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
@@ -120,6 +124,10 @@ void BridgeManager::run()
       }
 
       handle_bridge_request(req);
+    }
+
+    if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
+      discover_ros2_topics_for_allow_all();
     }
 
     check_and_remove_bridges();
@@ -184,12 +192,14 @@ void BridgeManager::cleanup_finished_futures()
 
 void BridgeManager::launch_r2a_bridge_thread(const BridgeRequest & request)
 {
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
   load_and_launch_plugin<ActiveBridgeR2A, BridgeEntryR2A, rclcpp::SubscriptionBase::SharedPtr>(
     request, this->active_r2a_bridges_, "r2a", "create_r2a_bridge");
 }
 
 void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
 {
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
   load_and_launch_plugin<
     ActiveBridgeA2R, BridgeEntryA2R, std::shared_ptr<agnocast::SubscriptionBase> >(
     request, this->active_a2r_bridges_, "a2r", "create_a2r_bridge");
@@ -227,7 +237,6 @@ bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
   auto topic_matches = [&](const auto & bridge) { return bridge.topic_name == topic_name_str; };
 
   std::lock_guard<std::mutex> lock(bridges_mutex_);
-
   if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     return std::any_of(active_r2a_bridges_.begin(), active_r2a_bridges_.end(), topic_matches);
   } else if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
@@ -309,20 +318,6 @@ void BridgeManager::calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> 
         to_add.push_back(a2r_entry);
       }
     }
-  } else if (bridge_config_.mode == FilterMode::BLACKLIST) {
-    // todo: check if this logic is correct for BLACKLIST mode
-  }
-}
-
-void BridgeManager::removed_bridges(
-  const std::vector<ActiveBridgeR2A> & to_remove_r2a,
-  const std::vector<ActiveBridgeA2R> & to_remove_a2r)
-{
-  for (const auto & bridge : to_remove_r2a) {
-    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
-  }
-  for (const auto & bridge : to_remove_a2r) {
-    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
   }
 }
 
@@ -372,6 +367,18 @@ void BridgeManager::launch_bridge_from_request(const BridgeConfigEntry & entry)
   }
 }
 
+void BridgeManager::removed_bridges(
+  const std::vector<ActiveBridgeR2A> & to_remove_r2a,
+  const std::vector<ActiveBridgeA2R> & to_remove_a2r)
+{
+  for (const auto & bridge : to_remove_r2a) {
+    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
+  }
+  for (const auto & bridge : to_remove_a2r) {
+    if (bridge.plugin_handle) dlclose(bridge.plugin_handle);
+  }
+}
+
 void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add)
 {
   const pid_t self_pid = getpid();
@@ -397,6 +404,10 @@ void BridgeManager::reload_and_update_bridges()
   BridgeConfig new_config = parse_bridge_config();
   bridge_config_ = new_config;
 
+  if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
+    return;
+  }
+
   std::vector<ActiveBridgeR2A> to_remove_r2a;
   std::vector<ActiveBridgeA2R> to_remove_a2r;
   std::vector<BridgeConfigEntry> to_add;
@@ -407,16 +418,63 @@ void BridgeManager::reload_and_update_bridges()
   launch_new_bridges(to_add);
 }
 
+void BridgeManager::discover_ros2_topics_for_allow_all()
+{
+  auto topic_names_and_types = node_->get_topic_names_and_types();
+  const pid_t self_pid = getpid();
+
+  for (const auto & topic_pair : topic_names_and_types) {
+    const std::string & topic_name = topic_pair.first;
+
+    if (topic_name == "/parameter_events" || topic_name == "/rosout") {
+      continue;
+    }
+
+    // Topic may anomalously report multiple types; robustly select first type in list to proceed.
+    if (topic_pair.second.empty()) {
+      RCLCPP_DEBUG(logger_, "Topic '%s' has no message type, skipping.", topic_name.c_str());
+      continue;
+    }
+    const std::string & message_type = topic_pair.second[0];
+
+    if (!node_->get_publishers_info_by_topic(topic_name).empty()) {
+      BridgeRequest req_r2a = {};
+      snprintf(req_r2a.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
+      snprintf(req_r2a.message_type, MAX_NAME_LENGTH, "%s", message_type.c_str());
+      req_r2a.direction = BridgeDirection::ROS2_TO_AGNOCAST;
+
+      if (!does_bridge_exist(req_r2a) && check_r2a_demand(topic_name, self_pid)) {
+        worker_futures_.push_back(
+          std::async(std::launch::async, &BridgeManager::launch_r2a_bridge_thread, this, req_r2a));
+      }
+    }
+
+    if (!node_->get_subscriptions_info_by_topic(topic_name).empty()) {
+      BridgeRequest req_a2r = {};
+      snprintf(req_a2r.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
+      snprintf(req_a2r.message_type, MAX_NAME_LENGTH, "%s", message_type.c_str());
+      req_a2r.direction = BridgeDirection::AGNOCAST_TO_ROS2;
+
+      if (!does_bridge_exist(req_a2r) && check_a2r_demand(topic_name, self_pid)) {
+        worker_futures_.push_back(
+          std::async(std::launch::async, &BridgeManager::launch_a2r_bridge_thread, this, req_a2r));
+      }
+    }
+  }
+}
+
 void BridgeManager::check_and_remove_bridges()
 {
   const pid_t self_pid = getpid();
 
   check_and_shutdown_collection<ActiveBridgeR2A, ioctl_get_ext_subscriber_num_args>(
-    active_r2a_bridges_, self_pid, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, "subscriber",
+    active_r2a_bridges_, self_pid, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
+    BridgeDirection::ROS2_TO_AGNOCAST, "subscriber",
     [](const ioctl_get_ext_subscriber_num_args & args) { return args.ret_ext_subscriber_num; });
 
   check_and_shutdown_collection<ActiveBridgeA2R, ioctl_get_ext_publisher_num_args>(
-    active_a2r_bridges_, self_pid, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, "publisher",
+    active_a2r_bridges_, self_pid, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
+    BridgeDirection::AGNOCAST_TO_ROS2, "publisher",
     [](const ioctl_get_ext_publisher_num_args & args) { return args.ret_ext_publisher_num; });
 }
 
@@ -461,9 +519,10 @@ BridgeConfig BridgeManager::parse_bridge_config()
     return config;
   }
 
-  config.mode = FilterMode::BLACKLIST;
   if (yaml_doc["filter_mode"] && yaml_doc["filter_mode"].IsScalar()) {
-    if (yaml_doc["filter_mode"].as<std::string>() == "whitelist") {
+    if (yaml_doc["filter_mode"].as<std::string>() == "bracklist") {
+      config.mode = FilterMode::BLACKLIST;
+    } else if (yaml_doc["filter_mode"].as<std::string>() == "whitelist") {
       config.mode = FilterMode::WHITELIST;
     }
   }
