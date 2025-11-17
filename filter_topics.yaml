@@ -1,5 +1,5 @@
 # blacklist or whitelist mode for allowed topics.
-# If mode is not specified, defaults to "blacklist".
+# If mode is not specified, defaults to "allow_all".
 
 filter_mode: "whitelist"
 

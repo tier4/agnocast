@@ -113,13 +113,13 @@ void BridgeManager::run()
         continue;
       }
 
-      if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
-        break;
-      }
-
       BridgeRequest req;
       if (mq_receive(mq_, (char *)&req, sizeof(BridgeRequest), NULL) < 0) {
         RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
+        continue;
+      }
+
+      if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
         continue;
       }
 
@@ -656,6 +656,5 @@ bool BridgeManager::direction_matches(BridgeDirection entry, BridgeDirection req
 {
   return entry == required || entry == BridgeDirection::BIDIRECTIONAL;
 }
-
 
 }  // namespace agnocast
