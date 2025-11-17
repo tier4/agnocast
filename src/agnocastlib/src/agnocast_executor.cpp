@@ -60,10 +60,11 @@ void AgnocastExecutor::receive_message(
 
     {
       constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
+      uint64_t pid_callback_info_id =
+        (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
       TRACEPOINT(
         agnocast_create_callable, static_cast<const void *>(callable.get()),
-        receive_args.ret_entry_ids[i], pid_ciid);
+        receive_args.ret_entry_ids[i], pid_callback_info_id);
     }
 
     {
