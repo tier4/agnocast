@@ -17,12 +17,15 @@ target_include_directories(target_library PRIVATE
 )
 ```
 
-For launch.xml ( `AGNOCAST_MEMPOOL_SIZE` can be configured based on how much the process will consume heap memory, see [shared memory](./docs/shared_memory.md) for more detail.):
+For launch.xml:
 
 ```xml
 <env name="LD_PRELOAD" value="libagnocast_heaphook.so"/>
-<env name="AGNOCAST_MEMPOOL_SIZE" value="134217728"/>  <!-- 128MB -->
 ```
+
+> [!NOTE]
+> Mempool size is configured by kernel module parameter `mempool_size_gb` (default: 8GB).
+> See [shared memory](./docs/shared_memory.md) for more detail.
 
 For packages.xml:
 
