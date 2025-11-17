@@ -234,8 +234,7 @@ int take_msg(
   union ioctl_take_msg_args * ioctl_ret);
 
 int add_process(
-  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
-  union ioctl_add_process_args * ioctl_ret);
+  const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret);
 
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
