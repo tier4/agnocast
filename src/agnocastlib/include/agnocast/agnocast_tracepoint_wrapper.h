@@ -23,7 +23,7 @@ DECLARE_TRACEPOINT(
   const char * function_symbol,
   const char * topic_name,
   const size_t queue_depth,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 
 DECLARE_TRACEPOINT(
   agnocast_publish,
@@ -34,7 +34,7 @@ DECLARE_TRACEPOINT(
   agnocast_create_callable,
   const void * callable,
   const int64_t entry_id,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 
 DECLARE_TRACEPOINT(
   agnocast_callable_start,

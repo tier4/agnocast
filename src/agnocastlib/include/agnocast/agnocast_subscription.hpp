@@ -85,12 +85,12 @@ public:
       std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
 
     {
-      uint64_t pid_ciid = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
+      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
       TRACEPOINT(
         agnocast_subscription_init, static_cast<const void *>(this),
         static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
         static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
-        tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
+        tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_callback_info_id);
     }
   }
 
