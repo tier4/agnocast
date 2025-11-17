@@ -97,11 +97,10 @@ private:
   void remove_bridges_by_config(
     std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);
   void calculate_new_bridges_to_add(std::vector<BridgeConfigEntry> & to_add);
-  void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
-  void launch_bridge_from_request(const BridgeConfigEntry & entry);
   void removed_bridges(
     const std::vector<ActiveBridgeR2A> & to_remove_r2a,
     const std::vector<ActiveBridgeA2R> & to_remove_a2r);
+  void launch_new_bridges(const std::vector<BridgeConfigEntry> & to_add);
 
   // ---------------------------------------------------------------------------
   // General Check / Helper Functions
@@ -112,7 +111,9 @@ private:
   bool check_r2a_demand(const std::string & topic_name, pid_t self_pid) const;
   bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
   bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
-
+  void try_launch_discovered_bridge(
+    const std::string & topic_name, const std::string & message_type, BridgeDirection direction,
+    pid_t self_pid);
   bool has_external_ros2_publisher(const std::string & topic_name) const;
   bool has_external_ros2_subscriber(const std::string & topic_name) const;
 
