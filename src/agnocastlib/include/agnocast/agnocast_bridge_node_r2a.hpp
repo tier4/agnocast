@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_util.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -8,30 +9,11 @@
 namespace agnocast
 {
 
-inline rclcpp::QoS reconstruct_qos(const QoSFlat & q)
-{
-  rclcpp::QoS qos(q.depth);
-  if (q.history == 1) {
-    qos.keep_all();
-  }
-  if (q.reliability == 1) {
-    qos.reliable();
-  } else if (q.reliability == 2) {
-    qos.best_effort();
-  }
-  if (q.durability == 1) {
-    qos.transient_local();
-  }
-  return qos;
-}
-
-using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);
-
 template <typename MessageT>
-class BridgeNode : public rclcpp::Node
+class BridgeR2ANode : public rclcpp::Node
 {
 public:
-  explicit BridgeNode(const BridgeArgs & args)
+  explicit BridgeR2ANode(const BridgeArgs & args)
   : rclcpp::Node(
       "agnocast_bridge" + std::regex_replace(std::string(args.topic_name), std::regex("/"), "_"))
   {
@@ -60,9 +42,9 @@ private:
 };
 
 template <typename MessageT>
-std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
+std::shared_ptr<rclcpp::Node> start_bridge_r2a_node(const BridgeArgs & args)
 {
-  return std::make_shared<BridgeNode<MessageT>>(args);
+  return std::make_shared<BridgeR2ANode<MessageT>>(args);
 }
 
 }  // namespace agnocast
