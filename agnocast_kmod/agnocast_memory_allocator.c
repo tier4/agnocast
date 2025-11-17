@@ -20,8 +20,9 @@ void init_memory_allocator(void)
 
   mempool_size_bytes = (uint64_t)mempool_size_gb * 1024ULL * 1024ULL * 1024ULL;
 
-  pr_info("Agnocast: Initializing memory allocator with pool size: %llu bytes (%d GB)\n",
-          mempool_size_bytes, mempool_size_gb);
+  pr_info(
+    "Agnocast: Initializing memory allocator with pool size: %llu bytes (%d GB)\n",
+    mempool_size_bytes, mempool_size_gb);
 
   for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
     mempool_entries[i].addr = addr;

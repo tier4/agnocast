@@ -1167,10 +1167,11 @@ int get_topic_list(
       return -ENOBUFS;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
@@ -1207,10 +1208,11 @@ static int get_node_subscriber_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1250,10 +1252,11 @@ static int get_node_publisher_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
