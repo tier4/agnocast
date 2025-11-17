@@ -398,15 +398,11 @@ void BridgeManager::check_and_remove_bridges()
 {
   const pid_t self_pid = getpid();
 
-  check_and_shutdown_collection<ActiveBridgeR2A, ioctl_get_ext_subscriber_num_args>(
-    active_r2a_bridges_, self_pid, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
-    BridgeDirection::ROS2_TO_AGNOCAST, "subscriber",
-    [](const ioctl_get_ext_subscriber_num_args & args) { return args.ret_ext_subscriber_num; });
+  check_and_remove_bridge<ActiveBridgeR2A, ioctl_get_ext_subscriber_num_args>(
+    active_r2a_bridges_, self_pid, BridgeDirection::ROS2_TO_AGNOCAST);
 
-  check_and_shutdown_collection<ActiveBridgeA2R, ioctl_get_ext_publisher_num_args>(
-    active_a2r_bridges_, self_pid, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
-    BridgeDirection::AGNOCAST_TO_ROS2, "publisher",
-    [](const ioctl_get_ext_publisher_num_args & args) { return args.ret_ext_publisher_num; });
+  check_and_remove_bridge<ActiveBridgeA2R, ioctl_get_ext_publisher_num_args>(
+    active_a2r_bridges_, self_pid, BridgeDirection::AGNOCAST_TO_ROS2);
 }
 
 void BridgeManager::check_and_request_rclcpp_shutdown()
@@ -543,11 +539,11 @@ void BridgeManager::launch_new_bridges(const std::vector<BridgeConfigEntry> & to
     bool is_needed = false;
 
     if (direction_matches(entry.direction, BridgeDirection::ROS2_TO_AGNOCAST)) {
-      is_needed |= check_r2a_demand(entry.topic_name, self_pid);
+      is_needed |= has_external_agnocast_subscriber(entry.topic_name, self_pid);
     }
 
     if (direction_matches(entry.direction, BridgeDirection::AGNOCAST_TO_ROS2)) {
-      is_needed |= check_a2r_demand(entry.topic_name, self_pid);
+      is_needed |= has_external_agnocast_publisher(entry.topic_name, self_pid);
     }
 
     if (is_needed) {
@@ -611,7 +607,8 @@ bool BridgeManager::does_bridge_exist(const BridgeRequest & req) const
   return false;
 }
 
-bool BridgeManager::check_r2a_demand(const std::string & topic_name, pid_t self_pid) const
+bool BridgeManager::has_external_agnocast_subscriber(
+  const std::string & topic_name, pid_t self_pid) const
 {
   union ioctl_get_ext_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -623,7 +620,8 @@ bool BridgeManager::check_r2a_demand(const std::string & topic_name, pid_t self_
   return args.ret_ext_subscriber_num > 0;
 }
 
-bool BridgeManager::check_a2r_demand(const std::string & topic_name, pid_t self_pid) const
+bool BridgeManager::has_external_agnocast_publisher(
+  const std::string & topic_name, pid_t self_pid) const
 {
   union ioctl_get_ext_publisher_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -654,12 +652,12 @@ void BridgeManager::try_launch_discovered_bridge(
   }
 
   if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    if (check_r2a_demand(topic_name, self_pid)) {
+    if (has_external_agnocast_subscriber(topic_name, self_pid)) {
       worker_futures_.push_back(
         std::async(std::launch::async, &BridgeManager::launch_r2a_bridge_thread, this, req));
     }
   } else if (direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-    if (check_a2r_demand(topic_name, self_pid)) {
+    if (has_external_agnocast_publisher(topic_name, self_pid)) {
       worker_futures_.push_back(
         std::async(std::launch::async, &BridgeManager::launch_a2r_bridge_thread, this, req));
     }

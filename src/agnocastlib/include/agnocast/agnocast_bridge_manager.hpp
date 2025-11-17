@@ -108,8 +108,8 @@ private:
   bool is_request_allowed(const BridgeRequest & req) const;
   bool is_topic_allowed(const std::string & topic_name, BridgeDirection direction) const;
   bool does_bridge_exist(const BridgeRequest & req) const;
-  bool check_r2a_demand(const std::string & topic_name, pid_t self_pid) const;
-  bool check_a2r_demand(const std::string & topic_name, pid_t self_pid) const;
+  bool has_external_agnocast_subscriber(const std::string & topic_name, pid_t self_pid) const;
+  bool has_external_agnocast_publisher(const std::string & topic_name, pid_t self_pid) const;
   bool direction_matches(BridgeDirection entry, BridgeDirection required) const;
   void try_launch_discovered_bridge(
     const std::string & topic_name, const std::string & message_type, BridgeDirection direction,
@@ -196,66 +196,29 @@ private:
     return false;
   }
 
-  template <typename IoctlArgs>
-  bool has_agnocast_demand(
-    const std::string & topic_name, pid_t self_pid, unsigned long ioctl_cmd,
-    const char * entity_type_name, std::function<int(const IoctlArgs &)> get_count_func)
-  {
-    IoctlArgs args = {};
-    args.topic_name = {topic_name.c_str(), topic_name.size()};
-    args.exclude_pid = self_pid;
-
-    if (ioctl(agnocast_fd, ioctl_cmd, &args) < 0) {
-      RCLCPP_ERROR(
-        logger_, "Failed to get external %s count for '%s'. Assuming demand exists.",
-        entity_type_name, topic_name.c_str());
-      return true;
-    }
-
-    return get_count_func(args) > 0;
-  }
-
-  bool has_ros2_demand(const std::string & topic_name, BridgeDirection direction)
-  {
-    if (this->bridge_config_.mode != FilterMode::ALLOW_ALL) {
-      return true;
-    }
-
-    if (!this->node_) {
-      return false;
-    }
-
-    try {
-      if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        return this->has_external_ros2_publisher(topic_name);
-      } else if (direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-        return this->has_external_ros2_subscriber(topic_name);
-      }
-    } catch (const std::exception & e) {
-      RCLCPP_ERROR(
-        this->logger_, "Failed to check ROS 2 entity for topic '%s': %s. Assuming no demand.",
-        topic_name.c_str(), e.what());
-      return false;
-    }
-
-    return false;
-  }
-
   template <typename BridgeType, typename IoctlArgs>
-  void check_and_shutdown_collection(
-    std::vector<BridgeType> & bridges, pid_t self_pid, unsigned long ioctl_cmd,
-    BridgeDirection direction, const char * entity_type_name,
-    std::function<int(const IoctlArgs &)> get_count_func)
+  void check_and_remove_bridges(
+    std::vector<BridgeType> & bridges, pid_t self_pid, BridgeDirection direction)
   {
     std::set<void *> handles_to_remove;
 
     std::lock_guard<std::mutex> lock(this->bridges_mutex_);
 
     for (const auto & bridge : bridges) {
-      bool agnocast_demand = this->has_agnocast_demand<IoctlArgs>(
-        bridge.topic_name, self_pid, ioctl_cmd, entity_type_name, get_count_func);
+      bool agnocast_demand = false;
+      bool ros2_demand = false;
 
-      bool ros2_demand = this->has_ros2_demand(bridge.topic_name, direction);
+      if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+        agnocast_demand = this->has_external_agnocast_subscriber(bridge.topic_name, self_pid);
+        ros2_demand = this->has_external_ros2_publisher(bridge.topic_name);
+      } else if (direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+        agnocast_demand = this->has_external_agnocast_publisher(bridge.topic_name, self_pid);
+        ros2_demand = this->has_external_ros2_subscriber(bridge.topic_name);
+      }
+
+      if (this->bridge_config_.mode != FilterMode::ALLOW_ALL) {
+        ros2_demand = true;
+      }
 
       if (!agnocast_demand || !ros2_demand) {
         handles_to_remove.insert(bridge.plugin_handle);
