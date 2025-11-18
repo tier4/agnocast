@@ -158,31 +158,20 @@ void BridgeManager::shutdown_handler([[maybe_unused]] int sig)
   running_.store(false);
 }
 
-std::vector<agnocast::BridgeManager::ActiveBridge> & BridgeManager::get_bridge_list(
-  BridgeDirection direction)
-{
-  if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    return active_r2a_bridges_;
-  } else {
-    return active_a2r_bridges_;
-  }
-}
-
-bool BridgeManager::does_bridge_exist(BridgeDirection direction, const std::string & topic_name)
+bool BridgeManager::does_bridge_exist(const std::string & topic_name)
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-  auto & bridge_list = get_bridge_list(direction);
   auto topic_matches = [&](const ActiveBridge & bridge) { return bridge.topic_name == topic_name; };
 
-  return std::any_of(bridge_list.begin(), bridge_list.end(), topic_matches);
+  return std::any_of(active_bridges_.begin(), active_bridges_.end(), topic_matches);
 }
 
 void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 {
   const std::string topic_name_str(req.args.topic_name);
 
-  if (does_bridge_exist(req.direction, topic_name_str)) {
+  if (does_bridge_exist(topic_name_str)) {
     return;
   }
 
@@ -208,15 +197,16 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
     std::lock_guard<std::mutex> lock(bridges_mutex_);
     ActiveBridge new_bridge = {pid, topic_name_str};
 
-    auto & bridge_list = get_bridge_list(req.direction);
-    bridge_list.push_back(new_bridge);
+    active_bridges_.push_back(new_bridge);
 
     RCLCPP_INFO(logger, "Launched new bridge PID %d for topic %s", pid, req.args.topic_name);
   }
 }
 
 void BridgeManager::remove_bridges(
-  std::vector<ActiveBridge> & bridges, std::function<bool(const std::string &)> check_demand)
+  std::vector<ActiveBridge> & bridges,
+  std::function<bool(const std::string &, pid_t)> check_demand_r2a,
+  std::function<bool(const std::string &, pid_t)> check_demand_a2r)
 {
   bridges.erase(
     std::remove_if(
@@ -226,7 +216,9 @@ void BridgeManager::remove_bridges(
           return true;
         }
 
-        if (!check_demand(bridge.topic_name)) {
+        if (
+          !check_demand_r2a(bridge.topic_name, bridge.pid) &&
+          !check_demand_a2r(bridge.topic_name, bridge.pid)) {
           kill(bridge.pid, SIGTERM);
           return true;
         }
@@ -236,19 +228,19 @@ void BridgeManager::remove_bridges(
     bridges.end());
 }
 
-bool BridgeManager::check_r2a_demand(const std::string & topic_name) const
+bool BridgeManager::check_r2a_demand(const std::string & topic_name, pid_t bridge_pid) const
 {
   return check_demand_internal<union ioctl_get_ext_subscriber_num_args>(
-    topic_name, active_a2r_bridges_, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
+    topic_name, bridge_pid, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
     [](const union ioctl_get_ext_subscriber_num_args & args) {
       return args.ret_ext_subscriber_num;
     });
 }
 
-bool BridgeManager::check_a2r_demand(const std::string & topic_name) const
+bool BridgeManager::check_a2r_demand(const std::string & topic_name, pid_t bridge_pid) const
 {
   return check_demand_internal<union ioctl_get_ext_publisher_num_args>(
-    topic_name, active_r2a_bridges_, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
+    topic_name, bridge_pid, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
     [](const union ioctl_get_ext_publisher_num_args & args) { return args.ret_ext_publisher_num; });
 }
 
@@ -256,13 +248,10 @@ void BridgeManager::check_and_remove_bridges()
 {
   std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-  remove_bridges(active_r2a_bridges_, [&](const std::string & topic_name) {
-    return check_r2a_demand(topic_name);
-  });
-
-  remove_bridges(active_a2r_bridges_, [&](const std::string & topic_name) {
-    return check_a2r_demand(topic_name);
-  });
+  remove_bridges(
+    active_bridges_,
+    [&](const std::string & topic_name, pid_t pid) { return check_r2a_demand(topic_name, pid); },
+    [&](const std::string & topic_name, pid_t pid) { return check_a2r_demand(topic_name, pid); });
 }
 
 void BridgeManager::check_and_request_shutdown()
@@ -275,7 +264,7 @@ void BridgeManager::check_and_request_shutdown()
 
   if (args.ret_active_process_num <= 1) {
     std::lock_guard<std::mutex> lock(bridges_mutex_);
-    if (active_r2a_bridges_.empty() && active_a2r_bridges_.empty()) {
+    if (active_bridges_.empty()) {
       running_.store(false);
     }
   }

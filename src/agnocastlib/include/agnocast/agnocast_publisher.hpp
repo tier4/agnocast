@@ -1,7 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_node.hpp"
-#include "agnocast/agnocast_bridge_util.hpp"
+#include "agnocast/agnocast_bridge_common.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
@@ -46,8 +45,9 @@ struct PublisherOptions
   bool send_a2r_bridge_request = true;
 };
 
-template <typename MessageT>
-class Publisher
+// ★ 変更点: BridgeRequestPolicy をテンプレート引数で受け取る
+template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
+class BasicPublisher
 {
   topic_local_id_t id_ = -1;
   std::string topic_name_;
@@ -55,16 +55,20 @@ class Publisher
   PublisherOptions options_;
 
 public:
-  using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
+  // ★ 変更点: SharedPtr にもポリシー引数を反映
+  using SharedPtr = std::shared_ptr<BasicPublisher<MessageT, BridgeRequestPolicy>>;
 
-  Publisher(
+  BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
-  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
+  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
+    options_(options)
   {
-    (void)options;
-    if (options.send_a2r_bridge_request) {
-      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
+    // ★ 変更点: send_bridge_request の直接呼び出しをポリシー経由に変更
+    if (options_.send_a2r_bridge_request) {
+      // BridgeNode のことを知らなくても、
+      // 渡された「ポリシー」の静的関数を呼び出せる
+      BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
     }
 
     TRACEPOINT(
@@ -76,7 +80,7 @@ public:
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
   }
 
-  ~Publisher()
+  ~BasicPublisher()
   {
     struct ioctl_remove_publisher_args remove_publisher_args = {};
     remove_publisher_args.topic_name = {topic_name_.c_str(), topic_name_.size()};

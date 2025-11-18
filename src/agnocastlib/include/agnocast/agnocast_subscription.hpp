@@ -1,7 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_node.hpp"
-#include "agnocast/agnocast_bridge_util.hpp"
+#include "agnocast/agnocast_bridge_common.hpp"
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
@@ -37,30 +36,6 @@ extern std::mutex mmap_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
 
-inline std::vector<std::string> qos_to_args(const rclcpp::QoS & qos)
-{
-  std::vector<std::string> args;
-
-  args.push_back("--depth");
-  args.push_back(std::to_string(qos.depth()));
-
-  args.push_back("--durability");
-  if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-    args.push_back("transient_local");
-  } else {
-    args.push_back("volatile");
-  }
-
-  args.push_back("--reliability");
-  if (qos.reliability() == rclcpp::ReliabilityPolicy::Reliable) {
-    args.push_back("reliable");
-  } else {
-    args.push_back("best_effort");
-  }
-
-  return args;
-}
-
 struct SubscriptionOptions
 {
   bool ros2_bridge_transient_local = false;
@@ -92,23 +67,28 @@ public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
-template <typename MessageT>
-class Subscription : public SubscriptionBase
+// ★ 変更点: BridgeRequestPolicy をテンプレート引数で受け取る
+template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
+class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
   agnocast::SubscriptionOptions options_;
 
 public:
-  using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
+  // ★ 変更点: SharedPtr にもポリシー引数を反映
+  using SharedPtr = std::shared_ptr<BasicSubscription<MessageT, BridgeRequestPolicy>>;
 
   template <typename Func>
-  Subscription(
+  BasicSubscription(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
+    // ★ 変更点: send_bridge_request の直接呼び出しをポリシー経由に変更
     if (options_.send_r2a_bridge_request) {
-      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::ROS2_TO_AGNOCAST);
+      // BridgeNode のことを知らなくても、
+      // 渡された「ポリシー」の静的関数を呼び出せる
+      BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =
@@ -134,7 +114,7 @@ public:
     }
   }
 
-  ~Subscription()
+  ~BasicSubscription()
   {
     struct ioctl_remove_subscriber_args remove_subscriber_args = {};
     remove_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};

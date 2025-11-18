@@ -12,8 +12,6 @@ struct MqMsgAgnocast
 {
 };
 
-enum class BridgeDirection { ROS2_TO_AGNOCAST, AGNOCAST_TO_ROS2 };
-
 struct QoSFlat
 {
   uint32_t depth;
@@ -33,7 +31,6 @@ struct MqMsgBridge
   char shared_lib_path[MAX_NAME_LENGTH];
   char symbol_name[MAX_NAME_LENGTH];
   uintptr_t fn_ptr;
-  BridgeDirection direction;
   BridgeArgs args;
 };
 
