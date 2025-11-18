@@ -68,7 +68,7 @@ void AgnocastExecutor::receive_message(
     }
 
     {
-      std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
+      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex_};
       ready_agnocast_executables_.emplace_back(
         AgnocastExecutable{callable, callback_info.callback_group});
     }
@@ -188,7 +188,7 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
-  std::scoped_lock ready_wait_lock{ready_agnocast_executables_mutex_};
+  std::lock_guard<std::mutex> ready_wait_lock{ready_agnocast_executables_mutex_};
 
   for (auto it = ready_agnocast_executables_.begin(); it != ready_agnocast_executables_.end();
        ++it) {
