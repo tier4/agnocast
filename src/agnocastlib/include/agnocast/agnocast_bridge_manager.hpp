@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_node_r2a.hpp"
+#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_utils.hpp"
 

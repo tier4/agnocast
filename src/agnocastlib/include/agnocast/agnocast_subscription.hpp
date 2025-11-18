@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_node_r2a.hpp"
+#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_bridge_util.hpp"
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
@@ -78,7 +78,7 @@ void send_bridge_request(
     return;
   }
 
-  BridgeFn fn = &start_bridge_r2a_node<MessageT>;
+  BridgeFn fn = &start_bridge_node<MessageT>;
 
   Dl_info info{};
   if (dladdr(reinterpret_cast<void *>(fn), &info) == 0) {

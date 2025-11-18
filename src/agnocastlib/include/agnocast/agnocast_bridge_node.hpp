@@ -10,10 +10,10 @@ namespace agnocast
 {
 
 template <typename MessageT>
-class BridgeR2ANode : public rclcpp::Node
+class BridgeNode : public rclcpp::Node
 {
 public:
-  explicit BridgeR2ANode(const BridgeArgs & args)
+  explicit BridgeNode(const BridgeArgs & args)
   : rclcpp::Node(
       "agnocast_bridge" + std::regex_replace(std::string(args.topic_name), std::regex("/"), "_"))
   {
@@ -42,9 +42,9 @@ private:
 };
 
 template <typename MessageT>
-std::shared_ptr<rclcpp::Node> start_bridge_r2a_node(const BridgeArgs & args)
+std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
 {
-  return std::make_shared<BridgeR2ANode<MessageT>>(args);
+  return std::make_shared<BridgeNode<MessageT>>(args);
 }
 
 }  // namespace agnocast
