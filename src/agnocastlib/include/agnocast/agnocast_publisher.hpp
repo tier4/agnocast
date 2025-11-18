@@ -45,7 +45,6 @@ struct PublisherOptions
   bool send_a2r_bridge_request = true;
 };
 
-// ★ 変更点: BridgeRequestPolicy をテンプレート引数で受け取る
 template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
 class BasicPublisher
 {
@@ -55,7 +54,6 @@ class BasicPublisher
   PublisherOptions options_;
 
 public:
-  // ★ 変更点: SharedPtr にもポリシー引数を反映
   using SharedPtr = std::shared_ptr<BasicPublisher<MessageT, BridgeRequestPolicy>>;
 
   BasicPublisher(
@@ -64,10 +62,7 @@ public:
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     options_(options)
   {
-    // ★ 変更点: send_bridge_request の直接呼び出しをポリシー経由に変更
     if (options_.send_a2r_bridge_request) {
-      // BridgeNode のことを知らなくても、
-      // 渡された「ポリシー」の静的関数を呼び出せる
       BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
     }
 
