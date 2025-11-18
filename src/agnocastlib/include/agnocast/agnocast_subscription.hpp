@@ -67,7 +67,6 @@ public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
-// ★ 変更点: BridgeRequestPolicy をテンプレート引数で受け取る
 template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
 class BasicSubscription : public SubscriptionBase
 {
@@ -75,7 +74,6 @@ class BasicSubscription : public SubscriptionBase
   agnocast::SubscriptionOptions options_;
 
 public:
-  // ★ 変更点: SharedPtr にもポリシー引数を反映
   using SharedPtr = std::shared_ptr<BasicSubscription<MessageT, BridgeRequestPolicy>>;
 
   template <typename Func>
@@ -84,10 +82,7 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    // ★ 変更点: send_bridge_request の直接呼び出しをポリシー経由に変更
     if (options_.send_r2a_bridge_request) {
-      // BridgeNode のことを知らなくても、
-      // 渡された「ポリシー」の静的関数を呼び出せる
       BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
     }
 
