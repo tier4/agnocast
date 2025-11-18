@@ -8,8 +8,8 @@ namespace agnocast
 {
 
 CallbackIsolatedAgnocastExecutor::CallbackIsolatedAgnocastExecutor(
-  const rclcpp::ExecutorOptions & options)
-: rclcpp::Executor(options)
+  const rclcpp::ExecutorOptions & options, int next_exec_timeout_ms)
+: rclcpp::Executor(options), next_exec_timeout_ms_(next_exec_timeout_ms)
 {
 }
 
@@ -64,7 +64,8 @@ void CallbackIsolatedAgnocastExecutor::spin()
   auto client_publisher = cie_thread_configurator::create_client_publisher();
 
   for (auto [group, node] : groups_and_nodes) {
-    auto executor = std::make_shared<SingleThreadedAgnocastExecutor>();
+    auto executor = std::make_shared<SingleThreadedAgnocastExecutor>(
+      rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
     executor->dedicate_to_callback_group(group, node);
     auto callback_group_id = cie_thread_configurator::create_callback_group_id(group, node);
 
