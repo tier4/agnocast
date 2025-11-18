@@ -27,7 +27,14 @@ std::optional<std::vector<std::string>> get_agnocast_topics()
 {
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
-    perror("Failed to open /dev/agnocast");
+    if (errno == ENOENT) {
+      fprintf(stderr,
+        "Failed to open /dev/agnocast: Device not found. "
+        "Please ensure the agnocast kernel module is installed and loaded. "
+        "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.\n");
+    } else {
+      perror("Failed to open /dev/agnocast");
+    }
     return std::nullopt;
   }
 

@@ -265,7 +265,15 @@ void * initialize_agnocast(
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
+    if (errno == ENOENT) {
+      RCLCPP_ERROR(
+        logger,
+        "Failed to open /dev/agnocast: Device not found. "
+        "Please ensure the agnocast kernel module is installed and loaded. "
+        "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.");
+    } else {
+      RCLCPP_ERROR(logger, "Failed to open /dev/agnocast: %s", strerror(errno));
+    }
     exit(EXIT_FAILURE);
   }
 
