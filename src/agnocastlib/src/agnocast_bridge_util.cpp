@@ -14,23 +14,6 @@ QoSFlat flatten_qos(const rclcpp::QoS & qos)
   return out;
 }
 
-rclcpp::QoS reconstruct_qos(const QoSFlat & q)
-{
-  rclcpp::QoS qos(q.depth);
-  if (q.history == 1) {
-    qos.keep_all();
-  }
-  if (q.reliability == 1) {
-    qos.reliable();
-  } else if (q.reliability == 2) {
-    qos.best_effort();
-  }
-  if (q.durability == 1) {
-    qos.transient_local();
-  }
-  return qos;
-}
-
 void safe_strncpy(char * dest, const char * src, size_t dest_size)
 {
   if (dest_size == 0) return;

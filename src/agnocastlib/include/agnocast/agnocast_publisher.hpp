@@ -1,5 +1,7 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_node.hpp"
+#include "agnocast/agnocast_bridge_util.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
@@ -61,9 +63,9 @@ public:
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
     (void)options;
-    // if (options.send_a2r_bridge_request) {
-    //   send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
-    // }
+    if (options.send_a2r_bridge_request) {
+      send_bridge_request<MessageT>(topic_name_, qos, BridgeDirection::AGNOCAST_TO_ROS2);
+    }
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
