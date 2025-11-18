@@ -1,13 +1,13 @@
-* @veqcc @atsushi421 @Koichi98
+* @veqcc @atsushi421 @Koichi98 @sykwer
 
 # agnocast_heaphook
-agnocast_heaphook/ @Koichi98 @veqcc
+agnocast_heaphook/ @Koichi98 @veqcc @sykwer
 
 # agnocastlib executor and component container
-src/agnocastlib/src/*executor* @Koichi98 @atsushi421
-src/agnocastlib/include/*executor* @Koichi98 @atsushi421
-src/agnocastlib/src/*component_container* @Koichi98 @atsushi421
-src/agnocastlib/include/*component_container* @Koichi98 @atsushi421
+src/agnocastlib/src/*executor* @Koichi98 @atsushi421 @sykwer
+src/agnocastlib/include/*executor* @Koichi98 @atsushi421 @sykwer
+src/agnocastlib/src/*component_container* @Koichi98 @atsushi421 @sykwer
+src/agnocastlib/include/*component_container* @Koichi98 @atsushi421 @sykwer
 
 # ros2agnocast
-src/ros2agnocast/ @TetsuKawa @veqcc @atsushi421 @Koichi98
+src/ros2agnocast/ @TetsuKawa @veqcc @atsushi421 @Koichi98 @sykwer

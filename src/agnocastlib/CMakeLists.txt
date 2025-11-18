@@ -63,8 +63,16 @@ target_link_libraries(agnocast_component_container_mt
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
+add_executable(agnocast_component_container_cie src/agnocast_component_container_cie.cpp)
+
+target_link_libraries(agnocast_component_container_cie
+  agnocast
+)
+
+ament_target_dependencies(agnocast_component_container_cie rclcpp rclcpp_components cie_thread_configurator)
+
 install(
-  TARGETS agnocast_component_container agnocast_component_container_mt
+  TARGETS agnocast_component_container agnocast_component_container_mt agnocast_component_container_cie
   DESTINATION lib/${PROJECT_NAME}
 )
 

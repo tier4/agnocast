@@ -46,7 +46,7 @@ void TRACEPOINT(
   const char * function_symbol,
   const char * topic_name,
   const size_t queue_depth,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 {
   CONDITIONAL_TP(
     agnocast_subscription_init,
@@ -57,7 +57,7 @@ void TRACEPOINT(
     function_symbol,
     topic_name,
     queue_depth,
-    pid_ciid);
+    pid_callback_info_id);
 }
 
 void TRACEPOINT(
@@ -75,13 +75,13 @@ void TRACEPOINT(
   agnocast_create_callable,
   const void * callable,
   const int64_t entry_id,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 {
   CONDITIONAL_TP(
     agnocast_create_callable,
     callable,
     entry_id,
-    pid_ciid);
+    pid_callback_info_id);
 }
 
 void TRACEPOINT(
