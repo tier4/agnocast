@@ -35,6 +35,13 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+static std::atomic_bool is_running{false};
+
+bool ok()
+{
+  return is_running.load();
+}
+
 void poll_for_unlink()
 {
   if (setsid() == -1) {
@@ -309,6 +316,9 @@ void * initialize_agnocast(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  is_running.store(true);
+
   return mempool_ptr;
 }
 
@@ -320,6 +330,8 @@ static void shutdown_agnocast()
       perror("[ERROR] [Agnocast] close shm_fd failed");
     }
   }
+
+  is_running.store(false);
 }
 
 class Cleanup

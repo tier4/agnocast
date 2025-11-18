@@ -4,6 +4,8 @@
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
 #include "agnocast/agnocast_client.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_node.hpp"
+#include "agnocast/agnocast_only_executor.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_service.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
@@ -24,6 +26,8 @@
 
 namespace agnocast
 {
+
+bool ok();
 
 extern "C" void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
