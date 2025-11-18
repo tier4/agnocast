@@ -38,16 +38,11 @@ bool AgnocastExecutor::get_next_agnocast_executable(
     return true;
   }
 
-  wait_and_handle_epoll_event(timeout_ms);
+  agnocast::wait_and_handle_epoll_event(
+    epoll_fd_, my_pid_, timeout_ms, ready_agnocast_executables_mutex_, ready_agnocast_executables_);
 
   // Try again
   return get_next_ready_agnocast_executable(agnocast_executable);
-}
-
-void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
-{
-  agnocast::wait_and_handle_epoll_event_impl(
-    epoll_fd_, my_pid_, timeout_ms, ready_agnocast_executables_mutex_, ready_agnocast_executables_);
 }
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
