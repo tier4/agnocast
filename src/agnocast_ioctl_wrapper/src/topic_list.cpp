@@ -27,7 +27,11 @@ std::optional<std::vector<std::string>> get_agnocast_topics()
 {
   int fd = open("/dev/agnocast", O_RDONLY);
   if (fd < 0) {
-    perror("Failed to open /dev/agnocast");
+    if (errno == ENOENT) {
+      fprintf(stderr, "%s", AGNOCAST_DEVICE_NOT_FOUND_MSG);
+    } else {
+      perror("Failed to open /dev/agnocast");
+    }
     return std::nullopt;
   }
 
