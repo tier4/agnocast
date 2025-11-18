@@ -20,7 +20,7 @@ struct topic_info_ret * get_agnocast_sub_nodes(const char * topic_name, int * to
     if (errno == ENOENT) {
       fprintf(stderr,
         "Failed to open /dev/agnocast: Device not found. "
-        "Please ensure the agnocast kernel module is installed and loaded. "
+        "Please ensure the agnocast kernel module is installed. "
         "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.\n");
     } else {
       perror("Failed to open /dev/agnocast");
@@ -67,7 +67,7 @@ struct topic_info_ret * get_agnocast_pub_nodes(const char * topic_name, int * to
     if (errno == ENOENT) {
       fprintf(stderr,
         "Failed to open /dev/agnocast: Device not found. "
-        "Please ensure the agnocast kernel module is installed and loaded. "
+        "Please ensure the agnocast kernel module is installed. "
         "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.\n");
     } else {
       perror("Failed to open /dev/agnocast");
