@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_common.hpp"
+#include "agnocast/agnocast_bridge_policy.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
