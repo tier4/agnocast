@@ -22,16 +22,6 @@ AgnocastExecutor::~AgnocastExecutor()
   close(epoll_fd_);
 }
 
-void AgnocastExecutor::receive_message(
-  const uint32_t callback_info_id,  // for CARET
-  const CallbackInfo & callback_info)
-{
-  agnocast::receive_message(
-    callback_info_id,  // for CARET
-    my_pid_,           // for CARET
-    callback_info, ready_agnocast_executables_mutex_, ready_agnocast_executables_);
-}
-
 void AgnocastExecutor::prepare_epoll()
 {
   agnocast::prepare_epoll_impl(
