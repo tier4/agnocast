@@ -129,7 +129,7 @@ void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos
     return;
   }
 
-  const std::string mq_name_str = create_mq_name_for_bridge();
+  const std::string mq_name_str = create_mq_name_for_bridge(getpid());
   const char * mq_name = mq_name_str.c_str();
   mqd_t mq = mq_open(mq_name, O_WRONLY);
 

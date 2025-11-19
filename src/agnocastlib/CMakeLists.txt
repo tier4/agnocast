@@ -29,7 +29,7 @@ add_library(agnocast SHARED
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c 
-  src/agnocast_bridge_main.cpp src/agnocast_bridge_manager.cpp src/agnocast_bridge_process.cpp src/agnocast_bridge_utils.cpp)
+  src/agnocast_bridge_main.cpp src/agnocast_bridge_process.cpp src/agnocast_bridge_utils.cpp src/agnocast_bridge_generator.cpp)
 # ament_target_dependencies(agnocast rclcpp)
 
 set(AGNOCAST_HEAPHOOK_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../agnocast_heaphook/target/release/libagnocast_heaphook.so")

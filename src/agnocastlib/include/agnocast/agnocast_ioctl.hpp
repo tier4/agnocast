@@ -8,11 +8,13 @@
 namespace agnocast
 {
 
-#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
-#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
-#define VERSION_BUFFER_LEN 32  // Maximum size of version number represented as a string
+#define MAX_PUBLISHER_NUM 4     // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16   // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10        // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3       // Maximum number of entries that can be released at one ioctl
+#define VERSION_BUFFER_LEN 32   // Maximum size of version number represented as a string
+#define MAX_TOPIC_NAME_LEN 256  // Maximum length for a topic name string
+#define MAX_BRIDGES 512         // Maximum number of bridge processes the kernel can track
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
@@ -199,6 +201,27 @@ struct ioctl_remove_publisher_args
   topic_local_id_t publisher_id;
 };
 
+struct bridge_info
+{
+  pid_t pid;
+  char topic_name[MAX_TOPIC_NAME_LEN];
+};
+
+struct ioctl_bridge_args
+{
+  struct bridge_info info;
+};
+
+struct ioctl_get_all_bridges_buffer
+{
+  struct bridge_info bridges[MAX_BRIDGES];
+};
+
+union ioctl_get_all_bridges_args {
+  uint64_t buffer_addr;
+  int ret_count;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -215,5 +238,8 @@ struct ioctl_remove_publisher_args
 #define AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD _IOR(0xA6, 14, struct ioctl_get_active_process_num_args)
 #define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 15, struct ioctl_remove_subscriber_args)
 #define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 16, struct ioctl_remove_publisher_args)
+#define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
+#define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 18, struct ioctl_bridge_args)
+#define AGNOCAST_GET_ALL_BRIDGES_CMD _IOWR(0xA6, 19, union ioctl_get_all_bridges_args)
 
 }  // namespace agnocast

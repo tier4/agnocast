@@ -6,6 +6,8 @@
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/version.h>
 
@@ -1524,6 +1526,143 @@ static int remove_publisher(
   return 0;
 }
 
+struct bridge_entry
+{
+  struct list_head list;
+  pid_t pid;
+  char topic_name[MAX_TOPIC_NAME_LEN];
+  const struct ipc_namespace * ipc_ns;
+};
+
+static LIST_HEAD(g_bridge_list);
+static DEFINE_MUTEX(g_bridge_list_mutex);
+
+int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry * new_entry;
+  struct bridge_entry * entry;
+
+  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+  if (!new_entry) {
+    dev_err(agnocast_device, "kmalloc failed for new bridge entry\n");
+    return -ENOMEM;
+  }
+
+  new_entry->pid = pid;
+  strscpy(new_entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+  new_entry->ipc_ns = ipc_ns;
+
+  mutex_lock(&g_bridge_list_mutex);
+
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (
+      ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
+      mutex_unlock(&g_bridge_list_mutex);
+      kfree(new_entry);
+
+      return -EEXIST;
+    }
+  }
+
+  list_add_tail(&new_entry->list, &g_bridge_list);
+  mutex_unlock(&g_bridge_list_mutex);
+
+  return 0;
+}
+
+int unregister_bridge(const pid_t pid, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry *entry, *tmp;
+  bool found = false;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    if (entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns)) {
+      list_del(&entry->list);
+      kfree(entry);
+      found = true;
+      break;
+    }
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+
+  if (!found) {
+    dev_warn(agnocast_device, "Tried to unregister non-existent bridge PID %d\n", pid);
+  }
+  return 0;
+}
+
+int find_bridge(const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t * out_pid)
+{
+  struct bridge_entry * entry;
+  int ret = -ENOENT;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (
+      ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
+      if (out_pid) *out_pid = entry->pid;
+      ret = 0;
+      break;
+    }
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+  return ret;
+}
+
+int get_all_bridges(
+  const struct ipc_namespace * ipc_ns, union ioctl_get_all_bridges_args __user * user_args)
+{
+  struct ioctl_get_all_bridges_buffer * kern_buffer;
+  struct bridge_entry * entry;
+  uint64_t user_buffer_addr;
+  int i = 0;
+  int ret = 0;
+
+  if (get_user(user_buffer_addr, &user_args->buffer_addr)) return -EFAULT;
+
+  kern_buffer = kmalloc(sizeof(*kern_buffer), GFP_KERNEL);
+  if (!kern_buffer) return -ENOMEM;
+
+  memset(kern_buffer, 0, sizeof(*kern_buffer));
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (!ipc_eq(ipc_ns, entry->ipc_ns)) {
+      continue;
+    }
+    if (i >= MAX_BRIDGES) {
+      dev_warn(agnocast_device, "Bridge list exceeds MAX_BRIDGES\n");
+      break;
+    }
+
+    kern_buffer->bridges[i].pid = entry->pid;
+    strncpy(kern_buffer->bridges[i].topic_name, entry->topic_name, MAX_TOPIC_NAME_LEN);
+    i++;
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+
+  if (copy_to_user((void __user *)user_buffer_addr, kern_buffer, sizeof(*kern_buffer))) {
+    ret = -EFAULT;
+    goto out;
+  }
+
+  if (put_user(i, &user_args->ret_count)) {
+    ret = -EFAULT;
+    goto out;
+  }
+
+out:
+  kfree(kern_buffer);
+  return ret;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1888,6 +2027,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (strncpy_from_user(topic_name_buf, args.topic_name.ptr, TOPIC_NAME_BUFFER_SIZE) < 0)
       goto return_EFAULT;
     ret = remove_publisher(topic_name_buf, ipc_ns, args.publisher_id);
+  } else if (cmd == AGNOCAST_REGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    ret = register_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
+  } else if (cmd == AGNOCAST_UNREGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    ret = unregister_bridge(bridge_args.info.pid, ipc_ns);
+  } else if (cmd == AGNOCAST_GET_ALL_BRIDGES_CMD) {
+    ret = get_all_bridges(ipc_ns, (union ioctl_get_all_bridges_args __user *)arg);
   } else {
     goto return_EINVAL;
   }
@@ -2221,6 +2370,10 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
+  if (proc_info) {
+    unregister_bridge(proc_info->local_pid, proc_info->ipc_ns);
+  }
+
   free_memory(pid);
 
   struct topic_wrapper * wrapper;
@@ -2454,11 +2607,25 @@ static void remove_all_process_info(void)
   }
 }
 
+static void remove_all_bridges(void)
+{
+  struct bridge_entry *entry, *tmp;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    list_del(&entry->list);
+    kfree(entry);
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+}
+
 void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
+  remove_all_bridges();
   mutex_unlock(&global_mutex);
 }
 
