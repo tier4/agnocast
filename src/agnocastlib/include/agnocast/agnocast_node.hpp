@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast/agnocast_context.hpp"
+#include "agnocast/tmp_agnocast_subscription.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
@@ -34,6 +35,15 @@ public:
   rclcpp::Logger get_logger() const { return logger_; }
 
   std::string get_name() const { return node_name_; }
+
+  template <typename MessageT, typename Func>
+  typename TmpSubscription<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, size_t queue_size, Func && callback,
+    SubscriptionOptions options)
+  {
+    return agnocast::tmp_create_subscription<MessageT>(
+      get_name(), topic_name, queue_size, std::forward<Func>(callback), options);
+  }
 };
 
 }  // namespace agnocast

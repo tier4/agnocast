@@ -25,10 +25,8 @@ public:
     agnocast::SubscriptionOptions agnocast_options;
     agnocast_options.callback_group = group;
 
-    sub_dynamic_ =
-      agnocast::tmp_create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-        get_name(), "/my_topic", 1, std::bind(&NoRclcppSubscriber::callback, this, _1),
-        agnocast_options);
+    sub_dynamic_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
+      "/my_topic", 1, std::bind(&NoRclcppSubscriber::callback, this, _1), agnocast_options);
   }
 };
 
