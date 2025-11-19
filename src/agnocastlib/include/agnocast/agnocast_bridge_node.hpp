@@ -63,7 +63,6 @@ public:
     }
 
     agnocast::PublisherOptions pub_options;
-    pub_options.send_a2r_bridge_request = false;
 
     agnocast_pub_ = std::make_shared<agnocast::BasicPublisher<MessageT, NoBridgeRequestPolicy>>(
       this, topic_name, qos, pub_options);
@@ -87,7 +86,6 @@ public:
     };
 
     agnocast::SubscriptionOptions agnocast_sub_options;
-    agnocast_sub_options.send_r2a_bridge_request = false;
 
     agnocast_sub_ = std::make_shared<agnocast::BasicSubscription<MessageT, NoBridgeRequestPolicy>>(
       this, topic_name, qos, agnocast_callback, agnocast_sub_options);

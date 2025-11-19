@@ -83,7 +83,6 @@ public:
 
     SubscriptionOptions options;
     options.callback_group = group;
-    options.send_r2a_bridge_request = false;
 
     std::string topic_name = create_service_request_topic_name(service_name_);
 

@@ -42,7 +42,6 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
-  bool send_a2r_bridge_request = true;
 };
 
 template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
@@ -62,9 +61,7 @@ public:
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     options_(options)
   {
-    if (options_.send_a2r_bridge_request) {
-      BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-    }
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),

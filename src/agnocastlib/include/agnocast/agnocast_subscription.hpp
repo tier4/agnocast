@@ -42,8 +42,6 @@ struct SubscriptionOptions
   int64_t ros2_bridge_qos_depth = 10;
 
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
-
-  bool send_r2a_bridge_request = true;
 };
 
 // These are cut out of the class for information hiding.
@@ -82,9 +80,7 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    if (options_.send_r2a_bridge_request) {
-      BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-    }
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
 
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
