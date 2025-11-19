@@ -58,7 +58,7 @@ public:
   explicit BridgeNode(const BridgeArgs & args)
   : rclcpp::Node(
       "agnocast_bridge" + std::regex_replace(std::string(args.topic_name), std::regex("/"), "_")),
-    qos_(get_qos_from_args(args)),
+    qos_(reconstruct_qos_from_flat(args.qos)),
     ros_pub_(this->create_publisher<MessageT>(args.topic_name, qos_)),
     agnocast_pub_(
       std::make_shared<AgnoPub>(this, args.topic_name, qos_, agnocast::PublisherOptions{}))
