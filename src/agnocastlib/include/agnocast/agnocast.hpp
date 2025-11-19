@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
 #include "agnocast/agnocast_client.hpp"
+#include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_node.hpp"
 #include "agnocast/agnocast_only_executor.hpp"
@@ -26,6 +27,8 @@
 
 namespace agnocast
 {
+
+void init(int argc, char * argv[]);
 
 bool ok();
 

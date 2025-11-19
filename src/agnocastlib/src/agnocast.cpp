@@ -35,7 +35,41 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+Context g_context;
+std::mutex g_context_mtx;
+
 static std::atomic_bool is_running{false};
+
+void init(int argc, char * argv[])
+{
+  std::string node_name;
+
+  bool in_ros_args = false;
+  for (int i = 0; i < argc; i++) {
+    std::string arg_str(argv[i]);
+
+    if (!in_ros_args) {
+      if (arg_str == "--ros-args") in_ros_args = true;
+      continue;
+    }
+
+    if (arg_str == "-r" && i + 1 < argc) {
+      std::string remap{argv[i + 1]};
+      const std::string prefix = "__node:=";
+
+      if (remap.compare(0, prefix.size(), prefix) == 0) {
+        node_name = remap.substr(prefix.size());
+
+        {
+          std::lock_guard<std::mutex> lock(g_context_mtx);
+          g_context.command_line_params.node_name = node_name;
+        }
+
+        break;
+      }
+    }
+  }
+}
 
 bool ok()
 {

@@ -20,7 +20,6 @@ class NoRclcppSubscriber : public agnocast::Node
 public:
   explicit NoRclcppSubscriber()
   {
-    // temporary workaround
     auto group =
       std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions agnocast_options;
@@ -28,13 +27,14 @@ public:
 
     sub_dynamic_ =
       agnocast::tmp_create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-        "no_rclcpp_listener", "/my_topic", 1, std::bind(&NoRclcppSubscriber::callback, this, _1),
+        get_name(), "/my_topic", 1, std::bind(&NoRclcppSubscriber::callback, this, _1),
         agnocast_options);
   }
 };
 
-int main()
+int main(int argc, char ** argv)
 {
+  agnocast::init(argc, argv);
   agnocast::AgnocastOnlyExecutor executor;
   auto node = std::make_shared<NoRclcppSubscriber>();
   executor.add_node(node);
