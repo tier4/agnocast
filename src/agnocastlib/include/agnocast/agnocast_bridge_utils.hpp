@@ -7,6 +7,7 @@ namespace agnocast
 {
 
 QoSFlat flatten_qos(const rclcpp::QoS & qos);
+rclcpp::QoS get_qos_from_args(const BridgeArgs & args);
 void safe_strncpy(char * dest, const char * src, size_t dest_size);
 
 using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);

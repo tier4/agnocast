@@ -13,6 +13,25 @@ QoSFlat flatten_qos(const rclcpp::QoS & qos)
   return out;
 }
 
+rclcpp::QoS get_qos_from_args(const BridgeArgs & args)
+{
+  rclcpp::QoS qos(args.qos.depth);
+
+  if (args.qos.history == 1) {
+    qos.keep_all();
+  }
+  if (args.qos.reliability == 1) {
+    qos.reliable();
+  } else if (args.qos.reliability == 2) {
+    qos.best_effort();
+  }
+  if (args.qos.durability == 1) {
+    qos.transient_local();
+  }
+
+  return qos;
+}
+
 void safe_strncpy(char * dest, const char * src, size_t dest_size)
 {
   if (dest_size == 0) return;
