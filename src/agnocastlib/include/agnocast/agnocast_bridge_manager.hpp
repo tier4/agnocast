@@ -4,16 +4,6 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
-#include <mqueue.h>
-
-#include <atomic>
-#include <functional>
-#include <mutex>
-#include <string>
-#include <vector>
-
-constexpr pid_t NO_OPPOSITE_BRIDGE_PID = -1;
-
 namespace agnocast
 {
 

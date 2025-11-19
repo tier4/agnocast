@@ -1,10 +1,6 @@
 #include "agnocast/agnocast_bridge_main.hpp"
 
-#include "agnocast/agnocast.hpp"
 #include "agnocast/agnocast_bridge_process.hpp"
-
-#include <dlfcn.h>
-#include <signal.h>
 
 namespace agnocast
 {

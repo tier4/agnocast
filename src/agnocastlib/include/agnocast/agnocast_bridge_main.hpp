@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_mq.hpp"
 
 namespace agnocast
 {

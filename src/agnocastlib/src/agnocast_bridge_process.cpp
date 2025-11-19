@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_bridge_process.hpp"
 
+#include "agnocast/agnocast_single_threaded_executor.hpp"
+
 extern "C" bool agnocast_heaphook_init_daemon();
 
 namespace agnocast

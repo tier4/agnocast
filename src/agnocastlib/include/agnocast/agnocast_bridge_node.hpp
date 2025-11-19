@@ -7,9 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <dlfcn.h>
-#include <errno.h>
 #include <mqueue.h>
-#include <string.h>
 
 #include <regex>
 
@@ -77,7 +75,9 @@ public:
       topic_name, qos_, ros_to_agnocast_callback, ros_sub_options);
 
     auto agnocast_to_ros_callback = [this](const agnocast::ipc_shared_ptr<MessageT> agno_msg) {
-      this->ros_pub_->publish(*agno_msg);
+      auto loaned_msg = this->ros_pub_->borrow_loaned_message();
+      loaned_msg.get() = *agno_msg;
+      this->ros_pub_->publish(std::move(loaned_msg));
     };
 
     agnocast::SubscriptionOptions agnocast_sub_options;

@@ -2,19 +2,8 @@
 
 #include "agnocast/agnocast_bridge_main.hpp"
 
-#include <rclcpp/rclcpp.hpp>
-
-#include <fcntl.h>
-#include <signal.h>
 #include <sys/epoll.h>
-#include <sys/ioctl.h>
 #include <sys/wait.h>
-#include <unistd.h>
-
-#include <algorithm>
-#include <cerrno>
-#include <cstring>
-#include <stdexcept>
 
 constexpr long MAX_MSG = 10;
 constexpr int MAX_EVENTS = 10;
