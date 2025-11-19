@@ -763,6 +763,30 @@ mod tests {
     }
 
     #[test]
+    fn test_realloc_with_null_pointer() {
+        // If the pointer is null, `realloc` bahaves like `malloc`.
+
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::realloc(ptr::null_mut(), 0) };
+
+        let sizes = (1..=MIN_ALIGN * 2).filter(|x| x.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::realloc(ptr::null_mut(), size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
     fn test_posix_memalign_normal() {
         // Arrange
         let alignment = 64;
