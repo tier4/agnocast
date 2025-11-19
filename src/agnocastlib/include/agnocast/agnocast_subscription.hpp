@@ -37,10 +37,8 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 
 struct SubscriptionOptions
 {
-  bool ros2_bridge_transient_local = false;
-  int64_t ros2_bridge_qos_depth = 10;
-
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+  bool ignore_local_publications{false};
 };
 
 // These are cut out of the class for information hiding.
@@ -58,7 +56,8 @@ protected:
   topic_local_id_t id_;
   const std::string topic_name_;
   union ioctl_add_subscriber_args initialize(
-    const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name);
+    const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name,
+    const bool ignore_local_publications);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
@@ -82,7 +81,7 @@ public:
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
 
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
+      initialize(qos, false, node->get_fully_qualified_name(), options_.ignore_local_publications);
 
     id_ = add_subscriber_args.ret_id;
 
@@ -139,7 +138,7 @@ public:
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, node->get_fully_qualified_name());
+      initialize(qos, true, node->get_fully_qualified_name(), false);
     id_ = add_subscriber_args.ret_id;
   }
 

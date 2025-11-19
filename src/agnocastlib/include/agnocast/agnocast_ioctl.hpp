@@ -55,6 +55,7 @@ union ioctl_add_subscriber_args {
     uint32_t qos_depth;
     bool qos_is_transient_local;
     bool is_take_sub;
+    bool ignore_local_publications;
   };
   struct
   {
