@@ -1,6 +1,5 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_policy.hpp"
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
@@ -65,7 +64,7 @@ public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
-template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
+template <typename MessageT, typename BridgeRequestPolicy>
 class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;

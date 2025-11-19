@@ -1,6 +1,5 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_policy.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
@@ -44,7 +43,7 @@ struct PublisherOptions
 {
 };
 
-template <typename MessageT, typename BridgeRequestPolicy = NoBridgeRequestPolicy>
+template <typename MessageT, typename BridgeRequestPolicy>
 class BasicPublisher
 {
   topic_local_id_t id_ = -1;

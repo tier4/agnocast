@@ -1,6 +1,5 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_policy.hpp"
 #include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_publisher.hpp"
@@ -15,7 +14,28 @@
 #include <regex>
 
 namespace agnocast
+
 {
+
+template <typename MessageT>
+void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos);
+
+struct DefaultBridgeRequestPolicy
+{
+  template <typename MessageT>
+  static void request_bridge(const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    send_bridge_request<MessageT>(topic_name, qos);
+  }
+};
+
+struct NoBridgeRequestPolicy
+{
+  template <typename MessageT>
+  static void request_bridge(const std::string &, const rclcpp::QoS &)
+  {
+  }
+};
 
 template <typename MessageT>
 class BridgeNode : public rclcpp::Node
@@ -123,14 +143,5 @@ void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos
 
   mq_close(mq);
 }
-
-struct DefaultBridgeRequestPolicy
-{
-  template <typename MessageT>
-  static void request_bridge(const std::string & topic_name, const rclcpp::QoS & qos)
-  {
-    send_bridge_request<MessageT>(topic_name, qos);
-  }
-};
 
 }  // namespace agnocast

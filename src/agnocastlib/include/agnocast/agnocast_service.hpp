@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
