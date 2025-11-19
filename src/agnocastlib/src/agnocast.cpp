@@ -16,9 +16,11 @@
 #include <sys/wait.h>
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <mutex>
 
 namespace agnocast
@@ -47,61 +49,58 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-void run_local_manager_loop(pid_t target_pid)
+template <typename IoctlArgs, typename ResultExtractor>
+static bool check_demand_impl(
+  unsigned long cmd, const char * topic_name, pid_t bridge_pid, ResultExtractor extractor)
 {
-  RCLCPP_INFO(logger, "[BRIDGE_GENERATOR] PID: %d", getpid());
-  try {
-    BridgeGenerator manager(target_pid);
-    manager.run();
-  } catch (const std::exception & e) {
-    exit(1);
+  IoctlArgs args = {};
+
+  args.topic_name.ptr = topic_name;
+  args.topic_name.len = std::strlen(topic_name);
+  args.exclude_pid = bridge_pid;
+
+  if (ioctl(agnocast_fd, cmd, &args) < 0) {
+    return false;
   }
-  exit(0);
+  return extractor(args);
 }
 
 static bool check_r2a_demand(const char * topic_name, pid_t bridge_pid)
 {
-  union ioctl_get_ext_subscriber_num_args args = {};
-
-  args.topic_name.ptr = topic_name;
-  args.topic_name.len = std::strlen(topic_name);
-
-  args.exclude_pid = bridge_pid;
-
-  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    return false;
-  }
-  return args.ret_ext_subscriber_num > 0;
+  return check_demand_impl<union ioctl_get_ext_subscriber_num_args>(
+    AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, topic_name, bridge_pid,
+    [](const auto & args) { return args.ret_ext_subscriber_num > 0; });
 }
 
 static bool check_a2r_demand(const char * topic_name, pid_t bridge_pid)
 {
-  union ioctl_get_ext_publisher_num_args args = {};
+  return check_demand_impl<union ioctl_get_ext_publisher_num_args>(
+    AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, topic_name, bridge_pid,
+    [](const auto & args) { return args.ret_ext_publisher_num > 0; });
+}
 
-  args.topic_name.ptr = topic_name;
-  args.topic_name.len = std::strlen(topic_name);
+static void unregister_bridge(pid_t pid, const char * topic_name)
+{
+  struct ioctl_bridge_args unreg_args = {};
+  unreg_args.info.pid = pid;
+  safe_strncpy(unreg_args.info.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
 
-  args.exclude_pid = bridge_pid;
-
-  if (ioctl(agnocast_fd, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, &args) < 0) {
-    return false;
-  }
-  return args.ret_ext_publisher_num > 0;
+  ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args);
 }
 
 static void check_and_remove_bridges()
 {
-  auto * buffer = new ioctl_get_all_bridges_buffer();
+  auto buffer = std::make_unique<ioctl_get_all_bridges_buffer>();
+
   if (!buffer) {
     RCLCPP_ERROR(logger, "Failed to allocate memory for bridge list buffer.");
     return;
   }
 
   union ioctl_get_all_bridges_args args;
-  args.buffer_addr = reinterpret_cast<uint64_t>(buffer);
+  args.buffer_addr = reinterpret_cast<uint64_t>(buffer.get());
 
   if (ioctl(agnocast_fd, AGNOCAST_GET_ALL_BRIDGES_CMD, &args) < 0) {
-    delete buffer;
     return;
   }
 
@@ -109,34 +108,22 @@ static void check_and_remove_bridges()
 
   for (int i = 0; i < count; ++i) {
     struct bridge_info & info = buffer->bridges[i];
-
     pid_t pid = info.pid;
     const char * topic_name = info.topic_name;
 
-    bool should_remove = false;
-
     if (kill(pid, 0) == -1 && errno == ESRCH) {
-      should_remove = true;
-    } else {
-      bool r2a = check_r2a_demand(topic_name, pid);
-      bool a2r = check_a2r_demand(topic_name, pid);
-
-      if (!r2a && !a2r) {
-        kill(pid, SIGTERM);
-        should_remove = true;
-      }
+      unregister_bridge(pid, topic_name);
+      continue;  // 次へ
     }
 
-    if (should_remove) {
-      struct ioctl_bridge_args unreg_args = {};
-      unreg_args.info.pid = pid;
-      safe_strncpy(unreg_args.info.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+    bool r2a = check_r2a_demand(topic_name, pid);
+    bool a2r = check_a2r_demand(topic_name, pid);
 
-      ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args);
+    if (!r2a && !a2r) {
+      kill(pid, SIGTERM);
+      unregister_bridge(pid, topic_name);
     }
   }
-
-  delete buffer;
 }
 
 void poll_for_unlink()
@@ -174,6 +161,18 @@ void poll_for_unlink()
     }
   }
 
+  exit(0);
+}
+
+void poll_for_bridge_generator(pid_t target_pid)
+{
+  RCLCPP_INFO(logger, "[BRIDGE_GENERATOR] PID: %d", getpid());
+  try {
+    BridgeGenerator generator(target_pid);
+    generator.run();
+  } catch (const std::exception & e) {
+    exit(1);
+  }
   exit(0);
 }
 
@@ -355,6 +354,37 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+template <typename Func>
+void spawn_daemon_process(Func && func)
+{
+  pid_t pid = fork();
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  if (pid == 0) {
+    func();
+    exit(0);
+  }
+}
+
+bool wait_for_mq_ready(const std::string & mq_name)
+{
+  constexpr int max_retries = 10;
+  constexpr auto retry_delay = std::chrono::milliseconds(100);
+
+  for (int i = 0; i < max_retries; ++i) {
+    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+    if (mq != (mqd_t)-1) {
+      mq_close(mq);
+      return true;
+    }
+    std::this_thread::sleep_for(retry_delay);
+  }
+  return false;
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -393,51 +423,13 @@ void * initialize_agnocast(
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-      poll_for_unlink();
-    }
+    spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
   pid_t parent_pid = getpid();
-  pid_t pid = fork();
+  spawn_daemon_process([parent_pid]() { poll_for_bridge_generator(parent_pid); });
 
-  if (pid < 0) {
-    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  if (pid == 0) {
-    run_local_manager_loop(parent_pid);
-  }
-
-  const std::string mq_name_str = create_mq_name_for_bridge(parent_pid);
-  constexpr int max_retries = 10;
-  constexpr auto retry_delay = std::chrono::milliseconds(100);
-  bool mq_ready = false;
-
-  for (int i = 0; i < max_retries; ++i) {
-    mqd_t mq_test = mq_open(mq_name_str.c_str(), O_WRONLY);
-    if (mq_test != (mqd_t)-1) {
-      mq_close(mq_test);
-      mq_ready = true;
-      break;
-    }
-    std::this_thread::sleep_for(retry_delay);
-  }
-
-  if (!mq_ready) {
-    RCLCPP_ERROR(logger, "Failed to connect to bridge manager message queue after timeout.");
-    exit(EXIT_FAILURE);
-  }
+  wait_for_mq_ready(create_mq_name_for_bridge(parent_pid));
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {

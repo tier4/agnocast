@@ -1,8 +1,8 @@
 #include "agnocast/agnocast_bridge_generator.hpp"
 
+#include "agnocast/agnocast_bridge_main.hpp"
 #include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
-#include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
 #include <fcntl.h>
@@ -25,15 +25,10 @@ namespace agnocast
 
 extern int agnocast_fd;
 
-BridgeGenerator::BridgeGenerator(pid_t target_pid)
-: target_pid_(target_pid),
-  mq_fd_((mqd_t)-1),
-  epoll_fd_(-1),
-  signal_fd_(-1),
-  shutdown_requested_(false)
+BridgeGenerator::BridgeGenerator(pid_t target_pid) : target_pid_(target_pid)
 {
   if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
-    throw std::runtime_error("prctl failed");
+    throw std::runtime_error("prctl failed: " + std::string(strerror(errno)));
   }
 
   if (kill(target_pid_, 0) != 0) {
@@ -79,12 +74,12 @@ void BridgeGenerator::setup_signals()
   sigaddset(&mask, SIGINT);
 
   if (sigprocmask(SIG_BLOCK, &mask, nullptr) == -1) {
-    throw std::runtime_error("sigprocmask failed");
+    throw std::runtime_error("sigprocmask failed: " + std::string(strerror(errno)));
   }
 
   signal_fd_ = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
   if (signal_fd_ == -1) {
-    throw std::runtime_error("signalfd failed");
+    throw std::runtime_error("signalfd failed: " + std::string(strerror(errno)));
   }
 }
 
@@ -92,21 +87,20 @@ void BridgeGenerator::setup_epoll()
 {
   epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
   if (epoll_fd_ == -1) {
-    throw std::runtime_error("epoll_create1 failed");
+    throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
   struct epoll_event ev{};
-
   ev.events = EPOLLIN;
   ev.data.fd = mq_fd_;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_fd_, &ev) == -1) {
     throw std::runtime_error("epoll_ctl (MQ) failed");
-  }
 
-  ev.events = EPOLLIN;
-  ev.data.fd = signal_fd_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev) == -1) {
-    throw std::runtime_error("epoll_ctl (Signal) failed");
+    ev.events = EPOLLIN;
+    ev.data.fd = signal_fd_;
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev) == -1) {
+      throw std::runtime_error("epoll_ctl (Signal) failed");
+    }
   }
 }
 
@@ -124,7 +118,7 @@ void BridgeGenerator::run()
 
     if (n < 0) {
       if (errno == EINTR) continue;
-      break;  // Error
+      break;
     }
 
     for (int i = 0; i < n; ++i) {
@@ -142,7 +136,6 @@ void BridgeGenerator::run()
 void BridgeGenerator::handle_mq_event()
 {
   MqMsgBridge req;
-  // Non-blocking read
   while (mq_receive(mq_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
     spawn_bridge(req);
   }
@@ -164,7 +157,10 @@ void BridgeGenerator::spawn_bridge(const MqMsgBridge & req)
 {
   pid_t b_pid = fork();
 
-  if (b_pid < 0) return;
+  if (b_pid < 0) {
+    std::cerr << "[BridgeGenerator] fork failed: " << strerror(errno) << std::endl;
+    return;
+  }
 
   if (b_pid == 0) {
     sigset_t mask;
@@ -172,13 +168,12 @@ void BridgeGenerator::spawn_bridge(const MqMsgBridge & req)
     sigprocmask(SIG_SETMASK, &mask, nullptr);
 
     if (setsid() == -1) {
-      RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+      std::cerr << "[BridgeGenerator] setsid failed: " << strerror(errno) << std::endl;
       close(agnocast_fd);
       exit(EXIT_FAILURE);
     }
 
-    struct ioctl_bridge_args bridge_args;
-    std::memset(&bridge_args, 0, sizeof(bridge_args));
+    struct ioctl_bridge_args bridge_args{};
     safe_strncpy(bridge_args.info.topic_name, req.args.topic_name, MAX_TOPIC_NAME_LEN);
     bridge_args.info.pid = getpid();
 
@@ -186,13 +181,19 @@ void BridgeGenerator::spawn_bridge(const MqMsgBridge & req)
       if (errno == EEXIST) {
         exit(0);
       }
+      std::cerr << "[BridgeGenerator] Register failed: " << strerror(errno) << std::endl;
       exit(EXIT_FAILURE);
     }
 
-    extern void bridge_main(const MqMsgBridge &);
-    bridge_main(req);
-
+    try {
+      bridge_main(req);
+    } catch (const std::exception & e) {
+      std::cerr << "[BridgeGenerator] Exception in bridge_main: " << e.what() << std::endl;
+    } catch (...) {
+      std::cerr << "[BridgeGenerator] Unknown exception in bridge_main" << std::endl;
+    }
     ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &bridge_args);
+
     exit(0);
   }
 }
