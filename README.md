@@ -34,6 +34,8 @@ This reflects the current status, and support is expected to expand in the futur
 | Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
+The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
+
 ## Build
 
 Setup.

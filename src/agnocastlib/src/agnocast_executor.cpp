@@ -60,14 +60,15 @@ void AgnocastExecutor::receive_message(
 
     {
       constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_ciid = (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
+      uint64_t pid_callback_info_id =
+        (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
       TRACEPOINT(
         agnocast_create_callable, static_cast<const void *>(callable.get()),
-        receive_args.ret_entry_ids[i], pid_ciid);
+        receive_args.ret_entry_ids[i], pid_callback_info_id);
     }
 
     {
-      std::lock_guard ready_lock{ready_agnocast_executables_mutex_};
+      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex_};
       ready_agnocast_executables_.emplace_back(
         AgnocastExecutable{callable, callback_info.callback_group});
     }
@@ -187,10 +188,20 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
-  std::scoped_lock ready_wait_lock{ready_agnocast_executables_mutex_};
+  std::lock_guard<std::mutex> ready_wait_lock{ready_agnocast_executables_mutex_};
 
   for (auto it = ready_agnocast_executables_.begin(); it != ready_agnocast_executables_.end();
        ++it) {
+    // Prevent a race where an Agnocast::Subscription callback fires before the
+    // rclcpp::Node is fully constructed. In Agnocast, a subscription callback
+    // becomes runnable as soon as register_callback() is invoked, but this is
+    // fundamentally independent of rclcpp::Node: an Agnocast Executable (e.g.,
+    // Subscription) has no lifecycle coupling with rclcpp::Node.
+    //
+    // To guard against callbacks executing on a not-yet-instantiated node, we
+    // verify that rclcpp::Executor::add_node() has already been called for this
+    // node. If the executor has added the node, its construction is complete.
+    //
     // If the executor->add_node() is not called for the node that has this callback_group,
     // get_node_by_group() returns nullptr.
     if (
