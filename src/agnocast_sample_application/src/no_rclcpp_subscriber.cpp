@@ -13,8 +13,8 @@ class NoRclcppSubscriber : public agnocast::Node
   void callback(
     const agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> & message)
   {
-    std::cout << "I heard dynamic size array message with size: " << message->data.size()
-              << std::endl;
+    RCLCPP_INFO(
+      get_logger(), "I heard dynamic size array message with size: %zu", message->data.size());
   }
 
 public:
