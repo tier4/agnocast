@@ -40,10 +40,14 @@ struct SubscriptionOptions
 mqd_t open_mq_for_subscription(
   const std::string & topic_name, const topic_local_id_t subscriber_id,
   std::pair<mqd_t, std::string> & mq_subscription);
+
 void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription);
+
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
-  const SubscriptionOptions & options);
+  const rclcpp::Node * node, const SubscriptionOptions & options);
+
+rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
+  rclcpp::Node * node, const SubscriptionOptions & options);
 
 class SubscriptionBase
 {
@@ -77,8 +81,7 @@ public:
     id_ = add_subscriber_args.ret_id;
 
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
-    auto node_base = node->get_node_base_interface();
-    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
     [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback<MessageT>(
@@ -88,7 +91,8 @@ public:
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
       TRACEPOINT(
         agnocast_subscription_init, static_cast<const void *>(this),
-        static_cast<const void *>(node_base->get_shared_rcl_node_handle().get()),
+        static_cast<const void *>(
+          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
         static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
         tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_callback_info_id);
     }
