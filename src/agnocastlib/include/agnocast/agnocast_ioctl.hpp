@@ -184,11 +184,6 @@ union ioctl_get_ext_publisher_num_args {
 };
 #pragma GCC diagnostic pop
 
-struct ioctl_get_active_process_num_args
-{
-  uint32_t ret_active_process_num;
-};
-
 struct ioctl_remove_subscriber_args
 {
   struct name_info topic_name;
@@ -235,11 +230,11 @@ union ioctl_get_all_bridges_args {
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
 #define AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_ext_subscriber_num_args)
 #define AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD _IOWR(0xA6, 13, union ioctl_get_ext_publisher_num_args)
-#define AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD _IOR(0xA6, 14, struct ioctl_get_active_process_num_args)
-#define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 15, struct ioctl_remove_subscriber_args)
-#define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 16, struct ioctl_remove_publisher_args)
-#define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
-#define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 18, struct ioctl_bridge_args)
-#define AGNOCAST_GET_ALL_BRIDGES_CMD _IOWR(0xA6, 19, union ioctl_get_all_bridges_args)
+#define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 14, struct ioctl_remove_subscriber_args)
+#define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 15, struct ioctl_remove_publisher_args)
+#define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
+#define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
+#define AGNOCAST_GET_ALL_BRIDGES_CMD _IOWR(0xA6, 18, union ioctl_get_all_bridges_args)
+#define AGNOCAST_GET_BRIDGE_PID_CMD _IOWR(0xA6, 19, struct ioctl_bridge_args)
 
 }  // namespace agnocast

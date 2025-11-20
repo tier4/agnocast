@@ -5,6 +5,7 @@
 #include <mqueue.h>
 #include <sys/types.h>
 
+#include <map>
 #include <string>
 
 namespace agnocast
@@ -34,6 +35,7 @@ private:
   void handle_signal_event();
   void generate_bridge(const MqMsgBridge & req);
   void check_watched_bridges();
+  pid_t get_running_bridge_pid(const std::string & topic_name);
   void reap_zombies();
 
   const pid_t target_pid_;

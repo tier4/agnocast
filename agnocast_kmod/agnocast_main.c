@@ -1432,20 +1432,6 @@ int get_ext_publisher_num(
   return 0;
 }
 
-static int get_active_proc_num(const struct ipc_namespace * ipc_ns)
-{
-  int count = 0;
-  struct process_info * proc_info;
-  int bkt_proc_info;
-  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
-  {
-    if (ipc_eq(ipc_ns, proc_info->ipc_ns) && !proc_info->exited) {
-      count++;
-    }
-  }
-  return count;
-}
-
 static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en);
 
 static int remove_subscriber(
@@ -1595,26 +1581,6 @@ int unregister_bridge(const pid_t pid, const struct ipc_namespace * ipc_ns)
   return 0;
 }
 
-int find_bridge(const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t * out_pid)
-{
-  struct bridge_entry * entry;
-  int ret = -ENOENT;
-
-  mutex_lock(&g_bridge_list_mutex);
-  list_for_each_entry(entry, &g_bridge_list, list)
-  {
-    if (
-      ipc_eq(entry->ipc_ns, ipc_ns) &&
-      strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
-      if (out_pid) *out_pid = entry->pid;
-      ret = 0;
-      break;
-    }
-  }
-  mutex_unlock(&g_bridge_list_mutex);
-  return ret;
-}
-
 int get_all_bridges(
   const struct ipc_namespace * ipc_ns, union ioctl_get_all_bridges_args __user * user_args)
 {
@@ -1661,6 +1627,28 @@ int get_all_bridges(
 out:
   kfree(kern_buffer);
   return ret;
+}
+
+static pid_t find_bridge_pid_by_topic(const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry * entry;
+  pid_t found_pid = -ESRCH;
+
+  mutex_lock(&g_bridge_list_mutex);
+
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (
+      ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
+      found_pid = entry->pid;
+      break;
+    }
+  }
+
+  mutex_unlock(&g_bridge_list_mutex);
+
+  return found_pid;
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -2009,10 +1997,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_get_ext_publisher_num_args __user *)arg, &get_ext_publisher_num_args,
           sizeof(get_ext_publisher_num_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD) {
-    struct ioctl_get_active_process_num_args args;
-    args.ret_active_process_num = get_active_proc_num(ipc_ns);
-    if (copy_to_user((void __user *)arg, &args, sizeof(args))) goto return_EFAULT;
   } else if (cmd == AGNOCAST_REMOVE_SUBSCRIBER_CMD) {
     struct ioctl_remove_subscriber_args args;
     char topic_name_buf[TOPIC_NAME_BUFFER_SIZE];
@@ -2037,6 +2021,18 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = unregister_bridge(bridge_args.info.pid, ipc_ns);
   } else if (cmd == AGNOCAST_GET_ALL_BRIDGES_CMD) {
     ret = get_all_bridges(ipc_ns, (union ioctl_get_all_bridges_args __user *)arg);
+  } else if (cmd == AGNOCAST_GET_BRIDGE_PID_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    pid_t found_pid;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    found_pid = find_bridge_pid_by_topic(bridge_args.info.topic_name, ipc_ns);
+    if (found_pid < 0) {
+      ret = found_pid;
+    } else {
+      bridge_args.info.pid = found_pid;
+      if (copy_to_user((void __user *)arg, &bridge_args, sizeof(bridge_args))) goto return_EFAULT;
+      ret = 0;
+    }
   } else {
     goto return_EINVAL;
   }

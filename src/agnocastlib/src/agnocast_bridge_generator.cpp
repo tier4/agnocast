@@ -22,6 +22,7 @@
 
 namespace agnocast
 {
+constexpr int EXIT_BRIDGE_ALREADY_EXISTS = 100;
 
 BridgeGenerator::BridgeGenerator(pid_t target_pid) : target_pid_(target_pid)
 {
@@ -81,7 +82,6 @@ void BridgeGenerator::setup_signals()
   }
 }
 
-// 修正後
 void BridgeGenerator::setup_epoll()
 {
   epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
@@ -180,7 +180,7 @@ void BridgeGenerator::generate_bridge(const MqMsgBridge & req)
 
     if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &bridge_args) < 0) {
       if (errno == EEXIST) {
-        exit(0);
+        exit(EXIT_BRIDGE_ALREADY_EXISTS);
       }
       std::cerr << "[BridgeGenerator] Register failed: " << strerror(errno) << std::endl;
       exit(EXIT_FAILURE);
@@ -213,9 +213,8 @@ void BridgeGenerator::check_watched_bridges()
       bool a2r = check_a2r_demand(topic_name.c_str(), -1);
 
       if (r2a || a2r) {
-        generate_bridge(req);
-
         it = watched_bridges_.erase(it);
+        generate_bridge(req);
       } else {
         it = watched_bridges_.erase(it);
       }
@@ -225,9 +224,62 @@ void BridgeGenerator::check_watched_bridges()
   }
 }
 
+pid_t BridgeGenerator::get_running_bridge_pid(const std::string & topic_name)
+{
+  struct ioctl_bridge_args args{};
+  safe_strncpy(args.info.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+  args.info.pid = -1;
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &args) == 0) {
+    return args.info.pid;
+  }
+  return -1;
+}
+
 void BridgeGenerator::reap_zombies()
 {
-  while (waitpid(-1, nullptr, WNOHANG) > 0);
+  int status;
+  pid_t pid;
+
+  while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    auto it = local_managed_bridges_.find(pid);
+    if (it != local_managed_bridges_.end()) {
+      MqMsgBridge req = it->second;
+      local_managed_bridges_.erase(it);
+
+      bool should_restart = false;
+
+      if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+
+        if (exit_code == EXIT_BRIDGE_ALREADY_EXISTS) {
+          pid_t winner_pid = get_running_bridge_pid(req.args.topic_name);
+
+          if (winner_pid > 0) {
+            WatchedBridge wb;
+            wb.pid = winner_pid;
+            wb.req = req;
+            watched_bridges_[req.args.topic_name] = wb;
+          } else {
+            should_restart = true;
+          }
+        } else if (exit_code != 0) {
+          std::cerr << "[BridgeGenerator] Bridge (PID: " << pid << ") crashed with code "
+                    << exit_code << ". Restarting..." << std::endl;
+          should_restart = true;
+        }
+
+      } else if (WIFSIGNALED(status)) {
+        std::cerr << "[BridgeGenerator] Bridge (PID: " << pid << ") killed by signal "
+                  << WTERMSIG(status) << ". Restarting..." << std::endl;
+        should_restart = true;
+      }
+
+      if (should_restart && !shutdown_requested_) {
+        generate_bridge(req);
+      }
+    }
+  }
 }
 
 }  // namespace agnocast
