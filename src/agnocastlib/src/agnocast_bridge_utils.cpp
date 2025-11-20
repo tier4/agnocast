@@ -1,7 +1,10 @@
 #include "agnocast/agnocast_bridge_utils.hpp"
 
+#include "agnocast/agnocast_ioctl.hpp"
+
 namespace agnocast
 {
+
 QoSFlat flatten_qos(const rclcpp::QoS & qos)
 {
   QoSFlat out{};
@@ -57,6 +60,37 @@ void safe_strncpy(char * dest, const char * src, size_t dest_size)
   }
   std::strncpy(dest, src, dest_size - 1);
   dest[dest_size - 1] = '\0';
+}
+
+bool check_r2a_demand(const char * topic_name, pid_t bridge_pid)
+{
+  return check_demand_impl<union ioctl_get_ext_subscriber_num_args>(
+    AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, topic_name, bridge_pid,
+    [](const auto & args) { return args.ret_ext_subscriber_num > 0; });
+}
+
+bool check_a2r_demand(const char * topic_name, pid_t bridge_pid)
+{
+  return check_demand_impl<union ioctl_get_ext_publisher_num_args>(
+    AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, topic_name, bridge_pid,
+    [](const auto & args) { return args.ret_ext_publisher_num > 0; });
+}
+
+void unregister_bridge(pid_t pid, const char * topic_name)
+{
+  struct ioctl_bridge_args unreg_args = {};
+  unreg_args.info.pid = pid;
+  safe_strncpy(unreg_args.info.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+
+  if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args) < 0) {
+    if (errno != ENOENT) {
+      std::cerr << "[Agnocast] AGNOCAST_UNREGISTER_BRIDGE_CMD failed: " << strerror(errno)
+                << std::endl;
+
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  }
 }
 
 }  // namespace agnocast

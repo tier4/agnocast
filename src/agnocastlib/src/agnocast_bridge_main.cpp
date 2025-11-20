@@ -10,7 +10,7 @@ void bridge_main(const MqMsgBridge & req)
   rclcpp::init(0, nullptr);
   int exit_code = EXIT_SUCCESS;
 
-  auto logger = rclcpp::get_logger("agnocast_bridge_bootstrap");
+  auto logger = rclcpp::get_logger("agnocast_bridge_main");
 
   try {
     BridgeProcess bridge(req);

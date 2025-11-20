@@ -10,6 +10,8 @@
 namespace agnocast
 {
 
+extern int agnocast_fd;
+
 class BridgeGenerator
 {
 public:
@@ -30,7 +32,8 @@ private:
 
   void handle_mq_event();
   void handle_signal_event();
-  void spawn_bridge(const MqMsgBridge & req);
+  void generate_bridge(const MqMsgBridge & req);
+  void check_watched_bridges();
   void reap_zombies();
 
   const pid_t target_pid_;
@@ -40,7 +43,15 @@ private:
   int epoll_fd_ = -1;
   int signal_fd_ = -1;
 
+  struct WatchedBridge
+  {
+    pid_t pid;
+    MqMsgBridge req;
+  };
+
   bool shutdown_requested_ = false;
+  std::map<pid_t, MqMsgBridge> local_managed_bridges_;
+  std::map<std::string, WatchedBridge> watched_bridges_;
 };
 
 }  // namespace agnocast

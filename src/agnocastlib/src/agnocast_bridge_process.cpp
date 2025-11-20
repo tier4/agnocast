@@ -8,7 +8,7 @@ namespace agnocast
 {
 
 BridgeProcess::BridgeProcess(const MqMsgBridge & req)
-: req_(req), logger_(rclcpp::get_logger("agnocast_bridge_daemon"))
+: req_(req), logger_(rclcpp::get_logger("agnocast_bridge_process"))
 {
   RCLCPP_INFO(logger_, "[BRIDGE PROCESS] PID: %d", getpid());
 
@@ -20,34 +20,23 @@ BridgeProcess::BridgeProcess(const MqMsgBridge & req)
   load_bridge_function();
 }
 
-void BridgeProcess::bridge_signal_handler([[maybe_unused]] int signum)
-{
-  rclcpp::shutdown();
-}
-
 void BridgeProcess::setup_signal_handlers()
 {
-  struct sigaction sa_pipe;
-  sa_pipe.sa_handler = SIG_IGN;
-  sigemptyset(&sa_pipe.sa_mask);
-  sa_pipe.sa_flags = 0;
-  sigaction(SIGPIPE, &sa_pipe, nullptr);
+  struct sigaction sa;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
 
-  struct sigaction sa_shutdown;
-  sa_shutdown.sa_handler = bridge_signal_handler;
-  sigemptyset(&sa_shutdown.sa_mask);
-  sa_shutdown.sa_flags = 0;
-  sigaction(SIGTERM, &sa_shutdown, nullptr);
-  sigaction(SIGINT, &sa_shutdown, nullptr);
+  sa.sa_handler = SIG_IGN;
+  sigaction(SIGPIPE, &sa, nullptr);
+
+  sa.sa_handler = [](int /*signum*/) { rclcpp::shutdown(); };
+
+  sigaction(SIGTERM, &sa, nullptr);
+  sigaction(SIGINT, &sa, nullptr);
 }
 
 void BridgeProcess::load_bridge_function()
 {
-  if (req_.fn_ptr == 0) {
-    RCLCPP_FATAL(logger_, "Received a null function pointer!");
-    throw std::runtime_error("Null function pointer received");
-  }
-
   if (std::strcmp(req_.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
     entry_func_ = reinterpret_cast<BridgeFn>(req_.fn_ptr);
   } else {

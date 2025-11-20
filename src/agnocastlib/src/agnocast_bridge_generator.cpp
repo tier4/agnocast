@@ -23,8 +23,6 @@
 namespace agnocast
 {
 
-extern int agnocast_fd;
-
 BridgeGenerator::BridgeGenerator(pid_t target_pid) : target_pid_(target_pid)
 {
   if (prctl(PR_SET_PDEATHSIG, SIGTERM) == -1) {
@@ -83,6 +81,7 @@ void BridgeGenerator::setup_signals()
   }
 }
 
+// 修正後
 void BridgeGenerator::setup_epoll()
 {
   epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
@@ -90,17 +89,18 @@ void BridgeGenerator::setup_epoll()
     throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
-  struct epoll_event ev{};
-  ev.events = EPOLLIN;
-  ev.data.fd = mq_fd_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_fd_, &ev) == -1) {
+  struct epoll_event ev_mq{};
+  ev_mq.events = EPOLLIN;
+  ev_mq.data.fd = mq_fd_;
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_fd_, &ev_mq) == -1) {
     throw std::runtime_error("epoll_ctl (MQ) failed");
+  }
 
-    ev.events = EPOLLIN;
-    ev.data.fd = signal_fd_;
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev) == -1) {
-      throw std::runtime_error("epoll_ctl (Signal) failed");
-    }
+  struct epoll_event ev_sig{};
+  ev_sig.events = EPOLLIN;
+  ev_sig.data.fd = signal_fd_;
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev_sig) == -1) {
+    throw std::runtime_error("epoll_ctl (Signal) failed");
   }
 }
 
@@ -113,6 +113,7 @@ void BridgeGenerator::run()
     if (kill(target_pid_, 0) != 0) break;
 
     reap_zombies();
+    check_watched_bridges();
 
     int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
 
@@ -137,7 +138,7 @@ void BridgeGenerator::handle_mq_event()
 {
   MqMsgBridge req;
   while (mq_receive(mq_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
-    spawn_bridge(req);
+    generate_bridge(req);
   }
 }
 
@@ -153,7 +154,7 @@ void BridgeGenerator::handle_signal_event()
   }
 }
 
-void BridgeGenerator::spawn_bridge(const MqMsgBridge & req)
+void BridgeGenerator::generate_bridge(const MqMsgBridge & req)
 {
   pid_t b_pid = fork();
 
@@ -192,9 +193,35 @@ void BridgeGenerator::spawn_bridge(const MqMsgBridge & req)
     } catch (...) {
       std::cerr << "[BridgeGenerator] Unknown exception in bridge_main" << std::endl;
     }
-    ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &bridge_args);
+    unregister_bridge(bridge_args.info.pid, bridge_args.info.topic_name);
 
     exit(0);
+  } else {
+    local_managed_bridges_[b_pid] = req;
+  }
+}
+
+void BridgeGenerator::check_watched_bridges()
+{
+  for (auto it = watched_bridges_.begin(); it != watched_bridges_.end();) {
+    pid_t target_pid = it->second.pid;
+    const std::string & topic_name = it->first;
+    MqMsgBridge req = it->second.req;
+
+    if (kill(target_pid, 0) == -1 && errno == ESRCH) {
+      bool r2a = check_r2a_demand(topic_name.c_str(), -1);
+      bool a2r = check_a2r_demand(topic_name.c_str(), -1);
+
+      if (r2a || a2r) {
+        generate_bridge(req);
+
+        it = watched_bridges_.erase(it);
+      } else {
+        it = watched_bridges_.erase(it);
+      }
+    } else {
+      ++it;
+    }
   }
 }
 

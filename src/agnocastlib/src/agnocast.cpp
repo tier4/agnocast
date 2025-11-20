@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_bridge_generator.hpp"
 #include "agnocast/agnocast_bridge_main.hpp"
+#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -49,45 +50,6 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-template <typename IoctlArgs, typename ResultExtractor>
-static bool check_demand_impl(
-  unsigned long cmd, const char * topic_name, pid_t bridge_pid, ResultExtractor extractor)
-{
-  IoctlArgs args = {};
-
-  args.topic_name.ptr = topic_name;
-  args.topic_name.len = std::strlen(topic_name);
-  args.exclude_pid = bridge_pid;
-
-  if (ioctl(agnocast_fd, cmd, &args) < 0) {
-    return false;
-  }
-  return extractor(args);
-}
-
-static bool check_r2a_demand(const char * topic_name, pid_t bridge_pid)
-{
-  return check_demand_impl<union ioctl_get_ext_subscriber_num_args>(
-    AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, topic_name, bridge_pid,
-    [](const auto & args) { return args.ret_ext_subscriber_num > 0; });
-}
-
-static bool check_a2r_demand(const char * topic_name, pid_t bridge_pid)
-{
-  return check_demand_impl<union ioctl_get_ext_publisher_num_args>(
-    AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, topic_name, bridge_pid,
-    [](const auto & args) { return args.ret_ext_publisher_num > 0; });
-}
-
-static void unregister_bridge(pid_t pid, const char * topic_name)
-{
-  struct ioctl_bridge_args unreg_args = {};
-  unreg_args.info.pid = pid;
-  safe_strncpy(unreg_args.info.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
-
-  ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args);
-}
-
 static void check_and_remove_bridges()
 {
   auto buffer = std::make_unique<ioctl_get_all_bridges_buffer>();
@@ -113,7 +75,7 @@ static void check_and_remove_bridges()
 
     if (kill(pid, 0) == -1 && errno == ESRCH) {
       unregister_bridge(pid, topic_name);
-      continue;  // 次へ
+      continue;
     }
 
     bool r2a = check_r2a_demand(topic_name, pid);
@@ -164,7 +126,7 @@ void poll_for_unlink()
   exit(0);
 }
 
-void poll_for_bridge_generator(pid_t target_pid)
+void poll_for_bridge_generate(pid_t target_pid)
 {
   RCLCPP_INFO(logger, "[BRIDGE_GENERATOR] PID: %d", getpid());
   try {
@@ -427,7 +389,7 @@ void * initialize_agnocast(
   }
 
   pid_t parent_pid = getpid();
-  spawn_daemon_process([parent_pid]() { poll_for_bridge_generator(parent_pid); });
+  spawn_daemon_process([parent_pid]() { poll_for_bridge_generate(parent_pid); });
 
   wait_for_mq_ready(create_mq_name_for_bridge(parent_pid));
 
