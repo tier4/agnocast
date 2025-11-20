@@ -639,6 +639,12 @@ mod tests {
     }
 
     #[test]
+    fn test_malloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::malloc(0) };
+    }
+
+    #[test]
     fn test_calloc_normal() {
         // Arrange
         let elements = 4;
@@ -693,6 +699,13 @@ mod tests {
                 unsafe { libc::free(ptr) };
             }
         }
+    }
+
+    #[test]
+    fn test_calloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::calloc(0, 1) };
+        let _ = unsafe { libc::calloc(1, 0) };
     }
 
     #[test]
@@ -814,6 +827,13 @@ mod tests {
     }
 
     #[test]
+    fn test_posix_memalign_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let mut ptr: *mut c_void = ptr::null_mut();
+        let _ = unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), 0) };
+    }
+
+    #[test]
     fn test_aligned_alloc_with_fundamental_alignments() {
         // The alignment requirements related to the fundamental alignment also apply even if the requested alignment is less strict.
         let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
@@ -846,6 +866,12 @@ mod tests {
             );
             unsafe { libc::free(ptr) };
         }
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::aligned_alloc(1, 0) };
     }
 
     #[test]
