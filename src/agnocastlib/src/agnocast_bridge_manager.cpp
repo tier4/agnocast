@@ -113,7 +113,7 @@ void BridgeManager::setup_epoll()
 
 void BridgeManager::setup_signal_handlers()
 {
-  std::signal(SIGPIPE, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
 
   struct sigaction sa;
   sa.sa_handler = sigchld_handler;

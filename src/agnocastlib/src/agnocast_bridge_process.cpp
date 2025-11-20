@@ -7,6 +7,8 @@ extern "C" bool agnocast_heaphook_init_daemon();
 namespace agnocast
 {
 
+static std::atomic<bool> g_shutdown_requested(false);
+
 BridgeProcess::BridgeProcess(const MqMsgBridge & req)
 : req_(req), logger_(rclcpp::get_logger("agnocast_bridge_daemon"))
 {
@@ -22,7 +24,7 @@ BridgeProcess::BridgeProcess(const MqMsgBridge & req)
 
 void BridgeProcess::bridge_signal_handler([[maybe_unused]] int signum)
 {
-  rclcpp::shutdown();
+  g_shutdown_requested.store(true);
 }
 
 void BridgeProcess::setup_signal_handlers()
@@ -76,7 +78,14 @@ void BridgeProcess::run()
   try {
     auto node = entry_func_(req_.args);
     executor.add_node(node);
-    executor.spin();
+
+    while (rclcpp::ok() && !g_shutdown_requested.load()) {
+      executor.spin_some();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    rclcpp::shutdown();
+
   } catch (const std::exception & e) {
     RCLCPP_FATAL(
       logger_, "Unhandled std::exception: %s for topic: %s", e.what(), req_.args.topic_name);

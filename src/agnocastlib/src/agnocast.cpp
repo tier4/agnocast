@@ -51,8 +51,6 @@ void bridge_manager_daemon()
     exit(EXIT_FAILURE);
   }
 
-  signal(SIGINT, SIG_IGN);
-
   try {
     BridgeManager manager;
     manager.run();
