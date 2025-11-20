@@ -285,6 +285,37 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+template <typename Func>
+void spawn_daemon_process(Func && func)
+{
+  pid_t pid = fork();
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  if (pid == 0) {
+    func();
+    exit(0);
+  }
+}
+
+bool wait_for_mq_ready(const std::string & mq_name)
+{
+  constexpr int max_retries = 10;
+  constexpr auto retry_delay = std::chrono::milliseconds(100);
+
+  for (int i = 0; i < max_retries; ++i) {
+    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+    if (mq != (mqd_t)-1) {
+      mq_close(mq);
+      return true;
+    }
+    std::this_thread::sleep_for(retry_delay);
+  }
+  return false;
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 void * initialize_agnocast(
   const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
@@ -323,50 +354,11 @@ void * initialize_agnocast(
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-      poll_for_unlink();
-    }
-
-    pid_t pid2 = fork();
-
-    if (pid2 < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid2 == 0) {
-      bridge_manager_daemon();
-    }
+    spawn_daemon_process([]() { poll_for_unlink(); });
+    spawn_daemon_process([]() { bridge_manager_daemon(); });
   }
 
-  const std::string mq_name_str = create_mq_name_for_bridge();
-  constexpr int max_retries = 10;
-  constexpr auto retry_delay = std::chrono::milliseconds(100);
-  bool mq_ready = false;
-
-  for (int i = 0; i < max_retries; ++i) {
-    mqd_t mq_test = mq_open(mq_name_str.c_str(), O_WRONLY);
-    if (mq_test != (mqd_t)-1) {
-      mq_close(mq_test);
-      mq_ready = true;
-      break;
-    }
-    std::this_thread::sleep_for(retry_delay);
-  }
-
-  if (!mq_ready) {
-    RCLCPP_ERROR(logger, "Failed to connect to bridge manager message queue after timeout.");
-    exit(EXIT_FAILURE);
-  }
+  wait_for_mq_ready(create_mq_name_for_bridge());
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {
