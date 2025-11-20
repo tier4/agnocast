@@ -79,7 +79,7 @@ private:
   // Main Loop Tasks (Called periodically from run())
   // ---------------------------------------------------------------------------
   void handle_bridge_request(const BridgeRequest & req);
-  void reload_and_update_bridges();
+  void reload_and_remove_bridges();
   void discover_and_launch_bridges();
   void check_and_remove_bridges();
   void check_and_request_rclcpp_shutdown();
@@ -92,7 +92,7 @@ private:
   void launch_a2r_bridge_thread(const BridgeRequest & request);
 
   // ---------------------------------------------------------------------------
-  // Config Reload Helpers (Called by reload_and_update_bridges())
+  // Config Reload Helpers (Called by reload_and_remove_bridges())
   // ---------------------------------------------------------------------------
   void collect_bridges_to_remove(
     std::vector<ActiveBridgeR2A> & to_remove_r2a, std::vector<ActiveBridgeA2R> & to_remove_a2r);

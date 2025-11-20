@@ -106,7 +106,7 @@ void BridgeManager::run()
 
     if (reload_filter_request_.load()) {
       reload_filter_request_.store(false);
-      reload_and_update_bridges();
+      reload_and_remove_bridges();
       RCLCPP_INFO(logger_, "Reloaded bridge filter configuration.");
     }
 
@@ -128,8 +128,17 @@ void BridgeManager::run()
       handle_bridge_request(req);
     }
 
-    if (bridge_config_.mode == FilterMode::ALLOW_ALL) {
+    if (
+      bridge_config_.mode == FilterMode::ALLOW_ALL ||
+      bridge_config_.mode == FilterMode::BLACKLIST) {
       discover_and_launch_bridges();
+    } else if (bridge_config_.mode == FilterMode::WHITELIST) {
+      std::vector<BridgeConfigEntry> missing_bridges;
+      collect_bridges_to_add(missing_bridges);
+
+      if (!missing_bridges.empty()) {
+        check_demand_and_launch_new_bridges(missing_bridges);
+      }
     }
 
     check_and_remove_bridges();
@@ -344,7 +353,7 @@ void BridgeManager::handle_bridge_request(const BridgeRequest & req)
   }
 }
 
-void BridgeManager::reload_and_update_bridges()
+void BridgeManager::reload_and_remove_bridges()
 {
   BridgeConfig new_config = parse_bridge_config();
   bridge_config_ = new_config;
@@ -355,12 +364,9 @@ void BridgeManager::reload_and_update_bridges()
 
   std::vector<ActiveBridgeR2A> to_remove_r2a;
   std::vector<ActiveBridgeA2R> to_remove_a2r;
-  std::vector<BridgeConfigEntry> to_add;
 
   collect_bridges_to_remove(to_remove_r2a, to_remove_a2r);
-  collect_bridges_to_add(to_add);
   removed_bridges(to_remove_r2a, to_remove_a2r);
-  check_demand_and_launch_new_bridges(to_add);
 }
 
 void BridgeManager::discover_and_launch_bridges()
@@ -383,11 +389,17 @@ void BridgeManager::discover_and_launch_bridges()
     const std::string & message_type = topic_pair.second[0];
 
     if (has_external_ros2_publisher(topic_name)) {
+      if (!is_topic_allowed(topic_name, BridgeDirection::ROS2_TO_AGNOCAST)) {
+        continue;
+      }
       try_launch_discovered_bridge(
         topic_name, message_type, BridgeDirection::ROS2_TO_AGNOCAST, self_pid);
     }
 
     if (has_external_ros2_subscriber(topic_name)) {
+      if (!is_topic_allowed(topic_name, BridgeDirection::AGNOCAST_TO_ROS2)) {
+        continue;
+      }
       try_launch_discovered_bridge(
         topic_name, message_type, BridgeDirection::AGNOCAST_TO_ROS2, self_pid);
     }
@@ -456,7 +468,7 @@ void BridgeManager::launch_a2r_bridge_thread(const BridgeRequest & request)
 }
 
 // ---------------------------------------------------------------------------
-// Config Reload Helpers (Called by reload_and_update_bridges())
+// Config Reload Helpers (Called by reload_and_remove_bridges())
 // ---------------------------------------------------------------------------
 
 void BridgeManager::collect_bridges_to_remove(
