@@ -23,6 +23,7 @@ private:
   {
     pid_t pid;
     std::string topic_name;
+    MqMsgBridge req;
   };
 
   std::vector<ActiveBridge> active_bridges_;
@@ -41,17 +42,12 @@ private:
   static void shutdown_handler(int sig);
 
   bool does_bridge_exist(const std::string & topic_name);
+  pid_t spawn_bridge_process(const MqMsgBridge & req);
   void handle_bridge_request(const MqMsgBridge & req);
 
-  void remove_bridges(
-    std::vector<ActiveBridge> & bridges,
-    std::function<bool(const std::string &, pid_t)> check_demand_r2a,
-    std::function<bool(const std::string &, pid_t)> check_demand_a2r);
+  bool is_bridge_needed(const std::string & topic_name, pid_t bridge_pid) const;
 
-  bool check_r2a_demand(const std::string & topic_name, pid_t bridge_pid) const;
-  bool check_a2r_demand(const std::string & topic_name, pid_t bridge_pid) const;
-
-  void check_and_remove_bridges();
+  void maintain_bridges();
   void check_and_request_shutdown();
 
   template <typename IoctlArgs>

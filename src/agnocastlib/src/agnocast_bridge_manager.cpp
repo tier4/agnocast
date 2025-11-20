@@ -73,7 +73,7 @@ void BridgeManager::run()
     }
 
     if (num_events == 0) {
-      check_and_remove_bridges();
+      maintain_bridges();
       check_and_request_shutdown();
     }
   }
@@ -156,6 +156,31 @@ bool BridgeManager::does_bridge_exist(const std::string & topic_name)
   return std::any_of(active_bridges_.begin(), active_bridges_.end(), topic_matches);
 }
 
+pid_t BridgeManager::spawn_bridge_process(const MqMsgBridge & req)
+{
+  pid_t pid = fork();
+
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    return -1;
+  }
+
+  if (pid == 0) {
+    if (setsid() == -1) {
+      RCLCPP_ERROR(logger, "setsid failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    signal(SIGINT, SIG_DFL);
+
+    bridge_main(req);
+    exit(EXIT_SUCCESS);
+  }
+
+  return pid;
+}
+
 void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
 {
   const std::string topic_name_str(req.args.topic_name);
@@ -164,27 +189,11 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
     return;
   }
 
-  pid_t pid = fork();
-
-  if (pid < 0) {
-    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-    return;
-  }
-
-  if (pid == 0) {
-    if (setsid() == -1) {
-      RCLCPP_ERROR(logger, "setsid failed for unlink manager: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    bridge_main(req);
-    exit(EXIT_SUCCESS);
-  }
+  pid_t pid = spawn_bridge_process(req);
 
   {
     std::lock_guard<std::mutex> lock(bridges_mutex_);
-    ActiveBridge new_bridge = {pid, topic_name_str};
+    ActiveBridge new_bridge = {pid, topic_name_str, req};
 
     active_bridges_.push_back(new_bridge);
 
@@ -192,55 +201,67 @@ void BridgeManager::handle_bridge_request(const MqMsgBridge & req)
   }
 }
 
-void BridgeManager::remove_bridges(
-  std::vector<ActiveBridge> & bridges,
-  std::function<bool(const std::string &, pid_t)> check_demand_r2a,
-  std::function<bool(const std::string &, pid_t)> check_demand_a2r)
+void BridgeManager::maintain_bridges()
 {
-  bridges.erase(
-    std::remove_if(
-      bridges.begin(), bridges.end(),
-      [&](ActiveBridge & bridge) {
-        if (kill(bridge.pid, 0) == -1 && errno == ESRCH) {
-          return true;
-        }
+  std::lock_guard<std::mutex> lock(bridges_mutex_);
 
-        if (
-          !check_demand_r2a(bridge.topic_name, bridge.pid) &&
-          !check_demand_a2r(bridge.topic_name, bridge.pid)) {
-          kill(bridge.pid, SIGTERM);
-          return true;
-        }
+  for (auto it = active_bridges_.begin(); it != active_bridges_.end();) {
+    ActiveBridge & bridge = *it;
 
-        return false;
-      }),
-    bridges.end());
+    bool is_alive = (kill(bridge.pid, 0) == 0);
+
+    bool is_needed = is_bridge_needed(bridge.topic_name, bridge.pid);
+
+    if (!is_alive && is_needed) {
+      RCLCPP_WARN(
+        logger, "Bridge '%s' (PID %d) died but is needed. Restarting...", bridge.topic_name.c_str(),
+        bridge.pid);
+
+      pid_t new_pid = spawn_bridge_process(bridge.req);
+
+      if (new_pid > 0) {
+        bridge.pid = new_pid;
+        ++it;
+      } else {
+        RCLCPP_ERROR(
+          logger, "Failed to restart bridge for '%s'. Removing.", bridge.topic_name.c_str());
+        it = active_bridges_.erase(it);
+      }
+      continue;
+    }
+
+    if (!is_alive && !is_needed) {
+      it = active_bridges_.erase(it);
+      continue;
+    }
+
+    if (is_alive && !is_needed) {
+      kill(bridge.pid, SIGTERM);
+      it = active_bridges_.erase(it);
+      continue;
+    }
+
+    ++it;
+  }
 }
 
-bool BridgeManager::check_r2a_demand(const std::string & topic_name, pid_t bridge_pid) const
+bool BridgeManager::is_bridge_needed(const std::string & topic_name, pid_t bridge_pid) const
 {
-  return check_demand_internal<union ioctl_get_ext_subscriber_num_args>(
+  bool has_r2a = check_demand_internal<union ioctl_get_ext_subscriber_num_args>(
     topic_name, bridge_pid, AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD,
     [](const union ioctl_get_ext_subscriber_num_args & args) {
       return args.ret_ext_subscriber_num;
     });
-}
 
-bool BridgeManager::check_a2r_demand(const std::string & topic_name, pid_t bridge_pid) const
-{
-  return check_demand_internal<union ioctl_get_ext_publisher_num_args>(
+  if (has_r2a) {
+    return true;
+  }
+
+  bool has_a2r = check_demand_internal<union ioctl_get_ext_publisher_num_args>(
     topic_name, bridge_pid, AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD,
     [](const union ioctl_get_ext_publisher_num_args & args) { return args.ret_ext_publisher_num; });
-}
 
-void BridgeManager::check_and_remove_bridges()
-{
-  std::lock_guard<std::mutex> lock(bridges_mutex_);
-
-  remove_bridges(
-    active_bridges_,
-    [&](const std::string & topic_name, pid_t pid) { return check_r2a_demand(topic_name, pid); },
-    [&](const std::string & topic_name, pid_t pid) { return check_a2r_demand(topic_name, pid); });
+  return has_a2r;
 }
 
 void BridgeManager::check_and_request_shutdown()
