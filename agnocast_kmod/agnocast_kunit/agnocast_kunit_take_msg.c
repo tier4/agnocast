@@ -15,7 +15,7 @@ static void setup_one_subscriber(
   topic_local_id_t * subscriber_id)
 {
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
 
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
@@ -32,7 +32,7 @@ static void setup_one_publisher(
   topic_local_id_t * publisher_id, uint64_t * ret_addr)
 {
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, &add_process_args);
   *ret_addr = add_process_args.ret_addr;
 
   union ioctl_add_publisher_args add_publisher_args;
@@ -692,7 +692,7 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   // Arrange
   union ioctl_add_process_args add_process_args;
   const pid_t pid = 1000;
-  int ret1 = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(pid, current->nsproxy->ipc_ns, &add_process_args);
   const bool publisher_transient_local = false;
 
   union ioctl_add_subscriber_args add_subscriber_args;
@@ -736,7 +736,7 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
 
   union ioctl_add_process_args add_process_args;
   const pid_t publisher_pid = 1000;
-  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, &add_process_args);
 
   union ioctl_add_publisher_args add_publisher_args1;
   const uint32_t publisher_qos_depth1 = 10;
@@ -776,7 +776,7 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   // Arrange
   union ioctl_add_process_args add_process_args;
   const pid_t subscriber_pid = 2000;
-  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
   const bool is_transient_local = false;
 
   union ioctl_add_subscriber_args add_subscriber_args1;
@@ -925,7 +925,7 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
   const bool allow_same_message = true;
 
   union ioctl_add_process_args add_process_args;
-  ret = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  ret = add_process(publisher_pid, current->nsproxy->ipc_ns, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   int mmap_process_num = 1;
@@ -940,7 +940,7 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
       if (mmap_process_num >= MAX_PROCESS_NUM_PER_MEMPOOL) {
         break;
       }
-      ret = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+      ret = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
 
       ret = add_subscriber(
@@ -962,7 +962,7 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), MAX_PROCESS_NUM_PER_MEMPOOL);
 
-  ret = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  ret = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
   ret = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth, qos_transient_local,

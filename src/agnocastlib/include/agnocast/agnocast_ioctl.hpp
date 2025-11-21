@@ -45,10 +45,10 @@ struct ioctl_get_version_args
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_add_process_args {
-  uint64_t shm_size;
   struct
   {
     uint64_t ret_addr;
+    uint64_t ret_shm_size;
     bool ret_unlink_daemon_exist;
   };
 };

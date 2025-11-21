@@ -147,12 +147,17 @@ impl AgnocastSharedMemory {
     unsafe fn new() -> Self {
         use std::{ffi::CString, os::raw::c_char};
 
+        #[repr(C)]
+        struct InitializeAgnocastResult {
+            mempool_ptr: *mut c_void,
+            mempool_size: u64,
+        }
+
         extern "C" {
             fn initialize_agnocast(
-                size: usize,
                 version: *const c_char,
                 version_str_length: usize,
-            ) -> *mut c_void;
+            ) -> InitializeAgnocastResult;
         }
 
         let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
@@ -164,26 +169,13 @@ impl AgnocastSharedMemory {
             )
         }
 
-        let mempool_size_env = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
-
-        let mempool_size = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
-
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-        let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
-
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
 
-        let mempool_ptr = unsafe {
-            initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
-        };
+        let result = unsafe { initialize_agnocast(c_version.as_ptr(), c_version.as_bytes().len()) };
 
-        let start = mempool_ptr as usize;
-        let end = start + mempool_size;
+        let start = result.mempool_ptr as usize;
+        let end = start + result.mempool_size as usize;
 
         Self { start, end }
     }
