@@ -9,6 +9,30 @@ extern int agnocast_fd;
 
 rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 
+BridgeMode get_bridge_mode()
+{
+  const char * env_val = std::getenv("AGNOCAST_BRIDGE_MODE");
+  if (env_val == nullptr) {
+    return BridgeMode::Standard;
+  }
+
+  std::string val = env_val;
+  std::transform(val.begin(), val.end(), val.begin(), ::toupper);
+
+  if (val == "0" || val == "OFF") {
+    return BridgeMode::Off;
+  }
+  if (val == "1" || val == "STANDARD" || val == "STD") {
+    return BridgeMode::Standard;
+  }
+  if (val == "2" || val == "PERFORMANCE" || val == "PERF") {
+    return BridgeMode::Performance;
+  }
+
+  RCLCPP_WARN(logger, "Unknown AGNOCAST_BRIDGE_MODE: %s. Fallback to STANDARD.", env_val);
+  return BridgeMode::Standard;
+}
+
 void validate_ld_preload()
 {
   const char * ld_preload_cstr = getenv("LD_PRELOAD");
