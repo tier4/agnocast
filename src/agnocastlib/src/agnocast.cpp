@@ -254,9 +254,8 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 }
 
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
-void * initialize_agnocast(
-  const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
-  const size_t heaphook_version_str_len)
+struct initialize_agnocast_result initialize_agnocast(
+  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
 {
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
@@ -265,7 +264,11 @@ void * initialize_agnocast(
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
+    if (errno == ENOENT) {
+      RCLCPP_ERROR(logger, "%s", AGNOCAST_DEVICE_NOT_FOUND_MSG);
+    } else {
+      RCLCPP_ERROR(logger, "Failed to open /dev/agnocast: %s", strerror(errno));
+    }
     exit(EXIT_FAILURE);
   }
 
@@ -282,7 +285,6 @@ void * initialize_agnocast(
   }
 
   union ioctl_add_process_args add_process_args = {};
-  add_process_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -304,12 +306,17 @@ void * initialize_agnocast(
     }
   }
 
-  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
   if (mempool_ptr == nullptr) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-  return mempool_ptr;
+
+  struct initialize_agnocast_result result = {};
+  result.mempool_ptr = mempool_ptr;
+  result.mempool_size = add_process_args.ret_shm_size;
+  return result;
 }
 
 static void shutdown_agnocast()

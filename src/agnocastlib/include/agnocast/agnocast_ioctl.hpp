@@ -18,6 +18,11 @@ namespace agnocast
 
 #define NODE_NAME_BUFFER_SIZE 256
 
+constexpr const char * AGNOCAST_DEVICE_NOT_FOUND_MSG =
+  "Failed to open /dev/agnocast: Device not found. "
+  "Please ensure the agnocast kernel module is installed. "
+  "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.";
+
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
 {
@@ -40,10 +45,10 @@ struct ioctl_get_version_args
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_add_process_args {
-  uint64_t shm_size;
   struct
   {
     uint64_t ret_addr;
+    uint64_t ret_shm_size;
     bool ret_unlink_daemon_exist;
   };
 };
