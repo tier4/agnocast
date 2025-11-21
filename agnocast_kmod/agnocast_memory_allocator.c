@@ -84,7 +84,7 @@ void free_memory(const pid_t pid)
 #ifdef KUNIT_BUILD
 void exit_memory_allocator(void)
 {
-  for (int i = 0; i < MEMPOOL_TOTAL_NUM; i++) {
+  for (int i = 0; i < MEMPOOL_NUM; i++) {
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
       mempool_entries[i].mapped_pids[j] = -1;
