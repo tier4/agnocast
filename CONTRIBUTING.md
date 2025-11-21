@@ -43,8 +43,9 @@ This includes changes that affect compatibility between:
 - agnocastlib
 
 Examples:
-- Changing internal communication protocols between components
-- Modifying shared data structures between heaphook/kmod/agnocastlib
+- Removing or renaming ioctl commands
+- Modifying data structures used in ioctl interfaces
+- Changing shared data structures between heaphook/kmod/agnocastlib
 - Breaking changes to internal APIs not exposed to end users
 
 ### PATCH version (`need-patch-update`)
@@ -66,7 +67,6 @@ Before submitting a PR, please ensure the following tests pass:
 - [ ] `bash scripts/e2e_test_1to1_with_ros2sub` (required)
 - [ ] `bash scripts/e2e_test_2to2` (required)
 - [ ] kunit tests (required when modifying the kernel module)
-- [ ] sample application
 
 ## Questions?
 
