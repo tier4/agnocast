@@ -6,7 +6,7 @@
 #include <kunit/test.h>
 
 static pid_t pid = 1000;
-static const int max_process_num = MEMPOOL_DEFAULT_NUM;
+static const int max_process_num = MEMPOOL_NUM;
 
 void test_case_add_process_normal(struct kunit * test)
 {

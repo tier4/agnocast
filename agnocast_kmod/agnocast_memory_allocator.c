@@ -5,7 +5,7 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-static struct mempool_entry mempool_entries[MEMPOOL_DEFAULT_NUM];
+static struct mempool_entry mempool_entries[MEMPOOL_NUM];
 
 // Module parameter: mempool size in GB (default: 8GB)
 int mempool_size_gb = 8;
@@ -24,7 +24,7 @@ void init_memory_allocator(void)
     "Agnocast: Initializing memory allocator with pool size: %llu bytes (%d GB)\n",
     mempool_size_bytes, mempool_size_gb);
 
-  for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
+  for (int i = 0; i < MEMPOOL_NUM; i++) {
     mempool_entries[i].addr = addr;
     mempool_entries[i].mapped_num = 0;
     for (int j = 0; j < MAX_PROCESS_NUM_PER_MEMPOOL; j++) {
@@ -36,7 +36,7 @@ void init_memory_allocator(void)
 
 struct mempool_entry * assign_memory(const pid_t pid)
 {
-  for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
+  for (int i = 0; i < MEMPOOL_NUM; i++) {
     if (mempool_entries[i].mapped_num == 0) {
       mempool_entries[i].mapped_num = 1;
       mempool_entries[i].mapped_pids[0] = pid;
@@ -67,7 +67,7 @@ int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
 
 void free_memory(const pid_t pid)
 {
-  for (int i = 0; i < MEMPOOL_DEFAULT_NUM; i++) {
+  for (int i = 0; i < MEMPOOL_NUM; i++) {
     for (int j = 0; j < mempool_entries[i].mapped_num; j++) {
       if (mempool_entries[i].mapped_pids[j] == pid) {
         for (int k = j; k < MAX_PROCESS_NUM_PER_MEMPOOL - 1; k++) {
