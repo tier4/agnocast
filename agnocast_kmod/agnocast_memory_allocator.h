@@ -8,11 +8,8 @@
 // Number of mempool entries
 #define MEMPOOL_DEFAULT_NUM 1000
 
-// Module parameter for mempool size (defined in agnocast_memory_allocator.c)
 // Default is 8GB, can be overridden by insmod parameter mempool_size_gb
-// Example: insmod agnocast.ko mempool_size_gb=16
 extern int mempool_size_gb;
-
 // Mempool size in bytes (calculated from mempool_size_gb)
 extern uint64_t mempool_size_bytes;
 
