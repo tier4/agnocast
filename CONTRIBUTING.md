@@ -29,6 +29,7 @@ Agnocast follows a modified semantic versioning scheme:
 Increment when you make **breaking changes to the User API**.
 
 Examples:
+
 - Changing public API function signatures
 - Removing or renaming user-facing APIs
 - Modifying behavior that affects users of the library
@@ -38,11 +39,13 @@ Examples:
 Increment when you make **breaking changes to internal APIs or component compatibility**.
 
 This includes changes that affect compatibility between:
+
 - heaphook
 - kmod
 - agnocastlib
 
 Examples:
+
 - Removing or renaming ioctl commands
 - Modifying data structures used in ioctl interfaces
 - Changing shared data structures between heaphook/kmod/agnocastlib
@@ -53,6 +56,7 @@ Examples:
 Increment for **bug fixes and other changes** that don't fall into the above categories.
 
 Examples:
+
 - Bug fixes
 - Documentation updates
 - Performance improvements (without API changes)
