@@ -8,6 +8,7 @@
 #include "agnocast/agnocast_service.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_timer_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -132,6 +133,33 @@ typename Service<ServiceT>::SharedPtr create_service(
 {
   return std::make_shared<Service<ServiceT>>(
     node, service_name, std::forward<Func>(callback), qos, group);
+}
+
+/**
+ * @brief Create an Agnocast timer
+ *
+ * Creates a timer that uses timerfd_create for efficient event-based timing.
+ * The timer is integrated with the Agnocast executor's epoll event loop.
+ *
+ * @tparam Func Callback function type
+ * @param node The node to attach the timer to
+ * @param period Timer period
+ * @param callback Function to call when timer expires
+ * @param group Callback group for thread safety (uses node's default if nullptr)
+ * @return Timer ID that can be used to manage the timer
+ */
+template <typename Func>
+uint32_t create_timer(
+  rclcpp::Node * node,
+  std::chrono::nanoseconds period,
+  Func && callback,
+  rclcpp::CallbackGroup::SharedPtr group = nullptr)
+{
+  if (!group) {
+    group = node->get_node_base_interface()->get_default_callback_group();
+  }
+
+  return register_timer(std::forward<Func>(callback), period, group);
 }
 
 }  // namespace agnocast

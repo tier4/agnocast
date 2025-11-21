@@ -30,7 +30,7 @@ add_library(agnocast SHARED
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c
-  src/agnocast_client.cpp)
+  src/agnocast_client.cpp src/agnocast_timer.cpp src/agnocast_timer_info.cpp)
 ament_target_dependencies(agnocast cie_thread_configurator)
 
 target_link_libraries(agnocast
