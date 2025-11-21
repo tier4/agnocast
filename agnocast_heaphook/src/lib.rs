@@ -172,7 +172,7 @@ impl AgnocastSharedMemory {
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
 
-        let result = unsafe { initialize_agnocast(c_version.as_ptr(), c_version.as_bytes().len())};
+        let result = unsafe { initialize_agnocast(c_version.as_ptr(), c_version.as_bytes().len()) };
 
         let start = result.mempool_ptr as usize;
         let end = start + result.mempool_size as usize;
