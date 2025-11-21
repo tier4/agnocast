@@ -18,6 +18,11 @@ namespace agnocast
 
 #define NODE_NAME_BUFFER_SIZE 256
 
+constexpr const char * AGNOCAST_DEVICE_NOT_FOUND_MSG =
+  "Failed to open /dev/agnocast: Device not found. "
+  "Please ensure the agnocast kernel module is installed. "
+  "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.";
+
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
 {

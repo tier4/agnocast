@@ -15,7 +15,12 @@ use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
 
-// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+///  An alignment equal to `alignof(max_align_t)`.
+///
+/// According to [C23](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf), when allocation succeeds,
+/// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitably aligned
+/// for storing **any** obuject with a *fundamental alignment* requirement and size less than or equal to the size requested.
+/// The *fundamental alignment* is a nonnegative integral power of two less than or equal to `alignof(max_align_t)`.
 #[allow(clippy::if_same_then_else)]
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
@@ -376,8 +381,6 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -426,9 +429,10 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
-    // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-    let size = num * size;
+    let Some(size) = num.checked_mul(size) else {
+        return ptr::null_mut();
+    };
+
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -471,8 +475,6 @@ pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_vo
 
     let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
 
-    // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
     let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -610,6 +612,31 @@ mod tests {
     }
 
     #[test]
+    fn test_malloc_alignment() {
+        let sizes = (1..=MIN_ALIGN * 2).filter(|n| n.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::malloc(size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
+    fn test_malloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::malloc(0) };
+    }
+
+    #[test]
     fn test_calloc_normal() {
         // Arrange
         let elements = 4;
@@ -634,6 +661,55 @@ mod tests {
         }
 
         unsafe { libc::free(ptr) };
+    }
+
+    #[test]
+    fn test_calloc_alignment() {
+        let obj_sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let obj_nums = [1, 2];
+
+        for obj_size in obj_sizes {
+            for obj_num in obj_nums {
+                let total_size = obj_size * obj_num;
+
+                let ptr = unsafe { libc::calloc(obj_num, obj_size) };
+                assert!(!ptr.is_null());
+                assert!(is_shared(ptr.cast()));
+
+                // NOTE: Is it possible to relax the constraint by replacing `total_size` with `obj_size`?
+                let alignment = if total_size <= MIN_ALIGN {
+                    total_size
+                } else {
+                    MIN_ALIGN
+                };
+
+                assert!(
+                    ptr as usize % alignment == 0,
+                    "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+                );
+
+                unsafe { libc::free(ptr) };
+            }
+        }
+    }
+
+    #[test]
+    fn test_calloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::calloc(0, 1) };
+        let _ = unsafe { libc::calloc(1, 0) };
+    }
+
+    #[test]
+    fn test_calloc_with_overflow_size() {
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 2) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
+        assert!(
+            unsafe { libc::calloc(2, usize::MAX) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
     }
 
     #[test]
@@ -675,6 +751,47 @@ mod tests {
     }
 
     #[test]
+    fn test_realloc_alignment() {
+        let old_ptr = unsafe { libc::malloc(MIN_ALIGN / 2) };
+        assert!(!old_ptr.is_null());
+        assert!(is_shared(old_ptr.cast()));
+
+        let new_ptr = unsafe { libc::realloc(old_ptr, MIN_ALIGN) };
+        assert!(!new_ptr.is_null());
+        assert!(is_shared(new_ptr.cast()));
+        assert!(
+            new_ptr as usize % MIN_ALIGN == 0,
+            "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+        );
+
+        unsafe { libc::free(new_ptr) };
+    }
+
+    #[test]
+    fn test_realloc_with_null_pointer() {
+        // If the pointer is null, `realloc` bahaves like `malloc`.
+
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::realloc(ptr::null_mut(), 0) };
+
+        let sizes = (1..=MIN_ALIGN * 2).filter(|x| x.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::realloc(ptr::null_mut(), size) };
+            assert!(!ptr.is_null());
+            assert!(is_shared(ptr.cast()));
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
     fn test_posix_memalign_normal() {
         // Arrange
         let alignment = 64;
@@ -702,7 +819,15 @@ mod tests {
     }
 
     #[test]
+    fn test_posix_memalign_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let mut ptr: *mut c_void = ptr::null_mut();
+        let _ = unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), 0) };
+    }
+
+    #[test]
     fn test_aligned_alloc_with_fundamental_alignments() {
+        // The alignment requirements related to the fundamental alignment also apply even if the requested alignment is less strict.
         let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
         let size = MIN_ALIGN;
         for alignment in alignments {
@@ -713,6 +838,7 @@ mod tests {
                 ptr as usize % MIN_ALIGN == 0,
                 "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
             );
+            unsafe { libc::free(ptr) };
         }
     }
 
@@ -732,6 +858,12 @@ mod tests {
             );
             unsafe { libc::free(ptr) };
         }
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::aligned_alloc(1, 0) };
     }
 
     #[test]

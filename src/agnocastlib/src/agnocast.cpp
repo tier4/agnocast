@@ -264,7 +264,11 @@ struct initialize_agnocast_result initialize_agnocast(
 
   agnocast_fd = open("/dev/agnocast", O_RDWR);
   if (agnocast_fd < 0) {
-    RCLCPP_ERROR(logger, "Failed to open the device: %s", strerror(errno));
+    if (errno == ENOENT) {
+      RCLCPP_ERROR(logger, "%s", AGNOCAST_DEVICE_NOT_FOUND_MSG);
+    } else {
+      RCLCPP_ERROR(logger, "Failed to open /dev/agnocast: %s", strerror(errno));
+    }
     exit(EXIT_FAILURE);
   }
 

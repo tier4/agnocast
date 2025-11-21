@@ -58,15 +58,5 @@ public:
   }
 };
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-
-  agnocast::CallbackIsolatedAgnocastExecutor executor;
-  auto node = std::make_shared<CieSubscriber>(rclcpp::NodeOptions());
-  executor.add_node(node);
-  executor.spin();
-
-  rclcpp::shutdown();
-  return 0;
-}
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(CieSubscriber)
