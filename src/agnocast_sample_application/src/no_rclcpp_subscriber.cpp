@@ -1,5 +1,4 @@
 #include "agnocast/agnocast.hpp"
-#include "agnocast/tmp_agnocast_subscription.hpp"
 #include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -7,8 +6,7 @@ using std::placeholders::_1;
 
 class NoRclcppSubscriber : public agnocast::Node
 {
-  agnocast::TmpSubscription<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr
-    sub_dynamic_;
+  agnocast::Subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
 
   void callback(
     const agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> & message)

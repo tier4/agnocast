@@ -5,6 +5,8 @@
 namespace agnocast
 {
 
+class Node;
+
 class AgnocastOnlyExecutor
 {
   std::atomic_bool spinning_;
@@ -26,7 +28,7 @@ public:
 
   void spin();
 
-  void add_node(const agnocast::Node::SharedPtr & node);
+  void add_node(const std::shared_ptr<agnocast::Node> & node);
 };
 
 }  // namespace agnocast

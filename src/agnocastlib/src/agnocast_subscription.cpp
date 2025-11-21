@@ -9,6 +9,13 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
+SubscriptionBase::SubscriptionBase(agnocast::Node * node, const std::string & topic_name)
+: id_(0), topic_name_(topic_name)  // TODO: resolve topic name
+{
+  (void)node;
+  validate_ld_preload();
+}
+
 union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
@@ -71,19 +78,7 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   rclcpp::Node * node, const SubscriptionOptions & options)
 {
-  rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
-
-  if (callback_group) {
-    if (!node->get_node_base_interface()->callback_group_in_node(callback_group)) {
-      RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-  } else {
-    callback_group = node->get_node_base_interface()->get_default_callback_group();
-  }
-
-  return callback_group;
+  return get_valid_callback_group(node->get_node_base_interface().get(), options);
 }
 
 }  // namespace agnocast

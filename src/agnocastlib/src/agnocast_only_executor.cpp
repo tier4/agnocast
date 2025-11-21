@@ -3,6 +3,8 @@
 #include "agnocast/agnocast.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <memory>
+
 namespace agnocast
 {
 
@@ -98,7 +100,7 @@ void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agno
   }
 }
 
-void AgnocastOnlyExecutor::add_node(const agnocast::Node::SharedPtr & node)
+void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node)
 {
   (void)node;
 }

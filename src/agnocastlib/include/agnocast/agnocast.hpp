@@ -109,6 +109,16 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
     std::forward<Func>(callback), options);
 }
 
+template <typename MessageT, typename Func>
+typename Subscription<MessageT>::SharedPtr create_subscription(
+  agnocast::Node * node, const std::string & topic_name, const size_t qos_history_depth,
+  Func && callback, agnocast::SubscriptionOptions options)
+{
+  return std::make_shared<Subscription<MessageT>>(
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)),
+    std::forward<Func>(callback), options);
+}
+
 template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
