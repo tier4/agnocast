@@ -9,7 +9,7 @@ Thank you for your interest in contributing to Agnocast!
 Every pull request **must** have exactly one of the following labels:
 
 - **`need-major-update`**: User API breaking changes - requires MAJOR version update
-- **`need-minor-update`**: Internal API breaking changes - requires MINOR version update
+- **`need-minor-update`**: Internal API breaking changes (heaphook/kmod/agnocastlib compatibility) - requires MINOR version update
 - **`need-patch-update`**: Bug fixes and other changes - requires PATCH version update
 
 **Important notes:**
