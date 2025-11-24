@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_executor.hpp"
 
 namespace agnocast
 {
@@ -9,10 +9,10 @@ class Node;
 
 class AgnocastOnlyExecutor
 {
+protected:
   std::atomic_bool spinning_;
   int epoll_fd_;
   pid_t my_pid_;
-  const int next_exec_timeout_ms_;
 
   std::mutex ready_agnocast_executables_mutex_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
@@ -26,7 +26,7 @@ public:
 
   virtual ~AgnocastOnlyExecutor();
 
-  void spin();
+  virtual void spin() = 0;
 
   void add_node(const std::shared_ptr<agnocast::Node> & node);
 };

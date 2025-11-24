@@ -9,10 +9,7 @@ namespace agnocast
 {
 
 AgnocastOnlyExecutor::AgnocastOnlyExecutor(int next_exec_timeout_ms)
-: spinning_(false),
-  epoll_fd_(epoll_create1(0)),
-  my_pid_(getpid()),
-  next_exec_timeout_ms_(next_exec_timeout_ms)
+: spinning_(false), epoll_fd_(epoll_create1(0)), my_pid_(getpid())
 {
   if (epoll_fd_ == -1) {
     RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
@@ -23,33 +20,6 @@ AgnocastOnlyExecutor::AgnocastOnlyExecutor(int next_exec_timeout_ms)
 AgnocastOnlyExecutor::~AgnocastOnlyExecutor()
 {
   close(epoll_fd_);
-}
-
-void AgnocastOnlyExecutor::spin()
-{
-  if (spinning_.exchange(true)) {
-    RCLCPP_ERROR(logger, "spin() called while already spinning");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  RCPPUTILS_SCOPE_EXIT(this->spinning_.store(false););
-
-  while (agnocast::ok() && spinning_.load()) {
-    if (need_epoll_updates.load()) {
-      agnocast::prepare_epoll_impl(
-        epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
-        [](const rclcpp::CallbackGroup::SharedPtr & group) {
-          (void)group;
-          return true;
-        });
-    }
-
-    agnocast::AgnocastExecutable agnocast_executable;
-    if (get_next_agnocast_executable(agnocast_executable, next_exec_timeout_ms_)) {
-      execute_agnocast_executable(agnocast_executable);
-    }
-  }
 }
 
 bool AgnocastOnlyExecutor::get_next_agnocast_executable(

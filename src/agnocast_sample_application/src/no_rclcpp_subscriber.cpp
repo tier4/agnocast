@@ -31,7 +31,7 @@ public:
 int main(int argc, char ** argv)
 {
   agnocast::init(argc, argv);
-  agnocast::AgnocastOnlyExecutor executor;
+  agnocast::AgnocastOnlySingleThreadedExecutor executor;
   auto node = std::make_shared<NoRclcppSubscriber>();
   executor.add_node(node);
   executor.spin();
