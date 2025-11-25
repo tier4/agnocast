@@ -1378,7 +1378,7 @@ static int get_topic_publisher_info(
 
 static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en);
 
-static int remove_subscriber(
+int remove_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t subscriber_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
@@ -1414,7 +1414,7 @@ static int remove_subscriber(
   return 0;
 }
 
-static int remove_publisher(
+int remove_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t publisher_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);

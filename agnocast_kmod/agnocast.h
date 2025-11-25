@@ -257,6 +257,12 @@ int get_subscriber_num(
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
+int remove_subscriber(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t subscriber_id);
+
+int remove_publisher(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t publisher_id);
+
 void process_exit_cleanup(const pid_t pid);
 
 void enqueue_exit_pid(const pid_t pid);
