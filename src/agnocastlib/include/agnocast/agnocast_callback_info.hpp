@@ -8,6 +8,8 @@
 namespace agnocast
 {
 
+class AgnocastExecutable;
+
 // Base class for a type-erased object
 class AnyObject
 {
@@ -102,5 +104,11 @@ uint32_t register_callback(
 
   return callback_info_id;
 }
+
+void receive_message(
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  [[maybe_unused]] const pid_t my_pid,               // for CARET
+  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
 }  // namespace agnocast
