@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast/agnocast_smart_pointer.hpp"
+#include "sys/epoll.h"
 
 #include <mutex>
 #include <type_traits>
@@ -109,6 +110,11 @@ void receive_message(
   [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
   [[maybe_unused]] const pid_t my_pid,               // for CARET
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables);
+
+void wait_and_handle_epoll_event(
+  const int epoll_fd, const pid_t my_pid, const int timeout_ms,
+  std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
 }  // namespace agnocast

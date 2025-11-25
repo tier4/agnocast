@@ -21,7 +21,6 @@ class AgnocastExecutor : public rclcpp::Executor
   std::mutex ready_agnocast_executables_mutex_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
 
-  void wait_and_handle_epoll_event(const int timeout_ms);
   bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
   // Return false iff this Executor is SingleThreadedAgnocastExecutor
