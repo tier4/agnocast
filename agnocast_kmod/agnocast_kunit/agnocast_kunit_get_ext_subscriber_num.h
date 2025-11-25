@@ -8,7 +8,7 @@
     KUNIT_CASE(test_case_get_ext_subscriber_num_many),            \
     KUNIT_CASE(test_case_get_ext_subscriber_num_different_topic), \
     KUNIT_CASE(test_case_get_ext_subscriber_num_with_exit),       \
-    KUNIT_CASE(test_case_get_ext_subscriber_num_no_subscriber),
+    KUNIT_CASE(test_case_get_ext_subscriber_num_no_subscriber)
 
 /* Subscriber Prototypes */
 void test_case_get_ext_subscriber_num_normal(struct kunit * test);

@@ -263,6 +263,14 @@ int get_subscriber_num(
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
+int get_ext_subscriber_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_ext_subscriber_num_args * ioctl_ret);
+
+int get_ext_publisher_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_ext_publisher_num_args * ioctl_ret);
+
 void process_exit_cleanup(const pid_t pid);
 
 void enqueue_exit_pid(const pid_t pid);
