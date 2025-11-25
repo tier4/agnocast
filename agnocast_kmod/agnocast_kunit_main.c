@@ -8,7 +8,9 @@
 #include "agnocast_kunit/agnocast_kunit_increment_rc.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
+#include "agnocast_kunit/agnocast_kunit_register_bridge.h"
 #include "agnocast_kunit/agnocast_kunit_take_msg.h"
+#include "agnocast_kunit/agnocast_kunit_unregister_bridge.h"
 #include "agnocast_memory_allocator.h"
 
 #include <kunit/test.h>
@@ -25,6 +27,8 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_TAKE_MSG,
   TEST_CASES_ADD_PROCESS,
   TEST_CASES_GET_SUBSCRIBER_NUM,
+  TEST_CASES_REGISTER_BRIDGE,
+  TEST_CASES_UNREGISTER_BRIDGE,
   TEST_CASES_DO_EXIT,
   {},
 };
