@@ -17,15 +17,15 @@ BridgeMode get_bridge_mode()
   }
 
   std::string val = env_val;
-  std::transform(val.begin(), val.end(), val.begin(), ::toupper);
+  std::transform(val.begin(), val.end(), val.begin(), ::tolower);
 
-  if (val == "0" || val == "OFF") {
+  if (val == "0" || val == "off") {
     return BridgeMode::Off;
   }
-  if (val == "1" || val == "STANDARD" || val == "STD") {
+  if (val == "1" || val == "standard" || val == "std") {
     return BridgeMode::Standard;
   }
-  if (val == "2" || val == "PERFORMANCE" || val == "PERF") {
+  if (val == "2" || val == "performance" || val == "perf") {
     return BridgeMode::Performance;
   }
 
