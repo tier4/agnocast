@@ -166,6 +166,18 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
+struct ioctl_remove_subscriber_args
+{
+  struct name_info topic_name;
+  topic_local_id_t subscriber_id;
+};
+
+struct ioctl_remove_publisher_args
+{
+  struct name_info topic_name;
+  topic_local_id_t publisher_id;
+};
+
 struct topic_info_ret
 {
   char node_name[NODE_NAME_BUFFER_SIZE];
@@ -196,6 +208,8 @@ union ioctl_topic_info_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 14, struct ioctl_remove_subscriber_args)
+#define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 15, struct ioctl_remove_publisher_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast
