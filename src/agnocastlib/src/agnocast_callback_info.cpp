@@ -66,4 +66,20 @@ void receive_message(
   }
 }
 
+std::vector<std::string> get_agnocast_topics_by_group(const rclcpp::CallbackGroup::SharedPtr group)
+{
+  std::vector<std::string> topic_names;
+
+  {
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+    for (const auto & [id, callback_info] : id2_callback_info) {
+      if (callback_info.callback_group == group) {
+        topic_names.push_back(callback_info.topic_name);
+      }
+    }
+  }
+
+  return topic_names;
+}
+
 }  // namespace agnocast

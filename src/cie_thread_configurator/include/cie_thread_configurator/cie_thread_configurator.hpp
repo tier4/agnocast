@@ -12,11 +12,13 @@ namespace cie_thread_configurator
 {
 
 std::string create_callback_group_id(
-  rclcpp::CallbackGroup::SharedPtr group, rclcpp::Node::SharedPtr node);
+  rclcpp::CallbackGroup::SharedPtr group, rclcpp::Node::SharedPtr node,
+  const std::vector<std::string> & agnocast_topics);
 
 std::string create_callback_group_id(
   rclcpp::CallbackGroup::SharedPtr group,
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node);
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node,
+  const std::vector<std::string> & agnocast_topics);
 
 // Caution: Do not call in parallel
 // Caution: Must be called after rclcpp::init() called

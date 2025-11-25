@@ -136,7 +136,8 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
   node->for_each_callback_group([node_id, &node,
                                  this](const rclcpp::CallbackGroup::SharedPtr & callback_group) {
-    std::string group_id = cie_thread_configurator::create_callback_group_id(callback_group, node);
+    std::string group_id = cie_thread_configurator::create_callback_group_id(callback_group, node, 
+      agnocast::get_agnocast_topics_by_group(callback_group));
     std::atomic_bool & has_executor = callback_group->get_associated_with_executor_atomic();
 
     if (is_clock_callback_group(callback_group) /* workaround */ || has_executor.load()) {

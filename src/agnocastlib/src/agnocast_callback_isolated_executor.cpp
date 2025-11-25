@@ -67,7 +67,8 @@ void CallbackIsolatedAgnocastExecutor::spin()
     auto executor = std::make_shared<SingleThreadedAgnocastExecutor>(
       rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
     executor->dedicate_to_callback_group(group, node);
-    auto callback_group_id = cie_thread_configurator::create_callback_group_id(group, node);
+    auto callback_group_id = cie_thread_configurator::create_callback_group_id(group, node, 
+      agnocast::get_agnocast_topics_by_group(group));
 
     threads.emplace_back(
       [executor, callback_group_id, &client_publisher, &client_publisher_mutex]() {

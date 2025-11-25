@@ -111,4 +111,6 @@ void receive_message(
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
+std::vector<std::string> get_agnocast_topics_by_group(const rclcpp::CallbackGroup::SharedPtr group);
+
 }  // namespace agnocast
