@@ -22,10 +22,10 @@ BridgeMode get_bridge_mode()
   if (val == "0" || val == "off") {
     return BridgeMode::Off;
   }
-  if (val == "1" || val == "standard" || val == "std") {
+  if (val == "1" || val == "standard") {
     return BridgeMode::Standard;
   }
-  if (val == "2" || val == "performance" || val == "perf") {
+  if (val == "2" || val == "performance") {
     return BridgeMode::Performance;
   }
 
