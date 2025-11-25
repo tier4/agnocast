@@ -6,8 +6,25 @@
 static char * node_name = "/kunit_test_node";
 static uint32_t qos_depth = 10;
 static bool qos_is_transient_local = false;
+static pid_t subscriber_pid = 3000;
 static pid_t publisher_pid = 4000;
 static bool is_take_sub = false;
+
+static void setup_one_subscriber(struct kunit * test, char * topic_name)
+{
+  subscriber_pid++;
+
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
+
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret2 = add_subscriber(
+    topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
+    qos_is_transient_local, is_take_sub, &add_subscriber_args);
+
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+}
 
 static void setup_one_publisher(struct kunit * test, char * topic_name)
 {
