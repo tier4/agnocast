@@ -19,8 +19,8 @@ mod tlsf;
 ///
 /// According to [C23](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf), when allocation succeeds,
 /// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitably aligned
-/// for storing **any** obuject with a *fundamental alignment* requirement and size less than or equal to the size requested.
-/// The *fundamental alignment* is a nonnegative integral power of two less than or equal to `alignof(max_align_t)`.
+/// for storing **any** object with a *fundamental alignment* requirement and size less than or equal to the size requested.
+/// The *fundamental alignment* is a non-negative integral power of two less than or equal to `alignof(max_align_t)`.
 #[allow(clippy::if_same_then_else)]
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
