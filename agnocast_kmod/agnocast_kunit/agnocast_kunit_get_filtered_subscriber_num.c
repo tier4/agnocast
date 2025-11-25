@@ -30,7 +30,8 @@ void test_case_get_filtered_subscriber_num_normal(struct kunit * test)
   setup_one_subscriber(test, topic_name);
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
 
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
 }
@@ -41,7 +42,8 @@ void test_case_get_filtered_subscriber_num_exclude_self(struct kunit * test)
   setup_one_subscriber(test, topic_name);
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = subscriber_pid};
 
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);
 }
@@ -54,7 +56,8 @@ void test_case_get_filtered_subscriber_num_exclude_other(struct kunit * test)
   setup_one_subscriber(test, topic_name);
 
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = pid_a};
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
@@ -71,7 +74,8 @@ void test_case_get_filtered_subscriber_num_many(struct kunit * test)
   }
 
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = target_pid};
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, MAX_SUBSCRIBER_NUM - 1);
@@ -87,7 +91,7 @@ void test_case_get_filtered_subscriber_num_different_topic(struct kunit * test)
   pid_t pid_topic2 = subscriber_pid;
 
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = pid_topic2};
-  int ret = get_filtered_subscriber_num(topic_1, current->nsproxy->ipc_ns, &args);
+  int ret = get_filtered_subscriber_num(topic_1, current->nsproxy->ipc_ns, args.exclude_pid, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
@@ -102,7 +106,8 @@ void test_case_get_filtered_subscriber_num_with_exit(struct kunit * test)
   process_exit_cleanup(target_pid);
 
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);
@@ -113,7 +118,8 @@ void test_case_get_filtered_subscriber_num_no_subscriber(struct kunit * test)
   char * topic_name = "/kunit_test_ext_sub_none";
 
   union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
-  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret =
+    get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, args.exclude_pid, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);

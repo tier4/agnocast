@@ -266,11 +266,11 @@ int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
 int get_filtered_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t exclude_pid,
   union ioctl_get_filtered_subscriber_num_args * ioctl_ret);
 
 int get_filtered_publisher_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t exclude_pid,
   union ioctl_get_filtered_publisher_num_args * ioctl_ret);
 
 void process_exit_cleanup(const pid_t pid);

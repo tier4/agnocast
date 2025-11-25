@@ -1383,13 +1383,12 @@ static int get_topic_publisher_info(
 }
 
 int get_filtered_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t exclude_pid,
   union ioctl_get_filtered_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    pid_t target_pid = ioctl_ret->exclude_pid;
-    ioctl_ret->ret_ext_subscriber_num = get_size_sub_info_htable(wrapper, target_pid);
+    ioctl_ret->ret_ext_subscriber_num = get_size_sub_info_htable(wrapper, exclude_pid);
   } else {
     ioctl_ret->ret_ext_subscriber_num = 0;
   }
@@ -1398,13 +1397,12 @@ int get_filtered_subscriber_num(
 }
 
 int get_filtered_publisher_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, pid_t exclude_pid,
   union ioctl_get_filtered_publisher_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    pid_t target_pid = ioctl_ret->exclude_pid;
-    ioctl_ret->ret_ext_publisher_num = get_size_pub_info_htable(wrapper, target_pid);
+    ioctl_ret->ret_ext_publisher_num = get_size_pub_info_htable(wrapper, exclude_pid);
   } else {
     ioctl_ret->ret_ext_publisher_num = 0;
   }
@@ -1732,7 +1730,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_filtered_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_filtered_subscriber_num(topic_name_buf, ipc_ns, &get_filtered_subscriber_num_args);
+    ret = get_filtered_subscriber_num(
+      topic_name_buf, ipc_ns, get_filtered_subscriber_num_args.exclude_pid,
+      &get_filtered_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_filtered_subscriber_num_args __user *)arg,
@@ -1756,7 +1756,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_filtered_publisher_num_args.topic_name.len] = '\0';
-    ret = get_filtered_publisher_num(topic_name_buf, ipc_ns, &get_filtered_publisher_num_args);
+    ret = get_filtered_publisher_num(
+      topic_name_buf, ipc_ns, get_filtered_publisher_num_args.exclude_pid,
+      &get_filtered_publisher_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_filtered_publisher_num_args __user *)arg,
