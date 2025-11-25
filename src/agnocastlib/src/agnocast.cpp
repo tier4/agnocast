@@ -38,7 +38,7 @@ std::mutex mmap_mtx;
 Context g_context;
 std::mutex g_context_mtx;
 
-void init(int & argc, char **& argv)
+void init(int argc, char **& argv)
 {
   std::string node_name;
 
