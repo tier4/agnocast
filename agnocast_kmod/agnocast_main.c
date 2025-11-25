@@ -1384,6 +1384,22 @@ struct bridge_entry
 static LIST_HEAD(g_bridge_list);
 static DEFINE_MUTEX(g_bridge_list_mutex);
 
+static struct bridge_entry * find_bridge_entry_by_topic(
+  const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry * entry;
+
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (
+      ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
+      return entry;
+    }
+  }
+  return NULL;
+}
+
 int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   struct bridge_entry * new_entry;
@@ -1401,20 +1417,14 @@ int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_n
 
   mutex_lock(&g_bridge_list_mutex);
 
-  list_for_each_entry(entry, &g_bridge_list, list)
-  {
-    if (
-      ipc_eq(entry->ipc_ns, ipc_ns) &&
-      strncmp(entry->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
-      mutex_unlock(&g_bridge_list_mutex);
-      kfree(new_entry);
-      return -EEXIST;
-    }
+  if (find_bridge_entry_by_topic(topic_name, ipc_ns)) {
+    mutex_unlock(&g_bridge_list_mutex);
+    kfree(new_entry);
+    return -EEXIST;
   }
 
   list_add_tail(&new_entry->list, &g_bridge_list);
   mutex_unlock(&g_bridge_list_mutex);
-
   return 0;
 }
 
@@ -1424,16 +1434,11 @@ int unregister_bridge(const pid_t pid, const char * topic_name, const struct ipc
   bool found = false;
 
   mutex_lock(&g_bridge_list_mutex);
-  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
-  {
-    if (
-      entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns) &&
-      strncmp(entry->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
-      list_del(&entry->list);
-      kfree(entry);
-      found = true;
-      break;
-    }
+  entry = find_bridge_entry_by_topic(topic_name, ipc_ns);
+  if (entry && entry->pid == pid) {
+    list_del(&entry->list);
+    kfree(entry);
+    ret = 0;
   }
   mutex_unlock(&g_bridge_list_mutex);
 
@@ -1444,6 +1449,21 @@ int unregister_bridge(const pid_t pid, const char * topic_name, const struct ipc
     return -ENOENT;
   }
   return 0;
+}
+
+static void remove_bridges_by_pid(const pid_t pid, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry *entry, *tmp;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    if (entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns)) {
+      list_del(&entry->list);
+      kfree(entry);
+    }
+  }
+  mutex_unlock(&g_bridge_list_mutex);
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -2090,6 +2110,10 @@ void process_exit_cleanup(const pid_t pid)
 
   if (!agnocast_related) return;
 
+  if (proc_info) {
+    remove_bridges_by_pid(proc_info->local_pid, proc_info->ipc_ns);
+  }
+
   free_memory(pid);
 
   struct topic_wrapper * wrapper;
@@ -2321,11 +2345,25 @@ static void remove_all_process_info(void)
   }
 }
 
+static void remove_all_bridges(void)
+{
+  struct bridge_entry *entry, *tmp;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    list_del(&entry->list);
+    kfree(entry);
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+}
+
 void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
+  remove_all_bridges();
   mutex_unlock(&global_mutex);
 }
 
