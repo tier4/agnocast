@@ -1,6 +1,7 @@
+#include "agnocast_kunit_get_filtered_publisher_num.h"
+
 #include "../agnocast.h"
 #include "../agnocast_memory_allocator.h"
-#include "agnocast_kunit_get_filtered_publisher_num.h"
 
 static char * node_name = "/kunit_test_node";
 static uint32_t qos_depth = 10;
