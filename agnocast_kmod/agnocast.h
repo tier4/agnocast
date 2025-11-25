@@ -3,12 +3,13 @@
 #include <linux/ipc_namespace.h>
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
-#define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
-#define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
-#define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
+#define MAX_PUBLISHER_NUM 4         // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16       // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10            // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3           // Maximum number of entries that can be released at one ioctl
+#define NODE_NAME_BUFFER_SIZE 256   // Maximum length of node name: 256 characters
+#define VERSION_BUFFER_LEN 32       // Maximum size of version number represented as a string
+#define TOPIC_NAME_BUFFER_SIZE 256  // Maximum length for a topic name string
 
 typedef int32_t topic_local_id_t;
 struct publisher_shm_info
@@ -132,6 +133,17 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
+struct bridge_info
+{
+  pid_t pid;
+  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+};
+
+struct ioctl_bridge_args
+{
+  struct bridge_info info;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -143,6 +155,8 @@ struct ioctl_get_exit_process_args
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
+#define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
 
 // ================================================
 // ros2cli ioctls
@@ -242,6 +256,10 @@ int get_subscriber_num(
 
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
+
+int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns);
+int unregister_bridge(
+  const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns);
 
 void process_exit_cleanup(const pid_t pid);
 

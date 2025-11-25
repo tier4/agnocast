@@ -32,9 +32,6 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
 #define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
 
-// Maximum length of topic name: 256 characters
-#define TOPIC_NAME_BUFFER_SIZE 256
-
 // Maximum number of topic info ret
 #define MAX_TOPIC_INFO_RET_NUM max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
@@ -1376,6 +1373,79 @@ static int get_topic_publisher_info(
   return 0;
 }
 
+struct bridge_entry
+{
+  struct list_head list;
+  pid_t pid;
+  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  const struct ipc_namespace * ipc_ns;
+};
+
+static LIST_HEAD(g_bridge_list);
+static DEFINE_MUTEX(g_bridge_list_mutex);
+
+int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry * new_entry;
+  struct bridge_entry * entry;
+
+  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+  if (!new_entry) {
+    dev_err(agnocast_device, "kmalloc failed for new bridge entry\n");
+    return -ENOMEM;
+  }
+
+  new_entry->pid = pid;
+  strscpy(new_entry->topic_name, topic_name, sizeof(new_entry->topic_name));
+  new_entry->ipc_ns = ipc_ns;
+
+  mutex_lock(&g_bridge_list_mutex);
+
+  list_for_each_entry(entry, &g_bridge_list, list)
+  {
+    if (
+      ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
+      mutex_unlock(&g_bridge_list_mutex);
+      kfree(new_entry);
+      return -EEXIST;
+    }
+  }
+
+  list_add_tail(&new_entry->list, &g_bridge_list);
+  mutex_unlock(&g_bridge_list_mutex);
+
+  return 0;
+}
+
+int unregister_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_entry *entry, *tmp;
+  bool found = false;
+
+  mutex_lock(&g_bridge_list_mutex);
+  list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
+  {
+    if (
+      entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns) &&
+      strncmp(entry->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
+      list_del(&entry->list);
+      kfree(entry);
+      found = true;
+      break;
+    }
+  }
+  mutex_unlock(&g_bridge_list_mutex);
+
+  if (!found) {
+    dev_dbg(
+      agnocast_device, "Tried to unregister non-existent bridge (PID %d, Topic %s)\n", pid,
+      topic_name);
+    return -ENOENT;
+  }
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1677,6 +1747,16 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
       goto return_EFAULT;
+  } else if (cmd == AGNOCAST_REGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    bridge_args.info.topic_name[TOPIC_NAME_BUFFER_SIZE - 1] = '\0';
+    ret = register_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
+  } else if (cmd == AGNOCAST_UNREGISTER_BRIDGE_CMD) {
+    struct ioctl_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    bridge_args.info.topic_name[TOPIC_NAME_BUFFER_SIZE - 1] = '\0';
+    ret = unregister_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
   } else {
     goto return_EINVAL;
   }
