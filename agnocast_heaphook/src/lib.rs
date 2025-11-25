@@ -874,6 +874,25 @@ mod tests {
     }
 
     #[test]
+    fn test_posix_memalign_with_invalid_alignment() {
+        let mut ptr: *mut c_void = ptr::null_mut();
+
+        assert_eq!(
+            unsafe { libc::posix_memalign(&mut ptr, 0, 1) },
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a power of two"
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
+
+        assert_eq!(
+            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 1)},
+            libc::EINVAL,
+            "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
+    }
+
+    #[test]
     fn test_aligned_alloc_with_fundamental_alignments() {
         // The alignment requirements related to the fundamental alignment also apply even if the requested alignment is less strict.
         let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
@@ -923,6 +942,21 @@ mod tests {
     }
 
     #[test]
+    fn test_aligned_alloc_with_invalid_alignment() {
+        assert_eq!(
+            unsafe { libc::aligned_alloc(0, 1) },
+            ptr::null_mut(),
+            "aligned_alloc should return NULL if the alignment is not a power of two"
+        );
+
+        assert_eq!(
+            unsafe { libc::aligned_alloc(2, 7) },
+            ptr::null_mut(),
+            "aligned_alloc should return NULL if the size is not a multiple of the alignment"
+        );
+    }
+
+    #[test]
     fn test_memalign_normal() {
         // Arrange
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
@@ -958,42 +992,9 @@ mod tests {
     }
 
     #[test]
-    fn test_posix_memalign_should_fail() {
-        let mut ptr: *mut c_void = ptr::null_mut();
-
-        assert_eq!(
-            unsafe { libc::posix_memalign(&mut ptr, 0, 8) },
-            libc::EINVAL,
-            "posix_memalign should return EINVAL if the alignment is not a power of two"
-        );
-
-        assert_eq!(
-            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 8)},
-            libc::EINVAL,
-            "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
-        );
-    }
-
-    #[test]
-    fn test_aligned_alloc_should_fail() {
-        assert_eq!(
-            unsafe { libc::aligned_alloc(0, 8) },
-            ptr::null_mut(),
-            "aligned_alloc should return NULL if the alignment is not a power of two"
-        );
-
-        assert_eq!(
-            unsafe { libc::aligned_alloc(2, 7) },
-            ptr::null_mut(),
-            "aligned_alloc should return NULL if the size is not a multiple of the alignment"
-        );
-    }
-
-    #[test]
-    fn test_memalign_should_fail() {
-        assert_eq!(
-            unsafe { libc::memalign(0, 8) },
-            ptr::null_mut(),
+    fn test_memalign_with_invalid_alignment() {
+        assert!(
+            unsafe { libc::memalign(0, 1) }.is_null(),
             "memalign should return NULL if the alignment is not a power of two"
         );
     }
