@@ -1,7 +1,6 @@
-#include "agnocast_kunit_get_ext_subscriber_num.h"
-
 #include "../agnocast.h"
 #include "../agnocast_memory_allocator.h"
+#include "agnocast_kunit_get_filtered_subscriber_num.h"
 
 static char * node_name = "/kunit_test_node";
 static uint32_t qos_depth = 10;
@@ -24,43 +23,43 @@ static void setup_one_subscriber(struct kunit * test, char * topic_name)
   KUNIT_ASSERT_EQ(test, ret2, 0);
 }
 
-void test_case_get_ext_subscriber_num_normal(struct kunit * test)
+void test_case_get_filtered_subscriber_num_normal(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_normal";
   setup_one_subscriber(test, topic_name);
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = 0};
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
 
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
 }
 
-void test_case_get_ext_subscriber_num_exclude_self(struct kunit * test)
+void test_case_get_filtered_subscriber_num_exclude_self(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_exclude_self";
   setup_one_subscriber(test, topic_name);
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = subscriber_pid};
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = subscriber_pid};
 
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);
 }
 
-void test_case_get_ext_subscriber_num_exclude_other(struct kunit * test)
+void test_case_get_filtered_subscriber_num_exclude_other(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_exclude_other";
   setup_one_subscriber(test, topic_name);
   pid_t pid_a = subscriber_pid;
   setup_one_subscriber(test, topic_name);
 
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = pid_a};
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = pid_a};
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
 }
 
-void test_case_get_ext_subscriber_num_many(struct kunit * test)
+void test_case_get_filtered_subscriber_num_many(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_many";
   pid_t target_pid = 0;
@@ -70,14 +69,14 @@ void test_case_get_ext_subscriber_num_many(struct kunit * test)
     if (i == MAX_SUBSCRIBER_NUM / 2) target_pid = subscriber_pid;
   }
 
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = target_pid};
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = target_pid};
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, MAX_SUBSCRIBER_NUM - 1);
 }
 
-void test_case_get_ext_subscriber_num_different_topic(struct kunit * test)
+void test_case_get_filtered_subscriber_num_different_topic(struct kunit * test)
 {
   char * topic_1 = "/kunit_test_ext_sub_diff_1";
   char * topic_2 = "/kunit_test_ext_sub_diff_2";
@@ -86,14 +85,14 @@ void test_case_get_ext_subscriber_num_different_topic(struct kunit * test)
   setup_one_subscriber(test, topic_2);
   pid_t pid_topic2 = subscriber_pid;
 
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = pid_topic2};
-  int ret = get_ext_subscriber_num(topic_1, current->nsproxy->ipc_ns, &args);
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = pid_topic2};
+  int ret = get_filtered_subscriber_num(topic_1, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 1);
 }
 
-void test_case_get_ext_subscriber_num_with_exit(struct kunit * test)
+void test_case_get_filtered_subscriber_num_with_exit(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_exit";
   setup_one_subscriber(test, topic_name);
@@ -101,19 +100,19 @@ void test_case_get_ext_subscriber_num_with_exit(struct kunit * test)
 
   process_exit_cleanup(target_pid);
 
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = 0};
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);
 }
 
-void test_case_get_ext_subscriber_num_no_subscriber(struct kunit * test)
+void test_case_get_filtered_subscriber_num_no_subscriber(struct kunit * test)
 {
   char * topic_name = "/kunit_test_ext_sub_none";
 
-  union ioctl_get_ext_subscriber_num_args args = {.exclude_pid = 0};
-  int ret = get_ext_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
+  union ioctl_get_filtered_subscriber_num_args args = {.exclude_pid = 0};
+  int ret = get_filtered_subscriber_num(topic_name, current->nsproxy->ipc_ns, &args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, args.ret_ext_subscriber_num, 0);

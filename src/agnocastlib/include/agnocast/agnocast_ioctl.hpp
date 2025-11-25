@@ -168,7 +168,7 @@ struct ioctl_get_exit_process_args
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_get_ext_subscriber_num_args {
+union ioctl_get_filtered_subscriber_num_args {
   struct
   {
     struct name_info topic_name;
@@ -180,7 +180,7 @@ union ioctl_get_ext_subscriber_num_args {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_get_ext_publisher_num_args {
+union ioctl_get_filtered_publisher_num_args {
   struct
   {
     struct name_info topic_name;
@@ -220,8 +220,10 @@ union ioctl_topic_info_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
-#define AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_ext_subscriber_num_args)
-#define AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD _IOWR(0xA6, 13, union ioctl_get_ext_publisher_num_args)
+#define AGNOCAST_GET_FILTERED_SUBSCRIBER_NUM_CMD \
+  _IOWR(0xA6, 12, union ioctl_get_filtered_subscriber_num_args)
+#define AGNOCAST_GET_FILTERED_PUBLISHER_NUM_CMD \
+  _IOWR(0xA6, 13, union ioctl_get_filtered_publisher_num_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast

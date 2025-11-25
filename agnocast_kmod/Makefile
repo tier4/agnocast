@@ -17,8 +17,8 @@ else
 	  agnocast_kunit/agnocast_kunit_receive_msg.o \
 	  agnocast_kunit/agnocast_kunit_take_msg.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
-	  agnocast_kunit/agnocast_kunit_get_ext_subscriber_num.o \
-      agnocast_kunit/agnocast_kunit_get_ext_publisher_num.o \
+	  agnocast_kunit/agnocast_kunit_get_filtered_subscriber_num.o \
+      agnocast_kunit/agnocast_kunit_get_filtered_publisher_num.o \
 	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage
   else

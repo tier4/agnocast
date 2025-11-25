@@ -132,7 +132,7 @@ struct ioctl_get_exit_process_args
   pid_t ret_pid;
 };
 
-union ioctl_get_ext_subscriber_num_args {
+union ioctl_get_filtered_subscriber_num_args {
   struct
   {
     struct name_info topic_name;
@@ -141,7 +141,7 @@ union ioctl_get_ext_subscriber_num_args {
   uint32_t ret_ext_subscriber_num;
 };
 
-union ioctl_get_ext_publisher_num_args {
+union ioctl_get_filtered_publisher_num_args {
   struct
   {
     struct name_info topic_name;
@@ -161,8 +161,10 @@ union ioctl_get_ext_publisher_num_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
-#define AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_ext_subscriber_num_args)
-#define AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD _IOWR(0xA6, 13, union ioctl_get_ext_publisher_num_args)
+#define AGNOCAST_GET_FILTERED_SUBSCRIBER_NUM_CMD \
+  _IOWR(0xA6, 12, union ioctl_get_filtered_subscriber_num_args)
+#define AGNOCAST_GET_FILTERED_PUBLISHER_NUM_CMD \
+  _IOWR(0xA6, 13, union ioctl_get_filtered_publisher_num_args)
 
 // ================================================
 // ros2cli ioctls
@@ -263,13 +265,13 @@ int get_subscriber_num(
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
-int get_ext_subscriber_num(
+int get_filtered_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  union ioctl_get_ext_subscriber_num_args * ioctl_ret);
+  union ioctl_get_filtered_subscriber_num_args * ioctl_ret);
 
-int get_ext_publisher_num(
+int get_filtered_publisher_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  union ioctl_get_ext_publisher_num_args * ioctl_ret);
+  union ioctl_get_filtered_publisher_num_args * ioctl_ret);
 
 void process_exit_cleanup(const pid_t pid);
 

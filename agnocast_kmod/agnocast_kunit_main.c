@@ -4,8 +4,8 @@
 #include "agnocast_kunit/agnocast_kunit_add_subscriber.h"
 #include "agnocast_kunit/agnocast_kunit_decrement_rc.h"
 #include "agnocast_kunit/agnocast_kunit_do_exit.h"
-#include "agnocast_kunit/agnocast_kunit_get_ext_publisher_num.h"
-#include "agnocast_kunit/agnocast_kunit_get_ext_subscriber_num.h"
+#include "agnocast_kunit/agnocast_kunit_get_filtered_publisher_num.h"
+#include "agnocast_kunit/agnocast_kunit_get_filtered_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_increment_rc.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
@@ -27,8 +27,8 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_TAKE_MSG,
   TEST_CASES_ADD_PROCESS,
   TEST_CASES_GET_SUBSCRIBER_NUM,
-  TEST_CASES_GET_EXT_SUBSCRIBER_NUM,
-  TEST_CASES_GET_EXT_PUBLISHER_NUM,
+  TEST_CASES_GET_FILTERED_SUBSCRIBER_NUM,
+  TEST_CASES_GET_FILTERED_PUBLISHER_NUM,
   TEST_CASES_DO_EXIT,
   {},
 };
