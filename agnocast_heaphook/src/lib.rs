@@ -637,6 +637,14 @@ mod tests {
     }
 
     #[test]
+    fn test_malloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::malloc(usize::MAX) }.is_null(),
+            "malloc should return NULL if the requested size is excessively large."
+        );
+    }
+
+    #[test]
     fn test_calloc_normal() {
         // Arrange
         let elements = 4;
@@ -698,6 +706,18 @@ mod tests {
         // If the size is 0, the behavior is implementation-defined. It must not panic.
         let _ = unsafe { libc::calloc(0, 1) };
         let _ = unsafe { libc::calloc(1, 0) };
+    }
+
+    #[test]
+    fn test_calloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 1) }.is_null(),
+            "calloc should return NULL if the requested size is excessively large."
+        );
+        assert!(
+            unsafe { libc::calloc(1, usize::MAX) }.is_null(),
+            "calloc should return NULL if the requested size is excessively large."
+        );
     }
 
     #[test]
@@ -792,6 +812,23 @@ mod tests {
     }
 
     #[test]
+    fn test_realloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::realloc(ptr::null_mut(), usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
+        );
+
+        let ptr = unsafe { libc::malloc(1) };
+        assert!(!ptr.is_null());
+        assert!(is_shared(ptr.cast()));
+        assert!(
+            unsafe { libc::realloc(ptr, usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
+        );
+        unsafe { libc::free(ptr) }
+    }
+
+    #[test]
     fn test_posix_memalign_normal() {
         // Arrange
         let alignment = 64;
@@ -823,6 +860,17 @@ mod tests {
         // If the size is 0, the behavior is implementation-defined. It must not panic.
         let mut ptr: *mut c_void = ptr::null_mut();
         let _ = unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), 0) };
+    }
+
+    #[test]
+    fn test_posix_memalign_with_excessive_size() {
+        let mut ptr: *mut c_void = ptr::null_mut();
+        assert_eq!(
+            unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), usize::MAX) },
+            libc::ENOMEM,
+            "posix_memalign should return ENOMEM if the requested size is excessively large."
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
     }
 
     #[test]
@@ -867,6 +915,14 @@ mod tests {
     }
 
     #[test]
+    fn test_aligned_alloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::aligned_alloc(1, usize::MAX) }.is_null(),
+            "aligned_alloc should return NULL if the requested size is excessively large."
+        );
+    }
+
+    #[test]
     fn test_memalign_normal() {
         // Arrange
         let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
@@ -894,61 +950,11 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_limit() {
-        // Arrange
-        let huge_size = isize::MAX as usize;
-        let alignment = 64;
-        let mut posix_ptr: *mut c_void = std::ptr::null_mut();
-        let normal_ptr = unsafe { libc::malloc(1024) };
-
-        // Act & Assert
+    fn test_memalign_with_excessive_size() {
         assert!(
-            unsafe { libc::malloc(huge_size) }.is_null(),
-            "malloc should return NULL for huge size"
+            unsafe { libc::memalign(1, usize::MAX) }.is_null(),
+            "memalign should return NULL if the requested size is excessively large."
         );
-
-        assert!(
-            unsafe { libc::calloc(huge_size, 1) }.is_null(),
-            "calloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::aligned_alloc(alignment, huge_size) }.is_null(),
-            "aligned_alloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::memalign(alignment, huge_size) }.is_null(),
-            "memalign should return NULL for huge size"
-        );
-
-        // Act
-        let result = unsafe { libc::posix_memalign(&mut posix_ptr, alignment, huge_size) };
-
-        // Assert
-        assert_eq!(
-            result,
-            libc::ENOMEM,
-            "posix_memalign should return ENOMEM for huge size"
-        );
-        assert!(
-            posix_ptr.is_null(),
-            "posix_memalign should not set pointer on failure"
-        );
-
-        // Act
-        let realloc_ptr = unsafe { libc::realloc(normal_ptr, huge_size) };
-
-        // Assert
-        assert!(
-            realloc_ptr.is_null(),
-            "realloc should return NULL for huge size"
-        );
-        if realloc_ptr.is_null() {
-            unsafe { libc::free(normal_ptr) };
-        } else {
-            unsafe { libc::free(realloc_ptr) };
-        }
     }
 
     #[test]
