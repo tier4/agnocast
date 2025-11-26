@@ -15,5 +15,6 @@ int main(int argc, char ** argv)
 {
   agnocast::init(argc, argv);
   auto node = std::make_shared<NoRclcppSubscriber>();
+  (void)node;
   return 0;
 }
