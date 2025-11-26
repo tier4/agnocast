@@ -97,6 +97,11 @@ std::string create_mq_name_for_ros2_publish(
   return create_mq_name("/agnocast_to_ros2", topic_name, id);
 }
 
+std::string create_mq_name_for_bridge(const pid_t pid)
+{
+  return "/agnocast_bridge_manager_" + std::to_string(pid);
+}
+
 std::string create_shm_name(const pid_t pid)
 {
   return "/agnocast@" + std::to_string(pid);
