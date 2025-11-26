@@ -65,6 +65,7 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   const rclcpp::Node * node, const SubscriptionOptions & options)
 {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   return get_valid_callback_group(const_cast<rclcpp::Node *>(node), options);
 }
 
