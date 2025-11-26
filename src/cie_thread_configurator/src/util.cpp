@@ -15,7 +15,8 @@ namespace cie_thread_configurator
 
 std::string create_callback_group_id(
   rclcpp::CallbackGroup::SharedPtr group,
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node,
+  const std::vector<std::string> & agnocast_topics)
 {
   std::stringstream ss;
 
@@ -49,6 +50,19 @@ std::string create_callback_group_id(
 
   group->collect_all_ptrs(sub_func, service_func, client_func, timer_func, waitable_func);
 
+  // Agnocast Callbacks
+  {
+    for (const auto & topic : agnocast_topics) {
+      if (topic.rfind("/AGNOCAST_SRV_REQUEST", 0) == 0) {
+        ss << "AgnocastService(" << topic << ")@";
+      } else if (topic.rfind("/AGNOCAST_SRV_RESPONSE", 0) == 0) {
+        ss << "AgnocastClient(" << topic << ")@";
+      } else {
+        ss << "AgnocastSubscription(" << topic << ")@";
+      }
+    }
+  }
+
   std::string ret = ss.str();
   ret.pop_back();
 
@@ -56,9 +70,10 @@ std::string create_callback_group_id(
 }
 
 std::string create_callback_group_id(
-  rclcpp::CallbackGroup::SharedPtr group, rclcpp::Node::SharedPtr node)
+  rclcpp::CallbackGroup::SharedPtr group, rclcpp::Node::SharedPtr node,
+  const std::vector<std::string> & agnocast_topics)
 {
-  return create_callback_group_id(group, node->get_node_base_interface());
+  return create_callback_group_id(group, node->get_node_base_interface(), agnocast_topics);
 }
 
 rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr create_client_publisher()
