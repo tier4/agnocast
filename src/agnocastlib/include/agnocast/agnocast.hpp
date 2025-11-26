@@ -4,7 +4,9 @@
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
 #include "agnocast/agnocast_client.hpp"
+#include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_node.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_service.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
@@ -25,6 +27,8 @@
 
 namespace agnocast
 {
+
+void init(int argc, char const * const * argv);
 
 struct initialize_agnocast_result
 {
