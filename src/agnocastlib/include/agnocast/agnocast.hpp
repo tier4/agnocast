@@ -40,12 +40,6 @@ extern "C" struct initialize_agnocast_result initialize_agnocast(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len);
 
 template <typename MessageT>
-using Publisher = agnocast::BasicPublisher<MessageT, agnocast::DefaultBridgeRequestPolicy>;
-
-template <typename MessageT>
-using Subscription = agnocast::BasicSubscription<MessageT, agnocast::DefaultBridgeRequestPolicy>;
-
-template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
