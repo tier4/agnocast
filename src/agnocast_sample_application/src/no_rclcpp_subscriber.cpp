@@ -2,12 +2,19 @@
 
 #include <iostream>
 
+class NoRclcppSubscriber : public agnocast::Node
+{
+public:
+  explicit NoRclcppSubscriber()
+  {
+    RCLCPP_INFO(get_logger(), "NoRclcppSubscriber node (name=%s) started.", get_name().c_str());
+  }
+};
+
 int main(int argc, char ** argv)
 {
   agnocast::init(argc, argv);
-
-  std::string node_name = agnocast::query_node_name();
-  std::cout << "Node name: " << node_name << std::endl;
-
+  auto node = std::make_shared<NoRclcppSubscriber>();
+  (void)node;
   return 0;
 }
