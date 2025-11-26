@@ -66,7 +66,8 @@ void receive_message(
   }
 }
 
-std::vector<std::string> get_agnocast_topics_by_group(const rclcpp::CallbackGroup::SharedPtr group)
+std::vector<std::string> get_agnocast_topics_by_group(
+  const rclcpp::CallbackGroup::SharedPtr & group)
 {
   std::vector<std::string> topic_names;
 
