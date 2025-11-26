@@ -26,6 +26,7 @@
 
 namespace agnocast
 {
+class Node;
 
 extern std::mutex mmap_mtx;
 
@@ -77,6 +78,7 @@ protected:
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
+  SubscriptionBase(agnocast::Node * node, const std::string & topic_name);
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
@@ -89,6 +91,8 @@ class BasicSubscription : public SubscriptionBase
     NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
+
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
@@ -111,8 +115,6 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
-    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
@@ -127,6 +129,20 @@ public:
         static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
         tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_callback_info_id);
     }
+  }
+
+  template <typename Func>
+  BasicSubscription(
+    agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    Func && callback, agnocast::SubscriptionOptions options)
+  : SubscriptionBase(node, topic_name)
+  {
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
+
+    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
+      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+
+    // TODO: CARET tracepoint for agnocast::Node
   }
 
   ~BasicSubscription() { remove_mq(mq_subscription_); }
