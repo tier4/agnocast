@@ -17,6 +17,8 @@ void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos
   // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
+// Default policy for user-facing Publisher/Subscription.
+// Requests a bridge to be created for the topic.
 struct DefaultBridgeRequestPolicy
 {
   template <typename MessageT>
@@ -26,6 +28,9 @@ struct DefaultBridgeRequestPolicy
   }
 };
 
+// Dummy policy to avoid circular header dependencies.
+// Used internally by BridgeNode, Service, and Client where bridge requests
+// are not needed and would cause include cycles.
 struct NoBridgeRequestPolicy
 {
   template <typename MessageT>
