@@ -18,4 +18,19 @@ inline std::string query_node_name()
   return node_name;
 }
 
+class Node
+{
+  std::string node_name_;
+  rclcpp::Logger logger_;
+
+public:
+  using SharedPtr = std::shared_ptr<Node>;
+
+  Node() : node_name_(query_node_name()), logger_(rclcpp::get_logger(node_name_)) {}
+
+  rclcpp::Logger get_logger() const { return logger_; }
+
+  std::string get_name() const { return node_name_; }
+};
+
 }  // namespace agnocast
