@@ -1404,7 +1404,7 @@ static int get_topic_publisher_info(
   return 0;
 }
 
-int get_ext_subscriber_num(
+static int get_ext_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   union ioctl_get_ext_subscriber_num_args * ioctl_ret)
 {
@@ -1418,7 +1418,7 @@ int get_ext_subscriber_num(
   return 0;
 }
 
-int get_ext_publisher_num(
+static int get_ext_publisher_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   union ioctl_get_ext_publisher_num_args * ioctl_ret)
 {

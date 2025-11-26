@@ -44,7 +44,8 @@ private:
   using RosSubPtr = typename rclcpp::Subscription<MessageT>::SharedPtr;
   using RosPubPtr = typename rclcpp::Publisher<MessageT>::SharedPtr;
 
-  const rclcpp::QoS qos_;
+  const rclcpp::QoS pub_qos_;
+  const rclcpp::QoS sub_qos_;
 
   RosPubPtr ros_pub_;
   typename AgnoPub::SharedPtr agnocast_pub_;
@@ -52,45 +53,61 @@ private:
   RosSubPtr ros_sub_;
   typename AgnoSub::SharedPtr agnocast_sub_;
 
-public:
-  explicit BridgeNode(const BridgeArgs & args)
-  : rclcpp::Node(
-      "agnocast_bridge" + std::regex_replace(std::string(args.topic_name), std::regex("/"), "_")),
-    qos_(reconstruct_qos_from_flat(args.qos)),
-    ros_pub_(this->create_publisher<MessageT>(args.topic_name, qos_)),
-    agnocast_pub_(
-      std::make_shared<AgnoPub>(this, args.topic_name, qos_, agnocast::PublisherOptions{}))
+  static std::string create_node_name(const std::string & topic_name)
   {
-    const std::string & topic_name = args.topic_name;
+    static const std::regex re("/");
+    return "agnocast_bridge" + std::regex_replace(topic_name, re, "_");
+  }
 
-    auto ros_to_agnocast_callback = [this](const typename MessageT::ConstSharedPtr ros_msg) {
-      auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
-      *loaned_msg = *ros_msg;
-      this->agnocast_pub_->publish(std::move(loaned_msg));
-    };
+  void forward_to_agnocast(const typename MessageT::ConstSharedPtr ros_msg)
+  {
+    auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
+    *loaned_msg = *ros_msg;
+    this->agnocast_pub_->publish(std::move(loaned_msg));
+  }
 
-    rclcpp::SubscriptionOptions ros_sub_options;
-    ros_sub_options.ignore_local_publications = true;
+  void forward_to_ros(const agnocast::ipc_shared_ptr<MessageT> agno_msg)
+  {
+    if (this->ros_pub_->get_subscription_count() == 0) {
+      return;
+    }
+    auto loaned_msg = this->ros_pub_->borrow_loaned_message();
+    loaned_msg.get() = *agno_msg;
+    this->ros_pub_->publish(std::move(loaned_msg));
+  }
+
+public:
+  explicit BridgeNode(const std::string & topic_name)
+  : rclcpp::Node(create_node_name(topic_name)),
+    pub_qos_(rclcpp::QoS(10).reliable().transient_local()),
+    sub_qos_(rclcpp::SensorDataQoS().keep_last(10)),
+    ros_pub_(this->create_publisher<MessageT>(topic_name, pub_qos_)),
+    agnocast_pub_(
+      std::make_shared<AgnoPub>(this, topic_name, pub_qos_, agnocast::PublisherOptions{}))
+  {
+    rclcpp::SubscriptionOptions ros_opts;
+    ros_opts.ignore_local_publications = true;
+
     ros_sub_ = this->create_subscription<MessageT>(
-      topic_name, qos_, ros_to_agnocast_callback, ros_sub_options);
+      topic_name, sub_qos_,
+      [this](const typename MessageT::ConstSharedPtr msg) { this->forward_to_agnocast(msg); },
+      ros_opts);
 
-    auto agnocast_to_ros_callback = [this](const agnocast::ipc_shared_ptr<MessageT> agno_msg) {
-      auto loaned_msg = this->ros_pub_->borrow_loaned_message();
-      loaned_msg.get() = *agno_msg;
-      this->ros_pub_->publish(std::move(loaned_msg));
-    };
+    agnocast::SubscriptionOptions agno_opts;
+    // Ignore local publications to avoid message loopback.
+    agno_opts.ignore_local_publications = true;
 
-    agnocast::SubscriptionOptions agnocast_sub_options;
-    agnocast_sub_options.ignore_local_publications = true;
     agnocast_sub_ = std::make_shared<AgnoSub>(
-      this, topic_name, qos_, agnocast_to_ros_callback, agnocast_sub_options);
+      this, topic_name, sub_qos_,
+      [this](const agnocast::ipc_shared_ptr<MessageT> msg) { this->forward_to_ros(msg); },
+      agno_opts);
   }
 };
 
 template <typename MessageT>
 std::shared_ptr<rclcpp::Node> start_bridge_node(const BridgeArgs & args)
 {
-  return std::make_shared<BridgeNode<MessageT>>(args);
+  return std::make_shared<BridgeNode<MessageT>>(args.topic_name);
 }
 
 template <typename MessageT>
