@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <span>
 
 namespace agnocast
 {
@@ -38,15 +39,14 @@ std::mutex mmap_mtx;
 Context g_context;
 std::mutex g_context_mtx;
 
-void init(int argc, char **& argv)
+void init(int argc, char const * const * argv)
 {
   std::string node_name;
-
   // Copy argv into a safe container to avoid pointer arithmetic
   std::vector<std::string> args;
   args.reserve(static_cast<size_t>(argc));
   for (int i = 0; i < argc; ++i) {
-    args.emplace_back(argv[i]);
+    args.emplace_back(argv[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   }
 
   bool in_ros_args = false;
