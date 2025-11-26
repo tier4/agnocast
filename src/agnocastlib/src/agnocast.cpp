@@ -42,17 +42,27 @@ void init(int argc, char **& argv)
 {
   std::string node_name;
 
+  // Copy argv into a safe container to avoid pointer arithmetic
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+
   bool in_ros_args = false;
   for (int i = 0; i < argc; i++) {
-    std::string arg_str(argv[i]);
+    std::string arg_str = args[i];
 
     if (!in_ros_args) {
-      if (arg_str == "--ros-args") in_ros_args = true;
+      if (arg_str == "--ros-args") {
+        in_ros_args = true;
+      }
+
       continue;
     }
 
     if (arg_str == "-r" && i + 1 < argc) {
-      std::string remap{argv[i + 1]};
+      std::string remap{args[i + 1]};
       const std::string prefix = "__node:=";
 
       if (remap.compare(0, prefix.size(), prefix) == 0) {
