@@ -1,10 +1,13 @@
+#include "agnocast/agnocast.hpp"
+
 #include <iostream>
 
 int main(int argc, char ** argv)
 {
-  (void)argc;
-  (void)argv;
+  agnocast::init(argc, argv);
 
-  std::cout << "I'm a no rclcpp subscriber!" << std::endl;
+  std::string node_name = agnocast::query_node_name();
+  std::cout << "Node name: " << node_name << std::endl;
+
   return 0;
 }
