@@ -38,13 +38,45 @@ The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
 
 ## Build
 
-Setup.
+### Setup
+
+Run the setup script to install dependencies:
 
 ```bash
 bash scripts/setup
 ```
 
-Build.
+<details>
+<summary>Manual installation of agnocast-heaphook and agnocast-kmod</summary>
+
+If you prefer to install the packages manually instead of using the setup script:
+
+```bash
+# Create keyrings directory
+sudo install -d -m 0755 /etc/apt/keyrings
+
+# Download and install GPG key
+curl -fsSL 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xCFDB1950382092423DF37D3E075CD8B5C91E5ACA' \
+  | gpg --dearmor | sudo tee /etc/apt/keyrings/agnocast-ppa.gpg >/dev/null
+sudo chmod 0644 /etc/apt/keyrings/agnocast-ppa.gpg
+
+# Create repository configuration (deb822 format)
+cat <<EOF | sudo tee /etc/apt/sources.list.d/agnocast.sources
+Types: deb
+URIs: http://ppa.launchpad.net/t4-system-software/agnocast/ubuntu
+Suites: jammy
+Components: main
+Signed-By: /etc/apt/keyrings/agnocast-ppa.gpg
+EOF
+
+# Install packages
+sudo apt update
+sudo apt install agnocast-heaphook-v2.1.2 agnocast-kmod-v2.1.2
+```
+
+</details>
+
+Build the project:
 
 ```bash
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
@@ -115,6 +147,19 @@ Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentati
 - [ros2 command extension](./docs/ros2_command_extension.md)
 
 ## Troubleshooting
+
+### Migrating from old PPA setup
+
+If you previously installed Agnocast using the old `add-apt-repository` method, remove the old configuration before running `scripts/setup`:
+
+```bash
+# Remove old repository configuration
+sudo add-apt-repository --remove ppa:t4-system-software/agnocast
+sudo rm -f /etc/apt/sources.list.d/*agnocast*.list
+sudo rm -f /etc/apt/trusted.gpg.d/*agnocast*.gpg
+```
+
+### Shared memory and message queue cleanup
 
 Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to remove leftover shared memory objects by running:
 

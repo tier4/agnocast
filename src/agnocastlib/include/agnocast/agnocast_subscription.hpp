@@ -84,6 +84,24 @@ class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
 
+  template <typename NodeT, typename Func>
+  uint32_t constructor_impl(
+    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
+  {
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, false, node->get_fully_qualified_name());
+
+    id_ = add_subscriber_args.ret_id;
+    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
+
+    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+    uint32_t callback_info_id = agnocast::register_callback<MessageT>(
+      std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
+
+    return callback_info_id;
+  }
+
 public:
   using SharedPtr = std::shared_ptr<BasicSubscription<MessageT, BridgeRequestPolicy>>;
 
@@ -97,16 +115,8 @@ public:
 
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
-
-    id_ = add_subscriber_args.ret_id;
-
-    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
-
-    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback<MessageT>(
-      std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
+    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
+      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
