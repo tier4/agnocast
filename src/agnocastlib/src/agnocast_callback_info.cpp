@@ -80,6 +80,8 @@ std::vector<std::string> get_agnocast_topics_by_group(
     }
   }
 
+  std::sort(topic_names.begin(), topic_names.end());
+
   return topic_names;
 }
 
