@@ -24,46 +24,11 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-
-  // Check if each callback's callback_group is included in this executor
-  for (auto & it : id2_callback_info) {
-    const uint32_t callback_info_id = it.first;
-    CallbackInfo & callback_info = it.second;
-    if (!callback_info.need_epoll_update) {
-      continue;
-    }
-
-    if (!validate_callback_group(callback_info.callback_group)) {
-      continue;
-    }
-
-    struct epoll_event ev = {};
-    ev.events = EPOLLIN;
-    ev.data.u32 = callback_info_id;
-
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
-      RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (callback_info.is_transient_local) {
-      agnocast::receive_message(
-        callback_info_id, my_pid_, callback_info, ready_agnocast_executables_mutex_,
-        ready_agnocast_executables_);
-    }
-
-    callback_info.need_epoll_update = false;
-  }
-
-  const bool all_updated = std::none_of(
-    id2_callback_info.begin(), id2_callback_info.end(),
-    [](const auto & it) { return it.second.need_epoll_update; });
-
-  if (all_updated) {
-    need_epoll_updates.store(false);
-  }
+  agnocast::prepare_epoll_impl(
+    epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
+    [this](const rclcpp::CallbackGroup::SharedPtr & group) {
+      return validate_callback_group(group);
+    });
 }
 
 bool AgnocastExecutor::get_next_agnocast_executable(
