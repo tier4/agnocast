@@ -76,7 +76,7 @@ sudo apt install agnocast-heaphook-v2.1.2 agnocast-kmod-v2.1.2
 
 </details>
 
-### Build
+Build the project:
 
 ```bash
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
