@@ -79,8 +79,8 @@ public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
 };
 
-template <typename MessageT>
-class Subscription : public SubscriptionBase
+template <typename MessageT, typename BridgeRequestPolicy>
+class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
 
@@ -103,14 +103,16 @@ class Subscription : public SubscriptionBase
   }
 
 public:
-  using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
+  using SharedPtr = std::shared_ptr<BasicSubscription<MessageT, BridgeRequestPolicy>>;
 
   template <typename Func>
-  Subscription(
+  BasicSubscription(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
+
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
@@ -127,7 +129,7 @@ public:
     }
   }
 
-  ~Subscription() { remove_mq(mq_subscription_); }
+  ~BasicSubscription() { remove_mq(mq_subscription_); }
 };
 
 template <typename MessageT>

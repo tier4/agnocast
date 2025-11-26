@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
@@ -36,7 +37,7 @@ private:
   std::mutex publishers_mtx_;
   // AgnocastOnlyPublisher is used since ResponseT is not a compatible ROS message type.
   std::unordered_map<std::string, typename AgnocastOnlyPublisher<ResponseT>::SharedPtr> publishers_;
-  typename Subscription<RequestT>::SharedPtr subscriber_;
+  typename BasicSubscription<RequestT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
   using SharedPtr = std::shared_ptr<Service<ServiceT>>;
@@ -82,7 +83,7 @@ public:
 
     SubscriptionOptions options{group};
     std::string topic_name = create_service_request_topic_name(service_name_);
-    subscriber_ = std::make_shared<Subscription<RequestT>>(
+    subscriber_ = std::make_shared<BasicSubscription<RequestT, NoBridgeRequestPolicy>>(
       node, topic_name, qos, std::move(subscriber_callback), options);
   }
 };
