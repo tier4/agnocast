@@ -46,6 +46,7 @@ public:
     return default_callback_group_;
   }
 
+  // cppcheck-suppress functionStatic
   bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group) const
   {
     (void)callback_group;
