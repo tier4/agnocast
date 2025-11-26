@@ -132,6 +132,11 @@ public:
   ~BasicSubscription() { remove_mq(mq_subscription_); }
 };
 
+struct DefaultBridgeRequestPolicy;
+
+template <typename MessageT>
+using Subscription = agnocast::BasicSubscription<MessageT, agnocast::DefaultBridgeRequestPolicy>;
+
 template <typename MessageT>
 class TakeSubscription : public SubscriptionBase
 {

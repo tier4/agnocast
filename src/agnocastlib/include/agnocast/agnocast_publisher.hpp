@@ -236,6 +236,11 @@ public:
   }
 };
 
+struct DefaultBridgeRequestPolicy;
+
+template <typename MessageT>
+using Publisher = agnocast::BasicPublisher<MessageT, agnocast::DefaultBridgeRequestPolicy>;
+
 // The Publisher that does not instantiate a ros2 publisher
 template <typename MessageT>
 class AgnocastOnlyPublisher
