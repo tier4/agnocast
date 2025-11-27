@@ -9,8 +9,9 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
+// NOLINT(modernize-pass-by-value)
 SubscriptionBase::SubscriptionBase(agnocast::Node * node, const std::string & topic_name)
-: id_(0), topic_name_(topic_name)  // TODO: resolve topic name
+: id_(0), topic_name_(topic_name)  // TODO(sykwer): resolve topic name
 {
   (void)node;
   validate_ld_preload();

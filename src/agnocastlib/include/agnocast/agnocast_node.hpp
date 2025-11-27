@@ -38,7 +38,7 @@ public:
 
   std::string get_name() const { return node_name_; }
 
-  // TODO: Implement get_fully_qualified_name with valid logic, similar to rclcpp::Node.
+  // TODO(sykwer): Implement get_fully_qualified_name with valid logic, similar to rclcpp::Node.
   const char * get_fully_qualified_name() const { return node_name_.c_str(); }
 
   rclcpp::CallbackGroup::SharedPtr get_default_callback_group() const
@@ -50,7 +50,7 @@ public:
   bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group) const
   {
     (void)callback_group;
-    // TODO: implement proper logic after create_callback_group() method is implemented.
+    // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
     return true;
   }
 

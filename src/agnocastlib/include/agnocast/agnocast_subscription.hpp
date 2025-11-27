@@ -142,7 +142,7 @@ public:
     [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
       node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
 
-    // TODO: CARET tracepoint for agnocast::Node
+    // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
 
   ~BasicSubscription() { remove_mq(mq_subscription_); }
