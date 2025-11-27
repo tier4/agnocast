@@ -9,6 +9,14 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
+SubscriptionBase::SubscriptionBase(
+  agnocast::Node * node, const std::string & topic_name)  // NOLINT(modernize-pass-by-value)
+: id_(0), topic_name_(topic_name)                         // TODO(sykwer): resolve topic name
+{
+  (void)node;
+  validate_ld_preload();
+}
+
 union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
