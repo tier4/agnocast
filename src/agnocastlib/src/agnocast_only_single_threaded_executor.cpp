@@ -6,7 +6,7 @@ namespace agnocast
 {
 
 AgnocastOnlySingleThreadedExecutor::AgnocastOnlySingleThreadedExecutor(int next_exec_timeout_ms)
-: agnocast::AgnocastOnlyExecutor(), next_exec_timeout_ms_(next_exec_timeout_ms)
+: next_exec_timeout_ms_(next_exec_timeout_ms)
 {
   const int next_exec_timeout_ms_threshold = 500;  // Rough value
   if (next_exec_timeout_ms_ > next_exec_timeout_ms_threshold) {
