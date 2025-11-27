@@ -1,7 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
 #include "agnocast/agnocast_bridge_generator.hpp"
-#include "agnocast/agnocast_bridge_main.hpp"
 #include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
@@ -50,44 +49,6 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-static void check_and_remove_bridges()
-{
-  auto buffer = std::make_unique<ioctl_get_all_bridges_buffer>();
-
-  if (!buffer) {
-    RCLCPP_ERROR(logger, "Failed to allocate memory for bridge list buffer.");
-    return;
-  }
-
-  union ioctl_get_all_bridges_args args;
-  args.buffer_addr = reinterpret_cast<uint64_t>(buffer.get());
-
-  if (ioctl(agnocast_fd, AGNOCAST_GET_ALL_BRIDGES_CMD, &args) < 0) {
-    return;
-  }
-
-  int count = args.ret_count;
-
-  for (int i = 0; i < count; ++i) {
-    struct bridge_info & info = buffer->bridges[i];
-    pid_t pid = info.pid;
-    const char * topic_name = info.topic_name;
-
-    if (kill(pid, 0) == -1 && errno == ESRCH) {
-      unregister_bridge(pid, topic_name);
-      continue;
-    }
-
-    bool r2a = check_r2a_demand(topic_name, pid);
-    bool a2r = check_a2r_demand(topic_name, pid);
-
-    if (!r2a && !a2r) {
-      kill(pid, SIGTERM);
-      unregister_bridge(pid, topic_name);
-    }
-  }
-}
-
 void poll_for_unlink()
 {
   if (setsid() == -1) {
@@ -100,8 +61,6 @@ void poll_for_unlink()
 
   while (true) {
     sleep(1);
-
-    check_and_remove_bridges();
 
     struct ioctl_get_exit_process_args get_exit_process_args = {};
     do {
@@ -128,6 +87,12 @@ void poll_for_unlink()
 
 void poll_for_bridge_generate(pid_t target_pid)
 {
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   RCLCPP_INFO(logger, "[BRIDGE_GENERATOR] PID: %d", getpid());
   try {
     BridgeGenerator generator(target_pid);
@@ -215,9 +180,15 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver{};
-  struct semver heaphook_ver{};
-  struct semver kmod_ver{};
+  struct semver lib_ver
+  {
+  };
+  struct semver heaphook_ver
+  {
+  };
+  struct semver kmod_ver
+  {
+  };
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);

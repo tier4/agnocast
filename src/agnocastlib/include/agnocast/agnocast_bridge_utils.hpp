@@ -36,6 +36,6 @@ bool check_demand_impl(
   return extractor(args);
 }
 
-using BridgeFn = std::shared_ptr<rclcpp::Node> (*)(const BridgeArgs &);
+using BridgeFn = std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const BridgeArgs &);
 
 }  // namespace agnocast

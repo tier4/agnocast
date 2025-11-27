@@ -1517,40 +1517,83 @@ struct bridge_entry
   struct list_head list;
   pid_t pid;
   char topic_name[MAX_TOPIC_NAME_LEN];
+
+  uint8_t gid[MAX_GID_LEN];
+  size_t gid_len;
+
   const struct ipc_namespace * ipc_ns;
 };
 
 static LIST_HEAD(g_bridge_list);
 static DEFINE_MUTEX(g_bridge_list_mutex);
 
-int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+int register_bridge(
+  const pid_t pid, const char * topic_name, const uint8_t * gid, size_t gid_len,
+  const struct ipc_namespace * ipc_ns)
 {
   struct bridge_entry * new_entry;
   struct bridge_entry * entry;
 
-  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
-  if (!new_entry) {
-    dev_err(agnocast_device, "kmalloc failed for new bridge entry\n");
-    return -ENOMEM;
-  }
-
-  new_entry->pid = pid;
-  strscpy(new_entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN);
-  new_entry->ipc_ns = ipc_ns;
+  if (gid_len > MAX_GID_LEN) gid_len = MAX_GID_LEN;
 
   mutex_lock(&g_bridge_list_mutex);
 
+  // 既存リストを検索
   list_for_each_entry(entry, &g_bridge_list, list)
   {
     if (
       ipc_eq(entry->ipc_ns, ipc_ns) &&
       strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
-      mutex_unlock(&g_bridge_list_mutex);
-      kfree(new_entry);
+      // ★修正: PIDが一致する場合のロジックを厳密化
+      if (entry->pid == pid) {
+        // ケースA: まだGIDが入っていない (Generatorによる予約状態) -> 更新許可
+        if (entry->gid_len == 0) {
+          if (gid && gid_len > 0) {
+            memcpy(entry->gid, gid, gid_len);
+            entry->gid_len = gid_len;
+          }
+          mutex_unlock(&g_bridge_list_mutex);
+          return 0;  // Success
+        }
 
-      return -EEXIST;
+        // ケースB: 既にGIDが入っている -> 内容確認
+        // もし全く同じGIDなら「成功」として返す（冪等性）
+        if (gid_len == entry->gid_len && memcmp(entry->gid, gid, gid_len) == 0) {
+          mutex_unlock(&g_bridge_list_mutex);
+          return 0;  // Already registered correctly
+        }
+
+        // ケースC: 違うGIDで上書きしようとしている -> 重複エラー
+        // ここでエラーを返すことで、既存のGIDを守る（＝ループ防止を守る）
+        mutex_unlock(&g_bridge_list_mutex);
+        return -EEXIST;
+      } else {
+        // ケースD: PIDが違う (他人の持ち物) -> 重複エラー
+        mutex_unlock(&g_bridge_list_mutex);
+        return -EEXIST;
+      }
     }
   }
+
+  // 見つからなかった場合 -> 新規作成
+  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+  if (!new_entry) {
+    mutex_unlock(&g_bridge_list_mutex);
+    dev_err(agnocast_device, "kmalloc failed\n");
+    return -ENOMEM;
+  }
+
+  new_entry->pid = pid;
+  strscpy(new_entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+
+  if (gid && gid_len > 0) {
+    memcpy(new_entry->gid, gid, gid_len);
+    new_entry->gid_len = gid_len;
+  } else {
+    new_entry->gid_len = 0;
+  }
+
+  new_entry->ipc_ns = ipc_ns;
 
   list_add_tail(&new_entry->list, &g_bridge_list);
   mutex_unlock(&g_bridge_list_mutex);
@@ -1558,7 +1601,7 @@ int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_n
   return 0;
 }
 
-int unregister_bridge(const pid_t pid, const struct ipc_namespace * ipc_ns)
+int unregister_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   struct bridge_entry *entry, *tmp;
   bool found = false;
@@ -1567,88 +1610,53 @@ int unregister_bridge(const pid_t pid, const struct ipc_namespace * ipc_ns)
   list_for_each_entry_safe(entry, tmp, &g_bridge_list, list)
   {
     if (entry->pid == pid && ipc_eq(entry->ipc_ns, ipc_ns)) {
-      list_del(&entry->list);
-      kfree(entry);
-      found = true;
-      break;
+      bool should_delete = false;
+
+      if (topic_name == NULL) {
+        should_delete = true;
+      } else {
+        if (strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
+          should_delete = true;
+        }
+      }
+
+      if (should_delete) {
+        list_del(&entry->list);
+        kfree(entry);
+        found = true;
+
+        if (topic_name != NULL) {
+          break;
+        }
+      }
     }
   }
   mutex_unlock(&g_bridge_list_mutex);
 
-  if (!found) {
-    dev_warn(agnocast_device, "Tried to unregister non-existent bridge PID %d\n", pid);
-  }
   return 0;
 }
 
-int get_all_bridges(
-  const struct ipc_namespace * ipc_ns, union ioctl_get_all_bridges_args __user * user_args)
+bool check_gid_exists(const uint8_t * gid, size_t gid_len, const struct ipc_namespace * ipc_ns)
 {
-  struct ioctl_get_all_bridges_buffer * kern_buffer;
   struct bridge_entry * entry;
-  uint64_t user_buffer_addr;
-  int i = 0;
-  int ret = 0;
+  bool found = false;
 
-  if (get_user(user_buffer_addr, &user_args->buffer_addr)) return -EFAULT;
-
-  kern_buffer = kmalloc(sizeof(*kern_buffer), GFP_KERNEL);
-  if (!kern_buffer) return -ENOMEM;
-
-  memset(kern_buffer, 0, sizeof(*kern_buffer));
+  if (!gid || gid_len == 0) return false;
+  if (gid_len > MAX_GID_LEN) gid_len = MAX_GID_LEN;
 
   mutex_lock(&g_bridge_list_mutex);
   list_for_each_entry(entry, &g_bridge_list, list)
   {
-    if (!ipc_eq(ipc_ns, entry->ipc_ns)) {
-      continue;
+    if (ipc_eq(entry->ipc_ns, ipc_ns)) {
+      if (entry->gid_len == gid_len && memcmp(entry->gid, gid, gid_len) == 0) {
+        found = true;
+        break;
+      }
     }
-    if (i >= MAX_BRIDGES) {
-      dev_warn(agnocast_device, "Bridge list exceeds MAX_BRIDGES\n");
-      break;
-    }
-
-    kern_buffer->bridges[i].pid = entry->pid;
-    strncpy(kern_buffer->bridges[i].topic_name, entry->topic_name, MAX_TOPIC_NAME_LEN);
-    i++;
   }
   mutex_unlock(&g_bridge_list_mutex);
 
-  if (copy_to_user((void __user *)user_buffer_addr, kern_buffer, sizeof(*kern_buffer))) {
-    ret = -EFAULT;
-    goto out;
-  }
-
-  if (put_user(i, &user_args->ret_count)) {
-    ret = -EFAULT;
-    goto out;
-  }
-
-out:
-  kfree(kern_buffer);
-  return ret;
-}
-
-static pid_t find_bridge_pid_by_topic(const char * topic_name, const struct ipc_namespace * ipc_ns)
-{
-  struct bridge_entry * entry;
-  pid_t found_pid = -ESRCH;
-
-  mutex_lock(&g_bridge_list_mutex);
-
-  list_for_each_entry(entry, &g_bridge_list, list)
-  {
-    if (
-      ipc_eq(entry->ipc_ns, ipc_ns) &&
-      strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
-      found_pid = entry->pid;
-      break;
-    }
-  }
-
-  mutex_unlock(&g_bridge_list_mutex);
-
-  return found_pid;
+  return found;
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -2014,25 +2022,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
   } else if (cmd == AGNOCAST_REGISTER_BRIDGE_CMD) {
     struct ioctl_bridge_args bridge_args;
     if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
-    ret = register_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
+    ret = register_bridge(
+      bridge_args.info.pid, bridge_args.info.topic_name, bridge_args.info.gid,
+      bridge_args.info.gid_len, ipc_ns);
   } else if (cmd == AGNOCAST_UNREGISTER_BRIDGE_CMD) {
     struct ioctl_bridge_args bridge_args;
     if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
-    ret = unregister_bridge(bridge_args.info.pid, ipc_ns);
-  } else if (cmd == AGNOCAST_GET_ALL_BRIDGES_CMD) {
-    ret = get_all_bridges(ipc_ns, (union ioctl_get_all_bridges_args __user *)arg);
-  } else if (cmd == AGNOCAST_GET_BRIDGE_PID_CMD) {
+    ret = unregister_bridge(bridge_args.info.pid, bridge_args.info.topic_name, ipc_ns);
+  } else if (cmd == AGNOCAST_CHECK_GID_CMD) {
     struct ioctl_bridge_args bridge_args;
-    pid_t found_pid;
     if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
-    found_pid = find_bridge_pid_by_topic(bridge_args.info.topic_name, ipc_ns);
-    if (found_pid < 0) {
-      ret = found_pid;
-    } else {
-      bridge_args.info.pid = found_pid;
-      if (copy_to_user((void __user *)arg, &bridge_args, sizeof(bridge_args))) goto return_EFAULT;
-      ret = 0;
-    }
+    bool exists = check_gid_exists(bridge_args.info.gid, bridge_args.info.gid_len, ipc_ns);
+    bridge_args.ret_is_ignored = exists;
+    if (copy_to_user((void __user *)arg, &bridge_args, sizeof(bridge_args))) goto return_EFAULT;
+    ret = 0;
   } else {
     goto return_EINVAL;
   }
@@ -2367,7 +2370,7 @@ void process_exit_cleanup(const pid_t pid)
   if (!agnocast_related) return;
 
   if (proc_info) {
-    unregister_bridge(proc_info->local_pid, proc_info->ipc_ns);
+    unregister_bridge(proc_info->local_pid, NULL, proc_info->ipc_ns);
   }
 
   free_memory(pid);
