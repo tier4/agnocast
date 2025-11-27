@@ -1,11 +1,10 @@
 #pragma once
 
 #include "agnocast/agnocast_context.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include <memory>
 #include <string>
-
-#include "rclcpp/rclcpp.hpp"
 
 namespace agnocast
 {

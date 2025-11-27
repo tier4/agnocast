@@ -10,12 +10,7 @@ namespace agnocast
 {
 
 // Remap types (corresponds to rcl/src/rcl/remap.c)
-enum class RemapType
-{
-  NODENAME,
-  NAMESPACE,
-  TOPIC
-};
+enum class RemapType { NODENAME, NAMESPACE, TOPIC };
 
 struct RemapRule
 {

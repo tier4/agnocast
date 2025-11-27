@@ -200,30 +200,28 @@ bool Context::parse_yaml_file(const std::string & file_path)
         }
         break;
 
-      case YAML_SCALAR_EVENT:
-        {
-          std::string value(reinterpret_cast<const char*>(event.data.scalar.value));
+      case YAML_SCALAR_EVENT: {
+        std::string value(reinterpret_cast<const char *>(event.data.scalar.value));
 
-          if (current_node.empty()) {
-            // This is a node name
-            current_node = value;
-            expecting_param_name = false;
-          } else if (!in_ros_parameters && value == "ros__parameters") {
+        if (current_node.empty()) {
+          // This is a node name
+          current_node = value;
+          expecting_param_name = false;
+        } else if (!in_ros_parameters && value == "ros__parameters") {
+          current_param = value;
+        } else if (in_ros_parameters) {
+          if (expecting_param_name) {
             current_param = value;
-          } else if (in_ros_parameters) {
-            if (expecting_param_name) {
-              current_param = value;
-              expecting_param_value = true;
-              expecting_param_name = false;
-            } else if (expecting_param_value) {
-              // Store parameter
-              parameters_by_node_[current_node][current_param] = parse_parameter_value(value);
-              expecting_param_value = false;
-              expecting_param_name = true;
-            }
+            expecting_param_value = true;
+            expecting_param_name = false;
+          } else if (expecting_param_value) {
+            // Store parameter
+            parameters_by_node_[current_node][current_param] = parse_parameter_value(value);
+            expecting_param_value = false;
+            expecting_param_name = true;
           }
         }
-        break;
+      } break;
 
       case YAML_STREAM_END_EVENT:
         done = true;
