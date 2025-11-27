@@ -26,7 +26,7 @@ protected:
   void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
 public:
-  explicit AgnocastOnlyExecutor(int next_exec_timeout_ms = 50);
+  explicit AgnocastOnlyExecutor();
 
   virtual ~AgnocastOnlyExecutor();
 

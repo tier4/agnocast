@@ -8,7 +8,7 @@
 namespace agnocast
 {
 
-AgnocastOnlyExecutor::AgnocastOnlyExecutor(int next_exec_timeout_ms)
+AgnocastOnlyExecutor::AgnocastOnlyExecutor()
 : spinning_(false), epoll_fd_(epoll_create1(0)), my_pid_(getpid())
 {
   if (epoll_fd_ == -1) {
@@ -58,6 +58,7 @@ bool AgnocastOnlyExecutor::get_next_ready_agnocast_executable(
   return false;
 }
 
+// cppcheck-suppress functionStatic
 void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
   TRACEPOINT(
@@ -70,6 +71,7 @@ void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agno
   }
 }
 
+// cppcheck-suppress functionStatic
 void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node)
 {
   (void)node;
