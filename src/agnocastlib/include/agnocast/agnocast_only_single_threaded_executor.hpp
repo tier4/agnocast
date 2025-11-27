@@ -8,7 +8,7 @@ namespace agnocast
 
 class AgnocastOnlySingleThreadedExecutor : public AgnocastOnlyExecutor
 {
-  // RCLCPP_DISABLE_COPY(AgnocastOnlySingleThreadedExecutor)
+  RCLCPP_DISABLE_COPY(AgnocastOnlySingleThreadedExecutor)
 
   const int next_exec_timeout_ms_;
 
