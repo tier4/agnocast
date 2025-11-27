@@ -58,7 +58,7 @@ bool AgnocastOnlyExecutor::get_next_ready_agnocast_executable(
   return false;
 }
 
-// cppcheck-suppress functionStatic
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
   TRACEPOINT(
@@ -71,7 +71,7 @@ void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agno
   }
 }
 
-// cppcheck-suppress functionStatic
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node)
 {
   (void)node;
