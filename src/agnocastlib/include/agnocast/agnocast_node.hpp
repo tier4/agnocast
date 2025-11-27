@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -14,11 +15,12 @@ inline std::string query_node_name()
   std::string node_name;
   std::lock_guard<std::mutex> lock(g_context_mtx);
   if (g_context.is_initialized()) {
-    for (const auto & rule : g_context.get_remap_rules()) {
-      if (rule.type == RemapType::NODENAME) {
-        node_name = rule.replacement;
-        break;
-      }
+    const auto & rules = g_context.get_remap_rules();
+    auto it = std::find_if(rules.begin(), rules.end(), [](const auto & rule) {
+      return rule.type == RemapType::NODENAME;
+    });
+    if (it != rules.end()) {
+      node_name = it->replacement;
     }
   }
   return node_name;
