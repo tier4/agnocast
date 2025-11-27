@@ -598,8 +598,14 @@ mod tests {
         let size = 1024;
 
         let ptr = unsafe { libc::malloc(size) };
-        assert!(!ptr.is_null());
-        assert!(is_shared(ptr.cast()));
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
 
         unsafe { libc::free(ptr) };
     }
@@ -610,8 +616,14 @@ mod tests {
 
         for size in sizes {
             let ptr = unsafe { libc::malloc(size) };
-            assert!(!ptr.is_null());
-            assert!(is_shared(ptr.cast()));
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
 
             let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
             assert!(
@@ -644,8 +656,14 @@ mod tests {
         let total_size = obj_num * obj_size;
 
         let ptr = unsafe { libc::calloc(obj_num, obj_size) };
-        assert!(!ptr.is_null());
-        assert!(is_shared(ptr.cast()));
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
 
         unsafe {
             for i in 0..total_size {
@@ -670,8 +688,14 @@ mod tests {
                 let total_size = obj_size * obj_num;
 
                 let ptr = unsafe { libc::calloc(obj_num, obj_size) };
-                assert!(!ptr.is_null());
-                assert!(is_shared(ptr.cast()));
+                assert!(
+                    !ptr.is_null(),
+                    "In the test, memory allocation is expected to always succeed."
+                );
+                assert!(
+                    is_shared(ptr.cast()),
+                    "In the test, memory allocation is expected to always performed from shared memory."
+                );
 
                 // NOTE: Is it possible to relax the constraint by replacing `total_size` with `obj_size`?
                 let alignment = if total_size <= MIN_ALIGN {
@@ -727,8 +751,14 @@ mod tests {
         let new_size = 1024;
 
         let old_ptr = unsafe { libc::malloc(old_size) };
-        assert!(!old_ptr.is_null());
-        assert!(is_shared(old_ptr.cast()));
+        assert!(
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
 
         unsafe {
             for i in 0..old_size {
@@ -737,9 +767,14 @@ mod tests {
         }
 
         let new_ptr = unsafe { libc::realloc(old_ptr, new_size) };
-
-        assert!(!new_ptr.is_null());
-        assert!(is_shared(new_ptr.cast()));
+        assert!(
+            !new_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(new_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
 
         let copy_size = new_size.min(old_size);
         unsafe {
@@ -758,12 +793,24 @@ mod tests {
     #[test]
     fn test_realloc_alignment() {
         let old_ptr = unsafe { libc::malloc(MIN_ALIGN / 2) };
-        assert!(!old_ptr.is_null());
-        assert!(is_shared(old_ptr.cast()));
+        assert!(
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
 
         let new_ptr = unsafe { libc::realloc(old_ptr, MIN_ALIGN) };
-        assert!(!new_ptr.is_null());
-        assert!(is_shared(new_ptr.cast()));
+        assert!(
+            !new_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(new_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
         assert!(
             new_ptr as usize % MIN_ALIGN == 0,
             "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
@@ -783,8 +830,14 @@ mod tests {
 
         for size in sizes {
             let ptr = unsafe { libc::realloc(ptr::null_mut(), size) };
-            assert!(!ptr.is_null());
-            assert!(is_shared(ptr.cast()));
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
 
             let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
             assert!(
@@ -803,14 +856,21 @@ mod tests {
             "realloc should return NULL if the requested size is excessively large."
         );
 
-        let ptr = unsafe { libc::malloc(1) };
-        assert!(!ptr.is_null());
-        assert!(is_shared(ptr.cast()));
+        let old_ptr = unsafe { libc::malloc(1) };
         assert!(
-            unsafe { libc::realloc(ptr, usize::MAX) }.is_null(),
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
+        assert!(
+            unsafe { libc::realloc(old_ptr, usize::MAX) }.is_null(),
             "realloc should return NULL if the requested size is excessively large."
         );
-        unsafe { libc::free(ptr) }
+
+        unsafe { libc::free(old_ptr) }
     }
 
     #[test]
@@ -821,8 +881,14 @@ mod tests {
 
         let result = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
         assert!(result == 0);
-        assert!(!ptr.is_null());
-        assert!(is_shared(ptr.cast()));
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
         assert!(
             ptr as usize % alignment == 0,
             "posix_memalign should return a pointer aligned to the requested alignment."
@@ -875,12 +941,19 @@ mod tests {
         let size = MIN_ALIGN;
         for alignment in alignments {
             let ptr = unsafe { libc::aligned_alloc(alignment, size) };
-            assert!(!ptr.is_null());
-            assert!(is_shared(ptr.cast()));
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
             assert!(
                 ptr as usize % MIN_ALIGN == 0,
                 "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
             );
+
             unsafe { libc::free(ptr) };
         }
     }
@@ -893,12 +966,19 @@ mod tests {
         for alignment in alignments {
             let size = alignment;
             let ptr = unsafe { libc::aligned_alloc(alignment, size) };
-            assert!(!ptr.is_null());
-            assert!(is_shared(ptr.cast()));
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
             assert!(
                 ptr as usize % alignment == 0,
                 "aligned_alloc should return a pointer aligned to the requested alignment."
             );
+
             unsafe { libc::free(ptr) };
         }
     }
@@ -940,9 +1020,14 @@ mod tests {
         for &alignment in &alignments {
             for &size in &sizes {
                 let ptr = unsafe { libc::memalign(alignment, size) };
-
-                assert!(!ptr.is_null());
-                assert!(is_shared(ptr.cast()));
+                assert!(
+                    !ptr.is_null(),
+                    "In the test, memory allocation is expected to always succeed."
+                );
+                assert!(
+                    is_shared(ptr.cast()),
+                    "In the test, memory allocation is expected to always performed from shared memory."
+                );
                 assert!(
                     ptr as usize % alignment == 0,
                     "memalign should return a pointer aligned to the requested alignment."
