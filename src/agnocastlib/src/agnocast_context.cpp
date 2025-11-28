@@ -40,7 +40,7 @@ void Context::init(int argc, char * argv[])
         continue;
       }
 
-      if (arg == "-r" && i + 1 < argc) {
+      if (arg == "-r" && i + 1 < args.size()) {
         std::string remap{args[i + 1]};
         const std::string prefix = "__node:=";
 

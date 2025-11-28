@@ -1,9 +1,7 @@
 #pragma once
 
-#include <map>
 #include <mutex>
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace agnocast
