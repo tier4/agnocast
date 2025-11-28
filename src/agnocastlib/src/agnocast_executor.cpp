@@ -1,7 +1,6 @@
 #include "agnocast/agnocast_executor.hpp"
 
 #include "agnocast/agnocast.hpp"
-#include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
@@ -78,84 +77,42 @@ void AgnocastExecutor::receive_message(
 
 void AgnocastExecutor::prepare_epoll()
 {
-  {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+  std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
-    // Check if each callback's callback_group is included in this executor
-    for (auto & it : id2_callback_info) {
-      const uint32_t callback_info_id = it.first;
-      CallbackInfo & callback_info = it.second;
-      if (!callback_info.need_epoll_update) {
-        continue;
-      }
-
-      if (!validate_callback_group(callback_info.callback_group)) {
-        continue;
-      }
-
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      ev.data.u32 = callback_info_id;
-
-      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      if (callback_info.is_transient_local) {
-        receive_message(callback_info_id, callback_info);
-      }
-
-      callback_info.need_epoll_update = false;
+  // Check if each callback's callback_group is included in this executor
+  for (auto & it : id2_callback_info) {
+    const uint32_t callback_info_id = it.first;
+    CallbackInfo & callback_info = it.second;
+    if (!callback_info.need_epoll_update) {
+      continue;
     }
+
+    if (!validate_callback_group(callback_info.callback_group)) {
+      continue;
+    }
+
+    struct epoll_event ev = {};
+    ev.events = EPOLLIN;
+    ev.data.u32 = callback_info_id;
+
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
+      RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (callback_info.is_transient_local) {
+      receive_message(callback_info_id, callback_info);
+    }
+
+    callback_info.need_epoll_update = false;
   }
 
-  {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  const bool all_updated = std::none_of(
+    id2_callback_info.begin(), id2_callback_info.end(),
+    [](const auto & it) { return it.second.need_epoll_update; });
 
-    // Register timer file descriptors to epoll
-    for (auto & it : id2_timer_info) {
-      const uint32_t timer_id = it.first;
-      TimerInfo & timer_info = it.second;
-      if (!timer_info.need_epoll_update) {
-        continue;
-      }
-
-      if (!validate_callback_group(timer_info.callback_group)) {
-        continue;
-      }
-
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      // Use high bit to distinguish timer IDs from callback IDs
-      ev.data.u32 = timer_id | 0x80000000;
-
-      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      timer_info.need_epoll_update = false;
-    }
-  }
-
-  const bool all_callbacks_updated = [&]() {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    return std::none_of(
-      id2_callback_info.begin(), id2_callback_info.end(),
-      [](const auto & it) { return it.second.need_epoll_update; });
-  }();
-
-  const bool all_timers_updated = [&]() {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    return std::none_of(
-      id2_timer_info.begin(), id2_timer_info.end(),
-      [](const auto & it) { return it.second.need_epoll_update; });
-  }();
-
-  if (all_callbacks_updated && all_timers_updated) {
+  if (all_updated) {
     need_epoll_updates.store(false);
   }
 }
@@ -195,72 +152,38 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
     return;
   }
 
-  const uint32_t event_id = event.data.u32;
+  const uint32_t callback_info_id = event.data.u32;
+  CallbackInfo callback_info;
 
-  // Check if this is a timer event (high bit set)
-  if (event_id & 0x80000000) {
-    const uint32_t timer_id = event_id & 0x7FFFFFFF;
-    std::shared_ptr<AgnocastTimer> timer;
-    rclcpp::CallbackGroup::SharedPtr callback_group;
+  {
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
-    {
-      std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-      const auto it = id2_timer_info.find(timer_id);
-      if (it == id2_timer_info.end()) {
-        RCLCPP_ERROR(logger, "Agnocast internal implementation error: timer info cannot be found");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-      timer = it->second.timer;
-      callback_group = it->second.callback_group;
+    const auto it = id2_callback_info.find(callback_info_id);
+    if (it == id2_callback_info.end()) {
+      RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
     }
 
-    // Create a callable that handles the timer event
-    const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([timer]() {
-        timer->handle_event();
-      });
-
-    {
-      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex_};
-      ready_agnocast_executables_.emplace_back(
-        AgnocastExecutable{callable, callback_group});
-    }
-  } else {
-    // Handle subscription callback
-    const uint32_t callback_info_id = event_id;
-    CallbackInfo callback_info;
-
-    {
-      std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-
-      const auto it = id2_callback_info.find(callback_info_id);
-      if (it == id2_callback_info.end()) {
-        RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      callback_info = it->second;
-    }
-
-    MqMsgAgnocast mq_msg = {};
-
-    // non-blocking
-    auto ret =
-      mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
-    if (ret < 0) {
-      if (errno != EAGAIN) {
-        RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      return;
-    }
-
-    receive_message(callback_info_id, callback_info);
+    callback_info = it->second;
   }
+
+  MqMsgAgnocast mq_msg = {};
+
+  // non-blocking
+  auto ret =
+    mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+  if (ret < 0) {
+    if (errno != EAGAIN) {
+      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    return;
+  }
+
+  receive_message(callback_info_id, callback_info);
 }
 
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
