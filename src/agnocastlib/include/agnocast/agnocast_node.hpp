@@ -1,5 +1,3 @@
-#pragma once
-
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 
