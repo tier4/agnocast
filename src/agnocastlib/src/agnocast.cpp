@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <span>
 
 namespace agnocast
 {
@@ -34,6 +35,49 @@ std::mutex mmap_mtx;
 // Root Cause: T2's callback uses `shm_addr` that T1 fetched but hadn't initialized/mapped yet.
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
+
+Context g_context;
+std::mutex g_context_mtx;
+
+void init(int argc, char const * const * argv)
+{
+  std::string node_name;
+  // Copy argv into a safe container to avoid pointer arithmetic
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    args.emplace_back(argv[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  }
+
+  bool in_ros_args = false;
+  for (int i = 0; i < argc; i++) {
+    std::string arg_str = args[i];
+
+    if (!in_ros_args) {
+      if (arg_str == "--ros-args") {
+        in_ros_args = true;
+      }
+
+      continue;
+    }
+
+    if (arg_str == "-r" && i + 1 < argc) {
+      std::string remap{args[i + 1]};
+      const std::string prefix = "__node:=";
+
+      if (remap.compare(0, prefix.size(), prefix) == 0) {
+        node_name = remap.substr(prefix.size());
+
+        {
+          std::lock_guard<std::mutex> lock(g_context_mtx);
+          g_context.command_line_params.node_name = node_name;
+        }
+
+        break;
+      }
+    }
+  }
+}
 
 void poll_for_unlink()
 {
@@ -254,9 +298,8 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 }
 
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
-void * initialize_agnocast(
-  const uint64_t shm_size, const unsigned char * heaphook_version_ptr,
-  const size_t heaphook_version_str_len)
+struct initialize_agnocast_result initialize_agnocast(
+  const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
 {
   if (agnocast_fd >= 0) {
     RCLCPP_ERROR(logger, "Agnocast is already open");
@@ -286,7 +329,6 @@ void * initialize_agnocast(
   }
 
   union ioctl_add_process_args add_process_args = {};
-  add_process_args.shm_size = shm_size;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -308,12 +350,17 @@ void * initialize_agnocast(
     }
   }
 
-  void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
   if (mempool_ptr == nullptr) {
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
-  return mempool_ptr;
+
+  struct initialize_agnocast_result result = {};
+  result.mempool_ptr = mempool_ptr;
+  result.mempool_size = add_process_args.ret_shm_size;
+  return result;
 }
 
 static void shutdown_agnocast()
