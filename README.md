@@ -5,7 +5,7 @@ An rclcpp-compatible true zero-copy IPC middleware that supports all ROS message
 This middleware is based on the following paper and the [corresponding prototype](https://github.com/sykwer/agnocast).
 The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/document/11173025) ([pdf](https://www.arxiv.org/pdf/2506.16882)).
 
-- T. Ishikawa–Aso and S. Kato, “ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC,” in *Proc. 28th Int. Symp. Real-Time Distributed Computing (ISORC)*, 2025, pp. 1–10.
+- T. Ishikawa–Aso and S. Kato, "ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC," in *Proc. 28th Int. Symp. Real-Time Distributed Computing (ISORC)*, 2025, pp. 1–10.
 
 <details>
 <summary>BibTeX</summary>
@@ -23,6 +23,24 @@ The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/doc
 
 </details>
 
+## Table of Contents
+
+- [Supported Environments](#supported-environments)
+- [For Users](#for-users)
+  - [Clone the repository](#clone-the-repository)
+  - [Setup](#setup)
+  - [Build](#build)
+  - [Run](#run)
+- [For Developers](#for-developers)
+  - [Clone the repository](#clone-the-repository-1)
+  - [Setup pre-commit](#setup-pre-commit)
+  - [Build and insert kmod](#build-and-insert-kmod)
+  - [Test](#test)
+  - [Kernel Module Test](#kernel-module-test)
+- [Debug](#debug)
+- [Troubleshooting](#troubleshooting)
+- [Documents](#documents)
+
 ## Supported Environments
 
 Agnocast is currently available in the following environments.
@@ -36,7 +54,9 @@ This reflects the current status, and support is expected to expand in the futur
 
 The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
 
-## Build
+---
+
+## For Users
 
 ### Clone the repository
 
@@ -86,13 +106,15 @@ sudo apt install agnocast-heaphook-v2.1.2 agnocast-kmod-v2.1.2
 
 </details>
 
+### Build
+
 Build the project:
 
 ```bash
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
-## Run
+### Run
 
 Insert kernel module.
 
@@ -114,79 +136,18 @@ Stop applications and unload kernel module.
 sudo modprobe -r agnocast
 ```
 
-## Debug
-
-Check the kernel log.
-
-```bash
-sudo dmesg -w
-```
-
-To use dynamic_debug for dynamically outputting debug logs, please run the following command as super user:
-
-```bash
-sudo su
-echo 'file agnocast_main.c +p' > /sys/kernel/debug/dynamic_debug/control
-```
-
-Check if dynamic_debug is enabled by running the following command. If the right side of the `=` is `p`, it is enabled. (If it's `_`, it is disabled.)
-
-```bash
-sudo cat /sys/kernel/debug/dynamic_debug/control | grep "agnocast_main.c"
-/.../agnocast/agnocast_kmod/agnocast_main.c:810 [agnocast]release_msgs_to_meet_depth =p "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic (topic_name=%s) with qos_depth %d. (release_msgs_to_meet_depth)\012"
-/.../agnocast/agnocast_kmod/agnocast_main.c:367 [agnocast]insert_message_entry =p "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). (insert_message_entry)"
-```
-
-To use dynamic_debug, the Linux kernel configuration must have CONFIG_DYNAMIC_DEBUG set to `y`.
-If CONFIG_DYNAMIC_DEBUG is not enabled in your environment, perform a debug build with:
-
-```bash
-make CFLAGS_agnocast.o="-DDEBUG"
-```
-
-Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentation/kbuild/makefiles.txt) on kbuild for more information about compilation flags.
-
-## Documents
-
-- [shared memory](./docs/shared_memory.md)
-- [message queue](./docs/message_queue.md)
-- [Autoware integration](./docs/autoware_integration.md)
-- [Memory format in heaphook](./docs/heaphook_alignment.md)
-- [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
-- [How to set environment variables](./docs/how_to_set_environment_variables.md)
-- [ros2 command extension](./docs/ros2_command_extension.md)
-
-## Troubleshooting
-
-### Migrating from old PPA setup
-
-If you previously installed Agnocast using the old `add-apt-repository` method, remove the old configuration before running `scripts/setup`:
-
-```bash
-# Remove old repository configuration
-sudo add-apt-repository --remove ppa:t4-system-software/agnocast
-sudo rm -f /etc/apt/sources.list.d/*agnocast*.list
-sudo rm -f /etc/apt/trusted.gpg.d/*agnocast*.gpg
-```
-
-### Shared memory and message queue cleanup
-
-Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to remove leftover shared memory objects by running:
-
-```bash
-rm /dev/shm/agnocast@*
-```
-
-Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, you may need to remove leftover message queues by running:
-
-```bash
-rm /dev/mqueue/agnocast@*
-rm /dev/mqueue/agnocast_to_ros2@*
-```
-
 ---
 
-## For developer
+## For Developers
+
+### Clone the repository
+
+Clone the latest main branch for development:
+
+```bash
+git clone https://github.com/tier4/agnocast.git
+cd agnocast
+```
 
 ### Setup pre-commit
 
@@ -248,3 +209,75 @@ bash scripts/run_kunit
 ```
 
 You can also use [pre-commit](#setup-pre-commit)
+
+---
+
+## Debug
+
+Check the kernel log.
+
+```bash
+sudo dmesg -w
+```
+
+To use dynamic_debug for dynamically outputting debug logs, please run the following command as super user:
+
+```bash
+sudo su
+echo 'file agnocast_main.c +p' > /sys/kernel/debug/dynamic_debug/control
+```
+
+Check if dynamic_debug is enabled by running the following command. If the right side of the `=` is `p`, it is enabled. (If it's `_`, it is disabled.)
+
+```bash
+sudo cat /sys/kernel/debug/dynamic_debug/control | grep "agnocast_main.c"
+/.../agnocast/agnocast_kmod/agnocast_main.c:810 [agnocast]release_msgs_to_meet_depth =p "Release oldest message in the publisher_queue (publisher_pid=%d) of the topic (topic_name=%s) with qos_depth %d. (release_msgs_to_meet_depth)\012"
+/.../agnocast/agnocast_kmod/agnocast_main.c:367 [agnocast]insert_message_entry =p "Insert an entry (topic_name=%s publisher_pid=%d msg_virtual_address=%lld timestamp=%lld). (insert_message_entry)"
+```
+
+To use dynamic_debug, the Linux kernel configuration must have CONFIG_DYNAMIC_DEBUG set to `y`.
+If CONFIG_DYNAMIC_DEBUG is not enabled in your environment, perform a debug build with:
+
+```bash
+make CFLAGS_agnocast.o="-DDEBUG"
+```
+
+Refer to the [Linux kernel documentation](https://www.kernel.org/doc/Documentation/kbuild/makefiles.txt) on kbuild for more information about compilation flags.
+
+## Troubleshooting
+
+### Migrating from old PPA setup
+
+If you previously installed Agnocast using the old `add-apt-repository` method, remove the old configuration before running `scripts/setup`:
+
+```bash
+# Remove old repository configuration
+sudo add-apt-repository --remove ppa:t4-system-software/agnocast
+sudo rm -f /etc/apt/sources.list.d/*agnocast*.list
+sudo rm -f /etc/apt/trusted.gpg.d/*agnocast*.gpg
+```
+
+### Shared memory and message queue cleanup
+
+Although Agnocast includes cleanup procedures for resources like shared memory and message queues, these resources may sometimes remain in the system. If you notice that available system memory decreases every time you run an Agnocast-enabled application, you'll need to remove leftover shared memory objects by running:
+
+```bash
+rm /dev/shm/agnocast@*
+```
+
+Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, you may need to remove leftover message queues by running:
+
+```bash
+rm /dev/mqueue/agnocast@*
+rm /dev/mqueue/agnocast_to_ros2@*
+```
+
+## Documents
+
+- [shared memory](./docs/shared_memory.md)
+- [message queue](./docs/message_queue.md)
+- [Autoware integration](./docs/autoware_integration.md)
+- [Memory format in heaphook](./docs/heaphook_alignment.md)
+- [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
+- [How to set environment variables](./docs/how_to_set_environment_variables.md)
+- [ros2 command extension](./docs/ros2_command_extension.md)
