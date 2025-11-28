@@ -38,6 +38,16 @@ The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
 
 ## Build
 
+### Clone the repository
+
+Clone the repository with the tag that matches the distributed `agnocast-kmod` version.
+The latest main branch may not be compatible with the released kernel module.
+
+```bash
+git clone --branch v2.1.2 https://github.com/tier4/agnocast.git
+cd agnocast
+```
+
 ### Setup
 
 Run the setup script to install dependencies:
