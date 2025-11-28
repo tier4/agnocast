@@ -1,9 +1,5 @@
 #include "agnocast/agnocast_context.hpp"
 
-#include <mutex>
-#include <string>
-#include <vector>
-
 namespace agnocast
 {
 

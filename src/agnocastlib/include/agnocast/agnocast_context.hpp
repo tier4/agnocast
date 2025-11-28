@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace agnocast
 {
