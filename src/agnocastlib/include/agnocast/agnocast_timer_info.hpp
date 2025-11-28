@@ -1,3 +1,5 @@
+#pragma once
+
 #include "agnocast/agnocast_timer.hpp"
 #include "rclcpp/callback_group.hpp"
 
@@ -22,8 +24,7 @@ extern std::unordered_map<uint32_t, TimerInfo> id2_timer_info;
 extern std::atomic<uint32_t> next_timer_id;
 
 uint32_t register_timer(
-  std::function<void()> callback,
-  std::chrono::nanoseconds period,
+  std::function<void()> callback, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr callback_group);
 
 }  // namespace agnocast

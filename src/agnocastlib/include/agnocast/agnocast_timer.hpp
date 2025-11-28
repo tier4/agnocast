@@ -1,3 +1,6 @@
+#pragma once
+
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <stdexcept>
@@ -31,7 +34,7 @@ public:
 private:
   int timer_fd_;
   std::function<void()> callback_;
-  bool canceled_;
+  std::atomic<bool> canceled_;
 };
 
 }  // namespace agnocast

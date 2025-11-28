@@ -2,6 +2,7 @@
 
 #include <sys/timerfd.h>
 #include <unistd.h>
+
 #include <cerrno>
 #include <cstring>
 
@@ -14,8 +15,7 @@ AgnocastTimer::AgnocastTimer(std::chrono::nanoseconds period, std::function<void
   // Create timer file descriptor
   timer_fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
   if (timer_fd_ == -1) {
-    throw std::runtime_error(
-            std::string("timerfd_create failed: ") + std::strerror(errno));
+    throw std::runtime_error(std::string("timerfd_create failed: ") + std::strerror(errno));
   }
 
   // Configure timer period
@@ -29,8 +29,7 @@ AgnocastTimer::AgnocastTimer(std::chrono::nanoseconds period, std::function<void
     const int saved_errno = errno;
     close(timer_fd_);
     timer_fd_ = -1;
-    throw std::runtime_error(
-            std::string("timerfd_settime failed: ") + std::strerror(saved_errno));
+    throw std::runtime_error(std::string("timerfd_settime failed: ") + std::strerror(saved_errno));
   }
 }
 
@@ -49,7 +48,7 @@ int AgnocastTimer::get_fd() const
 
 void AgnocastTimer::handle_event()
 {
-  if (canceled_) {
+  if (canceled_.load()) {
     return;
   }
 
@@ -72,11 +71,9 @@ void AgnocastTimer::handle_event()
 
 void AgnocastTimer::cancel()
 {
-  if (canceled_) {
-    return;
+  if (canceled_.exchange(true)) {
+    return;  // Already canceled
   }
-
-  canceled_ = true;
 
   // Disarm the timer by setting both intervals to zero
   struct itimerspec spec = {};
@@ -90,12 +87,12 @@ void AgnocastTimer::cancel()
 
 bool AgnocastTimer::is_canceled() const
 {
-  return canceled_;
+  return canceled_.load();
 }
 
 void AgnocastTimer::reset(std::chrono::nanoseconds period)
 {
-  canceled_ = false;
+  canceled_.store(false);
 
   struct itimerspec spec = {};
   const auto period_count = period.count();
@@ -104,8 +101,7 @@ void AgnocastTimer::reset(std::chrono::nanoseconds period)
   spec.it_value = spec.it_interval;
 
   if (timerfd_settime(timer_fd_, 0, &spec, nullptr) == -1) {
-    throw std::runtime_error(
-            std::string("timerfd_settime failed: ") + std::strerror(errno));
+    throw std::runtime_error(std::string("timerfd_settime failed: ") + std::strerror(errno));
   }
 }
 
