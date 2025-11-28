@@ -166,29 +166,21 @@ struct ioctl_remove_publisher_args
   topic_local_id_t publisher_id;
 };
 
-struct bridge_info
+struct ioctl_bridge_args
 {
   pid_t pid;
   char topic_name[MAX_TOPIC_NAME_LEN];
-
-  uint8_t gid[MAX_GID_LEN];
-  size_t gid_len;
 };
 
-struct ioctl_bridge_args
-{
-  struct bridge_info info;
-  bool ret_is_ignored;
-};
-
-struct ioctl_get_all_bridges_buffer
-{
-  struct bridge_info bridges[MAX_BRIDGES];
-};
-
-union ioctl_get_all_bridges_args {
-  uint64_t buffer_addr;
-  int ret_count;
+union ioctl_get_bridge_pid_args {
+  struct
+  {
+    char topic_name[MAX_TOPIC_NAME_LEN];
+  };
+  struct
+  {
+    pid_t ret_pid;
+  };
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
@@ -208,7 +200,7 @@ union ioctl_get_all_bridges_args {
 #define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 15, struct ioctl_remove_publisher_args)
 #define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
 #define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
-#define AGNOCAST_CHECK_GID_CMD _IOWR(0xA6, 18, struct ioctl_bridge_args)
+#define AGNOCAST_GET_BRIDGE_PID_CMD _IOWR(0xA6, 18, union ioctl_get_bridge_pid_args)
 
 // ================================================
 // ros2cli ioctls
@@ -315,14 +307,10 @@ void process_exit_cleanup(const pid_t pid);
 
 void enqueue_exit_pid(const pid_t pid);
 
-int register_bridge(
-  const pid_t pid, const char * topic_name, const uint8_t * gid, size_t gid_len,
-  const struct ipc_namespace * ipc_ns);
+int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns);
 
 int unregister_bridge(
   const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns);
-
-bool check_gid_exists(const uint8_t * gid, size_t gid_len, const struct ipc_namespace * ipc_ns);
 
 // ================================================
 // helper functions for KUnit test

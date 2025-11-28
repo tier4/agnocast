@@ -35,17 +35,14 @@ BridgeGenerator::BridgeGenerator(pid_t target_pid)
   }
 
   // --- ROS 2 コンテキストのリセットと再初期化 ---
-  // fork直後の汚れた状態をクリアし、Executorクラッシュを防ぐ
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
 
-  // シグナルハンドラ無効化 (勝手な終了を防ぐ)
   rclcpp::InitOptions init_options;
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
-  // Logger再取得
   logger_ = rclcpp::get_logger("agnocast_bridge_generator");
 
   if (!agnocast_heaphook_init_daemon()) {
@@ -141,19 +138,15 @@ void BridgeGenerator::setup_epoll()
 
 void BridgeGenerator::run()
 {
-  // 1. コンテナノード作成 (全ブリッジの親)
+  // 1. コンテナノード作成
   std::string node_name = "agnocast_bridge_container_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
 
-  // 2. Executor生成 (0=自動設定)
-  executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(
-    rclcpp::ExecutorOptions(),
-    0,  // ros2 threads (Auto)
-    0   // agnocast threads (Auto)
-  );
+  // 2. Executor生成
+  executor_ =
+    std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(rclcpp::ExecutorOptions(), 0, 0);
 
-  // 3. コンテナノードをExecutorに追加
-  // これ以降、container_node_ 経由で作られたPub/SubはこのExecutorで処理される
+  // 3. コンテナノード追加
   executor_->add_node(container_node_);
 
   // スピン用スレッド開始
@@ -167,12 +160,11 @@ void BridgeGenerator::run()
     }
   });
 
-  // メインループ (epoll)
+  // メインループ
   constexpr int MAX_EVENTS = 10;
   struct epoll_event events[MAX_EVENTS];
 
   while (!shutdown_requested_ && rclcpp::ok()) {
-    // 親プロセス監視 (ポーリング)
     if (kill(target_pid_, 0) != 0) {
       RCLCPP_WARN(logger_, "Parent process %d is dead. Shutting down.", target_pid_);
       break;
@@ -200,7 +192,7 @@ void BridgeGenerator::handle_mq_event()
 {
   MqMsgBridge req;
   while (mq_receive(mq_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
-    // キー生成
+    // ユニークキー生成
     std::string unique_key = req.args.topic_name;
     switch (req.direction) {
       case BridgeDirection::ROS2_TO_AGNOCAST:
@@ -215,30 +207,32 @@ void BridgeGenerator::handle_mq_event()
 
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
-    if (req.command == BridgeCommand::CREATE_BRIDGE) {
-      // --- CREATE ---
-      // 参照カウントが0なら、新規作成を行う
+    if (
+      req.command == BridgeCommand::CREATE_BRIDGE ||
+      req.command == BridgeCommand::DELEGATE_CREATE) {
+      // --- CREATE / DELEGATE ---
       if (bridge_ref_counts_[unique_key] == 0) {
         load_and_add_node(req, unique_key);
       } else {
-        RCLCPP_DEBUG(
+        RCLCPP_INFO(
           logger_, "Bridge '%s' ref++ (%d)", unique_key.c_str(),
           bridge_ref_counts_[unique_key] + 1);
       }
       bridge_ref_counts_[unique_key]++;
+
     } else if (req.command == BridgeCommand::REMOVE_BRIDGE) {
       // --- REMOVE ---
-      if (bridge_ref_counts_[unique_key] > 0) {
-        bridge_ref_counts_[unique_key]--;
+      // if (bridge_ref_counts_[unique_key] > 0) {
+      //   bridge_ref_counts_[unique_key]--;
 
-        // 参照カウントが0になったら、実体を削除する
-        if (bridge_ref_counts_[unique_key] == 0) {
-          remove_bridge_node(unique_key);
-        } else {
-          RCLCPP_DEBUG(
-            logger_, "Bridge '%s' ref-- (%d)", unique_key.c_str(), bridge_ref_counts_[unique_key]);
-        }
-      }
+      //   if (bridge_ref_counts_[unique_key] == 0) {
+      //     remove_bridge_node(unique_key);
+      //   } else {
+      //     RCLCPP_DEBUG(
+      //       logger_, "Bridge '%s' ref-- (%d)", unique_key.c_str(),
+      //       bridge_ref_counts_[unique_key]);
+      //   }
+      // }
     }
   }
 }
@@ -259,56 +253,56 @@ void BridgeGenerator::handle_signal_event()
 
 void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::string & unique_key)
 {
-  // 1. カーネル登録 & 重複チェック (Global Lock)
-  struct ioctl_bridge_args bridge_args
-  {
-  };
-  safe_strncpy(bridge_args.info.topic_name, unique_key.c_str(), MAX_TOPIC_NAME_LEN);
-  bridge_args.info.pid = getpid();
-  // ※ GID登録はここではなく、Nodeのコンストラクタ内で行う (A2Rのみ)
-
-  if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &bridge_args) < 0) {
-    if (errno == EEXIST) {
-      // 他のプロセスが担当中 -> 実体は作らない
-      RCLCPP_DEBUG(logger_, "Bridge '%s' exists globally. Skipping.", unique_key.c_str());
-      return;
-    }
-    RCLCPP_ERROR(logger_, "Register failed: %s", strerror(errno));
-    return;
-  }
-
-  // 2. 関数ポインタ解決
   BridgeFn entry_func = nullptr;
   void * handle_to_store = nullptr;
   dlerror();
 
-  if (std::strcmp(req.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
-    entry_func = reinterpret_cast<BridgeFn>(req.fn_ptr);
+  if (req.command == BridgeCommand::DELEGATE_CREATE) {
+    auto it = cached_factories_.find(unique_key);
+    if (it != cached_factories_.end()) {
+      entry_func = it->second;
+      RCLCPP_INFO(logger_, "Delegated creation using cached factory for '%s'", unique_key.c_str());
+    } else {
+      RCLCPP_ERROR(
+        logger_, "Delegation failed: No cached factory found for '%s'", unique_key.c_str());
+      return;
+    }
   } else {
-    void * handle = dlopen(req.shared_lib_path, RTLD_NOW);
-    if (!handle) {
-      RCLCPP_ERROR(logger_, "dlopen failed: %s", dlerror());
-      unregister_bridge(getpid(), unique_key.c_str());
-      return;
+    if (std::strcmp(req.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
+      entry_func = reinterpret_cast<BridgeFn>(req.fn_ptr);
+    } else {
+      void * handle = dlopen(req.shared_lib_path, RTLD_NOW);
+      if (!handle) {
+        RCLCPP_ERROR(logger_, "dlopen failed: %s", dlerror());
+        return;
+      }
+      entry_func = reinterpret_cast<BridgeFn>(req.fn_ptr);
+      handle_to_store = handle;
     }
-    void * raw_func = dlsym(handle, req.symbol_name);
-    if (!raw_func) {
-      RCLCPP_ERROR(logger_, "dlsym failed: %s", dlerror());
-      dlclose(handle);
-      unregister_bridge(getpid(), unique_key.c_str());
-      return;
+
+    if (req.fn_ptr_reverse != 0) {
+      std::string reverse_key = req.args.topic_name;
+      if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+        reverse_key += "_A2R";
+      } else {
+        reverse_key += "_R2A";
+      }
+
+      cached_factories_[reverse_key] = reinterpret_cast<BridgeFn>(req.fn_ptr_reverse);
+      RCLCPP_INFO(logger_, "Cached reverse factory for '%s'", reverse_key.c_str());
     }
-    entry_func = reinterpret_cast<BridgeFn>(raw_func);
-    handle_to_store = handle;
   }
 
-  // 3. 生成と保持
+  if (!entry_func) {
+    RCLCPP_ERROR(logger_, "Entry function is null for '%s'", unique_key.c_str());
+    if (handle_to_store) dlclose(handle_to_store);
+    return;
+  }
+
   try {
-    // コンテナノードを渡してブリッジリソースを生成
     auto bridge_resource = entry_func(container_node_, req.args);
 
     if (bridge_resource) {
-      // Mapに保存 (実体管理)
       active_bridges_[unique_key] = bridge_resource;
 
       if (handle_to_store) {
@@ -316,33 +310,73 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
           if (h) dlclose(h);
         }));
       }
-      RCLCPP_INFO(logger_, "Started bridge: %s", unique_key.c_str());
+      RCLCPP_INFO(
+        logger_, "Started bridge: %s (Delegated: %d)", unique_key.c_str(),
+        (req.command == BridgeCommand::DELEGATE_CREATE));
     }
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "Exception creating bridge '%s': %s", unique_key.c_str(), e.what());
     if (handle_to_store) dlclose(handle_to_store);
-    unregister_bridge(getpid(), unique_key.c_str());
   } catch (...) {
     RCLCPP_ERROR(logger_, "Unknown exception creating bridge '%s'.", unique_key.c_str());
     if (handle_to_store) dlclose(handle_to_store);
-    unregister_bridge(getpid(), unique_key.c_str());
   }
 }
 
 void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
 {
-  // 自分が実体を持っている場合のみ削除
   if (active_bridges_.count(unique_key)) {
-    // マップから削除 -> shared_ptr破棄 -> Bridgeデストラクタ -> Pub/Sub削除
+    // 実体を削除 (shared_ptr破棄 -> デストラクタ)
     active_bridges_.erase(unique_key);
 
     // カーネル登録解除
-    unregister_bridge(getpid(), unique_key.c_str());
+    // 注: Node側(Client)は release_bridge で remove コマンドを送るだけ。
+    // ここでカーネルから登録解除する必要があるが、
+    // 今の設計では「トピック名(Suffixなし)」で登録されているため、
+    // 「A2RもR2Aも誰もいなくなった時」に登録解除すべき。
+    //
+    // しかし、ioctl(UNREGISTER) は「PIDと名前」で解除する。
+    // 自分がオーナーなら解除して良い。
+    // ただし、もし逆方向のブリッジがまだ生きていたら？
+    //
+    // 解決策:
+    // カーネル登録は「トピック全体」のオーナー権限。
+    // A2RとR2Aの参照カウントの合計が0になったら解除するのが正しい。
+    //
+    // 簡易実装:
+    // とりあえずここでは解除しない、または解除を試みる。
+    // カーネル側で参照カウントを持っていれば安全だが、持っていないなら
+    // 「まだ逆方向がいるのに解除」してしまうリスクがある。
+    //
+    // 今回の要件（循環ループ防止）では、
+    // 「トピック名」で登録しているため、逆方向がいるなら登録解除してはいけない。
+    //
+    // ロジック追加:
+    // unique_key から トピック名を取得し、逆方向の unique_key を推測。
+    // 逆方向も active_bridges_ に無ければ、本当に誰もいないので UNREGISTER する。
+
+    std::string topic_name = unique_key.substr(0, unique_key.length() - 4);  // "_R2A" remove
+    std::string reverse_suffix = (unique_key.find("_R2A") != std::string::npos) ? "_A2R" : "_R2A";
+    std::string reverse_key = topic_name + reverse_suffix;
+
+    if (active_bridges_.count(reverse_key) == 0) {
+      // 逆方向もいない -> カーネル登録解除
+      struct ioctl_bridge_args args;
+      std::memset(&args, 0, sizeof(args));
+      args.pid = target_pid_;  // 親PIDで登録しているので、親PIDで解除
+      safe_strncpy(args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+
+      ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args);
+      RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
+
+      // キャッシュもクリアすべき？
+      // 再作成時に再度送られてくるのでクリアして良いが、残っていても問題はない。
+      // メモリ節約のため消す。
+      cached_factories_.erase(unique_key);
+      cached_factories_.erase(reverse_key);
+    }
 
     RCLCPP_INFO(logger_, "Removed bridge: %s", unique_key.c_str());
-  } else {
-    // 他のプロセスが担当していた場合、ここには到達しても何もしない
-    RCLCPP_DEBUG(logger_, "Bridge '%s' released (local ref=0), but not owned.", unique_key.c_str());
   }
 }
 

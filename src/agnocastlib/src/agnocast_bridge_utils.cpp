@@ -79,8 +79,8 @@ bool check_a2r_demand(const char * topic_name, pid_t bridge_pid)
 void unregister_bridge(pid_t pid, const char * topic_name)
 {
   struct ioctl_bridge_args unreg_args = {};
-  unreg_args.info.pid = pid;
-  safe_strncpy(unreg_args.info.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+  unreg_args.pid = pid;
+  safe_strncpy(unreg_args.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
 
   if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &unreg_args) < 0) {
     if (errno != ENOENT) {

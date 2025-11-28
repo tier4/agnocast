@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -10,7 +11,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -43,7 +43,7 @@ private:
   void handle_mq_event();
   void handle_signal_event();
 
-  // 作成処理
+  // 作成処理 (委譲された場合もこれを使う)
   void load_and_add_node(const MqMsgBridge & req, const std::string & unique_key);
 
   // 削除処理
@@ -74,13 +74,18 @@ private:
   std::vector<std::shared_ptr<void>> dl_handles_;
 
   // 生成されたブリッジインスタンス (寿命管理用)
-  // key: unique_key ("topic__R2A" etc)
+  // key: unique_key ("topic_R2A" etc)
   // value: ブリッジのリソース (shared_ptr<void>)
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
 
   // 参照カウンタ (プロセス内での利用数)
   // key: unique_key
   std::map<std::string, int> bridge_ref_counts_;
+
+  // 関数ポインタキャッシュ (委譲対応用)
+  // key: unique_key (これから作られるべきブリッジのキー, 例: "topic_A2R")
+  // value: 生成用関数ポインタ
+  std::map<std::string, BridgeFn> cached_factories_;
 };
 
 }  // namespace agnocast

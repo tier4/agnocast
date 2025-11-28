@@ -15,7 +15,6 @@ namespace agnocast
 #define VERSION_BUFFER_LEN 32   // Maximum size of version number represented as a string
 #define MAX_TOPIC_NAME_LEN 256  // Maximum length for a topic name string
 #define MAX_BRIDGES 512         // Maximum number of bridge processes the kernel can track
-#define MAX_GID_LEN 32          // Maximum length for GID
 
 using topic_local_id_t = int32_t;
 struct publisher_shm_info
@@ -197,29 +196,25 @@ struct ioctl_remove_publisher_args
   topic_local_id_t publisher_id;
 };
 
-struct bridge_info
+struct ioctl_bridge_args
 {
   pid_t pid;
   char topic_name[MAX_TOPIC_NAME_LEN];
-  uint8_t gid[MAX_GID_LEN];
-  size_t gid_len;
 };
 
-struct ioctl_bridge_args
-{
-  struct bridge_info info;
-  bool ret_is_ignored;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+union ioctl_get_bridge_pid_args {
+  struct
+  {
+    char topic_name[MAX_TOPIC_NAME_LEN];
+  };
+  struct
+  {
+    pid_t ret_pid;
+  };
 };
-
-struct ioctl_get_all_bridges_buffer
-{
-  struct bridge_info bridges[MAX_BRIDGES];
-};
-
-union ioctl_get_all_bridges_args {
-  uint64_t buffer_addr;
-  int ret_count;
-};
+#pragma GCC diagnostic pop
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
@@ -238,6 +233,6 @@ union ioctl_get_all_bridges_args {
 #define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 15, struct ioctl_remove_publisher_args)
 #define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
 #define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
-#define AGNOCAST_CHECK_GID_CMD _IOWR(0xA6, 18, struct ioctl_bridge_args)
+#define AGNOCAST_GET_BRIDGE_PID_CMD _IOWR(0xA6, 18, union ioctl_get_bridge_pid_args)
 
 }  // namespace agnocast
