@@ -24,9 +24,6 @@ find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
-find_package(libyaml_vendor REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(YAML REQUIRED yaml-0.1)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -40,7 +37,6 @@ target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
   ${tracetools_LIBRARIES}
   ${LTTNGUST_LIBRARIES}
-  ${YAML_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
@@ -49,7 +45,6 @@ target_include_directories(agnocast PUBLIC
   ${rclcpp_INCLUDE_DIRS}
   ${tracetools_INCLUDE_DIRS}
   ${LTTNGUST_INCLUDE_DIRS}
-  ${YAML_INCLUDE_DIRS}
 )
 
 add_executable(agnocast_component_container src/agnocast_component_container.cpp)
