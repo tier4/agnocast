@@ -112,6 +112,8 @@ public:
       RCLCPP_WARN(logger, "Failed to unregister subscriber (id=%d) from kernel.", id_);
     }
     remove_mq(mq_subscription_);
+
+    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_);
   }
 };
 

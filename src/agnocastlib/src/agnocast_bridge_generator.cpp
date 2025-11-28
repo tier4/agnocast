@@ -216,18 +216,17 @@ void BridgeGenerator::handle_mq_event()
       bridge_ref_counts_[unique_key]++;
 
     } else if (req.command == BridgeCommand::REMOVE_BRIDGE) {
-      // --- REMOVE ---
-      // if (bridge_ref_counts_[unique_key] > 0) {
-      //   bridge_ref_counts_[unique_key]--;
+      //-- -REMOVE---
+      if (bridge_ref_counts_[unique_key] > 0) {
+        bridge_ref_counts_[unique_key]--;
 
-      //   if (bridge_ref_counts_[unique_key] == 0) {
-      //     remove_bridge_node(unique_key);
-      //   } else {
-      //     RCLCPP_DEBUG(
-      //       logger_, "Bridge '%s' ref-- (%d)", unique_key.c_str(),
-      //       bridge_ref_counts_[unique_key]);
-      //   }
-      // }
+        if (bridge_ref_counts_[unique_key] == 0) {
+          remove_bridge_node(unique_key);
+        } else {
+          RCLCPP_INFO(
+            logger_, "Bridge '%s' ref-- (%d)", unique_key.c_str(), bridge_ref_counts_[unique_key]);
+        }
+      }
     }
   }
 }
@@ -358,57 +357,45 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
 void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
 {
   if (active_bridges_.count(unique_key)) {
-    // 実体を削除 (shared_ptr破棄 -> デストラクタ)
+    // 1. ブリッジ実体を削除 (shared_ptr破棄 -> ROSノード削除等)
     active_bridges_.erase(unique_key);
+    RCLCPP_INFO(logger_, "Removed bridge: %s", unique_key.c_str());
 
-    // カーネル登録解除
-    // 注: Node側(Client)は release_bridge で remove コマンドを送るだけ。
-    // ここでカーネルから登録解除する必要があるが、
-    // 今の設計では「トピック名(Suffixなし)」で登録されているため、
-    // 「A2RもR2Aも誰もいなくなった時」に登録解除すべき。
-    //
-    // しかし、ioctl(UNREGISTER) は「PIDと名前」で解除する。
-    // 自分がオーナーなら解除して良い。
-    // ただし、もし逆方向のブリッジがまだ生きていたら？
-    //
-    // 解決策:
-    // カーネル登録は「トピック全体」のオーナー権限。
-    // A2RとR2Aの参照カウントの合計が0になったら解除するのが正しい。
-    //
-    // 簡易実装:
-    // とりあえずここでは解除しない、または解除を試みる。
-    // カーネル側で参照カウントを持っていれば安全だが、持っていないなら
-    // 「まだ逆方向がいるのに解除」してしまうリスクがある。
-    //
-    // 今回の要件（循環ループ防止）では、
-    // 「トピック名」で登録しているため、逆方向がいるなら登録解除してはいけない。
-    //
-    // ロジック追加:
-    // unique_key から トピック名を取得し、逆方向の unique_key を推測。
-    // 逆方向も active_bridges_ に無ければ、本当に誰もいないので UNREGISTER する。
+    // 2. カーネル登録解除の判定 (オーナー権限の放棄)
+    // トピック名 (例: "/my_topic") と 逆方向キー を特定
+    std::string topic_name;
+    std::string reverse_key;
 
-    std::string topic_name = unique_key.substr(0, unique_key.length() - 4);  // "_R2A" remove
-    std::string reverse_suffix = (unique_key.find("_R2A") != std::string::npos) ? "_A2R" : "_R2A";
-    std::string reverse_key = topic_name + reverse_suffix;
+    // 末尾が _R2A か _A2R かで分岐
+    if (unique_key.rfind("_R2A") != std::string::npos) {
+      topic_name = unique_key.substr(0, unique_key.length() - 4);
+      reverse_key = topic_name + "_A2R";
+    } else if (unique_key.rfind("_A2R") != std::string::npos) {
+      topic_name = unique_key.substr(0, unique_key.length() - 4);
+      reverse_key = topic_name + "_R2A";
+    } else {
+      // 想定外のキー
+      return;
+    }
 
+    // ★重要: 逆方向も存在しない(=誰も使っていない)なら、オーナー権限を放棄
     if (active_bridges_.count(reverse_key) == 0) {
-      // 逆方向もいない -> カーネル登録解除
       struct ioctl_bridge_args args;
       std::memset(&args, 0, sizeof(args));
-      args.pid = target_pid_;  // 親PIDで登録しているので、親PIDで解除
+      args.pid = target_pid_;  // 自分(オーナー)のPID
       safe_strncpy(args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
 
-      ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args);
-      RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
+      if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+        RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
+      } else {
+        // 他のプロセスがすぐに再登録した可能性もあるのでエラーログは控えめに
+        RCLCPP_DEBUG(logger_, "Unregister bridge owner: %s", strerror(errno));
+      }
 
-      // キャッシュもクリアすべき？
-      // 再作成時に再度送られてくるのでクリアして良いが、残っていても問題はない。
-      // メモリ節約のため消す。
+      // キャッシュもクリア (再作成時はまた送られてくるので消してOK)
       cached_factories_.erase(unique_key);
       cached_factories_.erase(reverse_key);
     }
-
-    RCLCPP_INFO(logger_, "Removed bridge: %s", unique_key.c_str());
   }
 }
 
