@@ -28,8 +28,6 @@
 namespace agnocast
 {
 
-void init(int argc, char const * const * argv);
-
 struct initialize_agnocast_result
 {
   void * mempool_ptr;
