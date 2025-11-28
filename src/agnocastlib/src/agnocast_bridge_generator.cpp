@@ -7,6 +7,7 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <link.h>
 #include <sys/epoll.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
@@ -81,9 +82,7 @@ void BridgeGenerator::setup_mq()
   mq_name_ = create_mq_name_for_bridge(target_pid_);
   mq_unlink(mq_name_.c_str());
 
-  struct mq_attr attr
-  {
-  };
+  struct mq_attr attr{};
   attr.mq_maxmsg = 10;
   attr.mq_msgsize = sizeof(MqMsgBridge);
 
@@ -117,18 +116,14 @@ void BridgeGenerator::setup_epoll()
     throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
-  struct epoll_event ev_mq
-  {
-  };
+  struct epoll_event ev_mq{};
   ev_mq.events = EPOLLIN;
   ev_mq.data.fd = mq_fd_;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_fd_, &ev_mq) == -1) {
     throw std::runtime_error("epoll_ctl (MQ) failed");
   }
 
-  struct epoll_event ev_sig
-  {
-  };
+  struct epoll_event ev_sig{};
   ev_sig.events = EPOLLIN;
   ev_sig.data.fd = signal_fd_;
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev_sig) == -1) {
@@ -255,8 +250,11 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
 {
   BridgeFn entry_func = nullptr;
   void * handle_to_store = nullptr;
-  dlerror();
+  dlerror();  // エラークリア
 
+  // ---------------------------------------------------------
+  // 1. 委譲 (Delegate) の場合
+  // ---------------------------------------------------------
   if (req.command == BridgeCommand::DELEGATE_CREATE) {
     auto it = cached_factories_.find(unique_key);
     if (it != cached_factories_.end()) {
@@ -267,20 +265,48 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
         logger_, "Delegation failed: No cached factory found for '%s'", unique_key.c_str());
       return;
     }
-  } else {
+  }
+  // ---------------------------------------------------------
+  // 2. 新規ロード (New Load) の場合
+  // ---------------------------------------------------------
+  else {
+    uintptr_t base_addr = 0;
+
+    // A. メイン実行ファイル内のシンボルの場合
     if (std::strcmp(req.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
-      entry_func = reinterpret_cast<BridgeFn>(req.fn_ptr);
-    } else {
+      // メイン実行ファイル自身のハンドルを取得
+      void * handle = dlopen(NULL, RTLD_NOW);
+      if (!handle) {
+        RCLCPP_ERROR(logger_, "dlopen(NULL) failed: %s", dlerror());
+        return;
+      }
+      // ハンドルからリンクマップを取得してベースアドレスを取り出す
+      struct link_map * map = static_cast<struct link_map *>(handle);
+      base_addr = map->l_addr;
+
+      // dlopen(NULL) のハンドルは通常 close しなくても良いが、
+      // 整合性のため handle_to_store に入れても良いし、入れなくても良い。
+      // ここでは明示的に管理しない(closeすると困る場合があるため)。
+    }
+    // B. 共有ライブラリの場合
+    else {
       void * handle = dlopen(req.shared_lib_path, RTLD_NOW);
       if (!handle) {
         RCLCPP_ERROR(logger_, "dlopen failed: %s", dlerror());
         return;
       }
-      entry_func = reinterpret_cast<BridgeFn>(req.fn_ptr);
       handle_to_store = handle;
+
+      // ハンドルからリンクマップを取得してベースアドレスを取り出す
+      struct link_map * map = static_cast<struct link_map *>(handle);
+      base_addr = map->l_addr;
     }
 
-    if (req.fn_ptr_reverse != 0) {
+    // ★重要: オフセットから関数ポインタを復元
+    entry_func = reinterpret_cast<BridgeFn>(base_addr + req.fn_offset);
+
+    // ★重要: 逆方向の関数ポインタも復元してキャッシュ
+    if (req.fn_offset_reverse != 0) {
       std::string reverse_key = req.args.topic_name;
       if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
         reverse_key += "_A2R";
@@ -288,11 +314,17 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
         reverse_key += "_R2A";
       }
 
-      cached_factories_[reverse_key] = reinterpret_cast<BridgeFn>(req.fn_ptr_reverse);
+      // ベースアドレス + 逆方向オフセット
+      BridgeFn reverse_func = reinterpret_cast<BridgeFn>(base_addr + req.fn_offset_reverse);
+
+      cached_factories_[reverse_key] = reverse_func;
       RCLCPP_INFO(logger_, "Cached reverse factory for '%s'", reverse_key.c_str());
     }
   }
 
+  // ---------------------------------------------------------
+  // 3. 実行と登録
+  // ---------------------------------------------------------
   if (!entry_func) {
     RCLCPP_ERROR(logger_, "Entry function is null for '%s'", unique_key.c_str());
     if (handle_to_store) dlclose(handle_to_store);

@@ -38,8 +38,8 @@ struct MqMsgBridge
 {
   char shared_lib_path[MAX_NAME_LENGTH];
   char symbol_name[MAX_NAME_LENGTH];
-  uintptr_t fn_ptr;
-  uintptr_t fn_ptr_reverse;  // <--- NEW: 逆方向の生成関数ポインタ(キャッシュ用)
+  uintptr_t fn_offset;          // 現在の方向のオフセット
+  uintptr_t fn_offset_reverse;  // 逆方向のオフセット
   BridgeDirection direction;
   BridgeCommand command;
   BridgeArgs args;

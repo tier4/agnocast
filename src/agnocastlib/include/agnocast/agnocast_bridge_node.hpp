@@ -45,8 +45,7 @@ struct RosToAgnocastRequestPolicy
   static void release_bridge(const std::string & topic_name)
   {
     // 削除時は、自分がオーナーかどうかの判断は親プロセス(Generator)に任せるため
-    // 単純に自分のMQへ削除リクエストを送る形になるが、
-    // 現状の委譲モデルでは「委譲した側」が削除を送ってもオーナー側は参照カウントを下げるだけで済む
+    // 単純に自分のMQへ削除リクエストを送る形になる
     send_bridge_command<MessageT>(
       topic_name, rclcpp::QoS(1), BridgeDirection::ROS2_TO_AGNOCAST, BridgeCommand::REMOVE_BRIDGE);
   }
@@ -229,13 +228,17 @@ void send_bridge_command(
     return;
   }
 
+  // ★修正: ベースアドレスを取得してオフセットを計算
+  uintptr_t base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
+
   // メッセージ構築
   safe_strncpy(msg.shared_lib_path, info.dli_fname, MAX_NAME_LENGTH);
   const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
   safe_strncpy(msg.symbol_name, symbol_name, MAX_NAME_LENGTH);
 
-  msg.fn_ptr = reinterpret_cast<uintptr_t>(fn_current);
-  msg.fn_ptr_reverse = reinterpret_cast<uintptr_t>(fn_reverse);  // キャッシュ用
+  // ★修正: 絶対アドレスではなく、ベースアドレスからのオフセットを格納
+  msg.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
+  msg.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
   safe_strncpy(msg.args.topic_name, topic_name.c_str(), sizeof(msg.args.topic_name));
   if (cmd == BridgeCommand::CREATE_BRIDGE) {
@@ -263,8 +266,6 @@ void send_bridge_command(
 
           // 委譲時はポインタ情報は相手(オーナー)が持っているはずなので
           // 送信データとしては不要だが、念のため送っても害はない。
-          // ただし、相手のプロセス空間ではこのポインタ値は無効かもしれないが、
-          // キャッシュ済みのものを使うロジックになるため無視される。
           RCLCPP_INFO(
             logger, "Topic '%s' is owned by PID %d. Delegating...", topic_name.c_str(), target_pid);
         } else {
@@ -279,7 +280,6 @@ void send_bridge_command(
     // 成功時(0)は自分がオーナーになったので、target_pid = getpid() のまま
   } else {
     // --- 削除時など: オーナーPIDを確認してそこへ送る ---
-    // 自分がオーナーなら自分(getpid)が返るし、他人がオーナーならそのPIDが返る
     union ioctl_get_bridge_pid_args pid_args;
     std::memset(&pid_args, 0, sizeof(pid_args));
     safe_strncpy(pid_args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
@@ -287,15 +287,11 @@ void send_bridge_command(
     if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
       target_pid = pid_args.ret_pid;
     } else {
-      // オーナーが見つからない＝既に全削除済み等の可能性。
-      // 送っても無駄なのでreturnするか、念のため自分に送るか。
-      // ここでは「既に存在しないなら何もしない」が安全。
       return;
     }
   }
 
   // 3. MQ送信
-  // target_pid (自分 or オーナー) に対応する MQ 名を生成
   const std::string mq_name_str = create_mq_name_for_bridge(target_pid);
   mqd_t mq = mq_open(mq_name_str.c_str(), O_WRONLY);
 
