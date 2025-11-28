@@ -56,8 +56,7 @@ void Context::init(int argc, char * argv[])
         }
       }
 
-      // Unknown ROS specific argument - skip it
-      // In RCL this would be stored in unparsed_ros_args
+      // TODO: Parse other ROS specific arguments here.
 
     } else {
       // Check for ROS specific arguments flag
