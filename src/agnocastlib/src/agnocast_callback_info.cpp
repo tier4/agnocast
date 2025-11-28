@@ -96,7 +96,6 @@ void wait_and_handle_epoll_event(
   // Check if this is a timer event (high bit set)
   if (event_id & TIMER_EVENT_FLAG) {
     const uint32_t timer_id = event_id & ~TIMER_EVENT_FLAG;
-    std::shared_ptr<AgnocastTimer> timer;
     rclcpp::CallbackGroup::SharedPtr callback_group;
 
     {
@@ -107,13 +106,18 @@ void wait_and_handle_epoll_event(
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
-      timer = it->second.timer;
       callback_group = it->second.callback_group;
     }
 
     // Create a callable that handles the timer event
     const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([timer]() { timer->handle_event(); });
+      std::make_shared<std::function<void()>>([timer_id]() {
+        std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+        auto it = id2_timer_info.find(timer_id);
+        if (it != id2_timer_info.end()) {
+          handle_timer_event(it->second);
+        }
+      });
 
     {
       std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};

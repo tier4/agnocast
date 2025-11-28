@@ -155,6 +155,10 @@ typename Service<ServiceT>::SharedPtr create_service(
  * Creates a timer that uses timerfd_create for efficient event-based timing.
  * The timer is integrated with the AgnocastOnlyExecutor's epoll event loop.
  *
+ * Supports two callback signatures:
+ * - void() : Simple callback without timing info
+ * - void(TimerCallbackInfo&) : Callback with timing info (expected/actual call times)
+ *
  * @tparam Func Callback function type
  * @param node The agnocast::Node to attach the timer to
  * @param period Timer period
@@ -171,7 +175,15 @@ uint32_t create_timer(
     group = node->get_default_callback_group();
   }
 
-  return register_timer(std::forward<Func>(callback), period, group);
+  // Check if callback accepts TimerCallbackInfo&
+  if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
+    return register_timer(std::forward<Func>(callback), period, group);
+  } else {
+    // Wrap void() callback to match TimerCallbackInfo& signature
+    static_assert(std::is_invocable_v<Func>, "Callback must be callable with void() or void(TimerCallbackInfo&)");
+    auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
+    return register_timer(std::move(wrapped), period, group);
+  }
 }
 
 }  // namespace agnocast
