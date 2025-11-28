@@ -5,7 +5,7 @@ An rclcpp-compatible true zero-copy IPC middleware that supports all ROS message
 This middleware is based on the following paper and the [corresponding prototype](https://github.com/sykwer/agnocast).
 The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/document/11173025) ([pdf](https://www.arxiv.org/pdf/2506.16882)).
 
-- T. Ishikawa–Aso and S. Kato, "ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC," in *Proc. 28th Int. Symp. Real-Time Distributed Computing (ISORC)*, 2025, pp. 1–10.
+- T. Ishikawa–Aso and S. Kato, “ROS 2 Agnocast: Supporting Unsized Message Types for True Zero-Copy Publish/Subscribe IPC,” in *Proc. 28th Int. Symp. Real-Time Distributed Computing (ISORC)*, 2025, pp. 1–10.
 
 <details>
 <summary>BibTeX</summary>
