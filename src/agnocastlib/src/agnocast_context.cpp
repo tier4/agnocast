@@ -6,7 +6,7 @@ namespace agnocast
 Context g_context;
 std::mutex g_context_mtx;
 
-void Context::init(int argc, char const * argv[])
+void Context::init(int argc, char const * const * argv)
 {
   // Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c
   if (initialized_) {
@@ -73,7 +73,7 @@ void Context::init(int argc, char const * argv[])
   initialized_ = true;
 }
 
-void init(int argc, char const * argv[])
+void init(int argc, char const * const * argv)
 {
   g_context.init(argc, argv);
 }
