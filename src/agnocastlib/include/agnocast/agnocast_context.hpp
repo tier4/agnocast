@@ -24,7 +24,7 @@ class Context
 public:
   CommandLineParams command_line_params;
 
-  void init(int argc, char * argv[]);
+  void init(int argc, char const * argv[]);
   bool is_initialized() const { return initialized_; }
 
 private:
@@ -34,6 +34,6 @@ private:
 extern Context g_context;
 extern std::mutex g_context_mtx;
 
-void init(int argc, char * argv[]);
+void init(int argc, char const * argv[]);
 
 }  // namespace agnocast
