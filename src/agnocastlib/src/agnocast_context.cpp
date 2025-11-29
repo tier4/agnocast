@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <charconv>
+
 namespace agnocast
 {
 
@@ -109,22 +111,18 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
     return false;
   }
 
-  try {
-    size_t pos = 0;
-    int64_t int_value = std::stoll(value_str, &pos);
-    if (pos == value_str.length()) {
-      return int_value;
-    }
-  } catch (...) {
+  int64_t int_value;
+  auto int_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
+  if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
+    return int_value;
   }
 
-  try {
-    size_t pos = 0;
-    double double_value = std::stod(value_str, &pos);
-    if (pos == value_str.length()) {
-      return double_value;
-    }
-  } catch (...) {
+  double double_value;
+  auto double_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
+  if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
+    return double_value;
   }
 
   return value_str;
