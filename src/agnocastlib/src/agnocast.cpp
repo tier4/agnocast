@@ -180,15 +180,9 @@ bool is_version_consistent(
   struct ioctl_get_version_args kmod_version)
 {
   std::array<char, VERSION_BUFFER_LEN> heaphook_version_arr{};
-  struct semver lib_ver
-  {
-  };
-  struct semver heaphook_ver
-  {
-  };
-  struct semver kmod_ver
-  {
-  };
+  struct semver lib_ver{};
+  struct semver heaphook_ver{};
+  struct semver kmod_ver{};
 
   size_t copy_len = heaphook_version_str_len < (VERSION_BUFFER_LEN - 1) ? heaphook_version_str_len
                                                                         : (VERSION_BUFFER_LEN - 1);
@@ -362,7 +356,7 @@ void * initialize_agnocast(
   pid_t parent_pid = getpid();
   spawn_daemon_process([parent_pid]() { poll_for_bridge_generate(parent_pid); });
 
-  wait_for_mq_ready(create_mq_name_for_bridge(parent_pid));
+  wait_for_mq_ready(create_mq_name_for_bridge_parent(parent_pid));
 
   void * mempool_ptr = map_writable_area(getpid(), add_process_args.ret_addr, shm_size);
   if (mempool_ptr == nullptr) {

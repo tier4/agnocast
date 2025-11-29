@@ -545,6 +545,18 @@ int decrement_message_entry_rc(
     }
   }
 
+  struct subscriber_info * sub_check = find_subscriber_info(wrapper, pubsub_id);
+  struct publisher_info * pub_check = find_publisher_info(wrapper, pubsub_id);
+
+  if (!sub_check && !pub_check) {
+    dev_dbg(
+      agnocast_device,
+      "Race condition detected: Pub/Sub (id=%d) removed before decrementing entry %lld. (Safe to "
+      "ignore)\n",
+      pubsub_id, entry_id);
+    return 0;
+  }
+
   dev_warn(
     agnocast_device,
     "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "

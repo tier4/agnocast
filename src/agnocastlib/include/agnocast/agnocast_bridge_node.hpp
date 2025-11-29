@@ -1,7 +1,6 @@
 #pragma once
 
 #include "agnocast/agnocast_bridge_utils.hpp"
-#include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
@@ -9,7 +8,6 @@
 
 #include <dlfcn.h>
 #include <mqueue.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <cstring>
@@ -17,11 +15,13 @@
 #include <string>
 #include <vector>
 
+// 外部定義関数 (agnocast_utils.cpp 等)
+extern "C" {
+std::string create_mq_name_for_bridge_parent(const pid_t pid);
+}
+
 namespace agnocast
 {
-
-// agnocast_utils.cpp 等で実体が定義されているファイルディスクリプタ
-extern int agnocast_fd;
 
 // 前方宣言
 template <typename MessageT>
@@ -44,8 +44,6 @@ struct RosToAgnocastRequestPolicy
   template <typename MessageT>
   static void release_bridge(const std::string & topic_name)
   {
-    // 削除時は、自分がオーナーかどうかの判断は親プロセス(Generator)に任せるため
-    // 単純に自分のMQへ削除リクエストを送る形になる
     send_bridge_command<MessageT>(
       topic_name, rclcpp::QoS(1), BridgeDirection::ROS2_TO_AGNOCAST, BridgeCommand::REMOVE_BRIDGE);
   }
@@ -97,7 +95,6 @@ private:
 
   void forward_to_agnocast(const typename MessageT::ConstSharedPtr ros_msg)
   {
-    // GIDチェック削除済み
     // 同一プロセス(Generator)内で両方向動くため、ignore_local_publications でループは防止される
     auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
     *loaned_msg = *ros_msg;
@@ -117,7 +114,7 @@ public:
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     rclcpp::SubscriptionOptions ros_opts;
-    ros_opts.ignore_local_publications = true;  // ★最重要: 同一プロセス内ループ防止
+    ros_opts.ignore_local_publications = true;
     ros_opts.callback_group = ros_cb_group_;
 
     ros_sub_ = parent_node->create_subscription<MessageT>(
@@ -158,7 +155,6 @@ public:
     rclcpp::Node::SharedPtr parent_node, const std::string & topic_name,
     [[maybe_unused]] const rclcpp::QoS & pub_qos)
   {
-    // GID登録削除済み
     auto bridge_qos = rclcpp::QoS(1).reliable().durability_volatile();
     ros_pub_ = parent_node->create_publisher<MessageT>(topic_name, bridge_qos);
 
@@ -166,7 +162,7 @@ public:
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     agnocast::SubscriptionOptions agno_opts;
-    agno_opts.ignore_local_publications = true;  // ★最重要: 同一プロセス内ループ防止
+    agno_opts.ignore_local_publications = true;
     agno_opts.callback_group = agno_cb_group_;
 
     agnocast_sub_ = std::make_shared<AgnoSub>(
@@ -207,9 +203,9 @@ void send_bridge_command(
   auto logger = rclcpp::get_logger("agnocast_bridge_requester");
   MqMsgBridge msg = {};
   msg.direction = dir;
-  msg.command = cmd;  // 初期値。後でDELEGATEに変わる可能性あり
+  msg.command = cmd;
 
-  // 1. 関数ポインタの解決 (ペアで取得)
+  // 1. 関数ポインタの解決とオフセット計算 (親プロセス側で実行必須)
   BridgeFn fn_current = nullptr;
   BridgeFn fn_reverse = nullptr;
 
@@ -221,22 +217,18 @@ void send_bridge_command(
     fn_reverse = &start_ros_to_agno_node<MessageT>;
   }
 
-  // 共有ライブラリ情報の取得 (自身のポインタから逆引き)
   Dl_info info{};
   if (dladdr(reinterpret_cast<void *>(fn_current), &info) == 0) {
     RCLCPP_ERROR(logger, "dladdr failed: cannot locate bridge factory function.");
     return;
   }
 
-  // ★修正: ベースアドレスを取得してオフセットを計算
   uintptr_t base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
 
-  // メッセージ構築
   safe_strncpy(msg.shared_lib_path, info.dli_fname, MAX_NAME_LENGTH);
   const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
   safe_strncpy(msg.symbol_name, symbol_name, MAX_NAME_LENGTH);
 
-  // ★修正: 絶対アドレスではなく、ベースアドレスからのオフセットを格納
   msg.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
@@ -245,57 +237,14 @@ void send_bridge_command(
     msg.args.qos = flatten_qos(qos);
   }
 
-  // 2. オーナー権限の確認と宛先の決定
-  pid_t target_pid = getpid();  // デフォルト: 自分の子プロセスへ
-
-  if (cmd == BridgeCommand::CREATE_BRIDGE) {
-    struct ioctl_bridge_args args;
-    std::memset(&args, 0, sizeof(args));
-    args.pid = getpid();
-    safe_strncpy(args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
-
-    // 登録を試みる
-    if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) < 0) {
-      if (errno == EEXIST) {
-        union ioctl_get_bridge_pid_args pid_args;
-        std::memset(&pid_args, 0, sizeof(pid_args));
-        safe_strncpy(pid_args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
-        if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
-          target_pid = pid_args.ret_pid;                 // オーナーのPIDへ
-          msg.command = BridgeCommand::DELEGATE_CREATE;  // コマンド変更
-
-          // 委譲時はポインタ情報は相手(オーナー)が持っているはずなので
-          // 送信データとしては不要だが、念のため送っても害はない。
-          RCLCPP_INFO(
-            logger, "Topic '%s' is owned by PID %d. Delegating...", topic_name.c_str(), target_pid);
-        } else {
-          RCLCPP_ERROR(logger, "Failed to get bridge owner PID for '%s'", topic_name.c_str());
-          return;
-        }
-      } else {
-        RCLCPP_ERROR(logger, "Register bridge failed: %s", strerror(errno));
-        return;
-      }
-    }
-    // 成功時(0)は自分がオーナーになったので、target_pid = getpid() のまま
-  } else {
-    // --- 削除時など: オーナーPIDを確認してそこへ送る ---
-    union ioctl_get_bridge_pid_args pid_args;
-    std::memset(&pid_args, 0, sizeof(pid_args));
-    safe_strncpy(pid_args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
-
-    if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
-      target_pid = pid_args.ret_pid;
-    } else {
-      return;
-    }
-  }
-
-  // 3. MQ送信
-  const std::string mq_name_str = create_mq_name_for_bridge(target_pid);
+  // 2. Local MQ (Generator for THIS process) へ送信
+  // 親プロセスPID (自分) に対応する Local MQ 名を取得
+  const std::string mq_name_str = create_mq_name_for_bridge_parent(getpid());
   mqd_t mq = mq_open(mq_name_str.c_str(), O_WRONLY);
 
   if (mq == (mqd_t)-1) {
+    // Generatorがまだ起動していない、またはエラー
+    // RCLCPP_DEBUG(logger, "mq_open failed (Generator might not be ready): %s", strerror(errno));
     return;
   }
 

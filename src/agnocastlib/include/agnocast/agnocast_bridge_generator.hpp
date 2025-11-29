@@ -36,24 +36,44 @@ public:
   void run();
 
 private:
+  // --- Initialization ---
   void setup_mq();
   void setup_signals();
   void setup_epoll();
 
-  void handle_mq_event();
+  // --- Event Handlers ---
+  // 親プロセスからの制御コマンド (Control Plane)
+  void handle_parent_mq_event();
+
+  // 他Generatorからの委譲/連携コマンド (Delegation Plane)
+  void handle_child_mq_event();
+
   void handle_signal_event();
 
-  // 作成処理 (委譲された場合もこれを使う)
+  // --- Core Logic ---
+  // ブリッジ作成・ロード (オーナー権限取得後、または委譲によるリクエストで実行)
   void load_and_add_node(const MqMsgBridge & req, const std::string & unique_key);
 
-  // 削除処理
+  // ブリッジ削除 (参照カウント0時)
   void remove_bridge_node(const std::string & unique_key);
 
+  // 他のGeneratorへ委譲リクエストを送信するヘルパー
+  void send_delegate_request(pid_t target_pid, const MqMsgBridge & req);
+
+  // --------------------------------------------------------
+
   const pid_t target_pid_;
-  std::string mq_name_;
   rclcpp::Logger logger_;
 
-  mqd_t mq_fd_ = (mqd_t)-1;
+  // MQ Handles
+  // 1. Parent MQ: 親プロセス(target_pid_) -> 自分
+  mqd_t mq_parent_fd_ = (mqd_t)-1;
+  std::string mq_parent_name_;
+
+  // 2. Child MQ: 他のGenerator -> 自分(getpid())
+  mqd_t mq_child_fd_ = (mqd_t)-1;
+  std::string mq_child_name_;
+
   int epoll_fd_ = -1;
   int signal_fd_ = -1;
 
@@ -76,13 +96,14 @@ private:
   // 生成されたブリッジインスタンス (寿命管理用)
   // key: unique_key ("topic_R2A" etc)
   // value: ブリッジのリソース (shared_ptr<void>)
+  // NOTE: 委譲した場合(オーナーが他人)、ここには nullptr が入る場合がある
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
 
   // 参照カウンタ (プロセス内での利用数)
   // key: unique_key
   std::map<std::string, int> bridge_ref_counts_;
 
-  // 関数ポインタキャッシュ (委譲対応用)
+  // 関数ポインタキャッシュ (逆方向ブリッジ作成用)
   // key: unique_key (これから作られるべきブリッジのキー, 例: "topic_A2R")
   // value: 生成用関数ポインタ
   std::map<std::string, BridgeFn> cached_factories_;
