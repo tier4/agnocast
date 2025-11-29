@@ -37,7 +37,7 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
-      // TODO: Will be replaced with a more robust remap parsing logic following rcl's
+      // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
       // implementation.
       if (arg == "-r" && i + 1 < argc) {
         std::string remap{args[static_cast<size_t>(i + 1)]};
@@ -55,7 +55,7 @@ void Context::init(int argc, char const * const * argv)
         }
       }
 
-      // TODO: Parse other ROS specific arguments.
+      // TODO(Koichi98): Parse other ROS specific arguments.
 
     } else {
       // Check for ROS specific arguments flag
