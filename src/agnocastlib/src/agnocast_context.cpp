@@ -22,11 +22,11 @@ void Context::init(int argc, char const * const * argv)
   }
 
   bool parsing_ros_args = false;
-  for (size_t i = 1; i < args.size(); ++i) {
-    const std::string & arg = args[i];
+  for (int i = 0; i < argc; ++i) {
+    const std::string & arg = args[static_cast<size_t>(i)];
 
     if (parsing_ros_args) {
-      // Ignore ROS specific arguments flag (already inside)
+      // Ignore ROS specific arguments flag
       if (arg == AGNOCAST_ROS_ARGS_FLAG) {
         continue;
       }
@@ -37,8 +37,9 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
-      if (arg == "-r" && i + 1 < args.size()) {
-        std::string remap{args[i + 1]};
+      // TODO: Will be replaced with a more robust remap parsing logic following rcl's implementation.
+      if (arg == "-r" && i + 1 < argc) {
+        std::string remap{args[static_cast<size_t>(i + 1)]};
         const std::string prefix = "__node:=";
 
         if (remap.compare(0, prefix.size(), prefix) == 0) {
@@ -53,7 +54,7 @@ void Context::init(int argc, char const * const * argv)
         }
       }
 
-      // TODO: Parse other ROS specific arguments here.
+      // TODO: Parse other ROS specific arguments.
 
     } else {
       // Check for ROS specific arguments flag
