@@ -60,8 +60,8 @@ The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
 
 ### Clone the repository
 
-Clone the repository with the tag that matches the distributed `agnocast-kmod` and `agnocast-heaphook` versions.
-The latest main branch may not be compatible with the released kernel module and heaphook.
+Since ROS packages under `src/` such as `agnocastlib` are not yet distributed from the ROS build farm, a source build is currently required.
+Therefore, to perform the source build, first check out the specific version as follows:
 
 ```bash
 git clone --branch v2.1.2 https://github.com/tier4/agnocast.git
