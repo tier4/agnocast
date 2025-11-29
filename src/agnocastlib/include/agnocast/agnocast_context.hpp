@@ -14,6 +14,12 @@ namespace agnocast
 /// The token that delineates the explicit end of ROS arguments.
 #define AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN "--"
 
+/// The ROS flag that precedes the setting of a ROS parameter.
+#define AGNOCAST_PARAM_FLAG "--param"
+
+/// The short version of the ROS flag that precedes the setting of a ROS parameter.
+#define AGNOCAST_SHORT_PARAM_FLAG "-p"
+
 class Context
 {
   struct CommandLineParams

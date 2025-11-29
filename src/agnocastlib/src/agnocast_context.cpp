@@ -37,6 +37,13 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
+      // Attempt to parse argument as parameter override flag
+      if ((arg == AGNOCAST_PARAM_FLAG || arg == AGNOCAST_SHORT_PARAM_FLAG) && i + 1 < argc) {
+        std::string param_arg = argv[++i];
+        parse_param_rule(param_arg);  // Parse immediately
+        continue;
+      }
+
       // TODO: Will be replaced with a more robust remap parsing logic following rcl's
       // implementation.
       if (arg == "-r" && i + 1 < argc) {
@@ -70,6 +77,54 @@ void Context::init(int argc, char const * const * argv)
   }
 
   initialized_ = true;
+}
+
+bool GlobalContext::parse_param_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
+
+  size_t delim_pos = arg.find(":=");
+
+  if (delim_pos == std::string::npos) {
+    return false;
+  }
+
+  std::string param_name = arg.substr(0, delim_pos);
+  std::string yaml_value = arg.substr(delim_pos + 2);
+
+  // Store in global_parameter_overrides_ (applied to all nodes)
+  global_parameter_overrides_[param_name] = parse_parameter_value(yaml_value);
+  return true;
+}
+
+GlobalContext::ParameterValue GlobalContext::parse_parameter_value(const std::string & value_str)
+{
+  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
+    return true;
+  }
+  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
+    return false;
+  }
+
+  try {
+    size_t pos = 0;
+    int64_t int_value = std::stoll(value_str, &pos);
+    if (pos == value_str.length()) {
+      return int_value;
+    }
+  } catch (...) {
+  }
+
+  try {
+    size_t pos = 0;
+    double double_value = std::stod(value_str, &pos);
+    if (pos == value_str.length()) {
+      return double_value;
+    }
+  } catch (...) {
+  }
+
+  return value_str;
 }
 
 void init(int argc, char const * const * argv)
