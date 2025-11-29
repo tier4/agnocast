@@ -1,7 +1,9 @@
 #pragma once
 
+#include <map>
 #include <mutex>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace agnocast
@@ -14,7 +16,13 @@ namespace agnocast
 /// The token that delineates the explicit end of ROS arguments.
 #define AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN "--"
 
-class Context
+/// The ROS flag that precedes the setting of a ROS parameter.
+#define AGNOCAST_PARAM_FLAG "--param"
+
+/// The short version of the ROS flag that precedes the setting of a ROS parameter.
+#define AGNOCAST_SHORT_PARAM_FLAG "-p"
+
+main class Context
 {
   struct CommandLineParams
   {
@@ -23,12 +31,17 @@ class Context
 
 public:
   CommandLineParams command_line_params;
+  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
 
 private:
   bool initialized_ = false;
+  bool parse_param_rule(const std::string & arg);
+  ParameterValue parse_parameter_value(const std::string & value_str);
+
+  std::map<std::string, ParameterValue> global_parameter_overrides_;
 };
 
 extern Context g_context;

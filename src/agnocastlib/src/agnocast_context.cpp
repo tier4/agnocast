@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <charconv>
+
 namespace agnocast
 {
 
@@ -37,6 +39,13 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
+      // Attempt to parse argument as parameter override flag
+      if ((arg == AGNOCAST_PARAM_FLAG || arg == AGNOCAST_SHORT_PARAM_FLAG) && i + 1 < argc) {
+        std::string param_arg = argv[++i];
+        parse_param_rule(param_arg);
+        continue;
+      }
+
       // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
       // implementation.
       if (arg == "-r" && i + 1 < argc) {
@@ -70,6 +79,53 @@ void Context::init(int argc, char const * const * argv)
   }
 
   initialized_ = true;
+}
+
+bool Context::parse_param_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
+  //
+  // Limitations compared to rcl:
+  // - No yaml parser: arrays (e.g., [1,2,3]) are not supported, only scalar values.
+  // - No node name prefix: "node_name:param_name:=value" format is not supported.
+
+  size_t delim_pos = arg.find(":=");
+
+  if (delim_pos == std::string::npos) {
+    return false;
+  }
+
+  std::string param_name = arg.substr(0, delim_pos);
+  std::string yaml_value = arg.substr(delim_pos + 2);
+
+  global_parameter_overrides_[param_name] = parse_parameter_value(yaml_value);
+  return true;
+}
+
+Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
+{
+  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
+    return true;
+  }
+  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
+    return false;
+  }
+
+  int64_t int_value;
+  auto int_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
+  if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
+    return int_value;
+  }
+
+  double double_value;
+  auto double_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
+  if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
+    return double_value;
+  }
+
+  return value_str;
 }
 
 void init(int argc, char const * const * argv)
