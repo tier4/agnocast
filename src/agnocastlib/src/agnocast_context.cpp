@@ -82,6 +82,10 @@ void Context::init(int argc, char const * const * argv)
 bool Context::parse_param_rule(const std::string & arg)
 {
   // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
+  //
+  // Limitations compared to rcl:
+  // - No yaml parser: arrays (e.g., [1,2,3]) are not supported, only scalar values.
+  // - No node name prefix: "node_name:param_name:=value" format is not supported.
 
   size_t delim_pos = arg.find(":=");
 
