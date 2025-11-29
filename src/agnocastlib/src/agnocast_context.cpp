@@ -22,13 +22,10 @@ void Context::init(int argc, char const * const * argv)
   }
 
   bool parsing_ros_args = false;
-
   for (size_t i = 1; i < args.size(); ++i) {
     const std::string & arg = args[i];
 
     if (parsing_ros_args) {
-      // Inside --ros-args scope: explicit flags required
-
       // Ignore ROS specific arguments flag (already inside)
       if (arg == AGNOCAST_ROS_ARGS_FLAG) {
         continue;
