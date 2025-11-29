@@ -37,7 +37,8 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
-      // TODO: Will be replaced with a more robust remap parsing logic following rcl's implementation.
+      // TODO: Will be replaced with a more robust remap parsing logic following rcl's
+      // implementation.
       if (arg == "-r" && i + 1 < argc) {
         std::string remap{args[static_cast<size_t>(i + 1)]};
         const std::string prefix = "__node:=";
