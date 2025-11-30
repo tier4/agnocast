@@ -116,8 +116,6 @@ public:
       },
       ros_opts);
 
-    RCLCPP_INFO(parent_node->get_logger(), "Started R2A bridge for '%s'", topic_name.c_str());
-
     std::string reliability_str = "Unknown";
     switch (sub_qos.reliability()) {
       case rclcpp::ReliabilityPolicy::Reliable:
@@ -217,7 +215,7 @@ inline rclcpp::QoS get_subscriber_qos(const char * topic_name, topic_local_id_t 
   // ★変更: 構造体名
   struct ioctl_get_subscriber_qos_args args;
   std::memset(&args, 0, sizeof(args));
-  safe_strncpy(args.topic_name, topic_name, MAX_TOPIC_NAME_LEN);
+  snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name);
   args.id = id;
 
   // ★変更: コマンド名
@@ -288,7 +286,7 @@ void send_bridge_command(
   msg.control.command = cmd;
 
   // 2. PubSub要素 (QoSは送らず、IDとTopic名のみ)
-  safe_strncpy(msg.target.topic_name, topic_name.c_str(), MAX_NAME_LENGTH);
+  snprintf(msg.target.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
   msg.target.target_id = id;
 
   // 3. 起動要素 (ライブラリ/オフセット)
@@ -311,9 +309,9 @@ void send_bridge_command(
 
   uintptr_t base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
 
-  safe_strncpy(msg.factory.shared_lib_path, info.dli_fname, MAX_NAME_LENGTH);
+  snprintf(msg.factory.shared_lib_path, MAX_NAME_LENGTH, "%s", info.dli_fname);
   const char * symbol_name = info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__";
-  safe_strncpy(msg.factory.symbol_name, symbol_name, MAX_NAME_LENGTH);
+  snprintf(msg.factory.symbol_name, MAX_NAME_LENGTH, "%s", symbol_name);
 
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;

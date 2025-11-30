@@ -278,7 +278,7 @@ void BridgeGenerator::handle_parent_mq_event()
       std::memset(&args, 0, sizeof(args));
       args.pid = getpid();
       // アクセス変更: req.target.topic_name
-      safe_strncpy(args.topic_name, req.target.topic_name, MAX_TOPIC_NAME_LEN);
+      snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
 
       if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) == 0) {
         // 成功: 自分がオーナー
@@ -291,7 +291,7 @@ void BridgeGenerator::handle_parent_mq_event()
         union ioctl_get_bridge_pid_args pid_args;
         std::memset(&pid_args, 0, sizeof(pid_args));
         // アクセス変更: req.target.topic_name
-        safe_strncpy(pid_args.topic_name, req.target.topic_name, MAX_TOPIC_NAME_LEN);
+        snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
 
         if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
           pid_t owner_pid = pid_args.ret_pid;
@@ -507,7 +507,8 @@ void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
         struct ioctl_bridge_args args;
         std::memset(&args, 0, sizeof(args));
         args.pid = getpid();
-        safe_strncpy(args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+        snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
+
         if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
           RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
         }
@@ -516,13 +517,13 @@ void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
       // 委譲先へのREMOVE通知
       union ioctl_get_bridge_pid_args pid_args;
       std::memset(&pid_args, 0, sizeof(pid_args));
-      safe_strncpy(pid_args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+      snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
 
       if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
         pid_t owner_pid = pid_args.ret_pid;
         MqMsgBridge msg = {};
         // アクセス変更: msg.target.topic_name
-        safe_strncpy(msg.target.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+        snprintf(msg.target.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
         // アクセス変更: msg.control.command
         msg.control.command = BridgeCommand::REMOVE_BRIDGE;
         // アクセス変更: msg.control.direction
