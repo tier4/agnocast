@@ -73,6 +73,7 @@ struct subscriber_info
   pid_t pid;
   uint32_t qos_depth;
   bool qos_is_transient_local;
+  bool qos_is_reliable;
   int64_t latest_received_entry_id;
   char * node_name;
   bool is_take_sub;
@@ -229,8 +230,8 @@ static struct subscriber_info * find_subscriber_info(
 
 static int insert_subscriber_info(
   struct topic_wrapper * wrapper, const char * node_name, const pid_t subscriber_pid,
-  const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_take_sub,
-  const bool ignore_local_publications, struct subscriber_info ** new_info)
+  const uint32_t qos_depth, const bool qos_is_transient_local, const bool qos_is_reliable,
+  const bool is_take_sub, const bool ignore_local_publications, struct subscriber_info ** new_info)
 {
   if (qos_depth > MAX_QOS_DEPTH) {
     dev_warn(
@@ -272,6 +273,7 @@ static int insert_subscriber_info(
   (*new_info)->pid = subscriber_pid;
   (*new_info)->qos_depth = qos_depth;
   (*new_info)->qos_is_transient_local = qos_is_transient_local;
+  (*new_info)->qos_is_reliable = qos_is_reliable;
   if (qos_is_transient_local) {
     (*new_info)->latest_received_entry_id = -1;
   } else {
@@ -781,7 +783,7 @@ int add_process(
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool is_take_sub, const bool ignore_local_publications,
+  const bool qos_is_reliable, const bool is_take_sub, const bool ignore_local_publications,
   union ioctl_add_subscriber_args * ioctl_ret)
 {
   int ret;
@@ -794,8 +796,8 @@ int add_subscriber(
 
   struct subscriber_info * sub_info;
   ret = insert_subscriber_info(
-    wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, is_take_sub,
-    ignore_local_publications, &sub_info);
+    wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, qos_is_reliable,
+    is_take_sub, ignore_local_publications, &sub_info);
   if (ret < 0) {
     return ret;
   }
@@ -1639,6 +1641,23 @@ static pid_t find_bridge_pid_by_topic(const char * topic_name, const struct ipc_
   return found_pid;
 }
 
+static int get_subscriber_qos(
+  const struct ipc_namespace * ipc_ns, struct ioctl_get_subscriber_qos_args * args)
+{
+  struct topic_wrapper * wrapper = find_topic(args->topic_name, ipc_ns);
+  if (!wrapper) return -EINVAL;
+
+  struct subscriber_info * sub = find_subscriber_info(wrapper, args->id);
+  if (!sub) return -ENOENT;
+
+  // 情報を詰める
+  args->qos.depth = sub->qos_depth;
+  args->qos.is_transient_local = sub->qos_is_transient_local;
+  args->qos.is_reliable = sub->qos_is_reliable;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1687,8 +1706,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = add_subscriber(
       topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
-      sub_args.qos_is_transient_local, sub_args.is_take_sub, sub_args.ignore_local_publications,
-      &sub_args);
+      sub_args.qos_is_transient_local, sub_args.qos_is_reliable, sub_args.is_take_sub,
+      sub_args.ignore_local_publications, &sub_args);
     kfree(combined_buf);
     if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
@@ -2019,6 +2038,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       pid_args.ret_pid = found_pid;
       if (copy_to_user((void __user *)arg, &pid_args, sizeof(pid_args))) goto return_EFAULT;
       ret = 0;
+    }
+  } else if (cmd == AGNOCAST_GET_SUBSCRIBER_QOS_CMD) {
+    struct ioctl_get_subscriber_qos_args qos_args;
+    if (copy_from_user(&qos_args, (void __user *)arg, sizeof(qos_args))) goto return_EFAULT;
+    qos_args.topic_name[MAX_TOPIC_NAME_LEN - 1] = '\0';
+    ret = get_subscriber_qos(ipc_ns, &qos_args);
+    if (ret == 0) {
+      if (copy_to_user((void __user *)arg, &qos_args, sizeof(qos_args))) goto return_EFAULT;
     }
   } else {
     goto return_EINVAL;

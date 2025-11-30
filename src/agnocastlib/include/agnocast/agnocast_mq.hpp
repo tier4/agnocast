@@ -1,5 +1,7 @@
 #pragma once
 
+#include "agnocast/agnocast_ioctl.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -14,35 +16,33 @@ struct MqMsgAgnocast
 
 enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
 
-enum class BridgeCommand : uint32_t {
-  CREATE_BRIDGE = 0,
-  REMOVE_BRIDGE = 1,
-  DELEGATE_CREATE = 2  // <--- NEW: 既存オーナーへの作成委譲用
+enum class BridgeCommand : uint32_t { CREATE_BRIDGE = 0, REMOVE_BRIDGE = 1, DELEGATE_CREATE = 2 };
+
+struct BridgeFactoryInfo
+{
+  char shared_lib_path[MAX_NAME_LENGTH];
+  char symbol_name[MAX_NAME_LENGTH];
+  uintptr_t fn_offset;
+  uintptr_t fn_offset_reverse;
 };
 
-struct QoSFlat
+struct BridgeControlInfo
 {
-  uint32_t depth;
-  uint8_t history;
-  uint8_t reliability;
-  uint8_t durability;
+  BridgeDirection direction;
+  BridgeCommand command;
 };
 
-struct BridgeArgs
+struct BridgeTargetInfo
 {
-  char topic_name[MAX_NAME_LENGTH];
-  QoSFlat qos;
+  char topic_name[MAX_TOPIC_NAME_LEN];
+  topic_local_id_t target_id;
 };
 
 struct MqMsgBridge
 {
-  char shared_lib_path[MAX_NAME_LENGTH];
-  char symbol_name[MAX_NAME_LENGTH];
-  uintptr_t fn_offset;          // 現在の方向のオフセット
-  uintptr_t fn_offset_reverse;  // 逆方向のオフセット
-  BridgeDirection direction;
-  BridgeCommand command;
-  BridgeArgs args;
+  BridgeFactoryInfo factory;
+  BridgeControlInfo control;
+  BridgeTargetInfo target;
 };
 
 }  // namespace agnocast

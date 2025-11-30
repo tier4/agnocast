@@ -78,13 +78,16 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name), options_(options)
   {
-    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-
+    // 1. 先にカーネルに登録して ID を取得する
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name(), options_.ignore_local_publications);
 
     id_ = add_subscriber_args.ret_id;
 
+    // 2. 取得した ID を使ってブリッジ生成を要求する (QoS引数は削除)
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
+
+    // 3. 以降は既存の処理
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
     auto node_base = node->get_node_base_interface();
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node_base, options);
@@ -113,7 +116,7 @@ public:
     }
     remove_mq(mq_subscription_);
 
-    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_);
+    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_, id_);
   }
 };
 

@@ -247,8 +247,10 @@ void BridgeGenerator::handle_parent_mq_event()
 {
   MqMsgBridge req;
   while (mq_receive(mq_parent_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
-    std::string unique_key = req.args.topic_name;
-    switch (req.direction) {
+    // アクセス変更: req.target.topic_name
+    std::string unique_key = req.target.topic_name;
+    // アクセス変更: req.control.direction
+    switch (req.control.direction) {
       case BridgeDirection::ROS2_TO_AGNOCAST:
         unique_key += "_R2A";
         break;
@@ -261,7 +263,8 @@ void BridgeGenerator::handle_parent_mq_event()
 
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
-    if (req.command == BridgeCommand::CREATE_BRIDGE) {
+    // アクセス変更: req.control.command
+    if (req.control.command == BridgeCommand::CREATE_BRIDGE) {
       if (active_bridges_.count(unique_key)) {
         bridge_ref_counts_[unique_key]++;
         RCLCPP_INFO(
@@ -274,7 +277,8 @@ void BridgeGenerator::handle_parent_mq_event()
       struct ioctl_bridge_args args;
       std::memset(&args, 0, sizeof(args));
       args.pid = getpid();
-      safe_strncpy(args.topic_name, req.args.topic_name, MAX_TOPIC_NAME_LEN);
+      // アクセス変更: req.target.topic_name
+      safe_strncpy(args.topic_name, req.target.topic_name, MAX_TOPIC_NAME_LEN);
 
       if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) == 0) {
         // 成功: 自分がオーナー
@@ -286,7 +290,8 @@ void BridgeGenerator::handle_parent_mq_event()
         // 失敗: 他へ委譲
         union ioctl_get_bridge_pid_args pid_args;
         std::memset(&pid_args, 0, sizeof(pid_args));
-        safe_strncpy(pid_args.topic_name, req.args.topic_name, MAX_TOPIC_NAME_LEN);
+        // アクセス変更: req.target.topic_name
+        safe_strncpy(pid_args.topic_name, req.target.topic_name, MAX_TOPIC_NAME_LEN);
 
         if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
           pid_t owner_pid = pid_args.ret_pid;
@@ -303,7 +308,7 @@ void BridgeGenerator::handle_parent_mq_event()
       } else {
         RCLCPP_ERROR(logger_, "Register bridge failed: %s", strerror(errno));
       }
-    } else if (req.command == BridgeCommand::REMOVE_BRIDGE) {
+    } else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
       if (active_bridges_.count(unique_key) > 0) {
         bridge_ref_counts_[unique_key]--;
         if (bridge_ref_counts_[unique_key] == 0) {
@@ -322,8 +327,10 @@ void BridgeGenerator::handle_child_mq_event()
 {
   MqMsgBridge req;
   while (mq_receive(mq_child_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
-    std::string unique_key = req.args.topic_name;
-    switch (req.direction) {
+    // アクセス変更: req.target.topic_name
+    std::string unique_key = req.target.topic_name;
+    // アクセス変更: req.control.direction
+    switch (req.control.direction) {
       case BridgeDirection::ROS2_TO_AGNOCAST:
         unique_key += "_R2A";
         break;
@@ -336,7 +343,8 @@ void BridgeGenerator::handle_child_mq_event()
 
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
-    if (req.command == BridgeCommand::DELEGATE_CREATE) {
+    // アクセス変更: req.control.command
+    if (req.control.command == BridgeCommand::DELEGATE_CREATE) {
       if (active_bridges_.count(unique_key) && active_bridges_[unique_key] != nullptr) {
         bridge_ref_counts_[unique_key]++;
         RCLCPP_INFO(
@@ -353,7 +361,7 @@ void BridgeGenerator::handle_child_mq_event()
           RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
         }
       }
-    } else if (req.command == BridgeCommand::REMOVE_BRIDGE) {
+    } else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
       if (active_bridges_.count(unique_key)) {
         if (bridge_ref_counts_[unique_key] > 0) {
           bridge_ref_counts_[unique_key]--;
@@ -402,14 +410,15 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
     void * raw_handle = nullptr;
     uintptr_t base_addr = 0;
 
-    if (std::strcmp(req.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
+    // アクセス変更: req.factory...
+    if (std::strcmp(req.factory.symbol_name, "__MAIN_EXECUTABLE__") == 0) {
       void * handle = dlopen(NULL, RTLD_NOW);
       if (handle) {
         struct link_map * map = static_cast<struct link_map *>(handle);
         base_addr = map->l_addr;
       }
     } else {
-      void * handle = dlopen(req.shared_lib_path, RTLD_NOW);
+      void * handle = dlopen(req.factory.shared_lib_path, RTLD_NOW);
       if (handle) {
         raw_handle = handle;
         struct link_map * map = static_cast<struct link_map *>(handle);
@@ -417,7 +426,7 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
       }
     }
 
-    if (base_addr != 0 || req.fn_offset != 0) {
+    if (base_addr != 0 || req.factory.fn_offset != 0) {
       // RAIIハンドルの作成
       if (raw_handle) {
         lib_handle_ptr.reset(raw_handle, [](void * h) {
@@ -425,20 +434,23 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
         });
       }
 
-      entry_func = reinterpret_cast<BridgeFn>(base_addr + req.fn_offset);
+      // アクセス変更: req.factory.fn_offset
+      entry_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset);
 
       // キャッシュへ登録
       cached_factories_[unique_key] = {entry_func, lib_handle_ptr};
 
       // 逆方向キャッシュ
-      if (req.fn_offset_reverse != 0) {
-        std::string reverse_key = req.args.topic_name;
-        if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST)
+      if (req.factory.fn_offset_reverse != 0) {
+        // アクセス変更: req.target.topic_name, req.control.direction
+        std::string reverse_key = req.target.topic_name;
+        if (req.control.direction == BridgeDirection::ROS2_TO_AGNOCAST)
           reverse_key += "_A2R";
         else
           reverse_key += "_R2A";
 
-        BridgeFn reverse_func = reinterpret_cast<BridgeFn>(base_addr + req.fn_offset_reverse);
+        BridgeFn reverse_func =
+          reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset_reverse);
         cached_factories_[reverse_key] = {reverse_func, lib_handle_ptr};
       }
     }
@@ -451,7 +463,8 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
   }
 
   try {
-    auto bridge_resource = entry_func(container_node_, req.args);
+    // アクセス変更: req.target (BridgeTargetInfo) をファクトリへ渡す
+    auto bridge_resource = entry_func(container_node_, req.target);
 
     if (bridge_resource) {
       // エイリアスコンストラクタによる寿命結合
@@ -508,11 +521,14 @@ void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
       if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
         pid_t owner_pid = pid_args.ret_pid;
         MqMsgBridge msg = {};
-        safe_strncpy(msg.args.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
-        msg.command = BridgeCommand::REMOVE_BRIDGE;
-        msg.direction = (unique_key.find("_R2A") != std::string::npos)
-                          ? BridgeDirection::ROS2_TO_AGNOCAST
-                          : BridgeDirection::AGNOCAST_TO_ROS2;
+        // アクセス変更: msg.target.topic_name
+        safe_strncpy(msg.target.topic_name, topic_name.c_str(), MAX_TOPIC_NAME_LEN);
+        // アクセス変更: msg.control.command
+        msg.control.command = BridgeCommand::REMOVE_BRIDGE;
+        // アクセス変更: msg.control.direction
+        msg.control.direction = (unique_key.find("_R2A") != std::string::npos)
+                                  ? BridgeDirection::ROS2_TO_AGNOCAST
+                                  : BridgeDirection::AGNOCAST_TO_ROS2;
         send_delegate_request(owner_pid, msg);
         RCLCPP_INFO(logger_, "Sent remove request to owner PID %d", owner_pid);
       }
@@ -534,8 +550,9 @@ void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge 
   }
 
   MqMsgBridge msg = original_req;
-  if (msg.command == BridgeCommand::CREATE_BRIDGE) {
-    msg.command = BridgeCommand::DELEGATE_CREATE;
+  // アクセス変更: msg.control.command
+  if (msg.control.command == BridgeCommand::CREATE_BRIDGE) {
+    msg.control.command = BridgeCommand::DELEGATE_CREATE;
   }
 
   if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0) {

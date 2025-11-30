@@ -72,7 +72,7 @@ private:
   // アクティブなブリッジ (key: unique_key)
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
 
-  // 参照カウンタ
+  // 参照カウンタ (今回はPID監視なしの単純カウンタ版に戻しています)
   std::map<std::string, int> bridge_ref_counts_;
 
   // 関数ポインタキャッシュ (ライブラリハンドル保持用)

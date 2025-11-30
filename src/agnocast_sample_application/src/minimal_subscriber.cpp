@@ -23,7 +23,8 @@ public:
     agnocast_options.callback_group = group;
 
     sub_dynamic_ = agnocast::create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-      this, "/my_topic", 1, std::bind(&MinimalSubscriber::callback, this, _1), agnocast_options);
+      this, "/my_topic", rclcpp::QoS(1).best_effort(),
+      std::bind(&MinimalSubscriber::callback, this, _1), agnocast_options);
   }
 };
 

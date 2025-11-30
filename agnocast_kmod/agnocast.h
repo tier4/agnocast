@@ -48,6 +48,7 @@ union ioctl_add_subscriber_args {
     struct name_info node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
+    bool qos_is_reliable;  // ★追加: 登録時に保存
     bool is_take_sub;
     bool ignore_local_publications;
   };
@@ -183,6 +184,22 @@ union ioctl_get_bridge_pid_args {
   };
 };
 
+// ★GeneratorがIDからQoSを取得するための構造体
+struct ioctl_get_subscriber_qos_args
+{
+  // IN
+  char topic_name[MAX_TOPIC_NAME_LEN];
+  topic_local_id_t id;
+
+  // OUT
+  struct
+  {
+    uint32_t depth;
+    bool is_transient_local;
+    bool is_reliable;  // ★追加
+  } qos;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -201,6 +218,8 @@ union ioctl_get_bridge_pid_args {
 #define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
 #define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
 #define AGNOCAST_GET_BRIDGE_PID_CMD _IOWR(0xA6, 18, union ioctl_get_bridge_pid_args)
+// ★新規コマンド
+#define AGNOCAST_GET_SUBSCRIBER_QOS_CMD _IOWR(0xA6, 19, struct ioctl_get_subscriber_qos_args)
 
 // ================================================
 // ros2cli ioctls
@@ -263,6 +282,7 @@ void agnocast_exit_device(void);
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
+  const bool qos_is_reliable,  // ★引数追加
   const bool is_take_sub, const bool ignore_local_publications,
   union ioctl_add_subscriber_args * ioctl_ret);
 

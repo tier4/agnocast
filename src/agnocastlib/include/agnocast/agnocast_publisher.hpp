@@ -60,15 +60,15 @@ public:
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
     options_(options)
   {
-    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
+    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
+
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       topic_name_.c_str(), qos.depth());
-
-    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
   }
 
   ~BasicPublisher()
@@ -87,7 +87,7 @@ public:
       }
     }
 
-    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_);
+    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_, id_);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()
