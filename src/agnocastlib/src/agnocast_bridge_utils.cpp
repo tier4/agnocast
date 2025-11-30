@@ -16,20 +16,6 @@ void safe_strncpy(char * dest, const char * src, size_t dest_size)
   dest[dest_size - 1] = '\0';
 }
 
-bool check_r2a_demand(const char * topic_name, pid_t bridge_pid)
-{
-  return check_demand_impl<union ioctl_get_ext_subscriber_num_args>(
-    AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD, topic_name, bridge_pid,
-    [](const auto & args) { return args.ret_ext_subscriber_num > 0; });
-}
-
-bool check_a2r_demand(const char * topic_name, pid_t bridge_pid)
-{
-  return check_demand_impl<union ioctl_get_ext_publisher_num_args>(
-    AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD, topic_name, bridge_pid,
-    [](const auto & args) { return args.ret_ext_publisher_num > 0; });
-}
-
 void unregister_bridge(pid_t pid, const char * topic_name)
 {
   struct ioctl_bridge_args unreg_args = {};

@@ -155,35 +155,16 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+union ioctl_get_publisher_num_args {
+  struct name_info topic_name;
+  uint32_t ret_publisher_num;
+};
+
 struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
   pid_t ret_pid;
 };
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_get_ext_subscriber_num_args {
-  struct
-  {
-    struct name_info topic_name;
-    pid_t exclude_pid;
-  };
-  uint32_t ret_ext_subscriber_num;
-};
-#pragma GCC diagnostic pop
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-union ioctl_get_ext_publisher_num_args {
-  struct
-  {
-    struct name_info topic_name;
-    pid_t exclude_pid;
-  };
-  uint32_t ret_ext_publisher_num;
-};
-#pragma GCC diagnostic pop
 
 struct ioctl_remove_subscriber_args
 {
@@ -244,8 +225,7 @@ struct ioctl_get_subscriber_qos_args
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
-#define AGNOCAST_GET_EXT_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_ext_subscriber_num_args)
-#define AGNOCAST_GET_EXT_PUBLISHER_NUM_CMD _IOWR(0xA6, 13, union ioctl_get_ext_publisher_num_args)
+#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 12, union ioctl_get_publisher_num_args)
 #define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 14, struct ioctl_remove_subscriber_args)
 #define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 15, struct ioctl_remove_publisher_args)
 #define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
