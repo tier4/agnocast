@@ -27,6 +27,10 @@
 namespace agnocast
 {
 
+// Forward declaration
+class Node;
+
+
 extern std::mutex mmap_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
@@ -45,6 +49,11 @@ rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
   const SubscriptionOptions & options);
 
+// Overload for agnocast::Node
+rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
+  agnocast::Node * node,
+  const SubscriptionOptions & options);
+
 class SubscriptionBase
 {
 protected:
@@ -55,6 +64,7 @@ protected:
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
+  SubscriptionBase(agnocast::Node * node, const std::string & topic_name);
 };
 
 template <typename MessageT>
@@ -65,6 +75,7 @@ class Subscription : public SubscriptionBase
 public:
   using SharedPtr = std::shared_ptr<Subscription<MessageT>>;
 
+  // Constructor for rclcpp::Node (existing)
   template <typename Func>
   Subscription(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
@@ -92,6 +103,28 @@ public:
         static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
         tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_ciid);
     }
+  }
+
+  // Constructor for agnocast::Node (new)
+  template <typename Func>
+  Subscription(
+    agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    agnocast::SubscriptionOptions options)
+  : SubscriptionBase(node, topic_name)
+  {
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, false, node->get_fully_qualified_name());
+
+    id_ = add_subscriber_args.ret_id;
+
+    mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
+
+    const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+    [[maybe_unused]] uint32_t callback_info_id = agnocast::register_callback<MessageT>(
+      std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
+
+    // Note: TRACEPOINT skipped for agnocast::Node (no get_shared_rcl_node_handle)
   }
 
   ~Subscription() { remove_mq(mq_subscription_); }

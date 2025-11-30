@@ -1,0 +1,15 @@
+<launch>
+    <!-- Test 4: Namespace resolution -->
+
+    <node pkg="agnocast_sample_application" exec="talker" name="talker_node" output="screen"
+          namespace="/test_namespace">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="67108864" />  <!-- 64MB-->
+    </node>
+
+    <node pkg="agnocast_sample_application" exec="listener_standalone" name="listener_node" output="screen"
+          namespace="/test_namespace">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="16777216" />  <!-- 16MB-->
+    </node>
+</launch>

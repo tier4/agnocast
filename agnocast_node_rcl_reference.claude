@@ -1,0 +1,300 @@
+# AgnocastのNode実装に対応するROS2ソースコード
+
+このドキュメントは、`src/agnocastlib/include/agnocast/agnocast_node.hpp` と
+`src/agnocastlib/src/agnocast_node.cpp` に実装されている各関数が、
+ROS2のどのソースコードに対応しているかをまとめたものです。
+
+## 概要
+
+AgnocastのNodeクラスは、rclcpp::Nodeを利用せずにROS2のノード機能を提供するための
+軽量実装です。DDS participantを作成せず、必要最小限の機能（トピック名解決、
+パラメータ取得、引数解析）のみを提供します。
+
+## 対応するROS2レイヤー構造
+
+1. **rclcpp層** (`rclcpp/src/rclcpp/`) - C++のノードインターフェース
+2. **rcl層** (`rcl/src/rcl/`) - C言語のコア実装
+3. **rcl_yaml_param_parser層** - パラメータ値の型推論
+
+---
+
+## 関数別対応表
+
+### 1. コンストラクタ
+
+#### `Node::Node(int argc, char * argv[], const std::string & default_node_name, const std::string & default_namespace)`
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:10-21
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node.cpp` の `Node` コンストラクタ
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_base.cpp:34-137`
+  - `NodeBase` コンストラクタ
+  - namespace の正規化処理（'/'で始まるように）
+- **rcl**: `rcl/src/rcl/node.c` の `rcl_node_init()`
+
+**実装の特徴**:
+- Agnocastでは`rcl_node_init()`を呼ばず、軽量に名前とnamespaceのみを保持
+- namespace の正規化ロジック（16-18行目）はrclcppと同様
+
+---
+
+#### `Node::Node(const std::string & node_name, const std::string & namespace_)`
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:23-30
+
+**対応するROS2コード**:
+- 同上（引数解析なしのシンプル版）
+
+---
+
+### 2. ゲッターメソッド
+
+#### `Node::get_name() const`
+**実装場所**: src/agnocastlib/include/agnocast/agnocast_node.hpp:49
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node.cpp:287-291`
+  - `Node::get_name()` → `node_base_->get_name()` を呼び出し
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_base.cpp:149-152`
+  - `NodeBase::get_name()` → `rcl_node_get_name()` を呼び出し
+- **rcl**: `rcl/src/rcl/node.c:435-441`
+  - `rcl_node_get_name()` → `node->impl->rmw_node_handle->name` を返す
+
+**実装の特徴**:
+- Agnocastでは直接メンバ変数 `node_name_` を返す
+
+---
+
+#### `Node::get_namespace() const`
+**実装場所**: src/agnocastlib/include/agnocast/agnocast_node.hpp:55
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node.cpp:283-287`
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_base.cpp:154-158`
+  - `NodeBase::get_namespace()` → `rcl_node_get_namespace()` を呼び出し
+- **rcl**: `rcl/src/rcl/node.c:444-450`
+  - `rcl_node_get_namespace()` → `node->impl->rmw_node_handle->namespace_` を返す
+
+**実装の特徴**:
+- Agnocastでは直接メンバ変数 `namespace_` を返す
+
+---
+
+#### `Node::get_fully_qualified_name() const`
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:32-38
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node.cpp:294-296`
+  - `Node::get_fully_qualified_name()` → `node_base_->get_fully_qualified_name()` を呼び出し
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_base.cpp:161-164`
+  - `NodeBase::get_fully_qualified_name()` → `rcl_node_get_fully_qualified_name()` を呼び出し
+- **rcl**: `rcl/src/rcl/node.c:453-459`
+  - `rcl_node_get_fully_qualified_name()` → `node->impl->fq_name` を返す
+
+**実装の特徴**:
+- Agnocastでは namespace と node_name から手動で構築（34-37行目）
+- namespace が "/" の場合の特別処理あり
+
+---
+
+### 3. トピック名解決
+
+#### `Node::resolve_topic_name(const std::string & topic_name) const`
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:40-67
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_topics.cpp:144-148`
+  - `NodeTopics::resolve_topic_name()` → `node_base_->resolve_topic_or_service_name()` を呼び出し
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_base.cpp:268-286`
+  - `NodeBase::resolve_topic_or_service_name()` → `rcl_node_resolve_name()` を呼び出し
+- **rcl**: `rcl/src/rcl/node_resolve_name.c:134-162`
+  - `rcl_node_resolve_name()` → 内部的に `rcl_resolve_name()` (32-131行目) を呼び出し
+  - 67-76行目: `rcl_expand_topic_name()` でトピック名を展開
+  - 78-86行目: `rcl_remap_name()` でリマッピングを適用
+- **rcl**: `rcl/src/rcl/expand_topic_name.c:44-219`
+  - `rcl_expand_topic_name()` - トピック名展開のメイン処理
+  - 98-125行目: プライベートトピック (`~`) の処理
+    - namespace/node_name を prefix として追加
+  - 196-215行目: 相対名を絶対名に変換
+    - namespace を prefix として追加
+
+**実装の特徴**:
+- Agnocastの実装（40-67行目）は `rcl_expand_topic_name()` のロジックを簡略化
+- プライベートトピック処理（48-51行目）: `~` を fully qualified name に置換
+- 相対トピック処理（53-59行目）: namespace を prefix として追加
+- 絶対トピック: そのまま使用
+- 最後にリマッピングを適用（64行目）
+
+---
+
+#### `Node::apply_remapping(const std::string & topic_name) const` (private)
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:69-76
+
+**対応するROS2コード**:
+- **rcl**: `rcl/src/rcl/node_resolve_name.c:79-86`
+  - `rcl_remap_name()` の呼び出し
+- **rcl**: `rcl/src/rcl/remap.c:167-177`
+  - `rcl_remap_name()` - リマッピング適用のメイン処理
+  - local_arguments と global_arguments からマッチするルールを検索
+- **rcl**: `rcl/src/rcl/remap.c:99-162`
+  - `rcl_remap_first_match()` - 最初にマッチするルールを検索
+
+**実装の特徴**:
+- Agnocastでは単純なマップ検索（71-74行目）
+- ROS2のような複雑なマッチングロジック（ノード名プレフィックスなど）は未実装
+
+---
+
+### 4. パラメータ取得
+
+#### `Node::get_parameter(const std::string & name, bool & value) const`
+#### `Node::get_parameter(const std::string & name, int64_t & value) const`
+#### `Node::get_parameter(const std::string & name, double & value) const`
+#### `Node::get_parameter(const std::string & name, std::string & value) const`
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:175-229
+
+**対応するROS2コード**:
+- **rclcpp**: `rclcpp/src/rclcpp/node.cpp`
+  - `Node::get_parameter()` オーバーロード群 → `node_parameters_->get_parameter()` を呼び出し
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp:829-845`
+  - `NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter)`
+  - 833-844行目: パラメータマップから値を検索
+  - 存在しない場合は false を返すか、例外をスロー（allow_undeclared_ フラグによる）
+- **rclcpp**: `rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp:808-826`
+  - `NodeParameters::get_parameter(const std::string & name)` - Parameter オブジェクトを返すバージョン
+
+**実装の特徴**:
+- Agnocastでは型ごとに個別の関数（175-229行目）
+- std::variant を使用して型安全性を確保
+- std::get_if で型チェックを実施（182-186行目など）
+- パラメータが存在しない、または型が一致しない場合は false を返す
+
+---
+
+### 5. ROS引数解析
+
+#### `Node::parse_ros_args(int argc, char * argv[])` (private)
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:78-139
+
+**対応するROS2コード**:
+- **rcl**: `rcl/src/rcl/arguments.c:248-252`
+  - `rcl_parse_arguments()` - ROS引数解析のエントリーポイント
+  - 317-428行目: メイン解析ループ
+  - 318-329行目: `--ros-args` フラグの検出と終了トークン `--` の処理
+  - 332-341行目: `-p` / `--param` フラグの処理
+    - `_rcl_parse_param_rule()` を呼び出し
+  - 395-415行目: `-r` / `--remap` フラグの処理
+    - `_rcl_parse_remap_rule()` を呼び出し
+- **rcl**: `rcl/src/rcl/arguments.c:1827-1873`
+  - `_rcl_parse_remap_rule()` - リマッピングルールの解析
+  - `__ns` と `__node` の特別なリマッピングを処理
+
+**実装の特徴**:
+- Agnocastの実装（78-139行目）は rcl の簡略版
+- `--ros-args` の検出（85-92行目）
+- 終了トークン `--` の処理（95-97行目）
+- `-r` によるリマッピング解析（100-123行目）
+  - `__ns` (109-115行目): namespace のリマッピング
+  - `__node` (115-117行目): ノード名のリマッピング
+  - その他（118-120行目): トピックリマッピング
+- `-p` によるパラメータ解析（126-137行目）
+
+---
+
+#### `Node::parse_parameter_value(const std::string & value_str) const` (private)
+**実装場所**: src/agnocastlib/src/agnocast_node.cpp:141-173
+
+**対応するROS2コード**:
+- **rcl**: `rcl/src/rcl/arguments.c:1876-1950`
+  - `_rcl_parse_param_rule()` - パラメータルールの解析
+  - 1933-1937行目: `rcl_parse_yaml_value()` を呼び出してYAML値として解析
+- **rcl_yaml_param_parser**: `rcl/rcl_yaml_param_parser/src/parser.c`
+  - `rcl_parse_yaml_value()` - YAML形式の値を解析
+  - bool、integer、double、string の型推論を実施
+
+**実装の特徴**:
+- Agnocastでは独自の型推論ロジックを実装（141-173行目）
+- bool の検出（144-149行目）: "true", "True", "TRUE", "false", "False", "FALSE"
+- integer の検出（152-159行目）: `std::stoll()` で変換試行
+- double の検出（162-168行目）: `std::stod()` で変換試行
+- デフォルトは string（172行目）
+- ROS2のYAMLパーサーより単純だが、基本的な型推論は同等
+
+---
+
+## 必要な追加パッケージ
+
+現在のrclcpp/rclに加えて、以下のパッケージも参照されています：
+
+### rcl_yaml_param_parser
+**場所**: `rcl/rcl_yaml_param_parser/`
+
+**主要ファイル**:
+- `include/rcl_yaml_param_parser/parser.h`
+- `src/parser.c`
+
+**機能**:
+- パラメータ値の型推論とYAMLパース処理
+- `rcl_parse_yaml_value()` 関数
+- bool、integer、double、string の自動判別
+
+---
+
+## まとめ
+
+### Agnocastの設計思想
+
+AgnocastのNodeクラスは、以下の方針で実装されています：
+
+1. **軽量性**: DDS participantを作成せず、必要最小限の機能のみ提供
+2. **独立性**: rclcpp::Node に依存せず、独自のクラスとして実装
+3. **互換性**: ROS2と同様のAPI（get_parameter、resolve_topic_name）を提供
+
+### ROS2との対応関係
+
+各関数は主に以下のROS2実装を参考にしています：
+
+| 機能 | 主な参照先 |
+|------|-----------|
+| トピック名解決 | `rcl/src/rcl/expand_topic_name.c`<br>`rcl/src/rcl/node_resolve_name.c` |
+| 引数解析 | `rcl/src/rcl/arguments.c` |
+| リマッピング | `rcl/src/rcl/remap.c` |
+| パラメータ取得 | `rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp` |
+| 型推論 | `rcl/rcl_yaml_param_parser/src/parser.c` |
+
+### 実装の簡略化
+
+Agnocastでは以下の機能を簡略化しています：
+
+1. **リマッピング**: 単純なマップ検索のみ（ノード名プレフィックスマッチングなし）
+2. **パラメータ**: 基本的な型のみサポート（配列や構造体なし）
+3. **検証**: トピック名やパラメータ名の検証を省略
+4. **置換**: トピック名の置換機能（`{node}`, `{ns}`など）は未実装
+
+これにより、DDS不要で動作する軽量なノード実装を実現しています。
+
+---
+
+## ファイル対応早見表
+
+### Agnocast実装
+- `src/agnocastlib/include/agnocast/agnocast_node.hpp` (ヘッダー)
+- `src/agnocastlib/src/agnocast_node.cpp` (実装)
+
+### ROS2対応ファイル
+
+#### rclcpp層
+- `rclcpp/src/rclcpp/node.cpp`
+- `rclcpp/src/rclcpp/node_interfaces/node_base.cpp`
+- `rclcpp/src/rclcpp/node_interfaces/node_topics.cpp`
+- `rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp`
+
+#### rcl層
+- `rcl/src/rcl/node.c`
+- `rcl/src/rcl/node_resolve_name.c`
+- `rcl/src/rcl/expand_topic_name.c`
+- `rcl/src/rcl/remap.c`
+- `rcl/src/rcl/arguments.c`
+
+#### パーサー層
+- `rcl/rcl_yaml_param_parser/include/rcl_yaml_param_parser/parser.h`
+- `rcl/rcl_yaml_param_parser/src/parser.c`

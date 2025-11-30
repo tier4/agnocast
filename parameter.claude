@@ -1,0 +1,610 @@
+# ROS 2 パラメータ渡しの仕組み
+
+## 1. Node API vs NodeInterface API
+
+### 1.1 resolve_topic_name の位置づけ
+
+**重要**: `resolve_topic_name` は Node の直接的な API ではなく、**NodeTopicsInterface の API**
+
+#### ROS 2 (rclcpp) の正しい使い方:
+```cpp
+// NodeTopicsInterface 経由でアクセス
+this->get_node_topics_interface()->resolve_topic_name(topic_name, false);
+```
+
+#### Autoware.universe での実際の使用例:
+`/home/koichi/Agnocast/autoware_universe/perception/autoware_bytetrack/src/bytetrack_visualizer_node.cpp:74-76`
+```cpp
+auto ResolveTopicName = [this](const std::string & query) {
+  return this->get_node_topics_interface()->resolve_topic_name(query, false);
+};
+```
+
+#### Agnocast の実装 (ROS 2 とは異なる):
+`src/agnocastlib/include/agnocast/agnocast_node.hpp:102`
+```cpp
+// Agnocast では Node クラスに直接実装
+std::string resolve_topic_name(const std::string & topic_name) const;
+```
+
+### 1.2 NodeTopicsInterface の API 一覧
+
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp/include/rclcpp/node_interfaces/node_topics_interface.hpp`
+
+#### Publisher/Subscription 管理:
+- `create_publisher(topic_name, publisher_factory, qos)` - パブリッシャーの作成
+- `add_publisher(publisher, callback_group)` - パブリッシャーをノードに追加
+- `create_subscription(topic_name, subscription_factory, qos)` - サブスクリプションの作成
+- `add_subscription(subscription, callback_group)` - サブスクリプションをノードに追加
+
+#### Interface 取得:
+- `get_node_base_interface()` - NodeBaseInterface の取得
+- `get_node_timers_interface()` - NodeTimersInterface の取得
+
+#### トピック名解決:
+- `resolve_topic_name(name, only_expand = false)` - トピック名のリマッピングと展開
+
+**注意**: `create_publisher`/`create_subscription` は内部実装で、ユーザーは Node の wrapper API を使う:
+```cpp
+// ユーザーが使う API (Node クラス)
+auto pub = node->create_publisher<MsgT>("topic", 10);
+
+// 内部では NodeTopicsInterface を呼び出している
+node_topics_interface->create_publisher(...)
+```
+
+---
+
+## 2. Autoware.universe におけるパラメータ渡しの実態
+
+### 2.1 調査結果サマリー
+
+#### 統計:
+- **main 関数の総数**: 89
+- **argc/argv を使用**: 86 件（96.6%）
+- **実際に CLI パラメータ解析**: **わずか 4 件（4.5%）**
+
+#### パターン分類:
+
+**1. ROS 2 標準初期化のみ（27+ 件）**
+```cpp
+int main(int argc, char** argv) {
+  rclcpp::init(argc, argv);  // ROS 2 の初期化
+  // ...
+}
+```
+
+**2. getopt による CLI 引数解析（4 件のみ）**
+- `system/autoware_bluetooth_monitor/service/main.cpp` - ポート設定
+- `system/autoware_system_monitor/reader/hdd_reader/hdd_reader.cpp` - ソケットパス
+- `system/autoware_system_monitor/reader/msr_reader/msr_reader.cpp` - ソケットパス
+- `system/autoware_system_monitor/reader/traffic_reader/traffic_reader_main.cpp` - トラフィック監視
+
+すべて **システムモニタリングツール**で、通常の ROS ノードではない。
+
+**3. NodeOptions での --ros-args 指定（テストコード）**
+```cpp
+node_options.arguments({
+  "--ros-args", "--params-file", "path/to/config.yaml"
+});
+auto node = std::make_shared<MyNode>(node_options);
+```
+
+### 2.2 Autoware のパラメータ管理方法
+
+- **主流**: YAML 設定ファイル（launch ファイル経由）
+- **副次**: NodeOptions での `--ros-args` 指定（主にテスト）
+- **稀**: 直接的な CLI 引数解析（システムツールのみ）
+
+**結論**: autoware.universe では main 関数引数を通した直接的なパラメータ渡しはほとんど行われていない。
+
+---
+
+## 3. ROS 2 パラメータ渡しの仕組み
+
+### 3.1 NodeOptions.arguments() の動作
+
+#### NodeOptions は main 関数の引数ではない！
+
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp/src/rclcpp/node_options.cpp:105-125`
+```cpp
+rclcpp::NodeOptions create_node_options(...) {
+  // 1. arguments_ ベクトルから argc/argv 形式に変換
+  int c_argc = static_cast<int>(this->arguments_.size());
+  c_argv.reset(new const char *[c_argc]);
+
+  for (std::size_t i = 0; i < this->arguments_.size(); ++i) {
+    c_argv[i] = this->arguments_[i].c_str();
+  }
+
+  // 2. rcl_parse_arguments を呼び出して ROS 引数を解析
+  rcl_ret_t ret = rcl_parse_arguments(
+    c_argc, c_argv.get(), this->allocator_, &(node_options_->arguments));
+}
+```
+
+**重要ポイント**:
+- `NodeOptions.arguments()` で設定された文字列のベクトルを保存
+- `get_rcl_node_options()` が呼ばれたときに、その文字列ベクトルを `argc/argv` 形式に変換
+- `rcl_parse_arguments()` を呼び出して ROS 引数を解析
+- **これは main 関数の引数ではなく、プログラム内で作成した "疑似的な argc/argv"**
+
+### 3.2 通常の Node (実行可能ファイル) の場合
+
+#### パターン: Launch ファイル → コマンドライン引数 → main 関数
+
+**Launch ファイル例**:
+`/home/koichi/Agnocast/autoware_universe/simulator/autoware_simple_planning_simulator/launch/simple_planning_simulator.launch.py:89-100`
+```python
+simple_planning_simulator_node = Node(
+    package="autoware_simple_planning_simulator",
+    executable="autoware_simple_planning_simulator_node",  # 実行可能ファイル
+    namespace="simulation",
+    parameters=[  # パラメータを指定
+        vehicle_info_param,
+        vehicle_characteristics_param,
+        {"initial_engage_state": LaunchConfiguration("initial_engage_state")},
+    ],
+)
+```
+
+#### 実際の動作:
+
+1. **Launch システムがコマンドライン引数に変換**
+   ```bash
+   # Launch システムが以下のようなコマンドを実行
+   /path/to/autoware_simple_planning_simulator_node \
+     --ros-args --params-file /tmp/params_XXXX.yaml
+   # または
+   /path/to/my_node --ros-args -p param1:=value1 -p param2:=value2
+   ```
+
+2. **main 関数が argc/argv として受け取る**
+   ```cpp
+   int main(int argc, char** argv) {  // ← ここで --ros-args が渡される
+       rclcpp::init(argc, argv);      // ← ROS 引数を解析
+   }
+   ```
+
+### 3.3 ComposableNode の場合
+
+#### パターン: Launch ファイル → ROS サービス → NodeOptions
+
+**Launch ファイル例**:
+`/home/koichi/Agnocast/autoware_universe/control/autoware_external_cmd_selector/launch/external_cmd_selector.launch.py:31-73`
+```python
+# YAML ファイルを読み込み
+with open(LaunchConfiguration("external_cmd_selector_param_path").perform(context), "r") as f:
+    external_cmd_selector_param = yaml.safe_load(f)["/**"]["ros__parameters"]
+
+# ComposableNode に直接渡す
+component = ComposableNode(
+    package="autoware_external_cmd_selector",
+    plugin="autoware::external_cmd_selector::ExternalCmdSelector",
+    name="external_cmd_selector",
+    parameters=[
+        external_cmd_selector_param,  # ← ここで直接渡す
+    ],
+)
+
+loader = LoadComposableNodes(
+    composable_node_descriptions=[component],
+    target_container=LaunchConfiguration("target_container"),
+)
+```
+
+#### 完全な流れ:
+
+```
+Launch ファイル
+  ↓ (parameters 指定)
+LoadComposableNodes アクション
+  ↓ (ROS サービスコール: LoadNode)
+component_container プロセス (main 関数あり)
+  ↓ (on_load_node サービスハンドラ)
+create_node_options() で NodeOptions 作成
+  ↓ (parameter_overrides と arguments を設定)
+factory->create_node_instance(options)
+  ↓
+コンポーネントコンストラクタ(NodeOptions)
+  ↓
+Node 初期化時にパラメータが適用される
+```
+
+#### 実装詳細:
+
+**component_container のサービスハンドラ**:
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp_components/src/component_manager.cpp:240-255`
+```cpp
+void ComponentManager::on_load_node(request, response) {
+  auto options = create_node_options(request);  // NodeOptions を作成
+  auto node_id = unique_id_++;
+
+  // 共有ライブラリをロードしてインスタンス化
+  node_wrappers_[node_id] = factory->create_node_instance(options);
+}
+```
+
+**NodeOptions の作成**:
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp_components/src/component_manager.cpp:141-194`
+```cpp
+rclcpp::NodeOptions ComponentManager::create_node_options(
+  const std::shared_ptr<LoadNode::Request> request)
+{
+  // 1. リクエストからパラメータを取得して rclcpp::Parameter に変換
+  std::vector<rclcpp::Parameter> parameters;
+  for (const auto & p : request->parameters) {
+    parameters.push_back(rclcpp::Parameter::from_parameter_msg(p));
+  }
+
+  // 2. リマップルールを --ros-args 形式に変換
+  std::vector<std::string> remap_rules;
+  remap_rules.push_back("--ros-args");
+  for (const std::string & rule : request->remap_rules) {
+    remap_rules.push_back("-r");
+    remap_rules.push_back(rule);
+  }
+
+  // 3. NodeOptions を構築
+  auto options = rclcpp::NodeOptions()
+    .use_global_arguments(false)
+    .parameter_overrides(parameters)  // ← パラメータをここで設定！
+    .arguments(remap_rules);          // ← リマップルールをここで設定！
+
+  return options;
+}
+```
+
+**コンポーネントのコンストラクタ**:
+```cpp
+class MyComponent : public rclcpp::Node {
+public:
+  MyComponent(const rclcpp::NodeOptions& options)
+    : Node("my_node", options)  // ← NodeOptions を受け取る
+  {
+    // NodeOptions 内の parameter_overrides が適用される
+    int param = this->declare_parameter("my_param", 10);
+  }
+};
+```
+
+---
+
+## 4. ComposableNode の EXECUTABLE オプション
+
+### 4.1 ComposableNode は両方の方法で実行できる
+
+#### CMakeLists.txt での定義:
+```cmake
+ament_auto_add_library(${PROJECT_NAME}_node SHARED
+  src/my_component.cpp
+)
+
+rclcpp_components_register_node(${PROJECT_NAME}_node
+  PLUGIN "my_namespace::MyComponent"
+  EXECUTABLE my_component_node  # ← 実行可能ファイルも作成！
+)
+```
+
+これにより：
+1. **共有ライブラリ** (.so) が作成される → container にロードできる
+2. **実行可能ファイル** (my_component_node) が作成される → 単独で起動できる
+
+### 4.2 自動生成される main 関数
+
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp_components/src/node_main.cpp.in:26-55`
+```cpp
+int main(int argc, char * argv[])  // ← main 関数がある！
+{
+  auto args = rclcpp::init_and_remove_ros_arguments(argc, argv);  // ← argc/argv を解析
+  rclcpp::Logger logger = rclcpp::get_logger(NODE_MAIN_LOGGER_NAME);
+  rclcpp::executors::@executor@ exec;
+  rclcpp::NodeOptions options;
+  options.arguments(args);  // ← 解析した引数を NodeOptions に設定
+
+  std::string library_name = "@library_name@";
+  std::string class_name = "rclcpp_components::NodeFactoryTemplate<@component@>";
+
+  // 共有ライブラリをロード
+  auto loader = new class_loader::ClassLoader(library_name);
+  auto node_factory = loader->createInstance<rclcpp_components::NodeFactory>(class_name);
+
+  // NodeOptions でインスタンス化
+  auto wrapper = node_factory->create_node_instance(options);
+  auto node = wrapper.get_node_base_interface();
+
+  exec.add_node(node);
+  exec.spin();
+
+  rclcpp::shutdown();
+  return 0;
+}
+```
+
+### 4.3 CMake による自動生成の仕組み
+
+`/home/koichi/Agnocast/agnocast/rclcpp/rclcpp_components/cmake/rclcpp_components_register_node.cmake:68-72`
+```cmake
+configure_file(${rclcpp_components_NODE_TEMPLATE}
+  ${PROJECT_BINARY_DIR}/rclcpp_components/node_main_configured_${node}.cpp.in)
+file(GENERATE OUTPUT ${PROJECT_BINARY_DIR}/rclcpp_components/node_main_${node}.cpp
+  INPUT ${PROJECT_BINARY_DIR}/rclcpp_components/node_main_configured_${node}.cpp.in)
+add_executable(${node} ${PROJECT_BINARY_DIR}/rclcpp_components/node_main_${node}.cpp)
+```
+
+---
+
+## 5. パラメータ渡しの完全な整理
+
+### 5.1 起動方法による違い
+
+| 起動方法 | main 関数 | パラメータの渡し方 | Launch での指定 |
+|---------|----------|------------------|----------------|
+| **通常の実行可能ファイル** | ✅ あり | **argc/argv**<br>Launch → コマンドライン引数 → main | `Node(parameters=[...])` |
+| **ComposableNode (EXECUTABLE)** | ✅ あり (自動生成) | **argc/argv**<br>Launch → コマンドライン引数 → main | `Node(parameters=[...])` |
+| **ComposableNode (container)** | ❌ なし | **ROS サービス**<br>Launch → LoadNode サービス → NodeOptions | `ComposableNode(parameters=[...])` |
+| **テストコード** | ✅ あり | **NodeOptions.arguments()**<br>コード内で明示的に設定 | - |
+
+### 5.2 各方法の特徴
+
+#### 通常の実行可能ファイル:
+```cpp
+// main.cpp
+int main(int argc, char** argv) {
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<MyNode>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
+}
+```
+- **パラメータ**: コマンドライン引数として渡される
+- **メリット**: シンプル、デバッグしやすい
+- **デメリット**: プロセスごとにオーバーヘッドがある
+
+#### ComposableNode (EXECUTABLE で単独起動):
+```bash
+ros2 run my_package my_component_node --ros-args -p param:=value
+```
+- **パラメータ**: コマンドライン引数として渡される
+- **main 関数**: 自動生成される
+- **メリット**: 開発時は単独実行、本番は container にロード可能
+- **デメリット**: 実行ファイルが自動生成されるため、カスタマイズしにくい
+
+#### ComposableNode (container にロード):
+```python
+LoadComposableNodes(
+    composable_node_descriptions=[
+        ComposableNode(
+            package="my_package",
+            plugin="MyComponent",
+            parameters=[...],
+        )
+    ],
+    target_container="/my_container",
+)
+```
+- **パラメータ**: ROS サービス経由で渡される
+- **main 関数**: なし (container のプロセスを共有)
+- **メリット**: プロセスオーバーヘッドが少ない、プロセス内通信が高速
+- **デメリット**: デバッグがやや複雑、container のクラッシュで全コンポーネントが落ちる
+
+#### テストコード:
+```cpp
+auto node_options = rclcpp::NodeOptions{};
+node_options.arguments({
+  "--ros-args", "--params-file", "path/to/config.yaml"
+});
+auto node = std::make_shared<MyNode>(node_options);
+```
+- **パラメータ**: NodeOptions.arguments() で設定
+- **main の argc/argv**: ROS 初期化に使われるが、ノード固有のパラメータは NodeOptions で設定
+- **メリット**: テスト内で完結、外部ファイル不要
+- **デメリット**: テスト専用の方法
+
+---
+
+## 6. Launch XML でのパラメータ指定方法
+
+### 6.1 ROS 2 Launch XML の標準的な書き方
+
+Launch ファイルから実行可能ファイルにパラメータを渡す方法は複数ありますが、推奨される方法があります。
+
+#### ✅ 推奨される方法 1: `<param>` タグで個別指定
+
+Autoware.universe の例:
+`/home/koichi/Agnocast/autoware_universe/localization/autoware_pose_estimator_arbiter/launch/pose_estimator_arbiter.launch.xml:6-7`
+```xml
+<node pkg="autoware_pose_estimator_arbiter" exec="autoware_pose_estimator_arbiter_node" output="both">
+  <param name="pose_sources" value="$(var pose_sources)"/>
+  <remap from="~/input/ndt/pointcloud" to="$(var input_pointcloud)"/>
+</node>
+```
+
+#### ✅ 推奨される方法 2: `<param from>` で YAML ファイルから読み込み
+
+Autoware.universe の例:
+`/home/koichi/Agnocast/autoware_universe/control/autoware_vehicle_cmd_gate/launch/vehicle_cmd_gate.launch.xml:46-47`
+```xml
+<node pkg="autoware_vehicle_cmd_gate" exec="vehicle_cmd_gate_exe" name="vehicle_cmd_gate" output="screen">
+  <param from="$(var config_file)" allow_substs="true"/>
+  <param from="$(var vehicle_info_param_file)"/>
+</node>
+```
+
+#### ❌ 非推奨の方法: `args` 属性で明示的に `--ros-args` を指定
+
+現在の Agnocast の実装:
+`src/agnocast_sample_application/launch/test_parameters.launch.xml:4-5`
+```xml
+<node pkg="agnocast_sample_application" exec="talker" name="talker_node" output="screen"
+      args="--ros-args -p publish_rate:=5.0 -p message_size:=512000 -p topic_name:=my_topic">
+</node>
+```
+
+### 6.2 内部動作の仕組み
+
+**重要**: どちらの方法も、最終的には同じ結果になります。
+
+Launch システムの内部動作:
+1. `<param>` タグを見つける
+2. 自動的に `--ros-args -p param_name:=value` という形式のコマンドライン引数に変換
+3. 実行可能ファイルを起動する際に、その引数を main 関数の argc/argv として渡す
+
+つまり：
+```xml
+<!-- この記述 -->
+<node pkg="my_package" exec="my_node">
+  <param name="my_param" value="123"/>
+</node>
+
+<!-- 内部的には以下のコマンドに変換される -->
+<!-- /path/to/my_node --ros-args -p my_param:=123 -->
+```
+
+### 6.3 Agnocast の launch ファイル改善案
+
+#### 現在の実装 (test_parameters.launch.xml):
+```xml
+<launch>
+    <node pkg="agnocast_sample_application" exec="talker" name="talker_node" output="screen"
+          args="--ros-args -p publish_rate:=5.0 -p message_size:=512000 -p topic_name:=my_topic">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="67108864" />
+    </node>
+
+    <node pkg="agnocast_sample_application" exec="listener_standalone" name="listener_node" output="screen"
+          args="--ros-args -p topic_name:=my_topic">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="16777216" />
+    </node>
+</launch>
+```
+
+#### 推奨される書き方 (個別パラメータ):
+```xml
+<launch>
+    <node pkg="agnocast_sample_application" exec="talker" name="talker_node" output="screen">
+        <param name="publish_rate" value="5.0"/>
+        <param name="message_size" value="512000"/>
+        <param name="topic_name" value="my_topic"/>
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="67108864" />
+    </node>
+
+    <node pkg="agnocast_sample_application" exec="listener_standalone" name="listener_node" output="screen">
+        <param name="topic_name" value="my_topic"/>
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="16777216" />
+    </node>
+</launch>
+```
+
+#### 推奨される書き方 (YAML ファイル使用):
+```xml
+<launch>
+    <node pkg="agnocast_sample_application" exec="talker" name="talker_node" output="screen">
+        <param from="$(find-pkg-share agnocast_sample_application)/config/talker_params.yaml"/>
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="67108864" />
+    </node>
+
+    <node pkg="agnocast_sample_application" exec="listener_standalone" name="listener_node" output="screen">
+        <param from="$(find-pkg-share agnocast_sample_application)/config/listener_params.yaml"/>
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <env name="AGNOCAST_MEMPOOL_SIZE" value="16777216" />
+    </node>
+</launch>
+```
+
+対応する YAML ファイル例 (`config/talker_params.yaml`):
+```yaml
+/**:
+  ros__parameters:
+    publish_rate: 5.0
+    message_size: 512000
+    topic_name: "my_topic"
+```
+
+### 6.4 `<param>` タグを使うべき理由
+
+1. **可読性が高い**
+   - パラメータが一目で分かる
+   - インデントで構造が明確
+
+2. **メンテナンスしやすい**
+   - パラメータの追加・削除が容易
+   - 型の指定が明確（value 属性で自動推論される）
+
+3. **ROS 2 の標準的な方法**
+   - 公式ドキュメントで推奨
+   - Autoware.universe などの大規模プロジェクトで使用
+
+4. **YAML ファイルとの統合が容易**
+   - 複雑なパラメータセットを外部ファイルに分離できる
+   - 環境ごとに異なる設定ファイルを切り替えやすい
+
+5. **エラー検出が容易**
+   - Launch システムがパラメータの構文エラーを検出
+   - `args` 属性では文字列として扱われるため、エラーが検出されにくい
+
+### 6.5 両方の方法の比較
+
+| 項目 | `<param>` タグ | `args="--ros-args"` |
+|-----|---------------|-------------------|
+| **可読性** | ✅ 高い | ❌ 低い (長い文字列) |
+| **メンテナンス性** | ✅ 容易 | ❌ 困難 (引用符のエスケープなど) |
+| **型の扱い** | ✅ 自動推論 | ⚠️ 文字列として扱われる |
+| **YAML 統合** | ✅ 容易 | ❌ 不可能 |
+| **エラー検出** | ✅ Launch 時に検出 | ⚠️ 実行時まで検出されない |
+| **ROS 2 標準** | ✅ 推奨 | ⚠️ 非推奨 |
+| **内部動作** | 自動的に `--ros-args` に変換 | 直接 `--ros-args` を指定 |
+| **最終結果** | ✅ 同じ | ✅ 同じ |
+
+---
+
+## 7. 重要な結論
+
+### 7.1 質問への回答
+
+**Q: ComposableNode の場合はサービス経由、単体の実行ファイルのときには main 関数引数という理解で正しいか？**
+
+✅ **基本的には正しい**が、重要な補足がある：
+
+**Q: ComposableNode でも main 関数引数で渡されることはあるか？**
+
+✅ **ある**。EXECUTABLE オプション使用時は自動生成された main 関数が argc/argv を受け取る
+
+**Q: 実行ファイルでもサービス経由なことはあるか？**
+
+❌ **基本的にない**。ただし、component として登録されている場合は container にロードされてサービス経由になる可能性がある
+
+**Q: Launch ファイルで `<param>` タグを使わずに `args="--ros-args"` で渡す必要があるか？**
+
+❌ **ない**。`<param>` タグを使う方が推奨される。Launch システムが自動的に `--ros-args` 形式に変換する
+
+### 7.2 設計上の重要ポイント
+
+1. **NodeOptions が中心**
+   - どの方法でも最終的には NodeOptions 経由でパラメータがノードに渡される
+   - main 関数の argc/argv も、サービス経由のパラメータも、最終的には NodeOptions に変換される
+
+2. **ComposableNode の柔軟性**
+   - EXECUTABLE オプションで両方の起動方法をサポート
+   - 開発時は単独実行、本番環境では container にロード、という使い分けが可能
+
+3. **Launch ファイルのベストプラクティス**
+   - `<param>` タグを使う（個別指定または YAML ファイル）
+   - `args="--ros-args"` は避ける（可読性・メンテナンス性が低い）
+   - どちらも内部的には同じ結果になるが、`<param>` の方が標準的
+
+4. **Agnocast での実装方針**
+   - ROS 2 の設計では resolve_topic_name は NodeTopicsInterface の API
+   - Agnocast では Node クラスに直接実装されている
+   - autoware.universe との互換性を考慮する場合、NodeTopicsInterface の実装を検討すべき
+   - Launch ファイルは `<param>` タグを使う書き方に統一すべき
+
+5. **パラメータ管理のベストプラクティス**
+   - main 関数の argc/argv を直接解析するのは推奨されない
+   - YAML 設定ファイル + ROS パラメータシステムを使うのが標準的
+   - Launch ファイルでは `<param>` タグを使う
+   - テストでは NodeOptions.arguments() で明示的に設定

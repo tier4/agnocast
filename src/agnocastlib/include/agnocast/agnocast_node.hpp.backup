@@ -1,0 +1,318 @@
+#pragma once
+
+#include <map>
+#include <memory>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "rclcpp/rclcpp.hpp"
+
+namespace agnocast
+{
+
+// Parameter type constants (from rcl_interfaces/msg/ParameterType)
+// Corresponds to ParameterType constants in ROS 2
+// See: rcl_interfaces/msg/ParameterType.msg
+constexpr uint8_t PARAMETER_NOT_SET = 0;
+constexpr uint8_t PARAMETER_BOOL = 1;
+constexpr uint8_t PARAMETER_INTEGER = 2;
+constexpr uint8_t PARAMETER_DOUBLE = 3;
+constexpr uint8_t PARAMETER_STRING = 4;
+// Note: Array types (5-8) are not supported in agnocast
+
+/**
+ * @brief Remap rule type enumeration.
+ *
+ * Corresponds to rcl_remap_type_t in rcl/src/rcl/remap_impl.h.
+ * These are bitmask values in RCL, but simplified to enum in agnocast.
+ */
+enum class RemapType : uint8_t
+{
+  UNKNOWN = 0,
+  TOPIC = 1,      // Topic remapping (RCL: 1u << 0)
+  SERVICE = 2,    // Service remapping (RCL: 1u << 1) - not used in agnocast
+  NODENAME = 3,   // Node name remapping (RCL: 1u << 2)
+  NAMESPACE = 4   // Namespace remapping (RCL: 1u << 3)
+};
+
+/**
+ * @brief Remap rule structure.
+ *
+ * Corresponds to rcl_remap_t in rcl/src/rcl/remap_impl.h.
+ * Stores a single remapping rule parsed from command-line arguments.
+ */
+struct RemapRule
+{
+  RemapType type;             // Type of remapping rule
+  std::string match;          // Match side (left of :=)
+  std::string replacement;    // Replacement side (right of :=)
+};
+
+/**
+ * @brief Simplified parameter descriptor (subset of rcl_interfaces::msg::ParameterDescriptor).
+ */
+struct ParameterDescriptor
+{
+  std::string description;
+  bool read_only = false;
+};
+
+/**
+ * @brief Internal struct for holding parameter information.
+ */
+struct ParameterInfo
+{
+  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
+
+  ParameterValue value;
+  ParameterDescriptor descriptor;
+};
+
+/**
+ * @brief Lightweight node class for Agnocast.
+ *
+ * This class provides minimal ROS 2 node functionality without creating
+ * a DDS participant. It parses command-line arguments to extract node
+ * configuration and supports topic name resolution and parameter access.
+ */
+class Node
+{
+public:
+  using SharedPtr = std::shared_ptr<Node>;
+  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
+
+  /**
+   * @brief Construct a Node with explicit values.
+   *
+   * @param node_name Node name
+   * @param namespace_ Namespace (default: "")
+   *
+   * @note Command-line argument parsing should be done via agnocast::init(argc, argv)
+   *       before constructing the Node. This matches rclcpp::Node's design.
+   */
+  Node(const std::string & node_name, const std::string & namespace_ = "");
+
+  /**
+   * @brief Get the node name.
+   *
+   * Corresponds to rcl_node_get_name in rcl/src/rcl/node.c:435-441.
+   *
+   * @return Node name
+   */
+  std::string get_name() const { return node_name_; }
+
+  /**
+   * @brief Get the namespace.
+   *
+   * Corresponds to rcl_node_get_namespace in rcl/src/rcl/node.c:444-450.
+   *
+   * @return Namespace
+   */
+  std::string get_namespace() const { return namespace_; }
+
+  /**
+   * @brief Get the fully qualified name of the node.
+   *
+   * Corresponds to rcl_node_get_fully_qualified_name in rcl/src/rcl/node.c:453-459.
+   *
+   * @return Fully qualified node name (namespace/node_name)
+   */
+  std::string get_fully_qualified_name() const;
+
+  /**
+   * @brief Get the default callback group.
+   *
+   * @return Shared pointer to the default callback group
+   */
+  rclcpp::CallbackGroup::SharedPtr get_default_callback_group();
+
+  /**
+   * @brief Check if a callback group belongs to this node.
+   *
+   * @param group Callback group to check
+   * @return true if the callback group belongs to this node, false otherwise
+   */
+  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & group);
+
+  /**
+   * @brief Resolve a topic name to its fully qualified form.
+   *
+   * Applies topic remapping rules and namespace resolution.
+   * Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c:134-162.
+   * Delegates to resolve_name which calls expand_topic_name then remap_name.
+   *
+   * @param input_topic_name Topic name to resolve
+   * @return Fully qualified topic name
+   */
+  std::string resolve_topic_name(const std::string & input_topic_name) const;
+
+  /**
+   * @brief Declare a parameter with a default value.
+   *
+   * Corresponds to NodeParameters::declare_parameter in
+   * rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp.
+   * Supports command-line parameter overrides.
+   *
+   * @param name Parameter name
+   * @param default_value Default parameter value
+   * @param descriptor Parameter descriptor (default: empty)
+   * @param ignore_override If true, ignore command-line overrides (default: false)
+   * @return Reference to the parameter value (either override or default)
+   */
+  const ParameterValue & declare_parameter(
+    const std::string & name,
+    const ParameterValue & default_value,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{},
+    bool ignore_override = false);
+
+  /**
+   * @brief Check if a parameter has been declared.
+   *
+   * Corresponds to NodeParameters::has_parameter in
+   * rclcpp/include/rclcpp/node_interfaces/node_parameters.hpp:130.
+   *
+   * @param name Parameter name
+   * @return true if parameter exists, false otherwise
+   */
+  bool has_parameter(const std::string & name) const;
+
+  /**
+   * @brief Get parameter types for a list of parameter names.
+   *
+   * Corresponds to NodeParameters::get_parameter_types in
+   * rclcpp/include/rclcpp/node_interfaces/node_parameters.hpp:168.
+   *
+   * @param names Vector of parameter names
+   * @return Vector of parameter types using PARAMETER_* constants:
+   *   - PARAMETER_NOT_SET (0): Parameter not found or not set
+   *   - PARAMETER_BOOL (1): Boolean parameter
+   *   - PARAMETER_INTEGER (2): Integer parameter (int64_t)
+   *   - PARAMETER_DOUBLE (3): Double parameter
+   *   - PARAMETER_STRING (4): String parameter
+   */
+  std::vector<uint8_t> get_parameter_types(const std::vector<std::string> & names) const;
+
+  /**
+   * @brief Get a parameter value.
+   *
+   * Corresponds to NodeParameters::get_parameter in
+   * rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp:829-845.
+   *
+   * @param name Parameter name
+   * @param value Output parameter value
+   * @return true if parameter exists, false otherwise
+   */
+  bool get_parameter(const std::string & name, bool & value) const;
+  bool get_parameter(const std::string & name, int64_t & value) const;
+  bool get_parameter(const std::string & name, double & value) const;
+  bool get_parameter(const std::string & name, std::string & value) const;
+
+private:
+  /**
+   * @brief Parse ROS arguments from argc/argv.
+   *
+   * Extracts namespace, node name remapping, topic remappings, and parameters.
+   * Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c.
+   *
+   * @param argc Argument count
+   * @param argv Argument vector
+   */
+  void parse_ros_args(int argc, char * argv[]);
+
+  /**
+   * @brief Apply global context arguments to this node.
+   *
+   * Retrieves remap rules and parameter overrides from GlobalContext
+   * and merges them with local arguments. Also applies node name/namespace remapping.
+   */
+  void apply_global_context();
+
+  /**
+   * @brief Parse a remap rule from a string.
+   *
+   * Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c:1827-1873.
+   *
+   * @param arg Remap argument string (e.g., "topic:=new_topic")
+   * @return true if parsed successfully, false otherwise
+   */
+  bool parse_remap_rule(const std::string & arg);
+
+  /**
+   * @brief Parse a parameter rule from a string.
+   *
+   * Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c:1876-1950.
+   *
+   * @param arg Parameter argument string (e.g., "param_name:=value")
+   * @return true if parsed successfully, false otherwise
+   */
+  bool parse_param_rule(const std::string & arg);
+
+  /**
+   * @brief Resolve a topic name (main implementation).
+   *
+   * Calls expand_topic_name then remap_name.
+   * Corresponds to rcl_resolve_name in rcl/src/rcl/node_resolve_name.c.
+   *
+   * @param input_topic_name Topic name to resolve
+   * @return Resolved topic name
+   */
+  std::string resolve_name(const std::string & input_topic_name) const;
+
+  /**
+   * @brief Expand a topic name (handle substitutions, private/relative/absolute).
+   *
+   * Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c.
+   *
+   * @param input_topic_name Topic name to expand
+   * @return Expanded topic name
+   */
+  std::string expand_topic_name(const std::string & input_topic_name) const;
+
+  /**
+   * @brief Apply remapping to a topic name.
+   *
+   * Corresponds to rcl_remap_name in rcl/src/rcl/remap.c.
+   *
+   * @param name Name to remap
+   * @return Remapped name (or original if no remapping exists)
+   */
+  std::string remap_name(const std::string & name) const;
+
+  /**
+   * @brief Parse a parameter value string to appropriate type.
+   *
+   * Corresponds to rcl_parse_yaml_value in rcl_yaml_param_parser.
+   * Performs type inference for bool, integer, double, and string.
+   *
+   * @param value_str String representation of the value
+   * @return Parsed parameter value
+   */
+  ParameterValue parse_parameter_value(const std::string & value_str) const;
+
+  /**
+   * @brief Load parameters from a YAML file.
+   *
+   * Corresponds to rcl_parse_yaml_file in rcl_yaml_param_parser/src/parser.c.
+   * Parses YAML files with the standard ROS 2 parameter format:
+   *   /XX*: (where XX is *)
+   *     ros__parameters:
+   *       param_name: value
+   *
+   * @param file_path Path to the YAML parameter file
+   * @return true if file was loaded successfully, false otherwise
+   */
+  bool load_parameters_from_yaml_file(const std::string & file_path);
+
+  std::string node_name_;
+  std::string namespace_;
+  std::vector<RemapRule> remap_rules_;  // Stores all remap rules (replaces topic_remappings_)
+  std::map<std::string, ParameterInfo> parameters_;
+  std::map<std::string, ParameterValue> parameter_overrides_;
+
+  // CallbackGroup management (for agnocast::Subscription compatibility)
+  rclcpp::CallbackGroup::SharedPtr default_callback_group_;
+  std::vector<rclcpp::CallbackGroup::WeakPtr> callback_groups_;
+};
+
+}  // namespace agnocast

@@ -32,6 +32,70 @@ This reflects the current status, and support is expected to expand in the futur
 | Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
+## Docker
+
+Agnocast can be run in a Docker container for easier setup and reproducibility.
+
+### Build Docker Image
+
+```bash
+docker-compose build
+```
+
+### Run Development Container
+
+Launch an interactive development container:
+
+```bash
+docker-compose run --rm agnocast-dev
+```
+
+Inside the container, you can build and run the project:
+
+```bash
+# Build the project
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# Load kernel module (requires privileged mode)
+sudo modprobe agnocast
+
+# Run sample applications
+bash scripts/run_talker    # In one terminal
+bash scripts/run_listener  # In another terminal
+```
+
+### Run Sample Application with Docker Compose
+
+You can run the talker and listener in separate containers:
+
+```bash
+# Make sure kernel module is loaded on the host
+sudo modprobe agnocast
+
+# Run talker and listener
+docker-compose up agnocast-talker agnocast-listener
+```
+
+### Important Notes for Docker Usage
+
+- The container runs in **privileged mode** to access kernel modules
+- `/dev/shm` and `/dev/mqueue` are mounted for IPC communication
+- The kernel module must be compatible with the host kernel
+- For development, the workspace is mounted as a volume for live code changes
+
+### Cleanup
+
+Stop containers and remove resources:
+
+```bash
+docker-compose down
+
+# Remove leftover shared memory and message queues
+sudo rm -f /dev/shm/agnocast@*
+sudo rm -f /dev/mqueue/agnocast@*
+sudo rm -f /dev/mqueue/agnocast_to_ros2@*
+```
+
 ## Build
 
 Setup.

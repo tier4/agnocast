@@ -9,6 +9,12 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
+SubscriptionBase::SubscriptionBase(agnocast::Node * node, const std::string & topic_name)
+: id_(0), topic_name_(node->resolve_topic_name(topic_name))
+{
+  validate_ld_preload();
+}
+
 union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
 {
@@ -64,6 +70,26 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 
 rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
   const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
+  const SubscriptionOptions & options)
+{
+  rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
+
+  if (callback_group) {
+    if (!node->callback_group_in_node(callback_group)) {
+      RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    callback_group = node->get_default_callback_group();
+  }
+
+  return callback_group;
+}
+
+// Overload for agnocast::Node
+rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
+  agnocast::Node * node,
   const SubscriptionOptions & options)
 {
   rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;

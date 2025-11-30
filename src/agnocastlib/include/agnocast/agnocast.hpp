@@ -2,7 +2,9 @@
 
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
+#include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_node.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
 #include "agnocast/agnocast_subscription.hpp"
@@ -113,6 +115,46 @@ typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
   return std::make_shared<PollingSubscriber<MessageT>>(node, topic_name, qos);
+}
+
+// Overloads for agnocast::Node (no rclcpp dependency)
+template <typename MessageT, typename Func>
+typename Subscription<MessageT>::SharedPtr create_subscription(
+  agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback)
+{
+  const agnocast::SubscriptionOptions options;
+  return std::make_shared<Subscription<MessageT>>(
+    node, topic_name, qos, std::forward<Func>(callback), options);
+}
+
+template <typename MessageT, typename Func>
+typename Subscription<MessageT>::SharedPtr create_subscription(
+  agnocast::Node * node, const std::string & topic_name, const size_t qos_history_depth,
+  Func && callback)
+{
+  const agnocast::SubscriptionOptions options;
+  return std::make_shared<Subscription<MessageT>>(
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)),
+    std::forward<Func>(callback), options);
+}
+
+template <typename MessageT, typename Func>
+typename Subscription<MessageT>::SharedPtr create_subscription(
+  agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+  agnocast::SubscriptionOptions options)
+{
+  return std::make_shared<Subscription<MessageT>>(
+    node, topic_name, qos, std::forward<Func>(callback), options);
+}
+
+template <typename MessageT, typename Func>
+typename Subscription<MessageT>::SharedPtr create_subscription(
+  agnocast::Node * node, const std::string & topic_name, const size_t qos_history_depth,
+  Func && callback, agnocast::SubscriptionOptions options)
+{
+  return std::make_shared<Subscription<MessageT>>(
+    node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)),
+    std::forward<Func>(callback), options);
 }
 
 }  // namespace agnocast
