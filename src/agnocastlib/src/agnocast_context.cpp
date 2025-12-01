@@ -108,8 +108,9 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
 {
   // Convert to lowercase for case-insensitive comparison
   std::string lower_value = value_str;
-  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
 
   if (lower_value == "true") {
     return true;
