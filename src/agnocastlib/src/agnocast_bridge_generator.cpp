@@ -72,6 +72,44 @@ BridgeGenerator::~BridgeGenerator()
   }
 }
 
+void BridgeGenerator::run()
+{
+  std::string proc_name = "agno_br_" + std::to_string(getpid());
+  if (prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0) != 0) {
+    RCLCPP_WARN(logger_, "Failed to set process name: %s", strerror(errno));
+  }
+
+  setup_ros_execution();
+
+  constexpr int MAX_EVENTS = 10;
+  struct epoll_event events[MAX_EVENTS];
+
+  auto last_gc_time = std::chrono::steady_clock::now();
+  constexpr auto GC_INTERVAL = std::chrono::seconds(1);
+
+  while (!shutdown_requested_ && rclcpp::ok()) {
+    check_parent_alive();
+
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_gc_time >= GC_INTERVAL) {
+      check_connection_demand();
+      last_gc_time = now;
+      std::lock_guard<std::mutex> lock(executor_mutex_);
+      check_should_exit();
+    }
+
+    if (shutdown_requested_) break;
+
+    int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      break;
+    }
+
+    handle_epoll_events(events, n);
+  }
+}
+
 void BridgeGenerator::setup_mq()
 {
   auto create_and_open = [](const std::string & name) -> mqd_t {
@@ -139,44 +177,6 @@ void BridgeGenerator::setup_epoll()
   add_to_epoll(signal_fd_, "Signal");
 }
 
-void BridgeGenerator::run()
-{
-  std::string proc_name = "agno_br_" + std::to_string(getpid());
-  if (prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0) != 0) {
-    RCLCPP_WARN(logger_, "Failed to set process name: %s", strerror(errno));
-  }
-
-  setup_ros_execution();
-
-  constexpr int MAX_EVENTS = 10;
-  struct epoll_event events[MAX_EVENTS];
-
-  auto last_gc_time = std::chrono::steady_clock::now();
-  constexpr auto GC_INTERVAL = std::chrono::seconds(1);
-
-  while (!shutdown_requested_ && rclcpp::ok()) {
-    check_parent_alive();
-
-    auto now = std::chrono::steady_clock::now();
-    if (now - last_gc_time >= GC_INTERVAL) {
-      check_connection_demand();
-      last_gc_time = now;
-      std::lock_guard<std::mutex> lock(executor_mutex_);
-      check_should_exit();
-    }
-
-    if (shutdown_requested_) break;
-
-    int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
-    if (n < 0) {
-      if (errno == EINTR) continue;
-      break;
-    }
-
-    handle_epoll_events(events, n);
-  }
-}
-
 void BridgeGenerator::setup_ros_execution()
 {
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
@@ -198,24 +198,6 @@ void BridgeGenerator::setup_ros_execution()
   });
 }
 
-void BridgeGenerator::check_parent_alive()
-{
-  if (!is_parent_alive_) return;
-
-  if (kill(target_pid_, 0) != 0) {
-    is_parent_alive_ = false;
-
-    if (mq_parent_fd_ != (mqd_t)-1) {
-      epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, mq_parent_fd_, nullptr);
-      mq_close(mq_parent_fd_);
-      mq_unlink(mq_parent_name_.c_str());
-      mq_parent_fd_ = (mqd_t)-1;
-    }
-
-    check_should_exit();
-  }
-}
-
 void BridgeGenerator::handle_epoll_events(const struct epoll_event * events, int count)
 {
   for (int i = 0; i < count; ++i) {
@@ -227,17 +209,6 @@ void BridgeGenerator::handle_epoll_events(const struct epoll_event * events, int
       handle_mq_event(mq_child_fd_, false);
     } else if (fd == signal_fd_) {
       handle_signal_event();
-    }
-  }
-}
-
-void BridgeGenerator::check_should_exit()
-{
-  if (!is_parent_alive_ && active_bridges_.empty()) {
-    shutdown_requested_ = true;
-
-    if (executor_) {
-      executor_->cancel();
     }
   }
 }
@@ -293,6 +264,93 @@ void BridgeGenerator::handle_mq_event(mqd_t fd, bool allow_delegation)
   }
 }
 
+void BridgeGenerator::handle_signal_event()
+{
+  struct signalfd_siginfo fdsi;
+  ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
+
+  if (s != sizeof(struct signalfd_siginfo)) {
+    return;
+  }
+
+  if (fdsi.ssi_signo != SIGTERM && fdsi.ssi_signo != SIGINT) {
+    return;
+  }
+
+  shutdown_requested_ = true;
+  if (executor_) {
+    executor_->cancel();
+  }
+}
+
+void BridgeGenerator::check_parent_alive()
+{
+  if (!is_parent_alive_) return;
+
+  if (kill(target_pid_, 0) != 0) {
+    is_parent_alive_ = false;
+
+    if (mq_parent_fd_ != (mqd_t)-1) {
+      epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, mq_parent_fd_, nullptr);
+      mq_close(mq_parent_fd_);
+      mq_unlink(mq_parent_name_.c_str());
+      mq_parent_fd_ = (mqd_t)-1;
+    }
+
+    check_should_exit();
+  }
+}
+
+void BridgeGenerator::check_connection_demand()
+{
+  std::vector<std::string> bridges_to_remove;
+
+  {
+    std::lock_guard<std::mutex> lock(executor_mutex_);
+
+    for (auto it = active_bridges_.begin(); it != active_bridges_.end(); ++it) {
+      const std::string & unique_key = it->first;
+
+      if (unique_key.size() <= 4) continue;
+
+      std::string topic_name = unique_key.substr(0, unique_key.length() - 4);
+      bool is_r2a = (unique_key.rfind("_R2A") != std::string::npos);
+      std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
+      int threshold = (active_bridges_.count(reverse_key) > 0) ? 1 : 0;
+
+      int count = get_agnocast_connection_count(topic_name, is_r2a);
+      if (count < 0) {
+        RCLCPP_WARN(
+          logger_, "GC: Failed to get connection count for '%s': %s", topic_name.c_str(),
+          strerror(errno));
+        continue;
+      }
+
+      if (count <= threshold) {
+        RCLCPP_INFO(
+          logger_, "Bridge '%s' unused (Count:%d, Threshold:%d). Queued for removal.",
+          unique_key.c_str(), count, threshold);
+        bridges_to_remove.push_back(unique_key);
+      }
+    }
+
+    for (const auto & key : bridges_to_remove) {
+      remove_bridge_node_locked(key);
+    }
+  }
+}
+
+void BridgeGenerator::check_should_exit()
+{
+  if (!is_parent_alive_ && active_bridges_.empty()) {
+    shutdown_requested_ = true;
+
+    if (executor_) {
+      executor_->cancel();
+    }
+  }
+}
+
 void BridgeGenerator::create_bridge_safely(const MqMsgBridge & req, const std::string & unique_key)
 {
   load_and_add_node(req, unique_key);
@@ -317,28 +375,51 @@ void BridgeGenerator::create_bridge_safely(const MqMsgBridge & req, const std::s
   }
 }
 
-void BridgeGenerator::handle_signal_event()
+void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
 {
-  struct signalfd_siginfo fdsi;
-  ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
+  if (active_bridges_.count(unique_key) == 0) {
+    return;
+  }
+  active_bridges_.erase(unique_key);
+  RCLCPP_INFO(logger_, "Removed bridge entry: %s", unique_key.c_str());
 
-  if (s != sizeof(struct signalfd_siginfo)) {
+  const size_t suffix_len = 4;
+  if (unique_key.size() <= suffix_len) return;
+
+  std::string topic_name = unique_key.substr(0, unique_key.length() - suffix_len);
+  bool is_r2a = (unique_key.compare(unique_key.length() - suffix_len, suffix_len, "_R2A") == 0);
+
+  std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
+
+  if (active_bridges_.count(reverse_key) == 0) {
+    unregister_from_kernel(topic_name);
+  }
+
+  check_should_exit();
+}
+
+void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::string & unique_key)
+{
+  auto [entry_func, lib_handle] = resolve_factory_function(req, unique_key);
+
+  if (!entry_func) {
+    const char * err = dlerror();
+    RCLCPP_ERROR(
+      logger_, "Failed to resolve factory for '%s': %s", unique_key.c_str(),
+      err ? err : "Unknown error");
     return;
   }
 
-  if (fdsi.ssi_signo != SIGTERM && fdsi.ssi_signo != SIGINT) {
-    return;
-  }
+  auto bridge = create_bridge_instance(entry_func, lib_handle, req.target);
 
-  shutdown_requested_ = true;
-  if (executor_) {
-    executor_->cancel();
+  if (bridge) {
+    active_bridges_[unique_key] = bridge;
+    RCLCPP_INFO(logger_, "Bridge '%s' created.", unique_key.c_str());
+  } else {
+    RCLCPP_ERROR(logger_, "Factory returned null for '%s' (Creation failed)", unique_key.c_str());
   }
 }
 
-// -------------------------------------------------------------------------
-// 1. 低レイヤー: ライブラリロードとベースアドレス取得
-// -------------------------------------------------------------------------
 std::pair<void *, uintptr_t> BridgeGenerator::load_library_base(
   const char * lib_path, const char * symbol_name)
 {
@@ -358,42 +439,32 @@ std::pair<void *, uintptr_t> BridgeGenerator::load_library_base(
   return {handle, map->l_addr};
 }
 
-// -------------------------------------------------------------------------
-// 2. 中レイヤー: ファクトリ関数の解決 (キャッシュ or 新規ロード)
-// -------------------------------------------------------------------------
 std::pair<BridgeFn, std::shared_ptr<void>> BridgeGenerator::resolve_factory_function(
   const MqMsgBridge & req, const std::string & unique_key)
 {
-  // A. キャッシュヒット
   auto it = cached_factories_.find(unique_key);
   if (it != cached_factories_.end()) {
     RCLCPP_INFO(logger_, "Cache hit for '%s'", unique_key.c_str());
     return it->second;
   }
 
-  // B. 新規ロード
-  dlerror();  // エラークリア
+  dlerror();
   auto [raw_handle, base_addr] =
     load_library_base(req.factory.shared_lib_path, req.factory.symbol_name);
 
   if (base_addr == 0 && req.factory.fn_offset == 0) {
-    // ロード失敗、またはアドレス不正
     if (raw_handle) dlclose(raw_handle);
     return {nullptr, nullptr};
   }
 
-  // RAIIハンドルの作成
   std::shared_ptr<void> lib_handle_ptr(raw_handle, [](void * h) {
     if (h) dlclose(h);
   });
 
-  // 関数ポインタの計算
   BridgeFn entry_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset);
 
-  // キャッシュ登録 (順方向)
   cached_factories_[unique_key] = {entry_func, lib_handle_ptr};
 
-  // キャッシュ登録 (逆方向)
   if (req.factory.fn_offset_reverse != 0) {
     std::string reverse_key = req.target.topic_name;
     reverse_key += (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
@@ -405,9 +476,6 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeGenerator::resolve_factory_func
   return {entry_func, lib_handle_ptr};
 }
 
-// -------------------------------------------------------------------------
-// 3. 高レイヤー: ブリッジ実体の作成と寿命結合
-// -------------------------------------------------------------------------
 std::shared_ptr<void> BridgeGenerator::create_bridge_instance(
   BridgeFn entry_func, std::shared_ptr<void> lib_handle, const BridgeTargetInfo & target)
 {
@@ -416,8 +484,6 @@ std::shared_ptr<void> BridgeGenerator::create_bridge_instance(
     if (!bridge_resource) return nullptr;
 
     if (lib_handle) {
-      // エイリアスコンストラクタによる寿命結合
-      // (ブリッジが生きている間はライブラリをdlcloseしない)
       using BundleType = std::pair<std::shared_ptr<void>, std::shared_ptr<void>>;
       auto bundle = std::make_shared<BundleType>(lib_handle, bridge_resource);
       return std::shared_ptr<void>(bundle, bridge_resource.get());
@@ -428,87 +494,6 @@ std::shared_ptr<void> BridgeGenerator::create_bridge_instance(
     RCLCPP_ERROR(logger_, "Exception in factory: %s", e.what());
     return nullptr;
   }
-}
-
-// -------------------------------------------------------------------------
-// メイン関数 (リファクタリング後)
-// -------------------------------------------------------------------------
-void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::string & unique_key)
-{
-  // 1. ファクトリ関数の取得 (キャッシュまたはロード)
-  auto [entry_func, lib_handle] = resolve_factory_function(req, unique_key);
-
-  if (!entry_func) {
-    // dlerror() の内容があれば表示すると親切です
-    const char * err = dlerror();
-    RCLCPP_ERROR(
-      logger_, "Failed to resolve factory for '%s': %s", unique_key.c_str(),
-      err ? err : "Unknown error");
-    return;
-  }
-
-  // 2. ブリッジの生成と登録
-  auto bridge = create_bridge_instance(entry_func, lib_handle, req.target);
-
-  if (bridge) {
-    active_bridges_[unique_key] = bridge;
-    RCLCPP_INFO(logger_, "Bridge '%s' created.", unique_key.c_str());
-  } else {
-    RCLCPP_ERROR(logger_, "Factory returned null for '%s' (Creation failed)", unique_key.c_str());
-  }
-}
-
-// -------------------------------------------------------------------------
-// ヘルパー: カーネルからの登録解除
-// -------------------------------------------------------------------------
-void BridgeGenerator::unregister_from_kernel(const std::string & topic_name)
-{
-  struct ioctl_bridge_args args;
-  std::memset(&args, 0, sizeof(args));
-  args.pid = getpid();
-
-  // 生のトピック名を使用
-  snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
-
-  if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
-    RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
-  } else {
-    // 失敗してもログを出すだけ（既に消えている場合などもあるため致命的ではない）
-    RCLCPP_WARN(
-      logger_, "Failed to unregister bridge owner for '%s': %s", topic_name.c_str(),
-      strerror(errno));
-  }
-}
-
-// -------------------------------------------------------------------------
-// メイン関数 (リファクタリング後)
-// ※ 呼び出し元で executor_mutex_ をロックしている前提
-// -------------------------------------------------------------------------
-void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
-{
-  // 1. 存在チェック & 削除
-  if (active_bridges_.count(unique_key) == 0) {
-    return;
-  }
-  active_bridges_.erase(unique_key);
-  RCLCPP_INFO(logger_, "Removed bridge entry: %s", unique_key.c_str());
-
-  // 2. キー解析
-  // 前提: キー末尾は必ず "_R2A" (4文字) か "_A2R" (4文字)
-  const size_t suffix_len = 4;
-  if (unique_key.size() <= suffix_len) return;  // 安全策
-
-  std::string topic_name = unique_key.substr(0, unique_key.length() - suffix_len);
-  bool is_r2a = (unique_key.compare(unique_key.length() - suffix_len, suffix_len, "_R2A") == 0);
-
-  // 3. 逆方向キーの生成
-  std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
-
-  if (active_bridges_.count(reverse_key) == 0) {
-    unregister_from_kernel(topic_name);
-  }
-
-  check_should_exit();
 }
 
 void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge & req)
@@ -533,18 +518,29 @@ void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge 
   mq_close(mq);
 }
 
-// -------------------------------------------------------------------------
-// ヘルパー: カーネル問い合わせ
-// -------------------------------------------------------------------------
+void BridgeGenerator::unregister_from_kernel(const std::string & topic_name)
+{
+  struct ioctl_bridge_args args;
+  std::memset(&args, 0, sizeof(args));
+  args.pid = getpid();
+
+  snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
+
+  if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+    RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
+  } else {
+    RCLCPP_WARN(
+      logger_, "Failed to unregister bridge owner for '%s': %s", topic_name.c_str(),
+      strerror(errno));
+  }
+}
+
 int BridgeGenerator::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
 {
   int ret = -1;
   uint32_t count = 0;
 
-  // カーネルへ問い合わせる際の引数準備
-  // 注: args構造体はスタック上に確保され、ioctl呼び出し中のみ有効であればよい
   if (is_r2a) {
-    // R2A (自分はPub) -> Agnocast Subscriber数を確認
     union ioctl_get_subscriber_num_args args;
     std::memset(&args, 0, sizeof(args));
     args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -552,7 +548,6 @@ int BridgeGenerator::get_agnocast_connection_count(const std::string & topic_nam
     ret = ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args);
     count = args.ret_subscriber_num;
   } else {
-    // A2R (自分はSub) -> Agnocast Publisher数を確認
     union ioctl_get_publisher_num_args args;
     std::memset(&args, 0, sizeof(args));
     args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -562,60 +557,9 @@ int BridgeGenerator::get_agnocast_connection_count(const std::string & topic_nam
   }
 
   if (ret != 0) {
-    return -1;  // エラー
+    return -1;
   }
   return static_cast<int>(count);
-}
-
-// -------------------------------------------------------------------------
-// GC メインロジック (リファクタリング後)
-// -------------------------------------------------------------------------
-void BridgeGenerator::check_connection_demand()
-{
-  std::vector<std::string> bridges_to_remove;
-
-  {
-    std::lock_guard<std::mutex> lock(executor_mutex_);
-
-    for (auto it = active_bridges_.begin(); it != active_bridges_.end(); ++it) {
-      const std::string & unique_key = it->first;
-
-      // キー解析
-      // 安全策: キーが短すぎる場合は無視 (サフィックス _R2A/_A2R = 4文字)
-      if (unique_key.size() <= 4) continue;
-
-      std::string topic_name = unique_key.substr(0, unique_key.length() - 4);
-      bool is_r2a = (unique_key.rfind("_R2A") != std::string::npos);
-
-      // 1. 閾値 (Threshold) の決定
-      // 逆方向のペアが存在する場合は、その分(1つ)をカウントから差し引くための閾値設定
-      std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
-      int threshold = (active_bridges_.count(reverse_key) > 0) ? 1 : 0;
-
-      // 2. カーネルからのカウント取得
-      int count = get_agnocast_connection_count(topic_name, is_r2a);
-
-      if (count < 0) {
-        RCLCPP_WARN(
-          logger_, "GC: Failed to get connection count for '%s': %s", topic_name.c_str(),
-          strerror(errno));
-        continue;
-      }
-
-      // 3. 判定 (外部利用者がいなければ削除)
-      if (count <= threshold) {
-        RCLCPP_INFO(
-          logger_, "Bridge '%s' unused (Count:%d, Threshold:%d). Queued for removal.",
-          unique_key.c_str(), count, threshold);
-        bridges_to_remove.push_back(unique_key);
-      }
-    }
-
-    // 4. 削除実行
-    for (const auto & key : bridges_to_remove) {
-      remove_bridge_node_locked(key);
-    }
-  }
 }
 
 }  // namespace agnocast
