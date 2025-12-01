@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 
 namespace agnocast
@@ -104,10 +106,15 @@ bool Context::parse_param_rule(const std::string & arg)
 
 Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
 {
-  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
+  // Convert to lowercase for case-insensitive comparison
+  std::string lower_value = value_str;
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  if (lower_value == "true") {
     return true;
   }
-  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
+  if (lower_value == "false") {
     return false;
   }
 

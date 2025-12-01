@@ -22,7 +22,7 @@ namespace agnocast
 /// The short version of the ROS flag that precedes the setting of a ROS parameter.
 #define AGNOCAST_SHORT_PARAM_FLAG "-p"
 
-main class Context
+class Context
 {
   struct CommandLineParams
   {
