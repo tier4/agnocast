@@ -93,7 +93,7 @@ public:
   explicit AgnocastToRosBridge(rclcpp::Node::SharedPtr parent_node, const std::string & topic_name)
   {
     ros_pub_ = parent_node->create_publisher<MessageT>(
-      topic_name, rclcpp::QoS(1).reliable().durability_volatile());
+      topic_name, rclcpp::QoS(19).reliable().transient_local());
     agno_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 

@@ -1514,14 +1514,12 @@ struct bridge_entry
   struct list_head list;
   pid_t pid;
   char topic_name[MAX_TOPIC_NAME_LEN];
-  // GID関連フィールドを削除
   const struct ipc_namespace * ipc_ns;
 };
 
 static LIST_HEAD(g_bridge_list);
 static DEFINE_MUTEX(g_bridge_list_mutex);
 
-// 引数から gid, gid_len を削除
 int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   struct bridge_entry * new_entry;
@@ -1529,27 +1527,21 @@ int register_bridge(const pid_t pid, const char * topic_name, const struct ipc_n
 
   mutex_lock(&g_bridge_list_mutex);
 
-  // 既存リストを検索
   list_for_each_entry(entry, &g_bridge_list, list)
   {
     if (
       ipc_eq(entry->ipc_ns, ipc_ns) &&
       strncmp(entry->topic_name, topic_name, MAX_TOPIC_NAME_LEN) == 0) {
-      // PIDのみで判定
       if (entry->pid == pid) {
-        // ケースA: 自分が既に登録済み -> 成功 (冪等性担保)
         mutex_unlock(&g_bridge_list_mutex);
         return 0;
       } else {
-        // ケースB: 他人が登録済み -> 重複エラー (EEXIST)
-        // これにより呼び出し元で「委譲」フローに入ることができる
         mutex_unlock(&g_bridge_list_mutex);
         return -EEXIST;
       }
     }
   }
 
-  // 見つからなかった場合 -> 新規作成
   new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
   if (!new_entry) {
     mutex_unlock(&g_bridge_list_mutex);
@@ -1633,7 +1625,6 @@ static int get_subscriber_qos(
   struct subscriber_info * sub = find_subscriber_info(wrapper, args->id);
   if (!sub) return -ENOENT;
 
-  // 情報を詰める
   args->qos.depth = sub->qos_depth;
   args->qos.is_transient_local = sub->qos_is_transient_local;
   args->qos.is_reliable = sub->qos_is_reliable;
