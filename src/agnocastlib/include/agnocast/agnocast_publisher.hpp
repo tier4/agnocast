@@ -86,8 +86,6 @@ public:
         RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
       }
     }
-
-    BridgeRequestPolicy::template release_bridge<MessageT>(topic_name_, id_);
   }
 
   ipc_shared_ptr<MessageT> borrow_loaned_message()

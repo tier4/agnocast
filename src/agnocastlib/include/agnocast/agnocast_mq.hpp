@@ -16,7 +16,7 @@ struct MqMsgAgnocast
 
 enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
 
-enum class BridgeCommand : uint32_t { CREATE_BRIDGE = 0, REMOVE_BRIDGE = 1, DELEGATE_CREATE = 2 };
+enum class BridgeCommand : uint32_t { CREATE_BRIDGE = 0, DELEGATE_CREATE = 1 };
 
 struct BridgeFactoryInfo
 {

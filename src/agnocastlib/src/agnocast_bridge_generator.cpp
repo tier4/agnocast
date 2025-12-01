@@ -316,18 +316,6 @@ void BridgeGenerator::handle_parent_mq_event()
         RCLCPP_ERROR(logger_, "Register bridge failed: %s", strerror(errno));
       }
     }
-    // else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
-    //   if (active_bridges_.count(unique_key) > 0) {
-    //     bridge_ref_counts_[unique_key]--;
-    //     if (bridge_ref_counts_[unique_key] == 0) {
-    //       remove_bridge_node(unique_key);
-    //     } else {
-    //       RCLCPP_INFO(
-    //         logger_, "Bridge '%s' local ref-- (Total: %d)", unique_key.c_str(),
-    //         bridge_ref_counts_[unique_key]);
-    //     }
-    //   }
-    // }
   }
 }
 
@@ -381,20 +369,6 @@ void BridgeGenerator::handle_child_mq_event()
         }
       }
     }
-    // else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
-    //   if (active_bridges_.count(unique_key)) {
-    //     if (bridge_ref_counts_[unique_key] > 0) {
-    //       bridge_ref_counts_[unique_key]--;
-    //       if (bridge_ref_counts_[unique_key] == 0) {
-    //         remove_bridge_node(unique_key);
-    //       } else {
-    //         RCLCPP_INFO(
-    //           logger_, "Bridge '%s' remote ref-- (Total: %d)", unique_key.c_str(),
-    //           bridge_ref_counts_[unique_key]);
-    //       }
-    //     }
-    //   }
-    // }
   }
 }
 

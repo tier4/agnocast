@@ -37,13 +37,6 @@ struct RosToAgnocastRequestPolicy
     send_bridge_command<MessageT>(
       topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST, BridgeCommand::CREATE_BRIDGE);
   }
-
-  template <typename MessageT>
-  static void release_bridge(const std::string & topic_name, topic_local_id_t id)
-  {
-    send_bridge_command<MessageT>(
-      topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST, BridgeCommand::REMOVE_BRIDGE);
-  }
 };
 
 struct AgnocastToRosRequestPolicy
@@ -54,23 +47,12 @@ struct AgnocastToRosRequestPolicy
     send_bridge_command<MessageT>(
       topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2, BridgeCommand::CREATE_BRIDGE);
   }
-
-  template <typename MessageT>
-  static void release_bridge(const std::string & topic_name, topic_local_id_t id)
-  {
-    send_bridge_command<MessageT>(
-      topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2, BridgeCommand::REMOVE_BRIDGE);
-  }
 };
 
 struct NoBridgeRequestPolicy
 {
   template <typename MessageT>
   static void request_bridge(const std::string &, topic_local_id_t)
-  {
-  }
-  template <typename MessageT>
-  static void release_bridge(const std::string &, topic_local_id_t)
   {
   }
 };
