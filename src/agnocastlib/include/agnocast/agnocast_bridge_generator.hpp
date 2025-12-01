@@ -49,6 +49,8 @@ private:
   // 親プロセス切り離し用
   void check_should_exit();
 
+  void check_connection_demand();
+
   const pid_t target_pid_;
   rclcpp::Logger logger_;
   bool is_parent_alive_{true};  // 親生存フラグ
@@ -71,9 +73,6 @@ private:
 
   // アクティブなブリッジ (key: unique_key)
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
-
-  // 参照カウンタ (今回はPID監視なしの単純カウンタ版に戻しています)
-  std::map<std::string, int> bridge_ref_counts_;
 
   // 関数ポインタキャッシュ (ライブラリハンドル保持用)
   // value: pair<関数ポインタ, ライブラリハンドル>

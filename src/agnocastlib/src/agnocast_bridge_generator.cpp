@@ -209,6 +209,8 @@ void BridgeGenerator::run()
 
     if (shutdown_requested_) break;
 
+    check_connection_demand();
+
     // epoll待機 (親MQが閉じていても、Child MQやSignalは待機できる)
     int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
 
@@ -266,10 +268,6 @@ void BridgeGenerator::handle_parent_mq_event()
     // アクセス変更: req.control.command
     if (req.control.command == BridgeCommand::CREATE_BRIDGE) {
       if (active_bridges_.count(unique_key)) {
-        bridge_ref_counts_[unique_key]++;
-        RCLCPP_INFO(
-          logger_, "Bridge '%s' local ref++ (Total: %d)", unique_key.c_str(),
-          bridge_ref_counts_[unique_key]);
         continue;
       }
 
@@ -281,25 +279,34 @@ void BridgeGenerator::handle_parent_mq_event()
       snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
 
       if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) == 0) {
-        // 成功: 自分がオーナー
         load_and_add_node(req, unique_key);
-        bridge_ref_counts_[unique_key] = 1;
-        RCLCPP_INFO(logger_, "Registered bridge owner for '%s'", unique_key.c_str());
-
+        if (active_bridges_.count(unique_key)) {
+          RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
+        } else {
+          RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
+          // unregister bridge owner
+          struct ioctl_bridge_args args;
+          std::memset(&args, 0, sizeof(args));
+          args.pid = getpid();
+          snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+          if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+            RCLCPP_INFO(
+              logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
+          } else {
+            RCLCPP_ERROR(
+              logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
+              strerror(errno));
+          }
+        }
       } else if (errno == EEXIST) {
-        // 失敗: 他へ委譲
         union ioctl_get_bridge_pid_args pid_args;
         std::memset(&pid_args, 0, sizeof(pid_args));
-        // アクセス変更: req.target.topic_name
         snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
 
         if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
           pid_t owner_pid = pid_args.ret_pid;
           send_delegate_request(owner_pid, req);
-
-          active_bridges_[unique_key] = nullptr;
-          bridge_ref_counts_[unique_key] = 1;
-
+          // active_bridges_[unique_key] = nullptr;
           RCLCPP_INFO(
             logger_, "Delegated bridge '%s' to owner PID %d", unique_key.c_str(), owner_pid);
         } else {
@@ -308,18 +315,19 @@ void BridgeGenerator::handle_parent_mq_event()
       } else {
         RCLCPP_ERROR(logger_, "Register bridge failed: %s", strerror(errno));
       }
-    } else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
-      if (active_bridges_.count(unique_key) > 0) {
-        bridge_ref_counts_[unique_key]--;
-        if (bridge_ref_counts_[unique_key] == 0) {
-          remove_bridge_node(unique_key);
-        } else {
-          RCLCPP_INFO(
-            logger_, "Bridge '%s' local ref-- (Total: %d)", unique_key.c_str(),
-            bridge_ref_counts_[unique_key]);
-        }
-      }
     }
+    // else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
+    //   if (active_bridges_.count(unique_key) > 0) {
+    //     bridge_ref_counts_[unique_key]--;
+    //     if (bridge_ref_counts_[unique_key] == 0) {
+    //       remove_bridge_node(unique_key);
+    //     } else {
+    //       RCLCPP_INFO(
+    //         logger_, "Bridge '%s' local ref-- (Total: %d)", unique_key.c_str(),
+    //         bridge_ref_counts_[unique_key]);
+    //     }
+    //   }
+    // }
   }
 }
 
@@ -345,36 +353,48 @@ void BridgeGenerator::handle_child_mq_event()
 
     // アクセス変更: req.control.command
     if (req.control.command == BridgeCommand::DELEGATE_CREATE) {
-      if (active_bridges_.count(unique_key) && active_bridges_[unique_key] != nullptr) {
-        bridge_ref_counts_[unique_key]++;
+      if (active_bridges_.count(unique_key)) {
         RCLCPP_INFO(
-          logger_, "Bridge '%s' remote ref++ (Total: %d)", unique_key.c_str(),
-          bridge_ref_counts_[unique_key]);
+          logger_, "Remote delegate request for '%s', but already exists. Ignoring...",
+          unique_key.c_str());
       } else {
         RCLCPP_INFO(logger_, "First remote request for '%s'. Creating...", unique_key.c_str());
         load_and_add_node(req, unique_key);
 
         if (active_bridges_.count(unique_key)) {
-          bridge_ref_counts_[unique_key] = 1;
           RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
         } else {
           RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
-        }
-      }
-    } else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
-      if (active_bridges_.count(unique_key)) {
-        if (bridge_ref_counts_[unique_key] > 0) {
-          bridge_ref_counts_[unique_key]--;
-          if (bridge_ref_counts_[unique_key] == 0) {
-            remove_bridge_node(unique_key);
-          } else {
+          // unregister bridge owner
+          struct ioctl_bridge_args args;
+          std::memset(&args, 0, sizeof(args));
+          args.pid = getpid();
+          snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+          if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
             RCLCPP_INFO(
-              logger_, "Bridge '%s' remote ref-- (Total: %d)", unique_key.c_str(),
-              bridge_ref_counts_[unique_key]);
+              logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
+          } else {
+            RCLCPP_ERROR(
+              logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
+              strerror(errno));
           }
         }
       }
     }
+    // else if (req.control.command == BridgeCommand::REMOVE_BRIDGE) {
+    //   if (active_bridges_.count(unique_key)) {
+    //     if (bridge_ref_counts_[unique_key] > 0) {
+    //       bridge_ref_counts_[unique_key]--;
+    //       if (bridge_ref_counts_[unique_key] == 0) {
+    //         remove_bridge_node(unique_key);
+    //       } else {
+    //         RCLCPP_INFO(
+    //           logger_, "Bridge '%s' remote ref-- (Total: %d)", unique_key.c_str(),
+    //           bridge_ref_counts_[unique_key]);
+    //       }
+    //     }
+    //   }
+    // }
   }
 }
 
@@ -486,9 +506,6 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
 void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
 {
   if (active_bridges_.count(unique_key)) {
-    bool is_owner = (active_bridges_[unique_key] != nullptr);
-
-    // ブリッジ削除
     active_bridges_.erase(unique_key);
     RCLCPP_INFO(logger_, "Removed bridge entry: %s", unique_key.c_str());
 
@@ -499,39 +516,14 @@ void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
     else
       reverse_key = topic_name + "_R2A";
 
-    // キャッシュは削除しない (Generator生存中は保持し続ける)
+    if (active_bridges_.count(reverse_key) == 0) {
+      struct ioctl_bridge_args args;
+      std::memset(&args, 0, sizeof(args));
+      args.pid = getpid();
+      snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
 
-    if (is_owner) {
-      // オーナー権限放棄 (逆方向も使用者がいない場合)
-      if (active_bridges_.count(reverse_key) == 0) {
-        struct ioctl_bridge_args args;
-        std::memset(&args, 0, sizeof(args));
-        args.pid = getpid();
-        snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
-
-        if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
-          RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
-        }
-      }
-    } else {
-      // 委譲先へのREMOVE通知
-      union ioctl_get_bridge_pid_args pid_args;
-      std::memset(&pid_args, 0, sizeof(pid_args));
-      snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
-
-      if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
-        pid_t owner_pid = pid_args.ret_pid;
-        MqMsgBridge msg = {};
-        // アクセス変更: msg.target.topic_name
-        snprintf(msg.target.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
-        // アクセス変更: msg.control.command
-        msg.control.command = BridgeCommand::REMOVE_BRIDGE;
-        // アクセス変更: msg.control.direction
-        msg.control.direction = (unique_key.find("_R2A") != std::string::npos)
-                                  ? BridgeDirection::ROS2_TO_AGNOCAST
-                                  : BridgeDirection::AGNOCAST_TO_ROS2;
-        send_delegate_request(owner_pid, msg);
-        RCLCPP_INFO(logger_, "Sent remove request to owner PID %d", owner_pid);
+      if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+        RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
       }
     }
 
@@ -560,6 +552,83 @@ void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge 
     RCLCPP_ERROR(logger_, "mq_send failed to PID %d: %s", target_pid, strerror(errno));
   }
   mq_close(mq);
+}
+
+void BridgeGenerator::check_connection_demand()
+{
+  std::vector<std::string> bridges_to_remove;
+
+  {
+    // マップ操作とカーネル問い合わせの間、整合性を保つためにロック
+    std::lock_guard<std::mutex> lock(executor_mutex_);
+
+    for (auto it = active_bridges_.begin(); it != active_bridges_.end(); ++it) {
+      const std::string & unique_key = it->first;
+
+      // キー解析 ("/topic_R2A" -> "/topic", is_r2a=true)
+      std::string topic_name = unique_key.substr(0, unique_key.length() - 4);
+      bool is_r2a = (unique_key.rfind("_R2A") != std::string::npos);
+
+      // -----------------------------------------------------
+      // 1. 閾値 (Threshold) の決定
+      // -----------------------------------------------------
+      // 逆方向のブリッジ（ペア）が同一プロセス内に存在するか確認
+      std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
+      bool has_reverse = (active_bridges_.count(reverse_key) > 0);
+      uint32_t threshold = has_reverse ? 1 : 0;
+
+      // -----------------------------------------------------
+      // 2. カーネルからのカウント取得
+      // -----------------------------------------------------
+      uint32_t count = 0;
+      int ret = -1;
+
+      if (is_r2a) {
+        // R2A (自分はPub) -> Agnocast Subscriber数を確認
+        union ioctl_get_subscriber_num_args args;
+        std::memset(&args, 0, sizeof(args));
+        // 生のトピック名を使用
+        args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+        ret = ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args);
+        if (ret == 0) {
+          count = args.ret_subscriber_num;
+        }
+      } else {
+        // A2R (自分はSub) -> Agnocast Publisher数を確認
+        union ioctl_get_publisher_num_args args;
+        std::memset(&args, 0, sizeof(args));
+        args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+        ret = ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args);
+        if (ret == 0) {
+          count = args.ret_publisher_num;
+        }
+      }
+
+      if (ret < 0) {
+        RCLCPP_WARN(
+          logger_, "Failed to get connection count for '%s': %s", topic_name.c_str(),
+          strerror(errno));
+        continue;  // エラー時は安全側に倒して削除しない
+      }
+
+      // -----------------------------------------------------
+      // 3. 判定
+      // -----------------------------------------------------
+      // 外部の利用者がいなければ (Count <= Threshold)、削除対象に追加
+      if (count <= threshold) {
+        RCLCPP_INFO(
+          logger_, "Bridge '%s' unused (Count:%d, Threshold:%d). Queued for removal.",
+          unique_key.c_str(), count, threshold);
+        bridges_to_remove.push_back(unique_key);
+      }
+    }
+
+    for (const auto & key : bridges_to_remove) {
+      remove_bridge_node(key);
+    }
+  }
 }
 
 }  // namespace agnocast
