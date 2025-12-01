@@ -265,56 +265,53 @@ void BridgeGenerator::handle_parent_mq_event()
 
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
-    // アクセス変更: req.control.command
-    if (req.control.command == BridgeCommand::CREATE_BRIDGE) {
+    if (active_bridges_.count(unique_key)) {
+      continue;
+    }
+
+    // オーナー登録試行
+    struct ioctl_bridge_args args;
+    std::memset(&args, 0, sizeof(args));
+    args.pid = getpid();
+    // アクセス変更: req.target.topic_name
+    snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+
+    if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) == 0) {
+      load_and_add_node(req, unique_key);
       if (active_bridges_.count(unique_key)) {
-        continue;
-      }
-
-      // オーナー登録試行
-      struct ioctl_bridge_args args;
-      std::memset(&args, 0, sizeof(args));
-      args.pid = getpid();
-      // アクセス変更: req.target.topic_name
-      snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
-
-      if (ioctl(agnocast_fd, AGNOCAST_REGISTER_BRIDGE_CMD, &args) == 0) {
-        load_and_add_node(req, unique_key);
-        if (active_bridges_.count(unique_key)) {
-          RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
-        } else {
-          RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
-          // unregister bridge owner
-          struct ioctl_bridge_args args;
-          std::memset(&args, 0, sizeof(args));
-          args.pid = getpid();
-          snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
-          if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
-            RCLCPP_INFO(
-              logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
-          } else {
-            RCLCPP_ERROR(
-              logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
-              strerror(errno));
-          }
-        }
-      } else if (errno == EEXIST) {
-        union ioctl_get_bridge_pid_args pid_args;
-        std::memset(&pid_args, 0, sizeof(pid_args));
-        snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
-
-        if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
-          pid_t owner_pid = pid_args.ret_pid;
-          send_delegate_request(owner_pid, req);
-          // active_bridges_[unique_key] = nullptr;
-          RCLCPP_INFO(
-            logger_, "Delegated bridge '%s' to owner PID %d", unique_key.c_str(), owner_pid);
-        } else {
-          RCLCPP_ERROR(logger_, "Failed to get owner PID for '%s'", unique_key.c_str());
-        }
+        RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
       } else {
-        RCLCPP_ERROR(logger_, "Register bridge failed: %s", strerror(errno));
+        RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
+        // unregister bridge owner
+        struct ioctl_bridge_args args;
+        std::memset(&args, 0, sizeof(args));
+        args.pid = getpid();
+        snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+        if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+          RCLCPP_INFO(
+            logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
+        } else {
+          RCLCPP_ERROR(
+            logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
+            strerror(errno));
+        }
       }
+    } else if (errno == EEXIST) {
+      union ioctl_get_bridge_pid_args pid_args;
+      std::memset(&pid_args, 0, sizeof(pid_args));
+      snprintf(pid_args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+
+      if (ioctl(agnocast_fd, AGNOCAST_GET_BRIDGE_PID_CMD, &pid_args) == 0) {
+        pid_t owner_pid = pid_args.ret_pid;
+        send_delegate_request(owner_pid, req);
+        // active_bridges_[unique_key] = nullptr;
+        RCLCPP_INFO(
+          logger_, "Delegated bridge '%s' to owner PID %d", unique_key.c_str(), owner_pid);
+      } else {
+        RCLCPP_ERROR(logger_, "Failed to get owner PID for '%s'", unique_key.c_str());
+      }
+    } else {
+      RCLCPP_ERROR(logger_, "Register bridge failed: %s", strerror(errno));
     }
   }
 }
@@ -339,33 +336,30 @@ void BridgeGenerator::handle_child_mq_event()
 
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
-    // アクセス変更: req.control.command
-    if (req.control.command == BridgeCommand::DELEGATE_CREATE) {
-      if (active_bridges_.count(unique_key)) {
-        RCLCPP_INFO(
-          logger_, "Remote delegate request for '%s', but already exists. Ignoring...",
-          unique_key.c_str());
-      } else {
-        RCLCPP_INFO(logger_, "First remote request for '%s'. Creating...", unique_key.c_str());
-        load_and_add_node(req, unique_key);
+    if (active_bridges_.count(unique_key)) {
+      RCLCPP_INFO(
+        logger_, "Remote delegate request for '%s', but already exists. Ignoring...",
+        unique_key.c_str());
+    } else {
+      RCLCPP_INFO(logger_, "First remote request for '%s'. Creating...", unique_key.c_str());
+      load_and_add_node(req, unique_key);
 
-        if (active_bridges_.count(unique_key)) {
-          RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
+      if (active_bridges_.count(unique_key)) {
+        RCLCPP_INFO(logger_, "Bridge '%s' created via delegation (Ref: 1)", unique_key.c_str());
+      } else {
+        RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
+        // unregister bridge owner
+        struct ioctl_bridge_args args;
+        std::memset(&args, 0, sizeof(args));
+        args.pid = getpid();
+        snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+        if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+          RCLCPP_INFO(
+            logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
         } else {
-          RCLCPP_WARN(logger_, "Failed to create bridge '%s' via delegation.", unique_key.c_str());
-          // unregister bridge owner
-          struct ioctl_bridge_args args;
-          std::memset(&args, 0, sizeof(args));
-          args.pid = getpid();
-          snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
-          if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
-            RCLCPP_INFO(
-              logger_, "Unregistered bridge owner for failed delegation '%s'", unique_key.c_str());
-          } else {
-            RCLCPP_ERROR(
-              logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
-              strerror(errno));
-          }
+          RCLCPP_ERROR(
+            logger_, "Failed to unregister bridge owner for '%s': %s", unique_key.c_str(),
+            strerror(errno));
         }
       }
     }
@@ -517,10 +511,6 @@ void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge 
   }
 
   MqMsgBridge msg = original_req;
-  // アクセス変更: msg.control.command
-  if (msg.control.command == BridgeCommand::CREATE_BRIDGE) {
-    msg.control.command = BridgeCommand::DELEGATE_CREATE;
-  }
 
   if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0) {
     RCLCPP_ERROR(logger_, "mq_send failed to PID %d: %s", target_pid, strerror(errno));

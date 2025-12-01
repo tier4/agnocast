@@ -16,8 +16,6 @@ struct MqMsgAgnocast
 
 enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
 
-enum class BridgeCommand : uint32_t { CREATE_BRIDGE = 0, DELEGATE_CREATE = 1 };
-
 struct BridgeFactoryInfo
 {
   char shared_lib_path[MAX_NAME_LENGTH];
@@ -29,7 +27,6 @@ struct BridgeFactoryInfo
 struct BridgeControlInfo
 {
   BridgeDirection direction;
-  BridgeCommand command;
 };
 
 struct BridgeTargetInfo

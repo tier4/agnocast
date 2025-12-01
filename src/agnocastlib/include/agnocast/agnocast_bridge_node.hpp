@@ -21,8 +21,7 @@ namespace agnocast
 
 // 前方宣言
 template <typename MessageT>
-void send_bridge_command(
-  const std::string & topic_name, topic_local_id_t id, BridgeDirection dir, BridgeCommand cmd);
+void send_bridge_command(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir);
 
 // =========================================================================
 // Request Policies
@@ -34,8 +33,7 @@ struct RosToAgnocastRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    send_bridge_command<MessageT>(
-      topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST, BridgeCommand::CREATE_BRIDGE);
+    send_bridge_command<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
   }
 };
 
@@ -44,8 +42,7 @@ struct AgnocastToRosRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    send_bridge_command<MessageT>(
-      topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2, BridgeCommand::CREATE_BRIDGE);
+    send_bridge_command<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
 
@@ -257,15 +254,13 @@ std::shared_ptr<void> start_agno_to_ros_node(
 // =========================================================================
 
 template <typename MessageT>
-void send_bridge_command(
-  const std::string & topic_name, topic_local_id_t id, BridgeDirection dir, BridgeCommand cmd)
+void send_bridge_command(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
 {
   auto logger = rclcpp::get_logger("agnocast_bridge_requester");
   MqMsgBridge msg = {};
 
   // 1. 制御要素
   msg.control.direction = dir;
-  msg.control.command = cmd;
 
   // 2. PubSub要素 (QoSは送らず、IDとTopic名のみ)
   snprintf(msg.target.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
