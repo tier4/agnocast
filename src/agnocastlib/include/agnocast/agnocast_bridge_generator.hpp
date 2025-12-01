@@ -41,12 +41,12 @@ private:
 
   void setup_ros_execution();
   void check_parent_alive();
-  void handle_epoll_events(const struct epoll_event * events, int count);
 
-  void handle_parent_mq_event();
-  void handle_child_mq_event();
+  void handle_epoll_events(const struct epoll_event * events, int count);
+  void handle_mq_event(mqd_t fd, bool allow_delegation);
   void handle_signal_event();
 
+  void create_bridge_safely(const MqMsgBridge & req, const std::string & unique_key);
   void load_and_add_node(const MqMsgBridge & req, const std::string & unique_key);
   void remove_bridge_node(const std::string & unique_key);
   void send_delegate_request(pid_t target_pid, const MqMsgBridge & req);
