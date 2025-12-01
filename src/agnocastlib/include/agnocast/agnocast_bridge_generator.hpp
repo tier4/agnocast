@@ -56,6 +56,14 @@ private:
 
   void check_connection_demand();
 
+  std::pair<void *, uintptr_t> load_library_base(const char * lib_path, const char * symbol_name);
+
+  std::pair<BridgeFn, std::shared_ptr<void>> resolve_factory_function(
+    const MqMsgBridge & req, const std::string & unique_key);
+
+  std::shared_ptr<void> create_bridge_instance(
+    BridgeFn entry_func, std::shared_ptr<void> lib_handle, const BridgeTargetInfo & target);
+
   const pid_t target_pid_;
   rclcpp::Logger logger_;
   bool is_parent_alive_{true};  // 親生存フラグ
