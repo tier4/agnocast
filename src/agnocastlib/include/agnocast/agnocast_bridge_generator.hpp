@@ -21,6 +21,8 @@ namespace agnocast
 
 extern int agnocast_fd;
 
+using BridgeFn = std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const BridgeTargetInfo &);
+
 class BridgeGenerator
 {
 public:
@@ -59,6 +61,7 @@ private:
   void check_should_exit();
 
   void check_connection_demand();
+  int get_agnocast_connection_count(const std::string & topic_name, bool is_r2a);
 
   std::pair<void *, uintptr_t> load_library_base(const char * lib_path, const char * symbol_name);
 

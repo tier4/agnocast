@@ -302,19 +302,19 @@ void BridgeGenerator::create_bridge_safely(const MqMsgBridge & req, const std::s
     return;
   }
 
-  RCLCPP_WARN(logger_, "Failed to create bridge '%s'. Rolling back registry.", unique_key.c_str());
+  RCLCPP_WARN(logger_, "Failed to create bridge '%s'. Rolling back...", unique_key.c_str());
 
-  struct ioctl_bridge_args args;
-  std::memset(&args, 0, sizeof(args));
-  args.pid = getpid();
-  snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", req.target.topic_name);
+  std::string topic_name = req.target.topic_name;
+  bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
+  std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
 
-  if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) != 0) {
-    RCLCPP_ERROR(
-      logger_, "Rollback failed: Could not unregister '%s': %s", args.topic_name, strerror(errno));
-    return;
+  if (active_bridges_.count(reverse_key) == 0) {
+    unregister_from_kernel(topic_name);
+  } else {
+    RCLCPP_INFO(
+      logger_, "Rollback: Skipped kernel unregister (reverse bridge '%s' is active).",
+      reverse_key.c_str());
   }
-  RCLCPP_INFO(logger_, "Rollback: Unregistered bridge owner for '%s'", args.topic_name);
 }
 
 void BridgeGenerator::handle_signal_event()
@@ -511,87 +511,98 @@ void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
   check_should_exit();
 }
 
-void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge & original_req)
+void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge & req)
 {
   std::string mq_name = create_mq_name_for_bridge_child(target_pid);
-  mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+
+  mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_CLOEXEC);
 
   if (mq == (mqd_t)-1) {
     RCLCPP_WARN(logger_, "Failed to open MQ for delegate PID %d: %s", target_pid, strerror(errno));
     return;
   }
 
-  MqMsgBridge msg = original_req;
-
-  if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0) {
-    RCLCPP_ERROR(logger_, "mq_send failed to PID %d: %s", target_pid, strerror(errno));
+  if (mq_send(mq, reinterpret_cast<const char *>(&req), sizeof(req), 0) < 0) {
+    if (errno == EAGAIN) {
+      RCLCPP_WARN(logger_, "Delegate MQ full for PID %d (Message dropped)", target_pid);
+    } else {
+      RCLCPP_ERROR(logger_, "mq_send failed to PID %d: %s", target_pid, strerror(errno));
+    }
   }
+
   mq_close(mq);
 }
 
+// -------------------------------------------------------------------------
+// ヘルパー: カーネル問い合わせ
+// -------------------------------------------------------------------------
+int BridgeGenerator::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
+{
+  int ret = -1;
+  uint32_t count = 0;
+
+  // カーネルへ問い合わせる際の引数準備
+  // 注: args構造体はスタック上に確保され、ioctl呼び出し中のみ有効であればよい
+  if (is_r2a) {
+    // R2A (自分はPub) -> Agnocast Subscriber数を確認
+    union ioctl_get_subscriber_num_args args;
+    std::memset(&args, 0, sizeof(args));
+    args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+    ret = ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args);
+    count = args.ret_subscriber_num;
+  } else {
+    // A2R (自分はSub) -> Agnocast Publisher数を確認
+    union ioctl_get_publisher_num_args args;
+    std::memset(&args, 0, sizeof(args));
+    args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+    ret = ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args);
+    count = args.ret_publisher_num;
+  }
+
+  if (ret != 0) {
+    return -1;  // エラー
+  }
+  return static_cast<int>(count);
+}
+
+// -------------------------------------------------------------------------
+// GC メインロジック (リファクタリング後)
+// -------------------------------------------------------------------------
 void BridgeGenerator::check_connection_demand()
 {
   std::vector<std::string> bridges_to_remove;
 
   {
-    // マップ操作とカーネル問い合わせの間、整合性を保つためにロック
     std::lock_guard<std::mutex> lock(executor_mutex_);
 
     for (auto it = active_bridges_.begin(); it != active_bridges_.end(); ++it) {
       const std::string & unique_key = it->first;
 
-      // キー解析 ("/topic_R2A" -> "/topic", is_r2a=true)
+      // キー解析
+      // 安全策: キーが短すぎる場合は無視 (サフィックス _R2A/_A2R = 4文字)
+      if (unique_key.size() <= 4) continue;
+
       std::string topic_name = unique_key.substr(0, unique_key.length() - 4);
       bool is_r2a = (unique_key.rfind("_R2A") != std::string::npos);
 
-      // -----------------------------------------------------
       // 1. 閾値 (Threshold) の決定
-      // -----------------------------------------------------
-      // 逆方向のブリッジ（ペア）が同一プロセス内に存在するか確認
+      // 逆方向のペアが存在する場合は、その分(1つ)をカウントから差し引くための閾値設定
       std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
-      bool has_reverse = (active_bridges_.count(reverse_key) > 0);
-      uint32_t threshold = has_reverse ? 1 : 0;
+      int threshold = (active_bridges_.count(reverse_key) > 0) ? 1 : 0;
 
-      // -----------------------------------------------------
       // 2. カーネルからのカウント取得
-      // -----------------------------------------------------
-      uint32_t count = 0;
-      int ret = -1;
+      int count = get_agnocast_connection_count(topic_name, is_r2a);
 
-      if (is_r2a) {
-        // R2A (自分はPub) -> Agnocast Subscriber数を確認
-        union ioctl_get_subscriber_num_args args;
-        std::memset(&args, 0, sizeof(args));
-        // 生のトピック名を使用
-        args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-        ret = ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args);
-        if (ret == 0) {
-          count = args.ret_subscriber_num;
-        }
-      } else {
-        // A2R (自分はSub) -> Agnocast Publisher数を確認
-        union ioctl_get_publisher_num_args args;
-        std::memset(&args, 0, sizeof(args));
-        args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-        ret = ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args);
-        if (ret == 0) {
-          count = args.ret_publisher_num;
-        }
-      }
-
-      if (ret < 0) {
+      if (count < 0) {
         RCLCPP_WARN(
-          logger_, "Failed to get connection count for '%s': %s", topic_name.c_str(),
+          logger_, "GC: Failed to get connection count for '%s': %s", topic_name.c_str(),
           strerror(errno));
-        continue;  // エラー時は安全側に倒して削除しない
+        continue;
       }
 
-      // -----------------------------------------------------
-      // 3. 判定
-      // -----------------------------------------------------
-      // 外部の利用者がいなければ (Count <= Threshold)、削除対象に追加
+      // 3. 判定 (外部利用者がいなければ削除)
       if (count <= threshold) {
         RCLCPP_INFO(
           logger_, "Bridge '%s' unused (Count:%d, Threshold:%d). Queued for removal.",
@@ -600,6 +611,7 @@ void BridgeGenerator::check_connection_demand()
       }
     }
 
+    // 4. 削除実行
     for (const auto & key : bridges_to_remove) {
       remove_bridge_node_locked(key);
     }
