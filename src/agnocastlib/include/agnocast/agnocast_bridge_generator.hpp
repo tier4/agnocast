@@ -6,6 +6,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <mqueue.h>
+#include <sys/epoll.h>
 #include <sys/types.h>
 
 #include <map>
@@ -37,6 +38,10 @@ private:
   void setup_mq();
   void setup_signals();
   void setup_epoll();
+
+  void setup_ros_execution();
+  void check_parent_alive();
+  void handle_epoll_events(const struct epoll_event * events, int count);
 
   void handle_parent_mq_event();
   void handle_child_mq_event();

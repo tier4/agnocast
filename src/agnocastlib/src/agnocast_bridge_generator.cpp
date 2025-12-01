@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <link.h>
 #include <mqueue.h>
-#include <sys/epoll.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
 #include <sys/stat.h>
@@ -23,12 +22,7 @@
 #include <thread>
 #include <vector>
 
-// 外部参照
 extern "C" bool agnocast_heaphook_init_daemon();
-namespace agnocast
-{
-extern int agnocast_fd;
-}
 
 namespace agnocast
 {
@@ -36,24 +30,16 @@ namespace agnocast
 BridgeGenerator::BridgeGenerator(pid_t target_pid)
 : target_pid_(target_pid), logger_(rclcpp::get_logger("agnocast_bridge_generator"))
 {
-  // 親プロセスの生存確認
   if (kill(target_pid_, 0) != 0) {
     throw std::runtime_error("Target parent process is already dead.");
-  }
-
-  // --- ROS 2 コンテキストのリセットと再初期化 ---
-  if (rclcpp::ok()) {
-    rclcpp::shutdown();
   }
 
   rclcpp::InitOptions init_options;
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
-  logger_ = rclcpp::get_logger("agnocast_bridge_generator");
-
   if (!agnocast_heaphook_init_daemon()) {
-    RCLCPP_ERROR(logger_, "Heaphook init FAILED.");
+    throw std::runtime_error("Failed to initialize Agnocast HeapHook Daemon.");
   }
 
   setup_mq();
@@ -63,6 +49,15 @@ BridgeGenerator::BridgeGenerator(pid_t target_pid)
 
 BridgeGenerator::~BridgeGenerator()
 {
+  RCLCPP_INFO(logger_, "Agnocast Bridge Generator shutting down.");
+
+  if (executor_) {
+    executor_->cancel();
+  }
+  if (executor_thread_.joinable()) {
+    executor_thread_.join();
+  }
+
   if (epoll_fd_ != -1) close(epoll_fd_);
   if (signal_fd_ != -1) close(signal_fd_);
 
@@ -72,15 +67,6 @@ BridgeGenerator::~BridgeGenerator()
   if (mq_child_fd_ != (mqd_t)-1) mq_close(mq_child_fd_);
   if (!mq_child_name_.empty()) mq_unlink(mq_child_name_.c_str());
 
-  if (executor_) {
-    executor_->cancel();
-  }
-  if (executor_thread_.joinable()) {
-    executor_thread_.join();
-  }
-
-  RCLCPP_INFO(logger_, "Agnocast Bridge Generator shutting down.");
-
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
@@ -88,37 +74,38 @@ BridgeGenerator::~BridgeGenerator()
 
 void BridgeGenerator::setup_mq()
 {
-  struct mq_attr attr{};
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = sizeof(MqMsgBridge);
+  auto create_and_open = [](const std::string & name) -> mqd_t {
+    struct mq_attr attr{};
+    attr.mq_maxmsg = 10;
+    attr.mq_msgsize = sizeof(MqMsgBridge);
+    mq_unlink(name.c_str());
 
-  // 1. Parent MQ (Control Plane)
+    mqd_t fd = mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, 0600, &attr);
+
+    if (fd == (mqd_t)-1) {
+      throw std::runtime_error("mq_open failed for " + name + ": " + std::string(strerror(errno)));
+    }
+    return fd;
+  };
+
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid_);
-  mq_unlink(mq_parent_name_.c_str());
+  mq_parent_fd_ = create_and_open(mq_parent_name_);
 
-  mq_parent_fd_ = mq_open(mq_parent_name_.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-  if (mq_parent_fd_ == (mqd_t)-1) {
-    throw std::runtime_error("Parent MQ open failed: " + std::string(strerror(errno)));
-  }
-
-  // 2. Child MQ (Delegation Plane)
   mq_child_name_ = create_mq_name_for_bridge_child(getpid());
-  mq_unlink(mq_child_name_.c_str());
-
-  mq_child_fd_ = mq_open(mq_child_name_.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-  if (mq_child_fd_ == (mqd_t)-1) {
-    throw std::runtime_error("Child MQ open failed: " + std::string(strerror(errno)));
-  }
+  mq_child_fd_ = create_and_open(mq_child_name_);
 }
 
 void BridgeGenerator::setup_signals()
 {
-  ::signal(SIGPIPE, SIG_IGN);
-  ::signal(SIGHUP, SIG_IGN);
+  for (int sig : {SIGPIPE, SIGHUP}) {
+    ::signal(sig, SIG_IGN);
+  }
+
   sigset_t mask;
   sigemptyset(&mask);
-  sigaddset(&mask, SIGTERM);
-  sigaddset(&mask, SIGINT);
+  for (int sig : {SIGTERM, SIGINT}) {
+    sigaddset(&mask, sig);
+  }
 
   if (sigprocmask(SIG_BLOCK, &mask, nullptr) == -1) {
     throw std::runtime_error("sigprocmask failed: " + std::string(strerror(errno)));
@@ -137,42 +124,69 @@ void BridgeGenerator::setup_epoll()
     throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
-  struct epoll_event ev_parent{};
-  ev_parent.events = EPOLLIN;
-  ev_parent.data.fd = mq_parent_fd_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_parent_fd_, &ev_parent) == -1) {
-    throw std::runtime_error("epoll_ctl (Parent MQ) failed");
-  }
+  auto add_to_epoll = [this](int fd, const std::string & label) {
+    struct epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.fd = fd;
 
-  struct epoll_event ev_child{};
-  ev_child.events = EPOLLIN;
-  ev_child.data.fd = mq_child_fd_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, mq_child_fd_, &ev_child) == -1) {
-    throw std::runtime_error("epoll_ctl (Child MQ) failed");
-  }
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) == -1) {
+      throw std::runtime_error("epoll_ctl (" + label + ") failed: " + std::string(strerror(errno)));
+    }
+  };
 
-  struct epoll_event ev_sig{};
-  ev_sig.events = EPOLLIN;
-  ev_sig.data.fd = signal_fd_;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, signal_fd_, &ev_sig) == -1) {
-    throw std::runtime_error("epoll_ctl (Signal) failed");
-  }
+  add_to_epoll(mq_parent_fd_, "Parent MQ");
+  add_to_epoll(mq_child_fd_, "Child MQ");
+  add_to_epoll(signal_fd_, "Signal");
 }
 
 void BridgeGenerator::run()
 {
-  // 1. コンテナノード作成
-  std::string node_name = "agnocast_bridge_container_" + std::to_string(getpid());
+  std::string proc_name = "agno_br_" + std::to_string(getpid());
+  if (prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0) != 0) {
+    RCLCPP_WARN(logger_, "Failed to set process name: %s", strerror(errno));
+  }
+
+  setup_ros_execution();
+
+  constexpr int MAX_EVENTS = 10;
+  struct epoll_event events[MAX_EVENTS];
+
+  auto last_gc_time = std::chrono::steady_clock::now();
+  constexpr auto GC_INTERVAL = std::chrono::seconds(1);
+
+  while (!shutdown_requested_ && rclcpp::ok()) {
+    check_parent_alive();
+
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_gc_time >= GC_INTERVAL) {
+      check_connection_demand();
+      last_gc_time = now;
+      std::lock_guard<std::mutex> lock(executor_mutex_);
+      check_should_exit();
+    }
+
+    if (shutdown_requested_) break;
+
+    int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      break;
+    }
+
+    handle_epoll_events(events, n);
+  }
+}
+
+void BridgeGenerator::setup_ros_execution()
+{
+  std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
 
-  // 2. Executor生成
   executor_ =
     std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(rclcpp::ExecutorOptions(), 0, 0);
 
-  // 3. コンテナノード追加
   executor_->add_node(container_node_);
 
-  // スピン用スレッド開始
   executor_thread_ = std::thread([this]() {
     try {
       this->executor_->spin();
@@ -182,61 +196,44 @@ void BridgeGenerator::run()
       RCLCPP_FATAL(logger_, "Executor Thread CRASHED (Unknown)");
     }
   });
+}
 
-  constexpr int MAX_EVENTS = 10;
-  struct epoll_event events[MAX_EVENTS];
+void BridgeGenerator::check_parent_alive()
+{
+  if (!is_parent_alive_) return;
 
-  while (!shutdown_requested_ && rclcpp::ok()) {
-    // --- 親プロセス生存確認 & 切り離しロジック ---
-    if (is_parent_alive_) {
-      if (kill(target_pid_, 0) != 0) {
-        RCLCPP_INFO(logger_, "Parent process %d has exited. Detaching...", target_pid_);
+  if (kill(target_pid_, 0) != 0) {
+    is_parent_alive_ = false;
 
-        is_parent_alive_ = false;
-
-        // 親がいなくなったので、親用MQは閉じて監視から外す
-        if (mq_parent_fd_ != (mqd_t)-1) {
-          epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, mq_parent_fd_, nullptr);
-          mq_close(mq_parent_fd_);
-          mq_unlink(mq_parent_name_.c_str());
-          mq_parent_fd_ = (mqd_t)-1;
-        }
-
-        // 終了判定: もしこの時点でブリッジが0なら終了する
-        check_should_exit();
-      }
+    if (mq_parent_fd_ != (mqd_t)-1) {
+      epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, mq_parent_fd_, nullptr);
+      mq_close(mq_parent_fd_);
+      mq_unlink(mq_parent_name_.c_str());
+      mq_parent_fd_ = (mqd_t)-1;
     }
 
-    if (shutdown_requested_) break;
+    check_should_exit();
+  }
+}
 
-    check_connection_demand();
+void BridgeGenerator::handle_epoll_events(const struct epoll_event * events, int count)
+{
+  for (int i = 0; i < count; ++i) {
+    int fd = events[i].data.fd;
 
-    // epoll待機 (親MQが閉じていても、Child MQやSignalは待機できる)
-    int n = epoll_wait(epoll_fd_, events, MAX_EVENTS, 1000);
-
-    if (n < 0) {
-      if (errno == EINTR) continue;
-      break;
-    }
-
-    for (int i = 0; i < n; ++i) {
-      int fd = events[i].data.fd;
-      if (fd == mq_parent_fd_) {
-        handle_parent_mq_event();
-      } else if (fd == mq_child_fd_) {
-        handle_child_mq_event();
-      } else if (fd == signal_fd_) {
-        handle_signal_event();
-      }
+    if (fd == mq_parent_fd_) {
+      handle_parent_mq_event();
+    } else if (fd == mq_child_fd_) {
+      handle_child_mq_event();
+    } else if (fd == signal_fd_) {
+      handle_signal_event();
     }
   }
 }
 
 void BridgeGenerator::check_should_exit()
 {
-  // 終了条件: 「親が死んでいる」 かつ 「アクティブなブリッジが0個」
   if (!is_parent_alive_ && active_bridges_.empty()) {
-    RCLCPP_INFO(logger_, "No parent and no active bridges. Shutting down.");
     shutdown_requested_ = true;
 
     if (executor_) {
