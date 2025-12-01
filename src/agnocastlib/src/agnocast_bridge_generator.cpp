@@ -251,8 +251,8 @@ void BridgeGenerator::handle_parent_mq_event()
   while (mq_receive(mq_parent_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
     // アクセス変更: req.target.topic_name
     std::string unique_key = req.target.topic_name;
-    // アクセス変更: req.control.direction
-    switch (req.control.direction) {
+    // アクセス変更: req.direction
+    switch (req.direction) {
       case BridgeDirection::ROS2_TO_AGNOCAST:
         unique_key += "_R2A";
         break;
@@ -322,8 +322,8 @@ void BridgeGenerator::handle_child_mq_event()
   while (mq_receive(mq_child_fd_, (char *)&req, sizeof(req), nullptr) > 0) {
     // アクセス変更: req.target.topic_name
     std::string unique_key = req.target.topic_name;
-    // アクセス変更: req.control.direction
-    switch (req.control.direction) {
+    // アクセス変更: req.direction
+    switch (req.direction) {
       case BridgeDirection::ROS2_TO_AGNOCAST:
         unique_key += "_R2A";
         break;
@@ -430,9 +430,9 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
 
       // 逆方向キャッシュ
       if (req.factory.fn_offset_reverse != 0) {
-        // アクセス変更: req.target.topic_name, req.control.direction
+        // アクセス変更: req.target.topic_name, req.direction
         std::string reverse_key = req.target.topic_name;
-        if (req.control.direction == BridgeDirection::ROS2_TO_AGNOCAST)
+        if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST)
           reverse_key += "_A2R";
         else
           reverse_key += "_R2A";

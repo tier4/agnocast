@@ -24,11 +24,6 @@ struct BridgeFactoryInfo
   uintptr_t fn_offset_reverse;
 };
 
-struct BridgeControlInfo
-{
-  BridgeDirection direction;
-};
-
 struct BridgeTargetInfo
 {
   char topic_name[MAX_TOPIC_NAME_LEN];
@@ -38,8 +33,8 @@ struct BridgeTargetInfo
 struct MqMsgBridge
 {
   BridgeFactoryInfo factory;
-  BridgeControlInfo control;
   BridgeTargetInfo target;
+  BridgeDirection direction;
 };
 
 }  // namespace agnocast

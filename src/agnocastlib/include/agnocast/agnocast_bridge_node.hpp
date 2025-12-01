@@ -260,7 +260,7 @@ void send_bridge_command(const std::string & topic_name, topic_local_id_t id, Br
   MqMsgBridge msg = {};
 
   // 1. 制御要素
-  msg.control.direction = dir;
+  msg.direction = dir;
 
   // 2. PubSub要素 (QoSは送らず、IDとTopic名のみ)
   snprintf(msg.target.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
