@@ -458,33 +458,57 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
   }
 }
 
-void BridgeGenerator::remove_bridge_node(const std::string & unique_key)
+// -------------------------------------------------------------------------
+// ヘルパー: カーネルからの登録解除
+// -------------------------------------------------------------------------
+void BridgeGenerator::unregister_from_kernel(const std::string & topic_name)
 {
-  if (active_bridges_.count(unique_key)) {
-    active_bridges_.erase(unique_key);
-    RCLCPP_INFO(logger_, "Removed bridge entry: %s", unique_key.c_str());
+  struct ioctl_bridge_args args;
+  std::memset(&args, 0, sizeof(args));
+  args.pid = getpid();
 
-    std::string topic_name = unique_key.substr(0, unique_key.length() - 4);
-    std::string reverse_key;
-    if (unique_key.rfind("_R2A") != std::string::npos)
-      reverse_key = topic_name + "_A2R";
-    else
-      reverse_key = topic_name + "_R2A";
+  // 生のトピック名を使用
+  snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
 
-    if (active_bridges_.count(reverse_key) == 0) {
-      struct ioctl_bridge_args args;
-      std::memset(&args, 0, sizeof(args));
-      args.pid = getpid();
-      snprintf(args.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
-
-      if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
-        RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
-      }
-    }
-
-    // ★ 親プロセス切り離しロジック
-    check_should_exit();
+  if (ioctl(agnocast_fd, AGNOCAST_UNREGISTER_BRIDGE_CMD, &args) == 0) {
+    RCLCPP_INFO(logger_, "Unregistered bridge owner for '%s'", topic_name.c_str());
+  } else {
+    // 失敗してもログを出すだけ（既に消えている場合などもあるため致命的ではない）
+    RCLCPP_WARN(
+      logger_, "Failed to unregister bridge owner for '%s': %s", topic_name.c_str(),
+      strerror(errno));
   }
+}
+
+// -------------------------------------------------------------------------
+// メイン関数 (リファクタリング後)
+// ※ 呼び出し元で executor_mutex_ をロックしている前提
+// -------------------------------------------------------------------------
+void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
+{
+  // 1. 存在チェック & 削除
+  if (active_bridges_.count(unique_key) == 0) {
+    return;
+  }
+  active_bridges_.erase(unique_key);
+  RCLCPP_INFO(logger_, "Removed bridge entry: %s", unique_key.c_str());
+
+  // 2. キー解析
+  // 前提: キー末尾は必ず "_R2A" (4文字) か "_A2R" (4文字)
+  const size_t suffix_len = 4;
+  if (unique_key.size() <= suffix_len) return;  // 安全策
+
+  std::string topic_name = unique_key.substr(0, unique_key.length() - suffix_len);
+  bool is_r2a = (unique_key.compare(unique_key.length() - suffix_len, suffix_len, "_R2A") == 0);
+
+  // 3. 逆方向キーの生成
+  std::string reverse_key = topic_name + (is_r2a ? "_A2R" : "_R2A");
+
+  if (active_bridges_.count(reverse_key) == 0) {
+    unregister_from_kernel(topic_name);
+  }
+
+  check_should_exit();
 }
 
 void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge & original_req)
@@ -577,7 +601,7 @@ void BridgeGenerator::check_connection_demand()
     }
 
     for (const auto & key : bridges_to_remove) {
-      remove_bridge_node(key);
+      remove_bridge_node_locked(key);
     }
   }
 }

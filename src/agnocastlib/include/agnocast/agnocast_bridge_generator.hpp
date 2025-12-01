@@ -48,10 +48,14 @@ private:
 
   void create_bridge_safely(const MqMsgBridge & req, const std::string & unique_key);
   void load_and_add_node(const MqMsgBridge & req, const std::string & unique_key);
-  void remove_bridge_node(const std::string & unique_key);
   void send_delegate_request(pid_t target_pid, const MqMsgBridge & req);
 
   // 親プロセス切り離し用
+  // ヘルパー
+  void unregister_from_kernel(const std::string & topic_name);
+
+  // 関数名変更: ロック済みであることを明示
+  void remove_bridge_node_locked(const std::string & unique_key);
   void check_should_exit();
 
   void check_connection_demand();
