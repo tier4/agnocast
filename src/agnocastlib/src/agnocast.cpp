@@ -1,7 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
 #include "agnocast/agnocast_bridge_generator.hpp"
-#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
