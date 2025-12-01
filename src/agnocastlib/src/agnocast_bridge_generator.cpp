@@ -406,7 +406,7 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
         base_addr = map->l_addr;
       }
     } else {
-      void * handle = dlopen(req.factory.shared_lib_path, RTLD_NOW);
+      void * handle = dlopen(req.factory.shared_lib_path, RTLD_NOW | RTLD_LOCAL);
       if (handle) {
         raw_handle = handle;
         struct link_map * map = static_cast<struct link_map *>(handle);
