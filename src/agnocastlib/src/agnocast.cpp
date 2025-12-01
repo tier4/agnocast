@@ -1,6 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
-#include "agnocast/agnocast_bridge_generator.hpp"
+#include "agnocast/agnocast_bridge_manager.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -84,7 +84,7 @@ void poll_for_unlink()
   exit(0);
 }
 
-void poll_for_bridge_generate(pid_t target_pid)
+void poll_for_bridge_manager(pid_t target_pid)
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
@@ -92,10 +92,10 @@ void poll_for_bridge_generate(pid_t target_pid)
     exit(EXIT_FAILURE);
   }
 
-  RCLCPP_INFO(logger, "[BRIDGE_GENERATOR] PID: %d", getpid());
+  RCLCPP_INFO(logger, "[BRIDGE_MANAGER] PID: %d", getpid());
   try {
-    BridgeGenerator generator(target_pid);
-    generator.run();
+    BridgeManager manager(target_pid);
+    manager.run();
   } catch (const std::exception & e) {
     exit(1);
   }
@@ -353,7 +353,7 @@ void * initialize_agnocast(
   }
 
   pid_t parent_pid = getpid();
-  spawn_daemon_process([parent_pid]() { poll_for_bridge_generate(parent_pid); });
+  spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   wait_for_mq_ready(create_mq_name_for_bridge_parent(parent_pid));
 

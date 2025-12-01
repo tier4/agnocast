@@ -1,4 +1,4 @@
-#include "agnocast/agnocast_bridge_generator.hpp"
+#include "agnocast/agnocast_bridge_manager.hpp"
 
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_utils.hpp"
@@ -26,8 +26,8 @@ extern "C" bool agnocast_heaphook_init_daemon();
 namespace agnocast
 {
 
-BridgeGenerator::BridgeGenerator(pid_t target_pid)
-: target_pid_(target_pid), logger_(rclcpp::get_logger("agnocast_bridge_generator"))
+BridgeManager::BridgeManager(pid_t target_pid)
+: target_pid_(target_pid), logger_(rclcpp::get_logger("agnocast_bridge_manager"))
 {
   if (kill(target_pid_, 0) != 0) {
     throw std::runtime_error("Target parent process is already dead.");
@@ -46,9 +46,9 @@ BridgeGenerator::BridgeGenerator(pid_t target_pid)
   setup_epoll();
 }
 
-BridgeGenerator::~BridgeGenerator()
+BridgeManager::~BridgeManager()
 {
-  RCLCPP_INFO(logger_, "Agnocast Bridge Generator shutting down.");
+  RCLCPP_INFO(logger_, "Agnocast Bridge Manager shutting down.");
 
   if (executor_) {
     executor_->cancel();
@@ -71,7 +71,7 @@ BridgeGenerator::~BridgeGenerator()
   }
 }
 
-void BridgeGenerator::run()
+void BridgeManager::run()
 {
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   if (prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0) != 0) {
@@ -109,7 +109,7 @@ void BridgeGenerator::run()
   }
 }
 
-void BridgeGenerator::setup_mq()
+void BridgeManager::setup_mq()
 {
   auto create_and_open = [](const std::string & name) -> mqd_t {
     struct mq_attr attr{};
@@ -132,7 +132,7 @@ void BridgeGenerator::setup_mq()
   mq_child_fd_ = create_and_open(mq_child_name_);
 }
 
-void BridgeGenerator::setup_signals()
+void BridgeManager::setup_signals()
 {
   for (int sig : {SIGPIPE, SIGHUP}) {
     ::signal(sig, SIG_IGN);
@@ -154,7 +154,7 @@ void BridgeGenerator::setup_signals()
   }
 }
 
-void BridgeGenerator::setup_epoll()
+void BridgeManager::setup_epoll()
 {
   epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
   if (epoll_fd_ == -1) {
@@ -176,7 +176,7 @@ void BridgeGenerator::setup_epoll()
   add_to_epoll(signal_fd_, "Signal");
 }
 
-void BridgeGenerator::setup_ros_execution()
+void BridgeManager::setup_ros_execution()
 {
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
@@ -197,7 +197,7 @@ void BridgeGenerator::setup_ros_execution()
   });
 }
 
-void BridgeGenerator::handle_epoll_events(const struct epoll_event * events, int count)
+void BridgeManager::handle_epoll_events(const struct epoll_event * events, int count)
 {
   for (int i = 0; i < count; ++i) {
     int fd = events[i].data.fd;
@@ -212,7 +212,7 @@ void BridgeGenerator::handle_epoll_events(const struct epoll_event * events, int
   }
 }
 
-void BridgeGenerator::handle_mq_event(mqd_t fd, bool allow_delegation)
+void BridgeManager::handle_mq_event(mqd_t fd, bool allow_delegation)
 {
   MqMsgBridge req;
   while (mq_receive(fd, (char *)&req, sizeof(req), nullptr) > 0) {
@@ -263,7 +263,7 @@ void BridgeGenerator::handle_mq_event(mqd_t fd, bool allow_delegation)
   }
 }
 
-void BridgeGenerator::handle_signal_event()
+void BridgeManager::handle_signal_event()
 {
   struct signalfd_siginfo fdsi;
   ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
@@ -282,7 +282,7 @@ void BridgeGenerator::handle_signal_event()
   }
 }
 
-void BridgeGenerator::check_parent_alive()
+void BridgeManager::check_parent_alive()
 {
   if (!is_parent_alive_) return;
 
@@ -300,7 +300,7 @@ void BridgeGenerator::check_parent_alive()
   }
 }
 
-void BridgeGenerator::check_connection_demand()
+void BridgeManager::check_connection_demand()
 {
   std::vector<std::string> bridges_to_remove;
 
@@ -339,7 +339,7 @@ void BridgeGenerator::check_connection_demand()
   }
 }
 
-void BridgeGenerator::check_should_exit()
+void BridgeManager::check_should_exit()
 {
   if (!is_parent_alive_ && active_bridges_.empty()) {
     shutdown_requested_ = true;
@@ -350,7 +350,7 @@ void BridgeGenerator::check_should_exit()
   }
 }
 
-void BridgeGenerator::create_bridge_safely(const MqMsgBridge & req, const std::string & unique_key)
+void BridgeManager::create_bridge_safely(const MqMsgBridge & req, const std::string & unique_key)
 {
   load_and_add_node(req, unique_key);
 
@@ -374,7 +374,7 @@ void BridgeGenerator::create_bridge_safely(const MqMsgBridge & req, const std::s
   }
 }
 
-void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
+void BridgeManager::remove_bridge_node_locked(const std::string & unique_key)
 {
   if (active_bridges_.count(unique_key) == 0) {
     return;
@@ -397,7 +397,7 @@ void BridgeGenerator::remove_bridge_node_locked(const std::string & unique_key)
   check_should_exit();
 }
 
-void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::string & unique_key)
+void BridgeManager::load_and_add_node(const MqMsgBridge & req, const std::string & unique_key)
 {
   auto [entry_func, lib_handle] = resolve_factory_function(req, unique_key);
 
@@ -419,7 +419,7 @@ void BridgeGenerator::load_and_add_node(const MqMsgBridge & req, const std::stri
   }
 }
 
-std::pair<void *, uintptr_t> BridgeGenerator::load_library_base(
+std::pair<void *, uintptr_t> BridgeManager::load_library_base(
   const char * lib_path, const char * symbol_name)
 {
   void * handle = nullptr;
@@ -438,7 +438,7 @@ std::pair<void *, uintptr_t> BridgeGenerator::load_library_base(
   return {handle, map->l_addr};
 }
 
-std::pair<BridgeFn, std::shared_ptr<void>> BridgeGenerator::resolve_factory_function(
+std::pair<BridgeFn, std::shared_ptr<void>> BridgeManager::resolve_factory_function(
   const MqMsgBridge & req, const std::string & unique_key)
 {
   auto it = cached_factories_.find(unique_key);
@@ -475,7 +475,7 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeGenerator::resolve_factory_func
   return {entry_func, lib_handle_ptr};
 }
 
-std::shared_ptr<void> BridgeGenerator::create_bridge_instance(
+std::shared_ptr<void> BridgeManager::create_bridge_instance(
   BridgeFn entry_func, std::shared_ptr<void> lib_handle, const BridgeTargetInfo & target)
 {
   try {
@@ -495,7 +495,7 @@ std::shared_ptr<void> BridgeGenerator::create_bridge_instance(
   }
 }
 
-void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge & req)
+void BridgeManager::send_delegate_request(pid_t target_pid, const MqMsgBridge & req)
 {
   std::string mq_name = create_mq_name_for_bridge_child(target_pid);
 
@@ -517,7 +517,7 @@ void BridgeGenerator::send_delegate_request(pid_t target_pid, const MqMsgBridge 
   mq_close(mq);
 }
 
-void BridgeGenerator::unregister_from_kernel(const std::string & topic_name)
+void BridgeManager::unregister_from_kernel(const std::string & topic_name)
 {
   struct ioctl_bridge_args args;
   std::memset(&args, 0, sizeof(args));
@@ -534,7 +534,7 @@ void BridgeGenerator::unregister_from_kernel(const std::string & topic_name)
   }
 }
 
-int BridgeGenerator::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
+int BridgeManager::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
 {
   int ret = -1;
   uint32_t count = 0;

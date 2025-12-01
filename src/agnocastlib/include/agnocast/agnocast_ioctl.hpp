@@ -198,19 +198,16 @@ union ioctl_get_bridge_pid_args {
 };
 #pragma GCC diagnostic pop
 
-// ★GeneratorがIDからQoSを取得するための構造体
 struct ioctl_get_subscriber_qos_args
 {
-  // IN
   char topic_name[MAX_TOPIC_NAME_LEN];
   topic_local_id_t id;
 
-  // OUT
   struct
   {
     uint32_t depth;
     bool is_transient_local;
-    bool is_reliable;  // ★追加
+    bool is_reliable;
   } qos;
 };
 
@@ -231,7 +228,6 @@ struct ioctl_get_subscriber_qos_args
 #define AGNOCAST_REGISTER_BRIDGE_CMD _IOW(0xA6, 16, struct ioctl_bridge_args)
 #define AGNOCAST_UNREGISTER_BRIDGE_CMD _IOW(0xA6, 17, struct ioctl_bridge_args)
 #define AGNOCAST_GET_BRIDGE_PID_CMD _IOWR(0xA6, 18, union ioctl_get_bridge_pid_args)
-// ★新規コマンド
 #define AGNOCAST_GET_SUBSCRIBER_QOS_CMD _IOWR(0xA6, 19, struct ioctl_get_subscriber_qos_args)
 
 }  // namespace agnocast

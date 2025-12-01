@@ -23,19 +23,19 @@ extern int agnocast_fd;
 
 using BridgeFn = std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const BridgeTargetInfo &);
 
-class BridgeGenerator
+class BridgeManager
 {
 public:
   // =========================================================================
   // Constructor & Destructor
   // =========================================================================
-  explicit BridgeGenerator(pid_t target_pid);
-  ~BridgeGenerator();
+  explicit BridgeManager(pid_t target_pid);
+  ~BridgeManager();
 
-  BridgeGenerator(const BridgeGenerator &) = delete;
-  BridgeGenerator & operator=(const BridgeGenerator &) = delete;
-  BridgeGenerator(BridgeGenerator &&) = delete;
-  BridgeGenerator & operator=(BridgeGenerator &&) = delete;
+  BridgeManager(const BridgeManager &) = delete;
+  BridgeManager & operator=(const BridgeManager &) = delete;
+  BridgeManager(BridgeManager &&) = delete;
+  BridgeManager & operator=(BridgeManager &&) = delete;
 
   // =========================================================================
   // Public Interface
