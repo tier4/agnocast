@@ -1,5 +1,49 @@
 <launch>
-    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen">
-        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
-    </node>
+    <!--
+    This launch file demonstrates agnocast::Node capabilities:
+    - Default behavior
+    - Parameter overrides
+    - Topic remapping
+    - Namespace resolution
+
+    Run with different arguments to test different scenarios:
+    - Default: ros2 launch agnocast_sample_application no_rclcpp_listener.launch.xml
+    - Parameters: ros2 launch agnocast_sample_application no_rclcpp_listener.launch.xml test_mode:=parameters
+    - Remapping: ros2 launch agnocast_sample_application no_rclcpp_listener.launch.xml test_mode:=remapping
+    - Namespace: ros2 launch agnocast_sample_application no_rclcpp_listener.launch.xml test_mode:=namespace
+    -->
+
+    <arg name="test_mode" default="default" description="Test mode: default, parameters, remapping, or namespace"/>
+
+    <!-- Default behavior test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'default\'')">
+        <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        </node>
+    </group>
+
+    <!-- Parameter override test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'parameters\'')">
+        <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen">
+            <param name="topic_name" value="custom_topic"/>
+            <param name="queue_size" value="10"/>
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        </node>
+    </group>
+
+    <!-- Topic remapping test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'remapping\'')">
+        <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen">
+            <remap from="my_topic" to="/remapped_topic"/>
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        </node>
+    </group>
+
+    <!-- Namespace resolution test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'namespace\'')">
+        <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node"
+              namespace="/test_namespace" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        </node>
+    </group>
 </launch>

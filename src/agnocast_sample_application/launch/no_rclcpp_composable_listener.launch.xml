@@ -1,10 +1,60 @@
 <launch>
-    <node_container pkg="agnocastlib" exec="agnocast_component_container" name="no_rclcpp_composable_listener_container" namespace="" output="screen">
-      <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+    <!--
+    This launch file demonstrates agnocast::Node composable node capabilities:
+    - Default behavior
+    - Parameter overrides
+    - Topic remapping
+    - Namespace resolution
 
-      <composable_node pkg="agnocast_sample_application" plugin="NoRclcppComposableSubscriber" name="no_rclcpp_composable_listener_node" namespace="">
-        <param name="topic_name" value="/my_topic" />
-        <param name="queue_size" value="10" />
-      </composable_node>
-    </node_container>
+    Run with different arguments to test different scenarios:
+    - Default: ros2 launch agnocast_sample_application no_rclcpp_composable_listener.launch.xml
+    - Parameters: ros2 launch agnocast_sample_application no_rclcpp_composable_listener.launch.xml test_mode:=parameters
+    - Remapping: ros2 launch agnocast_sample_application no_rclcpp_composable_listener.launch.xml test_mode:=remapping
+    - Namespace: ros2 launch agnocast_sample_application no_rclcpp_composable_listener.launch.xml test_mode:=namespace
+    -->
+
+    <arg name="test_mode" default="default" description="Test mode: default, parameters, remapping, or namespace"/>
+
+    <!-- Default behavior test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'default\'')">
+        <node_container pkg="agnocastlib" exec="agnocast_component_container" name="no_rclcpp_composable_listener_container" namespace="" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+
+            <composable_node pkg="agnocast_sample_application" plugin="NoRclcppComposableSubscriber" name="no_rclcpp_composable_listener_node" namespace="">
+            </composable_node>
+        </node_container>
+    </group>
+
+    <!-- Parameter override test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'parameters\'')">
+        <node_container pkg="agnocastlib" exec="agnocast_component_container" name="no_rclcpp_composable_listener_container" namespace="" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+
+            <composable_node pkg="agnocast_sample_application" plugin="NoRclcppComposableSubscriber" name="no_rclcpp_composable_listener_node" namespace="">
+                <param name="topic_name" value="custom_topic"/>
+                <param name="queue_size" value="10"/>
+            </composable_node>
+        </node_container>
+    </group>
+
+    <!-- Topic remapping test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'remapping\'')">
+        <node_container pkg="agnocastlib" exec="agnocast_component_container" name="no_rclcpp_composable_listener_container" namespace="" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+
+            <composable_node pkg="agnocast_sample_application" plugin="NoRclcppComposableSubscriber" name="no_rclcpp_composable_listener_node" namespace="">
+                <remap from="my_topic" to="/remapped_topic"/>
+            </composable_node>
+        </node_container>
+    </group>
+
+    <!-- Namespace resolution test -->
+    <group if="$(eval '\'$(var test_mode)\' == \'namespace\'')">
+        <node_container pkg="agnocastlib" exec="agnocast_component_container" name="no_rclcpp_composable_listener_container" namespace="/test_namespace" output="screen">
+            <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+
+            <composable_node pkg="agnocast_sample_application" plugin="NoRclcppComposableSubscriber" name="no_rclcpp_composable_listener_node" namespace="">
+            </composable_node>
+        </node_container>
+    </group>
 </launch>
