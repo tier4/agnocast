@@ -48,8 +48,8 @@ struct PublisherOptions
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
-template <typename MessageT>
-class Publisher
+template <typename MessageT, typename BridgeRequestPolicy>
+class BasicPublisher
 {
   topic_local_id_t id_ = -1;
   std::string topic_name_;
@@ -65,13 +65,15 @@ class Publisher
   std::mutex ros2_publish_mtx_;
 
 public:
-  using SharedPtr = std::shared_ptr<Publisher<MessageT>>;
+  using SharedPtr = std::shared_ptr<BasicPublisher<MessageT, BridgeRequestPolicy>>;
 
-  Publisher(
+  BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
+
     rclcpp::PublisherOptions pub_options;
     pub_options.qos_overriding_options = options.qos_overriding_options;
     ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
@@ -110,7 +112,7 @@ public:
     ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
   }
 
-  ~Publisher()
+  ~BasicPublisher()
   {
     MqMsgROS2Publish mq_msg = {};
     mq_msg.should_terminate = true;
@@ -233,6 +235,11 @@ public:
     return ros2_publisher_->get_subscription_count() + get_subscription_count_core(topic_name_);
   }
 };
+
+struct DefaultBridgeRequestPolicy;
+
+template <typename MessageT>
+using Publisher = agnocast::BasicPublisher<MessageT, agnocast::DefaultBridgeRequestPolicy>;
 
 // The Publisher that does not instantiate a ros2 publisher
 template <typename MessageT>

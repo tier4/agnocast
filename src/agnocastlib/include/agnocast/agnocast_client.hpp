@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
@@ -63,7 +64,7 @@ private:
   const std::string service_name_;
   // AgnocastOnlyPublisher is used since RequestT is not a compatible ROS message type.
   typename AgnocastOnlyPublisher<RequestT>::SharedPtr publisher_;
-  typename Subscription<ResponseT>::SharedPtr subscriber_;
+  typename BasicSubscription<ResponseT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
   Client(
@@ -98,7 +99,7 @@ public:
     SubscriptionOptions options{group};
     std::string topic_name =
       create_service_response_topic_name(service_name_, node->get_fully_qualified_name());
-    subscriber_ = std::make_shared<Subscription<ResponseT>>(
+    subscriber_ = std::make_shared<BasicSubscription<ResponseT, NoBridgeRequestPolicy>>(
       node_, topic_name, qos, std::move(subscriber_callback), options);
   }
 
