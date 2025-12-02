@@ -62,7 +62,7 @@ void AgnocastOnlyMultiThreadedExecutor::agnocast_spin()
     // can block indefinitely without a timeout. However, since we need to periodically check for
     // epoll updates, we should implement a long timeout period instead of an infinite block.
     if (get_next_agnocast_executable(
-          agnocast_executable, next_exec_timeout_ms_ /* timed-blocking*/ )) {
+          agnocast_executable, next_exec_timeout_ms_ /* timed-blocking*/)) {
       if (yield_before_execute_) {
         std::this_thread::yield();
       }
