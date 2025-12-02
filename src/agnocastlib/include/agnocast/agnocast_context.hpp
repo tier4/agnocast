@@ -33,7 +33,7 @@ public:
   using ParameterValue = rclcpp::ParameterValue;
 
   static Context & instance();
-  void init(int argc, char * argv[]);
+  void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
   const std::vector<RemapRule> & get_remap_rules() const { return remap_rules_; }
 
@@ -47,7 +47,7 @@ public:
     return global_parameter_overrides_;
   }
 
-private:
+  // Default constructor and destructor (public for global instance)
   Context() = default;
   ~Context() = default;
 
@@ -57,6 +57,7 @@ private:
   Context(Context &&) = delete;
   Context & operator=(Context &&) = delete;
 
+private:
   bool parse_remap_rule(const std::string & arg);
   bool parse_param_rule(const std::string & arg);
   bool parse_yaml_file(const std::string & file_path);
@@ -74,6 +75,9 @@ private:
   std::map<std::string, ParameterValue> global_parameter_overrides_;
 };
 
-void init(int argc, char * argv[]);
+extern Context g_context;
+extern std::mutex g_context_mtx;
+
+void init(int argc, char const * const * argv);
 
 }  // namespace agnocast

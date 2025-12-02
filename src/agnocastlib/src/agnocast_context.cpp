@@ -7,30 +7,36 @@
 namespace agnocast
 {
 
+// Global context instance and mutex
+Context g_context;
+std::mutex g_context_mtx;
+
 Context & Context::instance()
 {
-  // Singleton pattern using static local variable (thread-safe in C++11+)
-  // Corresponds to rclcpp::contexts::get_global_default_context()
-  static Context context;
-  return context;
+  return g_context;
 }
 
-void Context::init(int argc, char * argv[])
+void Context::init(int argc, char const * const * argv)
 {
   // Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c
   if (initialized_) {
     return;
   }
 
-  bool parsing_ros_args = false;
+  std::string node_name;
+  // Copy argv into a safe container to avoid pointer arithmetic
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    args.emplace_back(argv[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  }
 
+  bool parsing_ros_args = false;
   for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+    const std::string & arg = args[static_cast<size_t>(i)];
 
     if (parsing_ros_args) {
-      // Inside --ros-args scope: explicit flags required
-
-      // Ignore ROS specific arguments flag (already inside)
+      // Ignore ROS specific arguments flag
       if (arg == RCL_ROS_ARGS_FLAG) {
         continue;
       }
@@ -264,11 +270,10 @@ std::map<std::string, Context::ParameterValue> Context::get_param_overrides(
   return result;
 }
 
-void init(int argc, char * argv[])
+void init(int argc, char const * const * argv)
 {
-  // Corresponds to rclcpp::init()
-  // Initializes the global context with command-line arguments
-  Context::instance().init(argc, argv);
+  std::lock_guard<std::mutex> lock(g_context_mtx);
+  g_context.init(argc, argv);
 }
 
 }  // namespace agnocast

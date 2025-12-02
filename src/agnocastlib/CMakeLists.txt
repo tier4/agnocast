@@ -32,8 +32,8 @@ add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_context.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
-  src/agnocast_callback_isolated_executor.cpp src/agnocast_only_executor.cpp 
-  src/agnocast_only_single_threaded_executor.cpp src/agnocast_only_multithreaded_executor.cpp
+  src/agnocast_callback_isolated_executor.cpp src/agnocast_only_executor.cpp
+  src/agnocast_only_single_threaded_executor.cpp src/agnocast_only_multi_threaded_executor.cpp
   src/agnocast_tracepoint_wrapper.c src/agnocast_context.cpp src/agnocast_node.cpp src/agnocast_client.cpp
   src/node_interfaces/node_base.cpp
   src/node_interfaces/node_topics.cpp
@@ -117,7 +117,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gmock REQUIRED)
-  
+
   # Unit tests
   ament_add_gmock(test_unit_${PROJECT_NAME}
     test/unit/test_agnocast_utils.cpp

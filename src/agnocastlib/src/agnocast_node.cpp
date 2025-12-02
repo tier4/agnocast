@@ -52,21 +52,24 @@ void Node::initialize_node(
   node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(node_base_);
 
   // Apply global context for topic remapping and parameter overrides
-  auto & global_ctx = Context::instance();
-  if (global_ctx.is_initialized()) {
-    // Add topic remap rules to NodeTopics
-    auto global_rules = global_ctx.get_remap_rules();
-    for (const auto & rule : global_rules) {
-      if (rule.type == RemapType::TOPIC) {
-        node_topics_->add_remap_rule(rule);
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    auto & global_ctx = Context::instance();
+    if (global_ctx.is_initialized()) {
+      // Add topic remap rules to NodeTopics
+      auto global_rules = global_ctx.get_remap_rules();
+      for (const auto & rule : global_rules) {
+        if (rule.type == RemapType::TOPIC) {
+          node_topics_->add_remap_rule(rule);
+        }
       }
-    }
 
-    // Get parameter overrides for this specific node (YAML + global overrides)
-    // Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
-    auto node_params = global_ctx.get_param_overrides(get_fully_qualified_name());
-    for (const auto & [name, value] : node_params) {
-      node_parameters_->add_parameter_override(name, value);
+      // Get parameter overrides for this specific node (YAML + global overrides)
+      // Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
+      auto node_params = global_ctx.get_param_overrides(get_fully_qualified_name());
+      for (const auto & [name, value] : node_params) {
+        node_parameters_->add_parameter_override(name, value);
+      }
     }
   }
 }

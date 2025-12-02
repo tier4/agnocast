@@ -31,20 +31,23 @@ NodeBase::NodeBase(
   // Apply node name and namespace remapping from agnocast::Context
   // Corresponds to rcl_node_init calling rcl_remap_node_name and rcl_remap_node_namespace
   // in rcl/src/rcl/node.c:222-242
-  auto & global_ctx = Context::instance();
-  if (global_ctx.is_initialized()) {
-    auto global_rules = global_ctx.get_remap_rules();
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    auto & global_ctx = Context::instance();
+    if (global_ctx.is_initialized()) {
+      auto global_rules = global_ctx.get_remap_rules();
 
-    for (const auto & rule : global_rules) {
-      if (rule.type == RemapType::NODENAME) {
-        node_name_ = rule.replacement;
-      } else if (rule.type == RemapType::NAMESPACE) {
-        // Apply namespace remapping
-        // Corresponds to rcl_remap_node_namespace in rcl/src/rcl/remap.c
-        namespace_ = rule.replacement;
-        // Normalize namespace: ensure it starts with '/'
-        if (!namespace_.empty() && namespace_[0] != '/') {
-          namespace_ = "/" + namespace_;
+      for (const auto & rule : global_rules) {
+        if (rule.type == RemapType::NODENAME) {
+          node_name_ = rule.replacement;
+        } else if (rule.type == RemapType::NAMESPACE) {
+          // Apply namespace remapping
+          // Corresponds to rcl_remap_node_namespace in rcl/src/rcl/remap.c
+          namespace_ = rule.replacement;
+          // Normalize namespace: ensure it starts with '/'
+          if (!namespace_.empty() && namespace_[0] != '/') {
+            namespace_ = "/" + namespace_;
+          }
         }
       }
     }
