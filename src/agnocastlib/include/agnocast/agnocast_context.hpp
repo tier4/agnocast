@@ -1,18 +1,13 @@
 #pragma once
 
+#include <rcl/arguments.h>
+
 #include <mutex>
 #include <string>
 #include <vector>
 
 namespace agnocast
 {
-
-// Command-line argument flags (corresponds to rcl/include/rcl/arguments.h)
-/// The command-line flag that delineates the start of ROS arguments.
-#define AGNOCAST_ROS_ARGS_FLAG "--ros-args"
-
-/// The token that delineates the explicit end of ROS arguments.
-#define AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN "--"
 
 class Context
 {
