@@ -29,23 +29,8 @@ public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
-  /**
-   * @brief Construct a NodeBase (standalone mode).
-   *
-   * Uses the global default context if available.
-   *
-   * @param node_name Node name
-   * @param ns Namespace (default: "")
-   */
   NodeBase(const std::string & node_name, const std::string & ns);
 
-  /**
-   * @brief Construct a NodeBase with explicit context (composable node mode).
-   *
-   * @param node_name Node name
-   * @param ns Namespace
-   * @param context rclcpp::Context to use
-   */
   NodeBase(
     const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
 
@@ -104,11 +89,11 @@ public:
 
   // ===== Agnocast-specific =====
 
-  /**
-   * @brief Set the NodeTopics reference for name resolution.
-   *
-   * @param node_topics Shared pointer to NodeTopics
-   */
+  // Set NodeTopics reference for resolve_topic_or_service_name.
+  // Unlike rclcpp (which calls rcl_node_resolve_name directly), agnocast delegates
+  // name resolution to NodeTopics. This setter resolves the circular dependency:
+  // NodeBase is created first, then NodeTopics (which needs NodeBase), then this
+  // back-reference is set. Called by Node::initialize_node.
   void set_node_topics(std::shared_ptr<NodeTopics> node_topics);
 
 private:

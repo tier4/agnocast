@@ -28,11 +28,6 @@ public:
   using WeakPtr = std::weak_ptr<NodeParameters>;
   using ParameterValue = rclcpp::ParameterValue;
 
-  /**
-   * @brief Construct a NodeParameters.
-   *
-   * @param node_base Pointer to the node base interface
-   */
   explicit NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base);
 
   virtual ~NodeParameters() = default;
@@ -90,21 +85,10 @@ public:
 
   // ===== Internal helper methods (for rclcpp API implementation) =====
 
-  /**
-   * @brief Declare a parameter with agnocast's simple ParameterValue type.
-   * @note Internal helper for rclcpp declare_parameter implementation.
-   */
   void declare_parameter_simple(
     const std::string & name, const ParameterValue & default_value,
     const std::string & description = "", bool read_only = false, bool ignore_override = false);
 
-  /**
-   * @brief Add a parameter override.
-   * @note Internal helper for NodeOptions parameter processing.
-   *
-   * @param name Parameter name
-   * @param value Parameter value
-   */
   void add_parameter_override(const std::string & name, const ParameterValue & value);
 
 private:
