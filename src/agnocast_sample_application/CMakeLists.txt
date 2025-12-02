@@ -26,9 +26,31 @@ target_include_directories(cie_talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-add_executable(cie_listener src/cie_subscriber.cpp)
-ament_target_dependencies(cie_listener rclcpp agnocastlib agnocast_sample_interfaces)
-target_include_directories(cie_listener PRIVATE
+add_library(cie_listener_component SHARED src/cie_subscriber.cpp)
+ament_target_dependencies(cie_listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
+target_include_directories(cie_listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  cie_listener_component
+  PLUGIN "CieSubscriber"
+  EXECUTABLE cie_listener
+)
+
+add_executable(no_rclcpp_listener src/no_rclcpp_subscriber.cpp)
+ament_target_dependencies(no_rclcpp_listener agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_listener PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(client src/minimal_client.cpp)
+ament_target_dependencies(client rclcpp agnocastlib agnocast_sample_interfaces)
+target_include_directories(client PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(server src/minimal_server.cpp)
+ament_target_dependencies(server rclcpp agnocastlib agnocast_sample_interfaces)
+target_include_directories(server PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
@@ -41,6 +63,22 @@ rclcpp_components_register_node(
   listener_component
   PLUGIN "MinimalSubscriber"
   EXECUTABLE listener
+)
+
+# Agnocast-only composable node (inherits from agnocast::Node, not rclcpp::Node)
+add_library(no_rclcpp_composable_listener_component SHARED src/no_rclcpp_composable_subscriber.cpp)
+ament_target_dependencies(no_rclcpp_composable_listener_component
+  rclcpp
+  rclcpp_components
+  agnocastlib
+  agnocast_sample_interfaces
+)
+target_include_directories(no_rclcpp_composable_listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  no_rclcpp_composable_listener_component
+  PLUGIN "NoRclcppComposableSubscriber"
+  EXECUTABLE no_rclcpp_composable_listener
 )
 
 # Standalone listener executable for testing with command-line arguments
@@ -56,6 +94,22 @@ install(TARGETS listener_component
         RUNTIME DESTINATION bin
 )
 
+ament_export_targets(export_cie_listener_component)
+install(TARGETS cie_listener_component
+        EXPORT export_cie_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+ament_export_targets(export_no_rclcpp_composable_listener_component)
+install(TARGETS no_rclcpp_composable_listener_component
+        EXPORT export_no_rclcpp_composable_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
 install(TARGETS talker
   DESTINATION lib/${PROJECT_NAME})
 
@@ -65,7 +119,13 @@ install(TARGETS listener_standalone
 install(TARGETS cie_talker
   DESTINATION lib/${PROJECT_NAME})
 
-install(TARGETS cie_listener
+install(TARGETS no_rclcpp_listener
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS client
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS server
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

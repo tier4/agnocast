@@ -9,6 +9,7 @@ repos:
     rev: v0.41.0
     hooks:
       - id: markdownlint
+        language_version: 20.11.0
         args: [-c, .markdownlint.yaml, --fix]
   
   - repo: local

@@ -25,17 +25,22 @@ find_package(LTTngUST REQUIRED)
 find_package(libyaml_vendor REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(YAML REQUIRED yaml-0.1)
+find_package(cie_config_msgs REQUIRED)
+find_package(cie_thread_configurator REQUIRED)
 
 add_library(agnocast SHARED
-  src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
+  src/agnocast.cpp src/agnocast_context.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
-  src/agnocast_callback_isolated_executor.cpp src/agnocast_tracepoint_wrapper.c
-  src/agnocast_context.cpp src/agnocast_node.cpp
+  src/agnocast_callback_isolated_executor.cpp src/agnocast_only_executor.cpp 
+  src/agnocast_only_single_threaded_executor.cpp src/agnocast_tracepoint_wrapper.c
+  src/agnocast_context.cpp src/agnocast_node.cpp src/agnocast_client.cpp
   src/node_interfaces/node_base.cpp
   src/node_interfaces/node_topics.cpp
   src/node_interfaces/node_parameters.cpp)
 # ament_target_dependencies(agnocast rclcpp)
+
+ament_target_dependencies(agnocast cie_thread_configurator)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -69,8 +74,16 @@ target_link_libraries(agnocast_component_container_mt
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
 
+add_executable(agnocast_component_container_cie src/agnocast_component_container_cie.cpp)
+
+target_link_libraries(agnocast_component_container_cie
+  agnocast
+)
+
+ament_target_dependencies(agnocast_component_container_cie rclcpp rclcpp_components cie_thread_configurator)
+
 install(
-  TARGETS agnocast_component_container agnocast_component_container_mt
+  TARGETS agnocast_component_container agnocast_component_container_mt agnocast_component_container_cie
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -149,4 +162,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
+ament_export_dependencies(cie_thread_configurator cie_config_msgs)
 ament_package()

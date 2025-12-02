@@ -15,62 +15,134 @@
 #ifndef AGNOCAST__NODE_INTERFACES__NODE_BASE_HPP_
 #define AGNOCAST__NODE_INTERFACES__NODE_BASE_HPP_
 
+#include "rclcpp/callback_group.hpp"
+#include "rclcpp/context.hpp"
+#include "rclcpp/guard_condition.hpp"
+#include "rclcpp/node_interfaces/node_base_interface.hpp"
+
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
-
-#include "agnocast/node_interfaces/node_base_interface.hpp"
-#include "rclcpp/callback_group.hpp"
 
 namespace agnocast
 {
 namespace node_interfaces
 {
 
+// Forward declaration
+class NodeTopics;
+
 /// Implementation of the NodeBase part of the Node API.
-class NodeBase : public NodeBaseInterface, public std::enable_shared_from_this<NodeBase>
+/// Inherits from rclcpp::node_interfaces::NodeBaseInterface for Composable Node compatibility.
+class NodeBase : public rclcpp::node_interfaces::NodeBaseInterface,
+                 public std::enable_shared_from_this<NodeBase>
 {
 public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
   /**
-   * @brief Construct a NodeBase.
+   * @brief Construct a NodeBase (standalone mode).
+   *
+   * Uses the global default context if available.
    *
    * @param node_name Node name
    * @param ns Namespace (default: "")
    */
+  NodeBase(const std::string & node_name, const std::string & ns);
+
+  /**
+   * @brief Construct a NodeBase with explicit context (composable node mode).
+   *
+   * @param node_name Node name
+   * @param ns Namespace
+   * @param context rclcpp::Context to use
+   */
   NodeBase(
-    const std::string & node_name,
-    const std::string & ns);
+    const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
 
   virtual ~NodeBase() = default;
 
-  std::string
-  get_name() const override;
+  // ===== Node Identity =====
 
-  std::string
-  get_namespace() const override;
+  const char * get_name() const override;
 
-  std::string
-  get_fully_qualified_name() const override;
+  const char * get_namespace() const override;
 
-  rclcpp::CallbackGroup::SharedPtr
-  create_callback_group(
+  const char * get_fully_qualified_name() const override;
+
+  // ===== Context =====
+
+  rclcpp::Context::SharedPtr get_context() override;
+
+  // ===== rcl_node_t (not supported - throws) =====
+
+  rcl_node_t * get_rcl_node_handle() override;
+
+  const rcl_node_t * get_rcl_node_handle() const override;
+
+  std::shared_ptr<rcl_node_t> get_shared_rcl_node_handle() override;
+
+  std::shared_ptr<const rcl_node_t> get_shared_rcl_node_handle() const override;
+
+  // ===== Callback Groups =====
+
+  rclcpp::CallbackGroup::SharedPtr create_callback_group(
     rclcpp::CallbackGroupType group_type,
     bool automatically_add_to_executor_with_node = true) override;
 
-  rclcpp::CallbackGroup::SharedPtr
-  get_default_callback_group() override;
+  rclcpp::CallbackGroup::SharedPtr get_default_callback_group() override;
 
-  bool
-  callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & group) override;
+  bool callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group) override;
+
+  void for_each_callback_group(const CallbackGroupFunction & func) override;
+
+  // ===== Executor =====
+
+  std::atomic_bool & get_associated_with_executor_atomic() override;
+
+  rclcpp::GuardCondition & get_notify_guard_condition() override;
+
+  // ===== Settings =====
+
+  bool get_use_intra_process_default() const override;
+
+  bool get_enable_topic_statistics_default() const override;
+
+  // ===== Name Resolution =====
+
+  std::string resolve_topic_or_service_name(
+    const std::string & name, bool is_service, bool only_expand = false) const override;
+
+  // ===== Agnocast-specific =====
+
+  /**
+   * @brief Set the NodeTopics reference for name resolution.
+   *
+   * @param node_topics Shared pointer to NodeTopics
+   */
+  void set_node_topics(std::shared_ptr<NodeTopics> node_topics);
 
 private:
+  void initialize_common();
+
   std::string node_name_;
   std::string namespace_;
+  std::string fqn_;  // Cached fully qualified name
+
+  rclcpp::Context::SharedPtr context_;
   rclcpp::CallbackGroup::SharedPtr default_callback_group_;
   std::vector<rclcpp::CallbackGroup::WeakPtr> callback_groups_;
+  mutable std::mutex callback_groups_mutex_;
+
+  std::atomic_bool associated_with_executor_{false};
+  mutable std::recursive_mutex notify_guard_condition_mutex_;
+  std::unique_ptr<rclcpp::GuardCondition> notify_guard_condition_;
+  bool notify_guard_condition_is_valid_{false};
+
+  std::weak_ptr<NodeTopics> node_topics_;
 };
 
 }  // namespace node_interfaces

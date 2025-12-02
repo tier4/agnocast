@@ -43,23 +43,18 @@ public:
    * \param default_value Default value
    * \param description Optional parameter description
    * \param read_only Whether the parameter is read-only
+   * \param ignore_override When true, ignore command-line/YAML overrides and use default_value
    */
-  virtual
-  void
-  declare_parameter(
-    const std::string & name,
-    const ParameterValue & default_value,
-    const std::string & description = "",
-    bool read_only = false) = 0;
+  virtual void declare_parameter(
+    const std::string & name, const ParameterValue & default_value,
+    const std::string & description = "", bool read_only = false, bool ignore_override = false) = 0;
 
   /// Check if a parameter has been declared.
   /**
    * \param name Parameter name
    * \return true if parameter exists, false otherwise
    */
-  virtual
-  bool
-  has_parameter(const std::string & name) const = 0;
+  virtual bool has_parameter(const std::string & name) const = 0;
 
   /// Get parameter types for a list of parameter names.
   /**
@@ -68,9 +63,8 @@ public:
    * \param names Vector of parameter names
    * \return Vector of parameter type IDs
    */
-  virtual
-  std::vector<uint8_t>
-  get_parameter_types(const std::vector<std::string> & names) const = 0;
+  virtual std::vector<uint8_t> get_parameter_types(
+    const std::vector<std::string> & names) const = 0;
 
   /// Get a parameter value by name.
   /**
@@ -78,21 +72,13 @@ public:
    * \param value Output parameter value
    * \return true if parameter exists, false otherwise
    */
-  virtual
-  bool
-  get_parameter(const std::string & name, bool & value) const = 0;
+  virtual bool get_parameter(const std::string & name, bool & value) const = 0;
 
-  virtual
-  bool
-  get_parameter(const std::string & name, int64_t & value) const = 0;
+  virtual bool get_parameter(const std::string & name, int64_t & value) const = 0;
 
-  virtual
-  bool
-  get_parameter(const std::string & name, double & value) const = 0;
+  virtual bool get_parameter(const std::string & name, double & value) const = 0;
 
-  virtual
-  bool
-  get_parameter(const std::string & name, std::string & value) const = 0;
+  virtual bool get_parameter(const std::string & name, std::string & value) const = 0;
 };
 
 }  // namespace node_interfaces

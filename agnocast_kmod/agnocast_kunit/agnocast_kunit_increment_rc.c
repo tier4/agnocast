@@ -18,7 +18,7 @@ static void setup_one_publisher(
   publisher_pid++;
 
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, &add_process_args);
   *ret_addr = add_process_args.ret_addr;
 
   union ioctl_add_publisher_args add_publisher_args;
@@ -36,7 +36,7 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
   subscriber_pid++;
 
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
 
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(

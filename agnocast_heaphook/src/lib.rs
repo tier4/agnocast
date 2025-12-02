@@ -15,7 +15,12 @@ use crate::tlsf::TLSFAllocator;
 
 mod tlsf;
 
-// See: https://doc.rust-lang.org/src/std/sys/alloc/mod.rs.html
+///  An alignment equal to `alignof(max_align_t)`.
+///
+/// According to [C23](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf), when allocation succeeds,
+/// memory management functions such as `aligned_alloc` and `malloc` must return a pointer that is suitably aligned
+/// for storing **any** object with a *fundamental alignment* requirement and size less than or equal to the size requested.
+/// The *fundamental alignment* is a non-negative integral power of two less than or equal to `alignof(max_align_t)`.
 #[allow(clippy::if_same_then_else)]
 const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
@@ -142,12 +147,17 @@ impl AgnocastSharedMemory {
     unsafe fn new() -> Self {
         use std::{ffi::CString, os::raw::c_char};
 
+        #[repr(C)]
+        struct InitializeAgnocastResult {
+            mempool_ptr: *mut c_void,
+            mempool_size: u64,
+        }
+
         extern "C" {
             fn initialize_agnocast(
-                size: usize,
                 version: *const c_char,
                 version_str_length: usize,
-            ) -> *mut c_void;
+            ) -> InitializeAgnocastResult;
         }
 
         let result = unsafe { libc::pthread_atfork(None, None, Some(post_fork_handler_in_child)) };
@@ -159,26 +169,13 @@ impl AgnocastSharedMemory {
             )
         }
 
-        let mempool_size_env = std::env::var("AGNOCAST_MEMPOOL_SIZE").unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
-
-        let mempool_size = mempool_size_env.parse::<usize>().unwrap_or_else(|error| {
-            panic!("[ERROR] [Agnocast] {}: AGNOCAST_MEMPOOL_SIZE", error);
-        });
-
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-        let aligned_size = (mempool_size + page_size - 1) & !(page_size - 1);
-
         let version = env!("CARGO_PKG_VERSION");
         let c_version = CString::new(version).unwrap();
 
-        let mempool_ptr = unsafe {
-            initialize_agnocast(aligned_size, c_version.as_ptr(), c_version.as_bytes().len())
-        };
+        let result = unsafe { initialize_agnocast(c_version.as_ptr(), c_version.as_bytes().len()) };
 
-        let start = mempool_ptr as usize;
-        let end = start + mempool_size;
+        let start = result.mempool_ptr as usize;
+        let end = start + result.mempool_size as usize;
 
         Self { start, end }
     }
@@ -311,15 +308,14 @@ unsafe trait SharedMemoryAllocator {
     fn deallocate(&self, ptr: NonNull<u8>);
 }
 
-/// Returns true when glibc functions must be used.
-/// It is intended to be called from memory allocation functions such as `malloc` or `realloc`.
+/// Determines when to use the heap.
 ///
-/// We must use glibc functions when any of the following conditions hold:
+/// We must use the heap when any of the following conditions hold:
 /// * When the shared memory allocator is not initialized.
 /// * When in a forked process (since we do not expect forked processes to operate on shared memory).
 /// * When `agnocast_get_borrowed_publisher_num` returns 0, i.e., when the publisher is not using shared memory.
 #[cfg(not(test))]
-fn should_use_original_func() -> bool {
+fn should_use_heap() -> bool {
     extern "C" {
         fn agnocast_get_borrowed_publisher_num() -> u32;
     }
@@ -341,8 +337,8 @@ fn should_use_original_func() -> bool {
 }
 
 #[cfg(test)]
-fn should_use_original_func() -> bool {
-    // In tests, we use glibc functions only when the allocator is uninitialized.
+fn should_use_heap() -> bool {
+    // In tests, we use the heap only when the allocator is uninitialized.
     AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
 }
 
@@ -381,12 +377,10 @@ pub unsafe extern "C" fn __libc_start_main(
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe { (*ORIGINAL_MALLOC.get_or_init(init_original_malloc))(size) };
     }
 
-    // The default global allocator assumes `malloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#13-15
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -411,31 +405,34 @@ pub unsafe extern "C" fn free(ptr: *mut c_void) {
         return;
     }
 
-    // SAFETY: `ptr` must be non-null.
-    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
-    let is_shared = is_shared(ptr.cast());
-    let is_forked_child = IS_FORKED_CHILD.load(Ordering::Relaxed);
-
-    match (is_shared, is_forked_child) {
-        (true, true) => (), // In the child processes, ignore the free operation to the shared memory
-        (true, false) => AGNOCAST_SHARED_MEMORY_ALLOCATOR
-            .get()
-            .unwrap()
-            .inner
-            .deallocate(non_null_ptr),
-        (false, _) => (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr),
+    if !is_shared(ptr.cast()) {
+        return (*ORIGINAL_FREE.get_or_init(init_original_free))(ptr);
     }
+
+    if IS_FORKED_CHILD.load(Ordering::Relaxed) {
+        // Ignore unexpected calls to `free`.
+        return;
+    }
+
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
+
+    AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .deallocate(non_null_ptr);
 }
 
 #[no_mangle]
 pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe { (*ORIGINAL_CALLOC.get_or_init(init_original_calloc))(num, size) };
     }
 
-    // The default global allocator assumes `calloc` returns 16-byte aligned address (on x64 platforms).
-    // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#35-36
-    let size = num * size;
+    let Some(size) = num.checked_mul(size) else {
+        return ptr::null_mut();
+    };
+
     let layout = match Layout::from_size_align(size, MIN_ALIGN) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
@@ -462,65 +459,41 @@ pub extern "C" fn calloc(num: usize, size: usize) -> *mut c_void {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn realloc(ptr: *mut c_void, new_size: usize) -> *mut c_void {
-    let is_shared = is_shared(ptr.cast());
-    let should_use_original = should_use_original_func();
+    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
+    if ptr.is_null() {
+        return malloc(new_size);
+    }
 
-    match (is_shared, should_use_original) {
-        (true, true) => {
-            // Ignore unexpected calls to `realloc`.
-            ptr::null_mut()
-        }
-        (true, false) => {
-            // The default global allocator assumes `realloc` returns 16-byte aligned address (on x64 platforms).
-            // See: https://doc.rust-lang.org/beta/src/std/sys/alloc/unix.rs.html#53-54
-            let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
-                Ok(layout) => layout,
-                Err(_) => return ptr::null_mut(),
-            };
+    if !is_shared(ptr.cast()) {
+        return (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size);
+    }
 
-            match NonNull::new(ptr.cast()) {
-                Some(non_null_ptr) => {
-                    // If `new_size` is equal to zero, and `ptr` is not NULL, then the call is equivalent to `free(ptr)`.
-                    if new_layout.size() == 0 {
-                        AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                            .get()
-                            .unwrap()
-                            .inner
-                            .deallocate(non_null_ptr);
-                        return ptr::null_mut();
-                    }
+    if should_use_heap() {
+        // Ignore unexpected calls to `realloc`.
+        return ptr::null_mut();
+    }
 
-                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                        .get()
-                        .unwrap()
-                        .inner
-                        .reallocate(non_null_ptr, new_layout)
-                    {
-                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-                        None => ptr::null_mut(),
-                    }
-                }
-                None => {
-                    // If `ptr` is NULL, then the call is equivalent to `malloc(size)`.
-                    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                        .get()
-                        .unwrap()
-                        .inner
-                        .allocate(new_layout)
-                    {
-                        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
-                        None => ptr::null_mut(),
-                    }
-                }
-            }
-        }
-        (false, _) => (*ORIGINAL_REALLOC.get_or_init(init_original_realloc))(ptr, new_size),
+    let non_null_ptr = unsafe { NonNull::new_unchecked(ptr.cast()) };
+
+    let new_layout = match Layout::from_size_align(new_size, MIN_ALIGN) {
+        Ok(layout) => layout,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    match AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .reallocate(non_null_ptr, new_layout)
+    {
+        Some(non_null_ptr) => non_null_ptr.as_ptr().cast(),
+        None => ptr::null_mut(),
     }
 }
 
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, size: usize) -> i32 {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_POSIX_MEMALIGN.get_or_init(init_original_posix_memalign))(
                 memptr, alignment, size,
@@ -554,7 +527,7 @@ pub extern "C" fn posix_memalign(memptr: &mut *mut c_void, alignment: usize, siz
 
 #[no_mangle]
 pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_ALIGNED_ALLOC.get_or_init(init_original_aligned_alloc))(alignment, size)
         };
@@ -565,7 +538,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
         return ptr::null_mut();
     }
 
-    let layout = match Layout::from_size_align(size, alignment) {
+    let layout = match Layout::from_size_align(size, alignment.max(MIN_ALIGN)) {
         Ok(layout) => layout,
         Err(_) => return ptr::null_mut(),
     };
@@ -583,7 +556,7 @@ pub extern "C" fn aligned_alloc(alignment: usize, size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn memalign(alignment: usize, size: usize) -> *mut c_void {
-    if should_use_original_func() {
+    if should_use_heap() {
         return unsafe {
             (*ORIGINAL_MEMALIGN.get_or_init(init_original_memalign))(alignment, size)
         };
@@ -622,43 +595,83 @@ mod tests {
 
     #[test]
     fn test_malloc_normal() {
-        // Arrange
-        let malloc_size = 1024;
+        let size = 1024;
 
-        // Act
-        let ptr = unsafe { libc::malloc(malloc_size) };
-
-        // Assert
-        assert!(!ptr.is_null(), "allocated memory should not be null");
+        let ptr = unsafe { libc::malloc(size) };
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
         assert!(
             is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            "In the test, memory allocation is expected to always performed from shared memory."
         );
 
         unsafe { libc::free(ptr) };
+    }
+
+    #[test]
+    fn test_malloc_alignment() {
+        let sizes = (1..=MIN_ALIGN * 2).filter(|n| n.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::malloc(size) };
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
+    fn test_malloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::malloc(0) };
+    }
+
+    #[test]
+    fn test_malloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::malloc(usize::MAX) }.is_null(),
+            "malloc should return NULL if the requested size is excessively large."
+        );
     }
 
     #[test]
     fn test_calloc_normal() {
-        // Arrange
-        let elements = 4;
-        let element_size = 256;
-        let calloc_size = elements * element_size;
+        let obj_num = 4;
+        let obj_size = 256;
+        let total_size = obj_num * obj_size;
 
-        // Act
-        let ptr = unsafe { libc::calloc(elements, element_size) };
-
-        // Assert
-        assert!(!ptr.is_null(), "calloc must not return NULL");
+        let ptr = unsafe { libc::calloc(obj_num, obj_size) };
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
         assert!(
             is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            "In the test, memory allocation is expected to always performed from shared memory."
         );
 
         unsafe {
-            for i in 0..calloc_size {
-                let byte = *((ptr as *const u8).add(i));
-                assert_eq!(byte, 0, "memory should be zero-initialized");
+            for i in 0..total_size {
+                assert_eq!(
+                    *((ptr as *const u8).add(i)),
+                    0,
+                    "calloc must return zero-initialized memory."
+                );
             }
         }
 
@@ -666,36 +679,110 @@ mod tests {
     }
 
     #[test]
-    fn test_realloc_normal() {
-        // Arrange
-        let malloc_size = 512;
-        let realloc_size = 1024;
+    fn test_calloc_alignment() {
+        let obj_sizes = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let obj_nums = [1, 2];
 
-        let ptr = unsafe { libc::malloc(malloc_size) };
-        assert!(!ptr.is_null(), "allocated memory should not be null");
+        for obj_size in obj_sizes {
+            for obj_num in obj_nums {
+                let total_size = obj_size * obj_num;
 
-        unsafe {
-            for i in 0..malloc_size {
-                *((ptr as *mut u8).add(i)) = (i % 255) as u8;
+                let ptr = unsafe { libc::calloc(obj_num, obj_size) };
+                assert!(
+                    !ptr.is_null(),
+                    "In the test, memory allocation is expected to always succeed."
+                );
+                assert!(
+                    is_shared(ptr.cast()),
+                    "In the test, memory allocation is expected to always performed from shared memory."
+                );
+
+                // NOTE: Is it possible to relax the constraint by replacing `total_size` with `obj_size`?
+                let alignment = if total_size <= MIN_ALIGN {
+                    total_size
+                } else {
+                    MIN_ALIGN
+                };
+
+                assert!(
+                    ptr as usize % alignment == 0,
+                    "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+                );
+
+                unsafe { libc::free(ptr) };
             }
         }
+    }
 
-        // Act
-        let new_ptr = unsafe { libc::realloc(ptr, realloc_size) };
+    #[test]
+    fn test_calloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::calloc(0, 1) };
+        let _ = unsafe { libc::calloc(1, 0) };
+    }
 
-        // Assert
-        assert!(!new_ptr.is_null(), "realloc must not return NULL");
+    #[test]
+    fn test_calloc_with_excessive_size() {
         assert!(
-            is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            unsafe { libc::calloc(usize::MAX, 1) }.is_null(),
+            "calloc should return NULL if the requested size is excessively large."
+        );
+        assert!(
+            unsafe { libc::calloc(1, usize::MAX) }.is_null(),
+            "calloc should return NULL if the requested size is excessively large."
+        );
+    }
+
+    #[test]
+    fn test_calloc_with_overflow_size() {
+        assert!(
+            unsafe { libc::calloc(usize::MAX, 2) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
+        assert!(
+            unsafe { libc::calloc(2, usize::MAX) }.is_null(),
+            "calloc should return NULL if the total size does not fit in size_t."
+        );
+    }
+
+    #[test]
+    fn test_realloc_normal() {
+        let old_size = 512;
+        let new_size = 1024;
+
+        let old_ptr = unsafe { libc::malloc(old_size) };
+        assert!(
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
         );
 
         unsafe {
-            for i in 0..malloc_size {
+            for i in 0..old_size {
+                *((old_ptr as *mut u8).add(i)) = i as u8;
+            }
+        }
+
+        let new_ptr = unsafe { libc::realloc(old_ptr, new_size) };
+        assert!(
+            !new_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(new_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
+
+        let copy_size = new_size.min(old_size);
+        unsafe {
+            for i in 0..copy_size {
                 assert_eq!(
                     *((new_ptr as *const u8).add(i)),
-                    (i % 255) as u8,
-                    "realloc should preserve original data"
+                    i as u8,
+                    "realloc must preserve the original content up to the lesser of the new and old sizes."
                 );
             }
         }
@@ -704,187 +791,265 @@ mod tests {
     }
 
     #[test]
+    fn test_realloc_alignment() {
+        let old_ptr = unsafe { libc::malloc(MIN_ALIGN / 2) };
+        assert!(
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
+
+        let new_ptr = unsafe { libc::realloc(old_ptr, MIN_ALIGN) };
+        assert!(
+            !new_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(new_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
+        assert!(
+            new_ptr as usize % MIN_ALIGN == 0,
+            "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+        );
+
+        unsafe { libc::free(new_ptr) };
+    }
+
+    #[test]
+    fn test_realloc_with_null_pointer() {
+        // If the pointer is null, `realloc` bahaves like `malloc`.
+
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::realloc(ptr::null_mut(), 0) };
+
+        let sizes = (1..=MIN_ALIGN * 2).filter(|x| x.is_power_of_two());
+
+        for size in sizes {
+            let ptr = unsafe { libc::realloc(ptr::null_mut(), size) };
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
+
+            let alignment = if size <= MIN_ALIGN { size } else { MIN_ALIGN };
+            assert!(
+                ptr as usize % alignment == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
+    fn test_realloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::realloc(ptr::null_mut(), usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
+        );
+
+        let old_ptr = unsafe { libc::malloc(1) };
+        assert!(
+            !old_ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
+        assert!(
+            is_shared(old_ptr.cast()),
+            "In the test, memory allocation is expected to always performed from shared memory."
+        );
+        assert!(
+            unsafe { libc::realloc(old_ptr, usize::MAX) }.is_null(),
+            "realloc should return NULL if the requested size is excessively large."
+        );
+
+        unsafe { libc::free(old_ptr) }
+    }
+
+    #[test]
     fn test_posix_memalign_normal() {
-        // Arrange
         let alignment = 64;
         let size = 512;
         let mut ptr: *mut c_void = std::ptr::null_mut();
 
-        // Act
-        let r = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
-
-        // Assert
-        assert_eq!(r, 0, "posix_memalign should return 0 on success");
-
-        assert!(!ptr.is_null(), "posix_memalign must not return NULL");
+        let result = unsafe { libc::posix_memalign(&mut ptr, alignment, size) };
+        assert!(result == 0);
+        assert!(
+            !ptr.is_null(),
+            "In the test, memory allocation is expected to always succeed."
+        );
         assert!(
             is_shared(ptr.cast()),
-            "allocated memory should be within pool bounds"
+            "In the test, memory allocation is expected to always performed from shared memory."
         );
-        assert_eq!(
-            ptr as usize % alignment,
-            0,
-            "posix_memalign memory should be aligned to the specified boundary"
+        assert!(
+            ptr as usize % alignment == 0,
+            "posix_memalign should return a pointer aligned to the requested alignment."
         );
 
         unsafe { libc::free(ptr) };
     }
 
     #[test]
-    fn test_aligned_alloc_normal() {
-        // Arrange
-        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-
-        for &alignment in &alignments {
-            let sizes = [
-                alignment,
-                alignment * 2,
-                alignment * 4,
-                alignment * 8,
-                alignment * 16,
-            ];
-
-            for &size in &sizes {
-                // Act
-                let ptr = unsafe { libc::aligned_alloc(alignment, size) };
-
-                // Assert
-                assert!(!ptr.is_null(), "aligned_alloc must not return NULL");
-                assert!(
-                    is_shared(ptr.cast()),
-                    "allocated memory should be within pool bounds"
-                );
-                assert_eq!(
-                    ptr as usize % alignment,
-                    0,
-                    "aligned_alloc memory should be aligned to the specified boundary"
-                );
-                unsafe { libc::free(ptr) };
-            }
-        }
-    }
-    #[test]
-    fn test_memalign_normal() {
-        // Arrange
-        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-        let sizes = [10, 32, 100, 512, 1000, 4096];
-
-        for &alignment in &alignments {
-            for &size in &sizes {
-                // Act
-                let ptr = unsafe { libc::memalign(alignment, size) };
-
-                // Assert
-                assert!(!ptr.is_null(), "memalign must not return NULL");
-                assert!(
-                    is_shared(ptr.cast()),
-                    "allocated memory should be within pool bounds"
-                );
-                assert_eq!(
-                    ptr as usize % alignment,
-                    0,
-                    "memalign memory should be aligned to the specified boundary"
-                );
-                unsafe { libc::free(ptr) };
-            }
-        }
+    fn test_posix_memalign_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let mut ptr: *mut c_void = ptr::null_mut();
+        let _ = unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), 0) };
     }
 
     #[test]
-    fn test_memory_limit() {
-        // Arrange
-        let huge_size = isize::MAX as usize;
-        let alignment = 64;
-        let mut posix_ptr: *mut c_void = std::ptr::null_mut();
-        let normal_ptr = unsafe { libc::malloc(1024) };
-
-        // Act & Assert
-        assert!(
-            unsafe { libc::malloc(huge_size) }.is_null(),
-            "malloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::calloc(huge_size, 1) }.is_null(),
-            "calloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::aligned_alloc(alignment, huge_size) }.is_null(),
-            "aligned_alloc should return NULL for huge size"
-        );
-
-        assert!(
-            unsafe { libc::memalign(alignment, huge_size) }.is_null(),
-            "memalign should return NULL for huge size"
-        );
-
-        // Act
-        let result = unsafe { libc::posix_memalign(&mut posix_ptr, alignment, huge_size) };
-
-        // Assert
+    fn test_posix_memalign_with_excessive_size() {
+        let mut ptr: *mut c_void = ptr::null_mut();
         assert_eq!(
-            result,
+            unsafe { libc::posix_memalign(&mut ptr, size_of::<*mut c_void>(), usize::MAX) },
             libc::ENOMEM,
-            "posix_memalign should return ENOMEM for huge size"
+            "posix_memalign should return ENOMEM if the requested size is excessively large."
         );
-        assert!(
-            posix_ptr.is_null(),
-            "posix_memalign should not set pointer on failure"
-        );
-
-        // Act
-        let realloc_ptr = unsafe { libc::realloc(normal_ptr, huge_size) };
-
-        // Assert
-        assert!(
-            realloc_ptr.is_null(),
-            "realloc should return NULL for huge size"
-        );
-        if realloc_ptr.is_null() {
-            unsafe { libc::free(normal_ptr) };
-        } else {
-            unsafe { libc::free(realloc_ptr) };
-        }
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
     }
 
     #[test]
-    fn test_posix_memalign_should_fail() {
+    fn test_posix_memalign_with_invalid_alignment() {
         let mut ptr: *mut c_void = ptr::null_mut();
 
         assert_eq!(
-            unsafe { libc::posix_memalign(&mut ptr, 0, 8) },
+            unsafe { libc::posix_memalign(&mut ptr, 0, 1) },
             libc::EINVAL,
             "posix_memalign should return EINVAL if the alignment is not a power of two"
         );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
 
         assert_eq!(
-            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 8)},
+            unsafe {libc::posix_memalign(&mut ptr, size_of::<*mut c_void>() / 2, 1)},
             libc::EINVAL,
             "posix_memalign should return EINVAL if the alignment is not a multiple of `sizeof(void *)`"
+        );
+        assert!(ptr.is_null(), "If posix_memalign fails, the value of the pointer shall either be left unmodified or be set to a null pointer.");
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_fundamental_alignment() {
+        // The alignment requirements related to the fundamental alignment also apply even if the requested alignment is less strict.
+        let alignments = (1..=MIN_ALIGN).filter(|x| x.is_power_of_two());
+        let size = MIN_ALIGN;
+        for alignment in alignments {
+            let ptr = unsafe { libc::aligned_alloc(alignment, size) };
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
+            assert!(
+                ptr as usize % MIN_ALIGN == 0,
+                "the pointer must be suitably aligned so that it can store any object whose size is less than or equal to the requested size and has fundamental alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_extended_alignment() {
+        // Assume that alignmets up to 2048 are supported. This assumption may change in the future.
+        let alignments = (MIN_ALIGN + 1..4096).filter(|x| x.is_power_of_two());
+
+        for alignment in alignments {
+            let size = alignment;
+            let ptr = unsafe { libc::aligned_alloc(alignment, size) };
+            assert!(
+                !ptr.is_null(),
+                "In the test, memory allocation is expected to always succeed."
+            );
+            assert!(
+                is_shared(ptr.cast()),
+                "In the test, memory allocation is expected to always performed from shared memory."
+            );
+            assert!(
+                ptr as usize % alignment == 0,
+                "aligned_alloc should return a pointer aligned to the requested alignment."
+            );
+
+            unsafe { libc::free(ptr) };
+        }
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_zero_size() {
+        // If the size is 0, the behavior is implementation-defined. It must not panic.
+        let _ = unsafe { libc::aligned_alloc(1, 0) };
+    }
+
+    #[test]
+    fn test_aligned_alloc_with_excessive_size() {
+        assert!(
+            unsafe { libc::aligned_alloc(1, usize::MAX) }.is_null(),
+            "aligned_alloc should return NULL if the requested size is excessively large."
         );
     }
 
     #[test]
-    fn test_aligned_alloc_should_fail() {
+    fn test_aligned_alloc_with_invalid_alignment() {
         assert_eq!(
-            unsafe { libc::aligned_alloc(0, 8) },
+            unsafe { libc::aligned_alloc(0, 1) },
             ptr::null_mut(),
             "aligned_alloc should return NULL if the alignment is not a power of two"
         );
 
         assert_eq!(
-            unsafe { libc::aligned_alloc(2, 7) },
+            unsafe { libc::aligned_alloc(2, 1) },
             ptr::null_mut(),
             "aligned_alloc should return NULL if the size is not a multiple of the alignment"
         );
     }
 
     #[test]
-    fn test_memalign_should_fail() {
-        assert_eq!(
-            unsafe { libc::memalign(0, 8) },
-            ptr::null_mut(),
+    fn test_memalign_normal() {
+        let alignments = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
+        let sizes = [10, 32, 100, 512, 1000, 4096];
+
+        for &alignment in &alignments {
+            for &size in &sizes {
+                let ptr = unsafe { libc::memalign(alignment, size) };
+                assert!(
+                    !ptr.is_null(),
+                    "In the test, memory allocation is expected to always succeed."
+                );
+                assert!(
+                    is_shared(ptr.cast()),
+                    "In the test, memory allocation is expected to always performed from shared memory."
+                );
+                assert!(
+                    ptr as usize % alignment == 0,
+                    "memalign should return a pointer aligned to the requested alignment."
+                );
+
+                unsafe { libc::free(ptr) };
+            }
+        }
+    }
+
+    #[test]
+    fn test_memalign_with_excessive_size() {
+        assert!(
+            unsafe { libc::memalign(1, usize::MAX) }.is_null(),
+            "memalign should return NULL if the requested size is excessively large."
+        );
+    }
+
+    #[test]
+    fn test_memalign_with_invalid_alignment() {
+        assert!(
+            unsafe { libc::memalign(0, 1) }.is_null(),
             "memalign should return NULL if the alignment is not a power of two"
         );
     }

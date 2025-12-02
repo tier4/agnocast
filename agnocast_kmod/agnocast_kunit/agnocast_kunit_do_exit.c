@@ -19,7 +19,7 @@ static void setup_processes(struct kunit * test, const int process_num)
   union ioctl_add_process_args ioctl_ret;
   for (int i = 0; i < process_num; i++) {
     const pid_t pid = PID_BASE + i;
-    int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
+    int ret = add_process(pid, current->nsproxy->ipc_ns, &ioctl_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
     KUNIT_ASSERT_FALSE(test, is_proc_exited(pid));
   }
@@ -29,7 +29,7 @@ static void setup_processes(struct kunit * test, const int process_num)
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {
   union ioctl_add_process_args ioctl_ret;
-  int ret = add_process(pid, current->nsproxy->ipc_ns, PAGE_SIZE, &ioctl_ret);
+  int ret = add_process(pid, current->nsproxy->ipc_ns, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_FALSE(test, is_proc_exited(pid));
@@ -102,7 +102,7 @@ void test_case_do_exit(struct kunit * test)
 void test_case_do_exit_many(struct kunit * test)
 {
   // Arrange
-  const int agnocast_process_num = MEMPOOL_TOTAL_NUM;
+  const int agnocast_process_num = MEMPOOL_NUM;
   const int non_agnocast_process_num = EXIT_QUEUE_SIZE - agnocast_process_num;
   setup_processes(test, agnocast_process_num);
 

@@ -43,7 +43,6 @@ struct process_info
   bool exited;
   pid_t global_pid;
   pid_t local_pid;
-  uint64_t shm_size;
   struct mempool_entry * mempool_entry;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
@@ -674,7 +673,7 @@ static int set_publisher_shm_info(
 #endif
 
     pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
-    pub_shm_info->shm_sizes[publisher_num] = proc_info->shm_size;
+    pub_shm_info->shm_sizes[publisher_num] = mempool_size_bytes;
     publisher_num++;
   }
 
@@ -705,16 +704,8 @@ static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
 }
 
 int add_process(
-  const pid_t pid, const struct ipc_namespace * ipc_ns, uint64_t shm_size,
-  union ioctl_add_process_args * ioctl_ret)
+  const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret)
 {
-  if (shm_size % PAGE_SIZE != 0) {
-    dev_warn(
-      agnocast_device, "shm_size=%llu is not aligned to PAGE_SIZE=%lu. (add_process)\n", shm_size,
-      PAGE_SIZE);
-    return -EINVAL;
-  }
-
   if (find_process_info(pid)) {
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
     return -EINVAL;
@@ -734,13 +725,9 @@ int add_process(
 #else
   new_proc_info->local_pid = pid;
 #endif
-  new_proc_info->shm_size = shm_size;
-
-  new_proc_info->mempool_entry = assign_memory(pid, shm_size);
+  new_proc_info->mempool_entry = assign_memory(pid);
   if (!new_proc_info->mempool_entry) {
-    dev_warn(
-      agnocast_device,
-      "Process (pid=%d) failed to allocate memory (shm_size=%llu). (add_process)\n", pid, shm_size);
+    dev_warn(agnocast_device, "Process (pid=%d) failed to allocate memory. (add_process)\n", pid);
     kfree(new_proc_info);
     return -ENOMEM;
   }
@@ -752,6 +739,7 @@ int add_process(
   hash_add(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
+  ioctl_ret->ret_shm_size = mempool_size_bytes;
   return 0;
 }
 
@@ -921,7 +909,7 @@ int publish_msg(
   }
 
   uint64_t mempool_start = proc_info->mempool_entry->addr;
-  uint64_t mempool_end = mempool_start + proc_info->shm_size;
+  uint64_t mempool_end = mempool_start + mempool_size_bytes;
   if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
     dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (publish_msg)\n");
     return -EINVAL;
@@ -1406,7 +1394,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
       goto return_EFAULT;
-    ret = add_process(pid, ipc_ns, add_process_args.shm_size, &add_process_args);
+    ret = add_process(pid, ipc_ns, &add_process_args);
     if (copy_to_user(
           (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
       goto return_EFAULT;

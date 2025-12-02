@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include "agnocast/node_interfaces/node_parameters.hpp"
+
 #include "agnocast/agnocast_node.hpp"  // For ParameterDescriptor and ParameterInfo definitions
 
-#include <cstdio>
 #include <yaml.h>
+
+#include <cstdio>
 
 namespace agnocast
 {
@@ -30,16 +32,14 @@ constexpr uint8_t PARAMETER_INTEGER = 2;
 constexpr uint8_t PARAMETER_DOUBLE = 3;
 constexpr uint8_t PARAMETER_STRING = 4;
 
-NodeParameters::NodeParameters(NodeBaseInterface::SharedPtr node_base)
+NodeParameters::NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
 : node_base_(node_base)
 {
 }
 
 void NodeParameters::declare_parameter(
-  const std::string & name,
-  const ParameterValue & default_value,
-  const std::string & description,
-  bool read_only)
+  const std::string & name, const ParameterValue & default_value, const std::string & description,
+  bool read_only, bool ignore_override)
 {
   // Corresponds to NodeParameters::declare_parameter in
   // rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp
@@ -54,8 +54,8 @@ void NodeParameters::declare_parameter(
   param_info.descriptor.description = description;
   param_info.descriptor.read_only = read_only;
 
-  // Check for command-line override
-  if (parameter_overrides_.find(name) != parameter_overrides_.end()) {
+  // Check for command-line override (unless ignore_override is true)
+  if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
     param_info.value = parameter_overrides_[name];
   } else {
     param_info.value = default_value;
@@ -163,9 +163,7 @@ bool NodeParameters::get_parameter(const std::string & name, std::string & value
   return false;
 }
 
-void NodeParameters::add_parameter_override(
-  const std::string & name,
-  const ParameterValue & value)
+void NodeParameters::add_parameter_override(const std::string & name, const ParameterValue & value)
 {
   parameter_overrides_[name] = value;
 }

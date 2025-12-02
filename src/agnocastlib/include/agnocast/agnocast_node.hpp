@@ -1,20 +1,22 @@
 #pragma once
 
+#include "agnocast/agnocast_context.hpp"
+#include "agnocast/agnocast_subscription.hpp"
+#include "rclcpp/node_options.hpp"
+#include "rclcpp/rclcpp.hpp"
+
 #include <map>
 #include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
-#include "rclcpp/rclcpp.hpp"
-
 // New node interfaces
-#include "agnocast/node_interfaces/node_base_interface.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
-#include "agnocast/node_interfaces/node_topics_interface.hpp"
-#include "agnocast/node_interfaces/node_topics.hpp"
-#include "agnocast/node_interfaces/node_parameters_interface.hpp"
 #include "agnocast/node_interfaces/node_parameters.hpp"
+#include "agnocast/node_interfaces/node_parameters_interface.hpp"
+#include "agnocast/node_interfaces/node_topics.hpp"
+#include "agnocast/node_interfaces/node_topics_interface.hpp"
 
 namespace agnocast
 {
@@ -68,6 +70,14 @@ public:
   using ParameterValue = std::variant<bool, int64_t, double, std::string>;
 
   /**
+   * @brief Default constructor that queries node name from Context.
+   *
+   * This constructor is for backward compatibility with code that expects
+   * node name to be set via command-line arguments (--ros-args -r __node:=name).
+   */
+  Node();
+
+  /**
    * @brief Construct a Node with explicit values.
    *
    * @param node_name Node name
@@ -79,6 +89,22 @@ public:
   Node(const std::string & node_name, const std::string & namespace_ = "");
 
   /**
+   * @brief Construct a Node from NodeOptions (Composable Node support).
+   *
+   * This constructor is required for registering the node as a Composable Node
+   * using RCLCPP_COMPONENTS_REGISTER_NODE macro.
+   *
+   * @param options rclcpp::NodeOptions containing:
+   *   - Node name and namespace (extracted from arguments())
+   *   - rclcpp::Context (from context())
+   *   - Parameter overrides (from parameter_overrides())
+   *
+   * @note The node name and namespace are extracted from the arguments using
+   *       --ros-args -r __node:=name and -r __ns:=namespace patterns.
+   */
+  explicit Node(const rclcpp::NodeOptions & options);
+
+  /**
    * @brief Get the node name.
    *
    * Corresponds to rcl_node_get_name in rcl/src/rcl/node.c:435-441.
@@ -86,6 +112,13 @@ public:
    * @return Node name
    */
   std::string get_name() const { return node_base_->get_name(); }
+
+  /**
+   * @brief Get the logger for this node.
+   *
+   * @return Logger instance
+   */
+  rclcpp::Logger get_logger() const { return logger_; }
 
   /**
    * @brief Get the namespace.
@@ -119,8 +152,7 @@ public:
    * @brief Create and return a callback group.
    */
   rclcpp::CallbackGroup::SharedPtr create_callback_group(
-    rclcpp::CallbackGroupType group_type,
-    bool automatically_add_to_executor_with_node = true)
+    rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
   {
     return node_base_->create_callback_group(group_type, automatically_add_to_executor_with_node);
   }
@@ -165,10 +197,8 @@ public:
    * @return Reference to the parameter value (either override or default)
    */
   const ParameterValue & declare_parameter(
-    const std::string & name,
-    const ParameterValue & default_value,
-    const ParameterDescriptor & descriptor = ParameterDescriptor{},
-    bool ignore_override = false);
+    const std::string & name, const ParameterValue & default_value,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false);
 
   /**
    * @brief Check if a parameter has been declared.
@@ -235,23 +265,55 @@ public:
 
   /**
    * @brief Return the Node's internal NodeBaseInterface implementation.
+   *
+   * This method is required for Composable Node support.
+   * For composable nodes, ensure that a valid rclcpp::Context is available
+   * (either through NodeOptions or rclcpp::init()).
    */
-  node_interfaces::NodeBaseInterface::SharedPtr
-  get_node_base_interface() { return node_base_; }
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_node_base_interface()
+  {
+    return node_base_;
+  }
 
   /**
    * @brief Return the Node's internal NodeTopicsInterface implementation.
    */
-  node_interfaces::NodeTopicsInterface::SharedPtr
-  get_node_topics_interface() { return node_topics_; }
+  node_interfaces::NodeTopicsInterface::SharedPtr get_node_topics_interface()
+  {
+    return node_topics_;
+  }
 
   /**
    * @brief Return the Node's internal NodeParametersInterface implementation.
    */
-  node_interfaces::NodeParametersInterface::SharedPtr
-  get_node_parameters_interface() { return node_parameters_; }
+  node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
+  {
+    return node_parameters_;
+  }
+
+  /**
+   * @brief Create a subscription (member function template).
+   *
+   * This is a convenience method that wraps the global create_subscription function.
+   * The actual implementation is deferred to avoid circular dependencies.
+   *
+   * @tparam MessageT Message type
+   * @tparam Func Callback function type
+   * @param topic_name Topic name
+   * @param queue_size Queue size
+   * @param callback Callback function
+   * @param options Subscription options
+   * @return Shared pointer to the subscription
+   */
+  template <typename MessageT, typename Func>
+  typename Subscription<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, size_t queue_size, Func && callback,
+    SubscriptionOptions options);
 
 private:
+  void initialize_node(const std::string & node_name, const std::string & ns);
+
+  rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;

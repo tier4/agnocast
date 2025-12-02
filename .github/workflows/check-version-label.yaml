@@ -1,0 +1,25 @@
+name: Check Version Label
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for version update label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            const versionLabels = ['need-major-update', 'need-minor-update', 'need-patch-update'];
+            const versionLabelCount = labels.filter(l => versionLabels.includes(l)).length;
+
+            if (versionLabelCount === 0) {
+              core.setFailed('PR must have exactly one of the following labels: need-major-update, need-minor-update, or need-patch-update');
+            } else if (versionLabelCount > 1) {
+              core.setFailed(`PR has ${versionLabelCount} version labels, but must have exactly one. Found: ${labels.filter(l => versionLabels.includes(l)).join(', ')}`);
+            } else {
+              core.info(`PR has the required version label: ${labels.filter(l => versionLabels.includes(l)).join(', ')}`);
+            }

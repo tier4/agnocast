@@ -89,7 +89,7 @@ void MultiThreadedAgnocastExecutor::spin()
   std::vector<std::thread> threads;
 
   {
-    std::lock_guard wait_lock{wait_mutex_};
+    std::lock_guard<std::mutex> wait_lock{wait_mutex_};
 
     for (size_t i = 0; i < number_of_ros2_threads_ - 1; i++) {
       auto func = [this] { ros2_spin(); };
@@ -115,7 +115,7 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
     rclcpp::AnyExecutable any_executable;
 
     {
-      std::lock_guard wait_lock{wait_mutex_};
+      std::lock_guard<std::mutex> wait_lock{wait_mutex_};
 
       if (!rclcpp::ok(this->context_) || !spinning.load()) {
         return;

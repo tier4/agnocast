@@ -19,7 +19,7 @@ namespace agnocast
 namespace node_interfaces
 {
 
-NodeTopics::NodeTopics(NodeBaseInterface::SharedPtr node_base)
+NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
 : node_base_(node_base)
 {
 }

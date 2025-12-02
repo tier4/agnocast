@@ -9,6 +9,30 @@ extern int agnocast_fd;
 
 rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 
+BridgeMode get_bridge_mode()
+{
+  const char * env_val = std::getenv("AGNOCAST_BRIDGE_MODE");
+  if (env_val == nullptr) {
+    return BridgeMode::Standard;
+  }
+
+  std::string val = env_val;
+  std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+
+  if (val == "0" || val == "off") {
+    return BridgeMode::Off;
+  }
+  if (val == "1" || val == "standard") {
+    return BridgeMode::Standard;
+  }
+  if (val == "2" || val == "performance") {
+    return BridgeMode::Performance;
+  }
+
+  RCLCPP_WARN(logger, "Unknown AGNOCAST_BRIDGE_MODE: %s. Fallback to STANDARD.", env_val);
+  return BridgeMode::Standard;
+}
+
 void validate_ld_preload()
 {
   const char * ld_preload_cstr = getenv("LD_PRELOAD");
@@ -73,9 +97,25 @@ std::string create_mq_name_for_ros2_publish(
   return create_mq_name("/agnocast_to_ros2", topic_name, id);
 }
 
+std::string create_mq_name_for_bridge(const pid_t pid)
+{
+  return "/agnocast_bridge_manager_" + std::to_string(pid);
+}
+
 std::string create_shm_name(const pid_t pid)
 {
   return "/agnocast@" + std::to_string(pid);
+}
+
+std::string create_service_request_topic_name(const std::string & service_name)
+{
+  return "/AGNOCAST_SRV_REQUEST" + service_name;
+}
+
+std::string create_service_response_topic_name(
+  const std::string & service_name, const std::string & client_node_name)
+{
+  return "/AGNOCAST_SRV_RESPONSE" + service_name + "_SEP_" + client_node_name;
 }
 
 uint64_t agnocast_get_timestamp()

@@ -1,20 +1,21 @@
 #include "agnocast/agnocast_context.hpp"
 
-#include <charconv>
 #include <yaml.h>
+
+#include <charconv>
 
 namespace agnocast
 {
 
-GlobalContext & GlobalContext::instance()
+Context & Context::instance()
 {
   // Singleton pattern using static local variable (thread-safe in C++11+)
   // Corresponds to rclcpp::contexts::get_global_default_context()
-  static GlobalContext global_context;
-  return global_context;
+  static Context context;
+  return context;
 }
 
-void GlobalContext::init(int argc, char * argv[])
+void Context::init(int argc, char * argv[])
 {
   // Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c
   if (initialized_) {
@@ -79,7 +80,7 @@ void GlobalContext::init(int argc, char * argv[])
   initialized_ = true;
 }
 
-bool GlobalContext::parse_remap_rule(const std::string & arg)
+bool Context::parse_remap_rule(const std::string & arg)
 {
   // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
 
@@ -108,7 +109,7 @@ bool GlobalContext::parse_remap_rule(const std::string & arg)
   return true;
 }
 
-bool GlobalContext::parse_param_rule(const std::string & arg)
+bool Context::parse_param_rule(const std::string & arg)
 {
   // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
   //
@@ -130,7 +131,7 @@ bool GlobalContext::parse_param_rule(const std::string & arg)
   return true;
 }
 
-GlobalContext::ParameterValue GlobalContext::parse_parameter_value(const std::string & value_str)
+Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
 {
   if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
     return true;
@@ -140,15 +141,15 @@ GlobalContext::ParameterValue GlobalContext::parse_parameter_value(const std::st
   }
 
   int64_t int_value;
-  auto int_result = std::from_chars(
-    value_str.data(), value_str.data() + value_str.size(), int_value);
+  auto int_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
   if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
     return int_value;
   }
 
   double double_value;
-  auto double_result = std::from_chars(
-    value_str.data(), value_str.data() + value_str.size(), double_value);
+  auto double_result =
+    std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
   if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
     return double_value;
   }
@@ -156,7 +157,7 @@ GlobalContext::ParameterValue GlobalContext::parse_parameter_value(const std::st
   return value_str;
 }
 
-bool GlobalContext::parse_yaml_file(const std::string & file_path)
+bool Context::parse_yaml_file(const std::string & file_path)
 {
   // Corresponds to rcl_parse_yaml_file in rcl_yaml_param_parser
   // Simplified implementation using libyaml
@@ -203,30 +204,28 @@ bool GlobalContext::parse_yaml_file(const std::string & file_path)
         }
         break;
 
-      case YAML_SCALAR_EVENT:
-        {
-          std::string value(reinterpret_cast<const char*>(event.data.scalar.value));
+      case YAML_SCALAR_EVENT: {
+        std::string value(reinterpret_cast<const char *>(event.data.scalar.value));
 
-          if (current_node.empty()) {
-            // This is a node name
-            current_node = value;
-            expecting_param_name = false;
-          } else if (!in_ros_parameters && value == "ros__parameters") {
+        if (current_node.empty()) {
+          // This is a node name
+          current_node = value;
+          expecting_param_name = false;
+        } else if (!in_ros_parameters && value == "ros__parameters") {
+          current_param = value;
+        } else if (in_ros_parameters) {
+          if (expecting_param_name) {
             current_param = value;
-          } else if (in_ros_parameters) {
-            if (expecting_param_name) {
-              current_param = value;
-              expecting_param_value = true;
-              expecting_param_name = false;
-            } else if (expecting_param_value) {
-              // Store parameter
-              parameters_by_node_[current_node][current_param] = parse_parameter_value(value);
-              expecting_param_value = false;
-              expecting_param_name = true;
-            }
+            expecting_param_value = true;
+            expecting_param_name = false;
+          } else if (expecting_param_value) {
+            // Store parameter
+            parameters_by_node_[current_node][current_param] = parse_parameter_value(value);
+            expecting_param_value = false;
+            expecting_param_name = true;
           }
         }
-        break;
+      } break;
 
       case YAML_STREAM_END_EVENT:
         done = true;
@@ -244,8 +243,8 @@ bool GlobalContext::parse_yaml_file(const std::string & file_path)
   return true;
 }
 
-std::map<std::string, GlobalContext::ParameterValue>
-GlobalContext::get_param_overrides(const std::string & node_fqn) const
+std::map<std::string, Context::ParameterValue> Context::get_param_overrides(
+  const std::string & node_fqn) const
 {
   // Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
   std::map<std::string, ParameterValue> result;
@@ -269,7 +268,7 @@ void init(int argc, char * argv[])
 {
   // Corresponds to rclcpp::init()
   // Initializes the global context with command-line arguments
-  GlobalContext::instance().init(argc, argv);
+  Context::instance().init(argc, argv);
 }
 
 }  // namespace agnocast

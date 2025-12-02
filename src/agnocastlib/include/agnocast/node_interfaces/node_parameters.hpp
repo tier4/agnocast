@@ -15,14 +15,14 @@
 #ifndef AGNOCAST__NODE_INTERFACES__NODE_PARAMETERS_HPP_
 #define AGNOCAST__NODE_INTERFACES__NODE_PARAMETERS_HPP_
 
+#include "agnocast/node_interfaces/node_parameters_interface.hpp"
+#include "rclcpp/node_interfaces/node_base_interface.hpp"
+
 #include <map>
 #include <memory>
 #include <string>
 #include <variant>
 #include <vector>
-
-#include "agnocast/node_interfaces/node_base_interface.hpp"
-#include "agnocast/node_interfaces/node_parameters_interface.hpp"
 
 namespace agnocast
 {
@@ -46,34 +46,26 @@ public:
    *
    * @param node_base Pointer to the node base interface
    */
-  explicit NodeParameters(NodeBaseInterface::SharedPtr node_base);
+  explicit NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base);
 
   virtual ~NodeParameters() = default;
 
-  void
-  declare_parameter(
-    const std::string & name,
-    const ParameterValue & default_value,
-    const std::string & description = "",
-    bool read_only = false) override;
+  void declare_parameter(
+    const std::string & name, const ParameterValue & default_value,
+    const std::string & description = "", bool read_only = false,
+    bool ignore_override = false) override;
 
-  bool
-  has_parameter(const std::string & name) const override;
+  bool has_parameter(const std::string & name) const override;
 
-  std::vector<uint8_t>
-  get_parameter_types(const std::vector<std::string> & names) const override;
+  std::vector<uint8_t> get_parameter_types(const std::vector<std::string> & names) const override;
 
-  bool
-  get_parameter(const std::string & name, bool & value) const override;
+  bool get_parameter(const std::string & name, bool & value) const override;
 
-  bool
-  get_parameter(const std::string & name, int64_t & value) const override;
+  bool get_parameter(const std::string & name, int64_t & value) const override;
 
-  bool
-  get_parameter(const std::string & name, double & value) const override;
+  bool get_parameter(const std::string & name, double & value) const override;
 
-  bool
-  get_parameter(const std::string & name, std::string & value) const override;
+  bool get_parameter(const std::string & name, std::string & value) const override;
 
   /**
    * @brief Add a parameter override.
@@ -81,8 +73,7 @@ public:
    * @param name Parameter name
    * @param value Parameter value
    */
-  void
-  add_parameter_override(const std::string & name, const ParameterValue & value);
+  void add_parameter_override(const std::string & name, const ParameterValue & value);
 
   /**
    * @brief Load parameters from a YAML file.
@@ -90,8 +81,7 @@ public:
    * @param file_path Path to the YAML parameter file
    * @return true if file was loaded successfully, false otherwise
    */
-  bool
-  load_parameters_from_yaml_file(const std::string & file_path);
+  bool load_parameters_from_yaml_file(const std::string & file_path);
 
 private:
   /**
@@ -100,10 +90,9 @@ private:
    * @param value_str String representation of the value
    * @return Parsed parameter value
    */
-  ParameterValue
-  parse_parameter_value(const std::string & value_str) const;
+  ParameterValue parse_parameter_value(const std::string & value_str) const;
 
-  NodeBaseInterface::SharedPtr node_base_;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::map<std::string, ParameterInfo> parameters_;
   std::map<std::string, ParameterValue> parameter_overrides_;
 };

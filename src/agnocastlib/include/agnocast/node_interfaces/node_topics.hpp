@@ -15,31 +15,16 @@
 #ifndef AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
 #define AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
 
+#include "agnocast/agnocast_context.hpp"
+#include "agnocast/node_interfaces/node_topics_interface.hpp"
+#include "rclcpp/node_interfaces/node_base_interface.hpp"
+
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "agnocast/node_interfaces/node_base_interface.hpp"
-#include "agnocast/node_interfaces/node_topics_interface.hpp"
-
 namespace agnocast
 {
-
-// Forward declaration of RemapType and RemapRule
-enum class RemapType
-{
-  NODENAME,
-  NAMESPACE,
-  TOPIC
-};
-
-struct RemapRule
-{
-  RemapType type;
-  std::string match;
-  std::string replacement;
-};
-
 namespace node_interfaces
 {
 
@@ -55,28 +40,25 @@ public:
    *
    * @param node_base Pointer to the node base interface
    */
-  explicit NodeTopics(NodeBaseInterface::SharedPtr node_base);
+  explicit NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base);
 
   virtual ~NodeTopics() = default;
 
-  std::string
-  resolve_topic_name(const std::string & input_topic_name) const override;
+  std::string resolve_topic_name(const std::string & input_topic_name) const override;
 
   /**
    * @brief Add a remap rule for topic remapping.
    *
    * @param rule Remap rule to add
    */
-  void
-  add_remap_rule(const RemapRule & rule);
+  void add_remap_rule(const RemapRule & rule);
 
   /**
    * @brief Get all topic remap rules.
    *
    * @return Vector of remap rules
    */
-  const std::vector<RemapRule> &
-  get_remap_rules() const;
+  const std::vector<RemapRule> & get_remap_rules() const;
 
 private:
   /**
@@ -88,8 +70,7 @@ private:
    * @param input_topic_name Topic name to resolve
    * @return Resolved topic name
    */
-  std::string
-  resolve_name(const std::string & input_topic_name) const;
+  std::string resolve_name(const std::string & input_topic_name) const;
 
   /**
    * @brief Expand a topic name (handle substitutions, private/relative/absolute).
@@ -99,8 +80,7 @@ private:
    * @param input_topic_name Topic name to expand
    * @return Expanded topic name
    */
-  std::string
-  expand_topic_name(const std::string & input_topic_name) const;
+  std::string expand_topic_name(const std::string & input_topic_name) const;
 
   /**
    * @brief Apply remapping to a topic name.
@@ -110,10 +90,9 @@ private:
    * @param name Name to remap
    * @return Remapped name (or original if no remapping exists)
    */
-  std::string
-  remap_name(const std::string & name) const;
+  std::string remap_name(const std::string & name) const;
 
-  NodeBaseInterface::SharedPtr node_base_;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::vector<RemapRule> remap_rules_;  // Only TOPIC type rules
 };
 
