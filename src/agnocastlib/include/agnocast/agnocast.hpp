@@ -8,6 +8,7 @@
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_node.hpp"
 #include "agnocast/agnocast_only_executor.hpp"
+#include "agnocast/agnocast_only_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_only_single_threaded_executor.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_service.hpp"
