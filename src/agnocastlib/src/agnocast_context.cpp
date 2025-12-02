@@ -51,7 +51,7 @@ void Context::init(int argc, char const * const * argv)
 
       // Attempt to parse argument as remap rule flag
       if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
-        ++i;  // Skip to argument value
+        i++;
         std::string remap_arg = args[static_cast<size_t>(i)];
         parse_remap_rule(remap_arg);
         continue;
