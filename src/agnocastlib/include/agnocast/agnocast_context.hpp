@@ -12,11 +12,7 @@
 namespace agnocast
 {
 
-enum class RemapType {
-  NODENAME,
-  NAMESPACE,
-  TOPIC
-};
+enum class RemapType { NODENAME, NAMESPACE, TOPIC };
 
 struct RemapRule
 {
