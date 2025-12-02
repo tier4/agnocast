@@ -45,7 +45,7 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
   PublisherOptions options;
-  return std::make_shared<BasicPublisher<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicPublisher<MessageT, AgnocastToRosRequestPolicy>>(
     node, topic_name, qos, options);
 }
 
@@ -54,7 +54,7 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
 {
   PublisherOptions options;
-  return std::make_shared<BasicPublisher<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicPublisher<MessageT, AgnocastToRosRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), options);
 }
 
@@ -63,7 +63,7 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
   const PublisherOptions & options)
 {
-  return std::make_shared<BasicPublisher<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicPublisher<MessageT, AgnocastToRosRequestPolicy>>(
     node, topic_name, qos, options);
 }
 
@@ -72,7 +72,7 @@ typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth,
   const PublisherOptions & options)
 {
-  return std::make_shared<BasicPublisher<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicPublisher<MessageT, AgnocastToRosRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)), options);
 }
 
@@ -81,7 +81,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback)
 {
   const agnocast::SubscriptionOptions options;
-  return std::make_shared<BasicSubscription<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicSubscription<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, qos, std::forward<Func>(callback), options);
 }
 
@@ -91,7 +91,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   Func && callback)
 {
   const agnocast::SubscriptionOptions options;
-  return std::make_shared<BasicSubscription<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicSubscription<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)),
     std::forward<Func>(callback), options);
 }
@@ -101,7 +101,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
   agnocast::SubscriptionOptions options)
 {
-  return std::make_shared<BasicSubscription<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicSubscription<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, qos, std::forward<Func>(callback), options);
 }
 
@@ -110,7 +110,7 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth,
   Func && callback, agnocast::SubscriptionOptions options)
 {
-  return std::make_shared<BasicSubscription<MessageT, DefaultBridgeRequestPolicy>>(
+  return std::make_shared<BasicSubscription<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)),
     std::forward<Func>(callback), options);
 }
