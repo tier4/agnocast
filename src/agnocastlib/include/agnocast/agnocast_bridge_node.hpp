@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -9,22 +10,34 @@ namespace agnocast
 {
 
 template <typename MessageT>
-void send_bridge_request(const std::string & topic_name, const rclcpp::QoS & qos)
+void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
 {
   (void)topic_name;  // TODO: Remove
-  (void)qos;         // TODO: Remove
+  (void)id;          // TODO: Remove
+  (void)dir;         // TODO: Remove
   // TODO: Implement the actual message queue communication to request a bridge.
   // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
-// Default policy for user-facing Publisher/Subscription.
-// Requests a bridge to be created for the topic.
-struct DefaultBridgeRequestPolicy
+// Policy for agnocast::Subscription.
+// Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
+struct RosToAgnocastRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string & topic_name, const rclcpp::QoS & qos)
+  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    send_bridge_request<MessageT>(topic_name, qos);
+    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
+  }
+};
+
+// Policy for agnocast::Publisher.
+// Requests a bridge that forwards messages from Agnocast to ROS 2 (A2R).
+struct AgnocastToRosRequestPolicy
+{
+  template <typename MessageT>
+  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
+  {
+    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
 
