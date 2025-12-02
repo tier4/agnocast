@@ -1,11 +1,12 @@
 #pragma once
 
+#include <rclcpp/parameter_value.hpp>
+
 #include <rcl/arguments.h>
 
 #include <map>
 #include <mutex>
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace agnocast
@@ -29,7 +30,7 @@ struct RemapRule
 class Context
 {
 public:
-  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
+  using ParameterValue = rclcpp::ParameterValue;
 
   static Context & instance();
   void init(int argc, char * argv[]);

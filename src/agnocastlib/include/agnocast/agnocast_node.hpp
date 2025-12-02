@@ -8,7 +8,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 // New node interfaces (now inherit from rclcpp interfaces)
@@ -43,9 +42,7 @@ struct ParameterDescriptor
  */
 struct ParameterInfo
 {
-  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
-
-  ParameterValue value;
+  rclcpp::ParameterValue value;
   ParameterDescriptor descriptor;
 };
 
@@ -65,42 +62,34 @@ class Node
 {
 public:
   using SharedPtr = std::shared_ptr<Node>;
-  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
+  using ParameterValue = rclcpp::ParameterValue;
 
   /**
-   * @brief Default constructor that queries node name from Context.
+   * @brief Construct a Node with a node name and optional NodeOptions.
    *
-   * This constructor is for backward compatibility with code that expects
-   * node name to be set via command-line arguments (--ros-args -r __node:=name).
-   */
-  Node();
-
-  /**
-   * @brief Construct a Node with explicit values.
+   * Matches rclcpp::Node API.
    *
    * @param node_name Node name
-   * @param namespace_ Namespace (default: "")
+   * @param options NodeOptions (default: NodeOptions())
    *
    * @note Command-line argument parsing should be done via agnocast::init(argc, argv)
    *       before constructing the Node. This matches rclcpp::Node's design.
    */
-  Node(const std::string & node_name, const std::string & namespace_ = "");
+  explicit Node(
+    const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
   /**
-   * @brief Construct a Node from NodeOptions (Composable Node support).
+   * @brief Construct a Node with a node name, namespace, and optional NodeOptions.
    *
-   * This constructor is required for registering the node as a Composable Node
-   * using RCLCPP_COMPONENTS_REGISTER_NODE macro.
+   * Matches rclcpp::Node API.
    *
-   * @param options rclcpp::NodeOptions containing:
-   *   - Node name and namespace (extracted from arguments())
-   *   - rclcpp::Context (from context())
-   *   - Parameter overrides (from parameter_overrides())
-   *
-   * @note The node name and namespace are extracted from the arguments using
-   *       --ros-args -r __node:=name and -r __ns:=namespace patterns.
+   * @param node_name Node name
+   * @param namespace_ Namespace
+   * @param options NodeOptions (default: NodeOptions())
    */
-  explicit Node(const rclcpp::NodeOptions & options);
+  explicit Node(
+    const std::string & node_name, const std::string & namespace_,
+    const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
   /**
    * @brief Get the node name.
@@ -341,7 +330,9 @@ public:
     SubscriptionOptions options);
 
 private:
-  void initialize_node(const std::string & node_name, const std::string & ns);
+  void initialize_node(
+    const std::string & node_name, const std::string & ns,
+    rclcpp::Context::SharedPtr context = nullptr);
 
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;

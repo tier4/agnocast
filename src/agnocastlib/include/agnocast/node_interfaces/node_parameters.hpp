@@ -7,7 +7,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace agnocast
@@ -27,7 +26,7 @@ class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 public:
   using SharedPtr = std::shared_ptr<NodeParameters>;
   using WeakPtr = std::weak_ptr<NodeParameters>;
-  using ParameterValue = std::variant<bool, int64_t, double, std::string>;
+  using ParameterValue = rclcpp::ParameterValue;
 
   /**
    * @brief Construct a NodeParameters.
@@ -109,14 +108,9 @@ public:
   void add_parameter_override(const std::string & name, const ParameterValue & value);
 
 private:
-  ParameterValue parse_parameter_value(const std::string & value_str) const;
-  rclcpp::ParameterValue convert_to_rclcpp_value(const ParameterValue & value) const;
-  ParameterValue convert_from_rclcpp_value(const rclcpp::ParameterValue & value) const;
-
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::map<std::string, ParameterInfo> parameters_;
-  std::map<std::string, ParameterValue> parameter_overrides_internal_;
-  std::map<std::string, rclcpp::ParameterValue> parameter_overrides_rclcpp_;
+  std::map<std::string, ParameterValue> parameter_overrides_;
   rclcpp::ParameterValue last_declared_value_;  // For return reference
 };
 

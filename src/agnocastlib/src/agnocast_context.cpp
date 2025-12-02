@@ -134,27 +134,27 @@ bool Context::parse_param_rule(const std::string & arg)
 Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
 {
   if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
-    return true;
+    return rclcpp::ParameterValue(true);
   }
   if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
-    return false;
+    return rclcpp::ParameterValue(false);
   }
 
   int64_t int_value;
   auto int_result =
     std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
   if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
-    return int_value;
+    return rclcpp::ParameterValue(int_value);
   }
 
   double double_value;
   auto double_result =
     std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
   if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
-    return double_value;
+    return rclcpp::ParameterValue(double_value);
   }
 
-  return value_str;
+  return rclcpp::ParameterValue(value_str);
 }
 
 bool Context::parse_yaml_file(const std::string & file_path)

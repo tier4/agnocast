@@ -30,16 +30,15 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // Convert to internal format and declare
-  ParameterValue internal_value = convert_from_rclcpp_value(default_value);
+  // Declare the parameter using internal method
   declare_parameter_simple(
-    name, internal_value, parameter_descriptor.description, parameter_descriptor.read_only,
+    name, default_value, parameter_descriptor.description, parameter_descriptor.read_only,
     ignore_override);
 
   // Get the actual value (may be overridden)
   auto it = parameters_.find(name);
   if (it != parameters_.end()) {
-    last_declared_value_ = convert_to_rclcpp_value(it->second.value);
+    last_declared_value_ = it->second.value;
   } else {
     last_declared_value_ = default_value;
   }
@@ -102,11 +101,10 @@ std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parame
       result.successful = false;
       result.reason = "Parameter is read-only";
     } else {
-      ParameterValue value = convert_from_rclcpp_value(param.get_parameter_value());
       if (it != parameters_.end()) {
-        it->second.value = value;
+        it->second.value = param.get_parameter_value();
       } else {
-        parameters_[param.get_name()] = ParameterInfo{value, {}};
+        parameters_[param.get_name()] = ParameterInfo{param.get_parameter_value(), {}};
       }
       result.successful = true;
     }
@@ -132,12 +130,11 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 
   // Set all parameters
   for (const auto & param : parameters) {
-    ParameterValue value = convert_from_rclcpp_value(param.get_parameter_value());
     auto it = parameters_.find(param.get_name());
     if (it != parameters_.end()) {
-      it->second.value = value;
+      it->second.value = param.get_parameter_value();
     } else {
-      parameters_[param.get_name()] = ParameterInfo{value, {}};
+      parameters_[param.get_name()] = ParameterInfo{param.get_parameter_value(), {}};
     }
   }
 
@@ -152,7 +149,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   for (const auto & name : names) {
     auto it = parameters_.find(name);
     if (it != parameters_.end()) {
-      result.push_back(rclcpp::Parameter(name, convert_to_rclcpp_value(it->second.value)));
+      result.push_back(rclcpp::Parameter(name, it->second.value));
     }
   }
   return result;
@@ -164,7 +161,7 @@ rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
   if (it == parameters_.end()) {
     throw std::runtime_error("Parameter not found: " + name);
   }
-  return rclcpp::Parameter(name, convert_to_rclcpp_value(it->second.value));
+  return rclcpp::Parameter(name, it->second.value);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
@@ -173,7 +170,7 @@ bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter &
   if (it == parameters_.end()) {
     return false;
   }
-  parameter = rclcpp::Parameter(name, convert_to_rclcpp_value(it->second.value));
+  parameter = rclcpp::Parameter(name, it->second.value);
   return true;
 }
 
@@ -188,7 +185,7 @@ bool NodeParameters::get_parameters_by_prefix(
       if (!suffix.empty() && suffix[0] == '.') {
         suffix = suffix.substr(1);
       }
-      parameters[suffix] = rclcpp::Parameter(name, convert_to_rclcpp_value(info.value));
+      parameters[suffix] = rclcpp::Parameter(name, info.value);
       found = true;
     }
   }
@@ -206,15 +203,23 @@ std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_p
     if (it != parameters_.end()) {
       desc.description = it->second.descriptor.description;
       desc.read_only = it->second.descriptor.read_only;
-      // Determine type
-      if (std::holds_alternative<bool>(it->second.value)) {
-        desc.type = PARAMETER_BOOL;
-      } else if (std::holds_alternative<int64_t>(it->second.value)) {
-        desc.type = PARAMETER_INTEGER;
-      } else if (std::holds_alternative<double>(it->second.value)) {
-        desc.type = PARAMETER_DOUBLE;
-      } else if (std::holds_alternative<std::string>(it->second.value)) {
-        desc.type = PARAMETER_STRING;
+      // Determine type from rclcpp::ParameterValue
+      switch (it->second.value.get_type()) {
+        case rclcpp::ParameterType::PARAMETER_BOOL:
+          desc.type = PARAMETER_BOOL;
+          break;
+        case rclcpp::ParameterType::PARAMETER_INTEGER:
+          desc.type = PARAMETER_INTEGER;
+          break;
+        case rclcpp::ParameterType::PARAMETER_DOUBLE:
+          desc.type = PARAMETER_DOUBLE;
+          break;
+        case rclcpp::ParameterType::PARAMETER_STRING:
+          desc.type = PARAMETER_STRING;
+          break;
+        default:
+          desc.type = PARAMETER_NOT_SET;
+          break;
       }
     }
     result.push_back(desc);
@@ -231,17 +236,22 @@ std::vector<uint8_t> NodeParameters::get_parameter_types(
   for (const auto & name : names) {
     auto it = parameters_.find(name);
     if (it != parameters_.end()) {
-      const auto & value = it->second.value;
-      if (std::holds_alternative<bool>(value)) {
-        types.push_back(PARAMETER_BOOL);
-      } else if (std::holds_alternative<int64_t>(value)) {
-        types.push_back(PARAMETER_INTEGER);
-      } else if (std::holds_alternative<double>(value)) {
-        types.push_back(PARAMETER_DOUBLE);
-      } else if (std::holds_alternative<std::string>(value)) {
-        types.push_back(PARAMETER_STRING);
-      } else {
-        types.push_back(PARAMETER_NOT_SET);
+      switch (it->second.value.get_type()) {
+        case rclcpp::ParameterType::PARAMETER_BOOL:
+          types.push_back(PARAMETER_BOOL);
+          break;
+        case rclcpp::ParameterType::PARAMETER_INTEGER:
+          types.push_back(PARAMETER_INTEGER);
+          break;
+        case rclcpp::ParameterType::PARAMETER_DOUBLE:
+          types.push_back(PARAMETER_DOUBLE);
+          break;
+        case rclcpp::ParameterType::PARAMETER_STRING:
+          types.push_back(PARAMETER_STRING);
+          break;
+        default:
+          types.push_back(PARAMETER_NOT_SET);
+          break;
       }
     } else {
       types.push_back(PARAMETER_NOT_SET);
@@ -293,7 +303,7 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
-  return parameter_overrides_rclcpp_;
+  return parameter_overrides_;
 }
 
 // ===== Agnocast-specific methods =====
@@ -312,10 +322,8 @@ void NodeParameters::declare_parameter_simple(
   param_info.descriptor.read_only = read_only;
 
   // Check for command-line override
-  if (
-    !ignore_override &&
-    parameter_overrides_internal_.find(name) != parameter_overrides_internal_.end()) {
-    param_info.value = parameter_overrides_internal_[name];
+  if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
+    param_info.value = parameter_overrides_[name];
   } else {
     param_info.value = default_value;
   }
@@ -325,76 +333,7 @@ void NodeParameters::declare_parameter_simple(
 
 void NodeParameters::add_parameter_override(const std::string & name, const ParameterValue & value)
 {
-  parameter_overrides_internal_[name] = value;
-  parameter_overrides_rclcpp_[name] = convert_to_rclcpp_value(value);
-}
-
-// ===== Private methods =====
-
-NodeParameters::ParameterValue NodeParameters::parse_parameter_value(
-  const std::string & value_str) const
-{
-  // Try to parse as bool
-  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
-    return true;
-  }
-  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
-    return false;
-  }
-
-  // Try to parse as integer
-  try {
-    size_t pos = 0;
-    int64_t int_value = std::stoll(value_str, &pos);
-    if (pos == value_str.length()) {
-      return int_value;
-    }
-  } catch (...) {
-  }
-
-  // Try to parse as double
-  try {
-    size_t pos = 0;
-    double double_value = std::stod(value_str, &pos);
-    if (pos == value_str.length()) {
-      return double_value;
-    }
-  } catch (...) {
-  }
-
-  // Default to string
-  return value_str;
-}
-
-rclcpp::ParameterValue NodeParameters::convert_to_rclcpp_value(const ParameterValue & value) const
-{
-  if (auto * v = std::get_if<bool>(&value)) {
-    return rclcpp::ParameterValue(*v);
-  } else if (auto * v = std::get_if<int64_t>(&value)) {
-    return rclcpp::ParameterValue(*v);
-  } else if (auto * v = std::get_if<double>(&value)) {
-    return rclcpp::ParameterValue(*v);
-  } else if (auto * v = std::get_if<std::string>(&value)) {
-    return rclcpp::ParameterValue(*v);
-  }
-  return rclcpp::ParameterValue();
-}
-
-NodeParameters::ParameterValue NodeParameters::convert_from_rclcpp_value(
-  const rclcpp::ParameterValue & value) const
-{
-  switch (value.get_type()) {
-    case rclcpp::ParameterType::PARAMETER_BOOL:
-      return value.get<bool>();
-    case rclcpp::ParameterType::PARAMETER_INTEGER:
-      return value.get<int64_t>();
-    case rclcpp::ParameterType::PARAMETER_DOUBLE:
-      return value.get<double>();
-    case rclcpp::ParameterType::PARAMETER_STRING:
-      return value.get<std::string>();
-    default:
-      return std::string("");
-  }
+  parameter_overrides_[name] = value;
 }
 
 }  // namespace node_interfaces

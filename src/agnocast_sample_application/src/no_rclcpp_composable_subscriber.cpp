@@ -19,11 +19,11 @@ class NoRclcppComposableSubscriber : public agnocast::Node
 
 public:
   explicit NoRclcppComposableSubscriber(const rclcpp::NodeOptions & options)
-  : agnocast::Node(options)
+  : agnocast::Node("no_rclcpp_composable_subscriber", options)
   {
     // Declare parameters with default values
-    declare_parameter("topic_name", std::string("my_topic"));
-    declare_parameter("queue_size", int64_t(1));
+    declare_parameter("topic_name", rclcpp::ParameterValue(std::string("my_topic")));
+    declare_parameter("queue_size", rclcpp::ParameterValue(int64_t(1)));
 
     // Get parameter values
     std::string topic_name;
