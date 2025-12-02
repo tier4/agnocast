@@ -16,6 +16,11 @@ struct MqMsgAgnocast
 {
 };
 
+struct MqMsgROS2Publish
+{
+  bool should_terminate;
+};
+
 enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
 
 struct BridgeFactoryInfo
