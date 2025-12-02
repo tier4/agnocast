@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 
 namespace agnocast
@@ -41,7 +43,7 @@ void Context::init(int argc, char const * const * argv)
 
       // Attempt to parse argument as parameter override flag
       if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < argc) {
-        ++i;  // Skip to argument value
+        i++;
         std::string param_arg = args[static_cast<size_t>(i)];
         parse_param_rule(param_arg);
         continue;
@@ -105,10 +107,15 @@ bool Context::parse_param_rule(const std::string & arg)
 
 Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
 {
-  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
+  std::string lower_value = value_str;
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+
+  if (lower_value == "true") {
     return rclcpp::ParameterValue(true);
   }
-  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
+  if (lower_value == "false") {
     return rclcpp::ParameterValue(false);
   }
 
