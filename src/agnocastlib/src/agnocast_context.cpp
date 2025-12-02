@@ -49,6 +49,14 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
+      // Attempt to parse argument as remap rule flag
+      if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
+        ++i;  // Skip to argument value
+        std::string remap_arg = args[static_cast<size_t>(i)];
+        parse_remap_rule(remap_arg);
+        continue;
+      }
+
       // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
       // implementation.
       if (arg == "-r" && i + 1 < argc) {
@@ -134,6 +142,35 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
   }
 
   return rclcpp::ParameterValue(value_str);
+}
+
+bool Context::parse_remap_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
+
+  size_t separator = arg.find(":=");
+
+  if (separator == std::string::npos) {
+    return false;
+  }
+
+  std::string from = arg.substr(0, separator);
+  std::string to = arg.substr(separator + 2);
+
+  RemapRule rule;
+  rule.match = from;
+  rule.replacement = to;
+
+  if (from == "__node" || from == "__name") {
+    rule.type = RemapType::NODENAME;
+  } else if (from == "__ns") {
+    rule.type = RemapType::NAMESPACE;
+  } else {
+    rule.type = RemapType::TOPIC;
+  }
+
+  remap_rules_.push_back(rule);
+  return true;
 }
 
 void init(int argc, char const * const * argv)

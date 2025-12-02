@@ -12,6 +12,19 @@
 namespace agnocast
 {
 
+enum class RemapType {
+  NODENAME,
+  NAMESPACE,
+  TOPIC
+};
+
+struct RemapRule
+{
+  RemapType type;
+  std::string match;
+  std::string replacement;
+};
+
 class Context
 {
   struct CommandLineParams
@@ -30,8 +43,10 @@ public:
 private:
   bool parse_param_rule(const std::string & arg);
   ParameterValue parse_parameter_value(const std::string & value_str);
+  bool parse_remap_rule(const std::string & arg);
 
   bool initialized_ = false;
+  std::vector<RemapRule> remap_rules_;
 
   std::map<std::string, ParameterValue> global_parameter_overrides_;
 };
