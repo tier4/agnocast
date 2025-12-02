@@ -243,22 +243,54 @@ public:
    */
   bool get_parameter(const std::string & name, bool & value) const
   {
-    return node_parameters_->get_parameter(name, value);
+    rclcpp::Parameter param;
+    if (!node_parameters_->get_parameter(name, param)) {
+      return false;
+    }
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_BOOL) {
+      return false;
+    }
+    value = param.as_bool();
+    return true;
   }
 
   bool get_parameter(const std::string & name, int64_t & value) const
   {
-    return node_parameters_->get_parameter(name, value);
+    rclcpp::Parameter param;
+    if (!node_parameters_->get_parameter(name, param)) {
+      return false;
+    }
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
+      return false;
+    }
+    value = param.as_int();
+    return true;
   }
 
   bool get_parameter(const std::string & name, double & value) const
   {
-    return node_parameters_->get_parameter(name, value);
+    rclcpp::Parameter param;
+    if (!node_parameters_->get_parameter(name, param)) {
+      return false;
+    }
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      return false;
+    }
+    value = param.as_double();
+    return true;
   }
 
   bool get_parameter(const std::string & name, std::string & value) const
   {
-    return node_parameters_->get_parameter(name, value);
+    rclcpp::Parameter param;
+    if (!node_parameters_->get_parameter(name, param)) {
+      return false;
+    }
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+      return false;
+    }
+    value = param.as_string();
+    return true;
   }
 
   /**

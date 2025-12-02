@@ -89,38 +89,24 @@ public:
 
   const std::map<std::string, rclcpp::ParameterValue> & get_parameter_overrides() const override;
 
-  // ===== Agnocast-specific methods =====
+  // ===== Internal helper methods (for rclcpp API implementation) =====
 
   /**
    * @brief Declare a parameter with agnocast's simple ParameterValue type.
+   * @note Internal helper for rclcpp declare_parameter implementation.
    */
   void declare_parameter_simple(
     const std::string & name, const ParameterValue & default_value,
     const std::string & description = "", bool read_only = false, bool ignore_override = false);
 
   /**
-   * @brief Get a parameter value by name (type-specific overloads).
-   */
-  bool get_parameter(const std::string & name, bool & value) const;
-  bool get_parameter(const std::string & name, int64_t & value) const;
-  bool get_parameter(const std::string & name, double & value) const;
-  bool get_parameter(const std::string & name, std::string & value) const;
-
-  /**
    * @brief Add a parameter override.
+   * @note Internal helper for NodeOptions parameter processing.
    *
    * @param name Parameter name
    * @param value Parameter value
    */
   void add_parameter_override(const std::string & name, const ParameterValue & value);
-
-  /**
-   * @brief Load parameters from a YAML file.
-   *
-   * @param file_path Path to the YAML parameter file
-   * @return true if file was loaded successfully, false otherwise
-   */
-  bool load_parameters_from_yaml_file(const std::string & file_path);
 
 private:
   ParameterValue parse_parameter_value(const std::string & value_str) const;

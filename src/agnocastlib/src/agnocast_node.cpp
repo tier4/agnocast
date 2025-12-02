@@ -193,26 +193,30 @@ const Node::ParameterValue & Node::declare_parameter(
     name, default_value, descriptor.description, descriptor.read_only, ignore_override);
 
   // Return the parameter value from the internal storage
-  // This is a bit awkward due to the interface design, but maintains backward compatibility
-  // We need to access the internal parameter storage through get_parameter
+  // Use rclcpp API to get the parameter and convert to agnocast ParameterValue
   static thread_local ParameterValue return_value;
 
-  if (std::holds_alternative<bool>(default_value)) {
-    bool v;
-    node_parameters_->get_parameter(name, v);
-    return_value = v;
-  } else if (std::holds_alternative<int64_t>(default_value)) {
-    int64_t v;
-    node_parameters_->get_parameter(name, v);
-    return_value = v;
-  } else if (std::holds_alternative<double>(default_value)) {
-    double v;
-    node_parameters_->get_parameter(name, v);
-    return_value = v;
-  } else if (std::holds_alternative<std::string>(default_value)) {
-    std::string v;
-    node_parameters_->get_parameter(name, v);
-    return_value = v;
+  rclcpp::Parameter param;
+  if (node_parameters_->get_parameter(name, param)) {
+    switch (param.get_type()) {
+      case rclcpp::ParameterType::PARAMETER_BOOL:
+        return_value = param.as_bool();
+        break;
+      case rclcpp::ParameterType::PARAMETER_INTEGER:
+        return_value = param.as_int();
+        break;
+      case rclcpp::ParameterType::PARAMETER_DOUBLE:
+        return_value = param.as_double();
+        break;
+      case rclcpp::ParameterType::PARAMETER_STRING:
+        return_value = param.as_string();
+        break;
+      default:
+        return_value = default_value;
+        break;
+    }
+  } else {
+    return_value = default_value;
   }
 
   return return_value;

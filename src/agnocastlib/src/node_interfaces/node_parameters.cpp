@@ -323,72 +323,10 @@ void NodeParameters::declare_parameter_simple(
   parameters_[name] = param_info;
 }
 
-bool NodeParameters::get_parameter(const std::string & name, bool & value) const
-{
-  auto it = parameters_.find(name);
-  if (it == parameters_.end()) {
-    return false;
-  }
-
-  if (auto * v = std::get_if<bool>(&it->second.value)) {
-    value = *v;
-    return true;
-  }
-  return false;
-}
-
-bool NodeParameters::get_parameter(const std::string & name, int64_t & value) const
-{
-  auto it = parameters_.find(name);
-  if (it == parameters_.end()) {
-    return false;
-  }
-
-  if (auto * v = std::get_if<int64_t>(&it->second.value)) {
-    value = *v;
-    return true;
-  }
-  return false;
-}
-
-bool NodeParameters::get_parameter(const std::string & name, double & value) const
-{
-  auto it = parameters_.find(name);
-  if (it == parameters_.end()) {
-    return false;
-  }
-
-  if (auto * v = std::get_if<double>(&it->second.value)) {
-    value = *v;
-    return true;
-  }
-  return false;
-}
-
-bool NodeParameters::get_parameter(const std::string & name, std::string & value) const
-{
-  auto it = parameters_.find(name);
-  if (it == parameters_.end()) {
-    return false;
-  }
-
-  if (auto * v = std::get_if<std::string>(&it->second.value)) {
-    value = *v;
-    return true;
-  }
-  return false;
-}
-
 void NodeParameters::add_parameter_override(const std::string & name, const ParameterValue & value)
 {
   parameter_overrides_internal_[name] = value;
   parameter_overrides_rclcpp_[name] = convert_to_rclcpp_value(value);
-}
-
-bool NodeParameters::load_parameters_from_yaml_file(const std::string & file_path)
-{
-  (void)file_path;
-  return false;  // Not implemented
 }
 
 // ===== Private methods =====

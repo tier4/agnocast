@@ -57,21 +57,15 @@ public:
 
   rclcpp::node_interfaces::NodeTimersInterface * get_node_timers_interface() const override;
 
-  // ===== Agnocast-specific methods =====
+  // ===== Internal helper methods (for rclcpp API implementation) =====
 
   /**
    * @brief Add a remap rule for topic remapping.
+   * @note Internal helper for command-line argument processing.
    *
    * @param rule Remap rule to add
    */
   void add_remap_rule(const RemapRule & rule);
-
-  /**
-   * @brief Get all topic remap rules.
-   *
-   * @return Vector of remap rules
-   */
-  const std::vector<RemapRule> & get_remap_rules() const;
 
 private:
   /**

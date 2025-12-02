@@ -90,11 +90,6 @@ void NodeTopics::add_remap_rule(const RemapRule & rule)
   }
 }
 
-const std::vector<RemapRule> & NodeTopics::get_remap_rules() const
-{
-  return remap_rules_;
-}
-
 // ===== Private methods =====
 
 std::string NodeTopics::resolve_name(const std::string & input_topic_name) const
