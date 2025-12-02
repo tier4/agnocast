@@ -1,5 +1,7 @@
 #pragma once
 
+#include "agnocast/agnocast_ioctl.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -14,17 +16,27 @@ struct MqMsgAgnocast
 {
 };
 
-struct MqMsgROS2Publish
+enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
+
+struct BridgeFactoryInfo
 {
-  bool should_terminate;
+  char shared_lib_path[SHARED_LIB_PATH_BUFFER_SIZE];
+  char symbol_name[SYMBOL_NAME_BUFFER_SIZE];
+  uintptr_t fn_offset;
+  uintptr_t fn_offset_reverse;
+};
+
+struct BridgeTargetInfo
+{
+  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  topic_local_id_t target_id;
 };
 
 struct MqMsgBridge
 {
-  uintptr_t fn_ptr;
-  char shared_lib_path[SHARED_LIB_PATH_BUFFER_SIZE];
-  char symbol_name[SYMBOL_NAME_BUFFER_SIZE];
-  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  BridgeFactoryInfo factory;
+  BridgeTargetInfo target;
+  BridgeDirection direction;
 };
 
 }  // namespace agnocast
