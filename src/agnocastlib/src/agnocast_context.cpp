@@ -32,7 +32,7 @@ void Context::init(int argc, char const * const * argv)
   }
 
   bool parsing_ros_args = false;
-  for (int i = 1; i < argc; ++i) {
+  for (int i = 0; i < argc; ++i) {
     const std::string & arg = args[static_cast<size_t>(i)];
 
     if (parsing_ros_args) {
@@ -49,21 +49,24 @@ void Context::init(int argc, char const * const * argv)
 
       // Attempt to parse argument as parameter override flag
       if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < argc) {
-        std::string param_arg = argv[++i];
-        parse_param_rule(param_arg);  // Parse immediately
+        ++i;  // Skip to argument value
+        std::string param_arg = args[static_cast<size_t>(i)];
+        parse_param_rule(param_arg);
         continue;
       }
 
       // Attempt to parse argument as remap rule flag
       if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
-        std::string remap_arg = argv[++i];
-        parse_remap_rule(remap_arg);  // Parse immediately
+        ++i;  // Skip to argument value
+        std::string remap_arg = args[static_cast<size_t>(i)];
+        parse_remap_rule(remap_arg);
         continue;
       }
 
       // Attempt to parse argument as parameter file rule
       if (arg == RCL_PARAM_FILE_FLAG && i + 1 < argc) {
-        std::string file_path = argv[++i];
+        ++i;  // Skip to argument value
+        std::string file_path = args[static_cast<size_t>(i)];
         parse_yaml_file(file_path);
         continue;
       }
