@@ -25,7 +25,7 @@ int main(int argc, char * argv[])
     const int ros2_next_exec_timeout_ms = node->get_parameter_or("ros2_next_exec_timeout_ms", -1);
     const nanoseconds ros2_next_exec_timeout_ns =
       ros2_next_exec_timeout_ms == -1 ? nanoseconds(-1)
-                                       : nanoseconds(ros2_next_exec_timeout_ms * 1000 * 1000);
+                                      : nanoseconds(ros2_next_exec_timeout_ms * 1000 * 1000);
     const int agnocast_next_exec_timeout_ms =
       node->get_parameter_or("agnocast_next_exec_timeout_ms", 50);
 
