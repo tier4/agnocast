@@ -8,6 +8,7 @@ static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const uint32_t QOS_DEPTH = 10;
 static const bool QOS_IS_TRANSIENT_LOCAL = false;
+static const bool QOS_IS_RELIABLE = true;
 static pid_t subscriber_pid = 1000;
 static pid_t publisher_pid = 2000;
 static const bool IS_TAKE_SUB = false;
@@ -41,7 +42,7 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
   *subscriber_id = add_subscriber_args.ret_id;
 
   KUNIT_ASSERT_EQ(test, ret1, 0);

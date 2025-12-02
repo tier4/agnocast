@@ -9,6 +9,7 @@
 static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const bool IS_TAKE_SUB = true;
+static const bool IS_RELIABLE = true;
 
 static void setup_one_subscriber(
   struct kunit * test, pid_t subscriber_pid, uint32_t qos_depth, bool is_transient_local,
@@ -20,7 +21,7 @@ static void setup_one_subscriber(
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth, is_transient_local,
-    IS_TAKE_SUB, &add_subscriber_args);
+    IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
   *subscriber_id = add_subscriber_args.ret_id;
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
@@ -699,7 +700,7 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   const uint32_t subscriber_qos_depth = 10;
   int ret2 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, subscriber_qos_depth,
-    publisher_transient_local, IS_TAKE_SUB, &add_subscriber_args);
+    publisher_transient_local, IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
 
   union ioctl_add_publisher_args add_publisher_args;
   const uint32_t publisher_qos_depth = 10;
@@ -783,13 +784,13 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   const uint32_t subscriber_qos_depth1 = 10;
   int ret2 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, subscriber_qos_depth1,
-    is_transient_local, IS_TAKE_SUB, &add_subscriber_args1);
+    is_transient_local, IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args1);
 
   union ioctl_add_subscriber_args add_subscriber_args2;
   const uint32_t subscriber_qos_depth2 = 1;
   int ret3 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, subscriber_qos_depth2,
-    is_transient_local, IS_TAKE_SUB, &add_subscriber_args2);
+    is_transient_local, IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args2);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
@@ -945,7 +946,7 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
 
       ret = add_subscriber(
         topic_name, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid++, qos_depth,
-        qos_transient_local, IS_TAKE_SUB, &add_subscriber_args);
+        qos_transient_local, IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
       union ioctl_take_msg_args take_msg_ret;
       ret = take_msg(
@@ -966,7 +967,7 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
   ret = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth, qos_transient_local,
-    IS_TAKE_SUB, &add_subscriber_args);
+    IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   // Act
