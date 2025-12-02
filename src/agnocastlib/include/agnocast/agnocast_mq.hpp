@@ -5,7 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 
-inline constexpr size_t MAX_NAME_LENGTH = 256;
+inline constexpr size_t MAX_SHARED_LIB_PATH_LEN = 4096;  // Linux PATH_MAX is 4096
+inline constexpr size_t MAX_SYMBOL_NAME_LEN = 256;
 
 namespace agnocast
 {
@@ -18,8 +19,8 @@ enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 =
 
 struct BridgeFactoryInfo
 {
-  char shared_lib_path[MAX_NAME_LENGTH];
-  char symbol_name[MAX_NAME_LENGTH];
+  char shared_lib_path[MAX_SHARED_LIB_PATH_LEN];
+  char symbol_name[MAX_SYMBOL_NAME_LEN];
   uintptr_t fn_offset;
   uintptr_t fn_offset_reverse;
 };
