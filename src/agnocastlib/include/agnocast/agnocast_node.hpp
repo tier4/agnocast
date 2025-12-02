@@ -11,12 +11,10 @@
 #include <variant>
 #include <vector>
 
-// New node interfaces
+// New node interfaces (now inherit from rclcpp interfaces)
 #include "agnocast/node_interfaces/node_base.hpp"
 #include "agnocast/node_interfaces/node_parameters.hpp"
-#include "agnocast/node_interfaces/node_parameters_interface.hpp"
 #include "agnocast/node_interfaces/node_topics.hpp"
-#include "agnocast/node_interfaces/node_topics_interface.hpp"
 
 namespace agnocast
 {
@@ -278,7 +276,7 @@ public:
   /**
    * @brief Return the Node's internal NodeTopicsInterface implementation.
    */
-  node_interfaces::NodeTopicsInterface::SharedPtr get_node_topics_interface()
+  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr get_node_topics_interface()
   {
     return node_topics_;
   }
@@ -286,7 +284,7 @@ public:
   /**
    * @brief Return the Node's internal NodeParametersInterface implementation.
    */
-  node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
   {
     return node_parameters_;
   }

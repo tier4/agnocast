@@ -188,8 +188,8 @@ const Node::ParameterValue & Node::declare_parameter(
   const std::string & name, const ParameterValue & default_value,
   const ParameterDescriptor & descriptor, bool ignore_override)
 {
-  // Declare parameter using NodeParameters interface
-  node_parameters_->declare_parameter(
+  // Declare parameter using NodeParameters interface (agnocast-specific method)
+  node_parameters_->declare_parameter_simple(
     name, default_value, descriptor.description, descriptor.read_only, ignore_override);
 
   // Return the parameter value from the internal storage
