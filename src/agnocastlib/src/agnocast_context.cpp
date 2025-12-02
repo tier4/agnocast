@@ -31,32 +31,32 @@ void Context::init(int argc, char * argv[])
       // Inside --ros-args scope: explicit flags required
 
       // Ignore ROS specific arguments flag (already inside)
-      if (arg == AGNOCAST_ROS_ARGS_FLAG) {
+      if (arg == RCL_ROS_ARGS_FLAG) {
         continue;
       }
 
       // Check for ROS specific arguments explicit end token
-      if (arg == AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN) {
+      if (arg == RCL_ROS_ARGS_EXPLICIT_END_TOKEN) {
         parsing_ros_args = false;
         continue;
       }
 
       // Attempt to parse argument as parameter override flag
-      if ((arg == AGNOCAST_PARAM_FLAG || arg == AGNOCAST_SHORT_PARAM_FLAG) && i + 1 < argc) {
+      if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < argc) {
         std::string param_arg = argv[++i];
         parse_param_rule(param_arg);  // Parse immediately
         continue;
       }
 
       // Attempt to parse argument as remap rule flag
-      if ((arg == AGNOCAST_REMAP_FLAG || arg == AGNOCAST_SHORT_REMAP_FLAG) && i + 1 < argc) {
+      if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
         std::string remap_arg = argv[++i];
         parse_remap_rule(remap_arg);  // Parse immediately
         continue;
       }
 
       // Attempt to parse argument as parameter file rule
-      if (arg == AGNOCAST_PARAM_FILE_FLAG && i + 1 < argc) {
+      if (arg == RCL_PARAM_FILE_FLAG && i + 1 < argc) {
         std::string file_path = argv[++i];
         parse_yaml_file(file_path);
         continue;
@@ -67,7 +67,7 @@ void Context::init(int argc, char * argv[])
 
     } else {
       // Check for ROS specific arguments flag
-      if (arg == AGNOCAST_ROS_ARGS_FLAG) {
+      if (arg == RCL_ROS_ARGS_FLAG) {
         parsing_ros_args = true;
         continue;
       }
