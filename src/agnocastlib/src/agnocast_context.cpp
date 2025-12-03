@@ -1,5 +1,9 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <sstream>
+
 namespace agnocast
 {
 
@@ -37,6 +41,14 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
+      // Attempt to parse argument as parameter override flag
+      if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < argc) {
+        i++;
+        std::string param_arg = args[static_cast<size_t>(i)];
+        parse_param_rule(param_arg);
+        continue;
+      }
+
       // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
       // implementation.
       if (arg == "-r" && i + 1 < argc) {
@@ -70,6 +82,60 @@ void Context::init(int argc, char const * const * argv)
   }
 
   initialized_ = true;
+}
+
+bool Context::parse_param_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
+  //
+  // Limitations compared to rcl:
+  // - No yaml parser: arrays (e.g., [1,2,3]) are not supported, only scalar values.
+  // - No node name prefix: "node_name:param_name:=value" format is not supported.
+
+  size_t delim_pos = arg.find(":=");
+
+  if (delim_pos == std::string::npos) {
+    return false;
+  }
+
+  std::string param_name = arg.substr(0, delim_pos);
+  std::string yaml_value = arg.substr(delim_pos + 2);
+
+  global_parameter_overrides_[param_name] = parse_parameter_value(yaml_value);
+  return true;
+}
+
+Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
+{
+  std::string lower_value = value_str;
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+
+  if (lower_value == "true") {
+    return rclcpp::ParameterValue(true);
+  }
+  if (lower_value == "false") {
+    return rclcpp::ParameterValue(false);
+  }
+
+  {
+    std::istringstream iss(value_str);
+    int64_t int_value = 0;
+    if (iss >> int_value && iss.eof()) {
+      return rclcpp::ParameterValue(int_value);
+    }
+  }
+
+  {
+    std::istringstream iss(value_str);
+    double double_value = 0.0;
+    if (iss >> double_value && iss.eof()) {
+      return rclcpp::ParameterValue(double_value);
+    }
+  }
+
+  return rclcpp::ParameterValue(value_str);
 }
 
 void init(int argc, char const * const * argv)
