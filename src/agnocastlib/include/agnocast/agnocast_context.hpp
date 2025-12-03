@@ -38,7 +38,7 @@ public:
 
 private:
   bool parse_param_rule(const std::string & arg);
-  ParameterValue parse_parameter_value(const std::string & value_str);
+  static ParameterValue parse_parameter_value(const std::string & value_str);
   bool parse_remap_rule(const std::string & arg);
 
   bool initialized_ = false;
