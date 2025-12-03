@@ -91,12 +91,12 @@ class BasicSubscription : public SubscriptionBase
     NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
-    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-
     union ioctl_add_subscriber_args add_subscriber_args =
       initialize(qos, false, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
+
     mqd_t mq = open_mq_for_subscription(topic_name_, id_, mq_subscription_);
 
     const bool is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
@@ -148,10 +148,10 @@ public:
   ~BasicSubscription() { remove_mq(mq_subscription_); }
 };
 
-struct DefaultBridgeRequestPolicy;
+struct RosToAgnocastRequestPolicy;
 
 template <typename MessageT>
-using Subscription = agnocast::BasicSubscription<MessageT, agnocast::DefaultBridgeRequestPolicy>;
+using Subscription = agnocast::BasicSubscription<MessageT, agnocast::RosToAgnocastRequestPolicy>;
 
 template <typename MessageT>
 class TakeSubscription : public SubscriptionBase
