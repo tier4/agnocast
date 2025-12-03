@@ -1,5 +1,6 @@
 #include "agnocast/node_interfaces/node_parameters.hpp"
 
+#include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_node.hpp"  // For ParameterDescriptor and ParameterInfo definitions
 
 #include <yaml.h>
@@ -30,19 +31,27 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // Declare the parameter using internal method
-  declare_parameter_simple(
-    name, default_value, parameter_descriptor.description, parameter_descriptor.read_only,
-    ignore_override);
+  std::lock_guard<std::mutex> lock(g_context_mtx);
 
-  // Get the actual value (may be overridden)
-  auto it = parameters_.find(name);
-  if (it != parameters_.end()) {
-    last_declared_value_ = it->second.value;
-  } else {
-    last_declared_value_ = default_value;
+  // Declare the parameter using internal method (without lock since we already hold it)
+  // Inline the logic from declare_parameter_simple to avoid double locking
+  if (parameters_.find(name) == parameters_.end()) {
+    ParameterInfo param_info;
+    param_info.descriptor.description = parameter_descriptor.description;
+    param_info.descriptor.read_only = parameter_descriptor.read_only;
+
+    // Check for command-line override
+    if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
+      param_info.value = parameter_overrides_[name];
+    } else {
+      param_info.value = default_value;
+    }
+
+    parameters_[name] = param_info;
   }
-  return last_declared_value_;
+
+  // Return reference to value in the map (stable as long as entry exists)
+  return parameters_[name].value;
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
@@ -76,6 +85,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
 
 void NodeParameters::undeclare_parameter(const std::string & name)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   auto it = parameters_.find(name);
   if (it != parameters_.end()) {
     if (it->second.descriptor.read_only) {
@@ -87,12 +97,14 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   return parameters_.find(name) != parameters_.end();
 }
 
 std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parameters(
   const std::vector<rclcpp::Parameter> & parameters)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   std::vector<rcl_interfaces::msg::SetParametersResult> results;
   for (const auto & param : parameters) {
     rcl_interfaces::msg::SetParametersResult result;
@@ -116,6 +128,7 @@ std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parame
 rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomically(
   const std::vector<rclcpp::Parameter> & parameters)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   rcl_interfaces::msg::SetParametersResult result;
 
   // Check all parameters first
@@ -145,6 +158,7 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   const std::vector<std::string> & names) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   std::vector<rclcpp::Parameter> result;
   for (const auto & name : names) {
     auto it = parameters_.find(name);
@@ -157,6 +171,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   auto it = parameters_.find(name);
   if (it == parameters_.end()) {
     throw std::runtime_error("Parameter not found: " + name);
@@ -166,6 +181,7 @@ rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   auto it = parameters_.find(name);
   if (it == parameters_.end()) {
     return false;
@@ -177,6 +193,7 @@ bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter &
 bool NodeParameters::get_parameters_by_prefix(
   const std::string & prefix, std::map<std::string, rclcpp::Parameter> & parameters) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   bool found = false;
   for (const auto & [name, info] : parameters_) {
     if (name.rfind(prefix, 0) == 0) {
@@ -195,6 +212,7 @@ bool NodeParameters::get_parameters_by_prefix(
 std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_parameters(
   const std::vector<std::string> & names) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   std::vector<rcl_interfaces::msg::ParameterDescriptor> result;
   for (const auto & name : names) {
     rcl_interfaces::msg::ParameterDescriptor desc;
@@ -230,6 +248,7 @@ std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_p
 std::vector<uint8_t> NodeParameters::get_parameter_types(
   const std::vector<std::string> & names) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   std::vector<uint8_t> types;
   types.reserve(names.size());
 
@@ -264,6 +283,7 @@ std::vector<uint8_t> NodeParameters::get_parameter_types(
 rcl_interfaces::msg::ListParametersResult NodeParameters::list_parameters(
   const std::vector<std::string> & prefixes, uint64_t depth) const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   (void)depth;
   rcl_interfaces::msg::ListParametersResult result;
 
@@ -303,6 +323,7 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   return parameter_overrides_;
 }
 
@@ -312,6 +333,7 @@ void NodeParameters::declare_parameter_simple(
   const std::string & name, const ParameterValue & default_value, const std::string & description,
   bool read_only, bool ignore_override)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   // Check if parameter already exists
   if (parameters_.find(name) != parameters_.end()) {
     return;
@@ -333,6 +355,7 @@ void NodeParameters::declare_parameter_simple(
 
 void NodeParameters::add_parameter_override(const std::string & name, const ParameterValue & value)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   parameter_overrides_[name] = value;
 }
 

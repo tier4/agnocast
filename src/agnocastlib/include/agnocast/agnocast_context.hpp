@@ -4,6 +4,7 @@
 
 #include <rcl/arguments.h>
 
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
@@ -34,7 +35,7 @@ public:
 
   static Context & instance();
   void init(int argc, char const * const * argv);
-  bool is_initialized() const { return initialized_; }
+  bool is_initialized() const { return initialized_.load(std::memory_order_acquire); }
   const std::vector<RemapRule> & get_remap_rules() const { return remap_rules_; }
 
   /// Get parameter overrides for a specific node
@@ -64,7 +65,7 @@ private:
 
   ParameterValue parse_parameter_value(const std::string & value_str);
 
-  bool initialized_ = false;
+  std::atomic<bool> initialized_{false};
   std::vector<RemapRule> remap_rules_;
 
   /// Parameters organized by node name (corresponds to rcl_params_t)

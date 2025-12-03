@@ -95,7 +95,6 @@ private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::map<std::string, ParameterInfo> parameters_;
   std::map<std::string, ParameterValue> parameter_overrides_;
-  rclcpp::ParameterValue last_declared_value_;  // For return reference
 };
 
 }  // namespace node_interfaces

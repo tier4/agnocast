@@ -1,13 +1,15 @@
 #include "agnocast/agnocast_context.hpp"
 
+#include <rclcpp/logging.hpp>
+
 #include <yaml.h>
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 
 namespace agnocast
 {
-
-// Global context instance and mutex
 Context g_context;
 std::mutex g_context_mtx;
 
@@ -19,7 +21,7 @@ Context & Context::instance()
 void Context::init(int argc, char const * const * argv)
 {
   // Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c
-  if (initialized_) {
+  if (initialized_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -51,7 +53,11 @@ void Context::init(int argc, char const * const * argv)
       if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < argc) {
         ++i;  // Skip to argument value
         std::string param_arg = args[static_cast<size_t>(i)];
-        parse_param_rule(param_arg);
+        if (!parse_param_rule(param_arg)) {
+          RCLCPP_WARN(
+            rclcpp::get_logger("agnocast"), "Failed to parse parameter rule: '%s'",
+            param_arg.c_str());
+        }
         continue;
       }
 
@@ -59,7 +65,10 @@ void Context::init(int argc, char const * const * argv)
       if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
         ++i;  // Skip to argument value
         std::string remap_arg = args[static_cast<size_t>(i)];
-        parse_remap_rule(remap_arg);
+        if (!parse_remap_rule(remap_arg)) {
+          RCLCPP_WARN(
+            rclcpp::get_logger("agnocast"), "Failed to parse remap rule: '%s'", remap_arg.c_str());
+        }
         continue;
       }
 
@@ -67,7 +76,11 @@ void Context::init(int argc, char const * const * argv)
       if (arg == RCL_PARAM_FILE_FLAG && i + 1 < argc) {
         ++i;  // Skip to argument value
         std::string file_path = args[static_cast<size_t>(i)];
-        parse_yaml_file(file_path);
+        if (!parse_yaml_file(file_path)) {
+          RCLCPP_WARN(
+            rclcpp::get_logger("agnocast"), "Failed to parse YAML parameter file: '%s'",
+            file_path.c_str());
+        }
         continue;
       }
 
@@ -86,7 +99,7 @@ void Context::init(int argc, char const * const * argv)
     }
   }
 
-  initialized_ = true;
+  initialized_.store(true, std::memory_order_release);
 }
 
 bool Context::parse_remap_rule(const std::string & arg)
@@ -142,10 +155,16 @@ bool Context::parse_param_rule(const std::string & arg)
 
 Context::ParameterValue Context::parse_parameter_value(const std::string & value_str)
 {
-  if (value_str == "true" || value_str == "True" || value_str == "TRUE") {
+  // Convert to lowercase for case-insensitive comparison
+  std::string lower_value = value_str;
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+
+  if (lower_value == "true") {
     return rclcpp::ParameterValue(true);
   }
-  if (value_str == "false" || value_str == "False" || value_str == "FALSE") {
+  if (lower_value == "false") {
     return rclcpp::ParameterValue(false);
   }
 

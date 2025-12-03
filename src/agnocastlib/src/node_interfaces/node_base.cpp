@@ -179,6 +179,14 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
   return associated_with_executor_;
 }
 
+// NOTE: Thread safety limitation - this function returns a reference after releasing the lock.
+// The caller may use the returned reference while another thread modifies notify_guard_condition_.
+// This is a potential data race. However, rclcpp's implementation has the same issue:
+// rclcpp/src/rclcpp/node_interfaces/node_base.cpp:246-253 also returns a reference after
+// releasing the lock. The interface signature (returning a reference) is defined by
+// rclcpp::node_interfaces::NodeBaseInterface, so we cannot change it without breaking
+// compatibility. In practice, notify_guard_condition_ is typically not modified during
+// the node's lifetime after initialization, so this is unlikely to cause issues.
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
   std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
