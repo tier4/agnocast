@@ -27,12 +27,12 @@ void Context::init(int argc, char const * const * argv)
 
     if (parsing_ros_args) {
       // Ignore ROS specific arguments flag
-      if (arg == AGNOCAST_ROS_ARGS_FLAG) {
+      if (arg == RCL_ROS_ARGS_FLAG) {
         continue;
       }
 
       // Check for ROS specific arguments explicit end token
-      if (arg == AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN) {
+      if (arg == RCL_ROS_ARGS_EXPLICIT_END_TOKEN) {
         parsing_ros_args = false;
         continue;
       }
@@ -59,7 +59,7 @@ void Context::init(int argc, char const * const * argv)
 
     } else {
       // Check for ROS specific arguments flag
-      if (arg == AGNOCAST_ROS_ARGS_FLAG) {
+      if (arg == RCL_ROS_ARGS_FLAG) {
         parsing_ros_args = true;
         continue;
       }
