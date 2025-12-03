@@ -57,24 +57,6 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
-      // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
-      // implementation.
-      if (arg == "-r" && i + 1 < argc) {
-        std::string remap{args[static_cast<size_t>(i) + 1]};
-        const std::string prefix = "__node:=";
-
-        if (remap.compare(0, prefix.size(), prefix) == 0) {
-          node_name = remap.substr(prefix.size());
-
-          {
-            std::lock_guard<std::mutex> lock(g_context_mtx);
-            g_context.command_line_params.node_name = node_name;
-          }
-
-          break;
-        }
-      }
-
       // TODO(Koichi98): Parse other ROS specific arguments.
 
     } else {
@@ -163,6 +145,13 @@ bool Context::parse_remap_rule(const std::string & arg)
 
   if (from == "__node" || from == "__name") {
     rule.type = RemapType::NODENAME;
+    // TODO(Koichi98): This is a temporary workaround to maintain compatibility with the existing
+    // node name remapping logic. This will be removed once a more robust remap handling is
+    // implemented.
+    {
+      std::lock_guard<std::mutex> lock(g_context_mtx);
+      command_line_params.node_name = to;
+    }
   } else if (from == "__ns") {
     rule.type = RemapType::NAMESPACE;
   } else {
