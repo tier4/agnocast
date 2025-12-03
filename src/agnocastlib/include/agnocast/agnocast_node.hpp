@@ -1,13 +1,12 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 
+#include <algorithm>
 #include <memory>
+#include <string>
 
 namespace agnocast
 {
-
-extern Context g_context;
-extern std::mutex g_context_mtx;
 
 inline std::string query_node_name()
 {
