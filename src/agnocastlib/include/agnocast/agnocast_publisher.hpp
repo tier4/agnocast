@@ -72,8 +72,6 @@ public:
     const PublisherOptions & options)
   : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
-    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, qos);
-
     rclcpp::PublisherOptions pub_options;
     pub_options.qos_overriding_options = options.qos_overriding_options;
     ros2_publisher_ = node->create_publisher<MessageT>(topic_name_, qos, pub_options);
@@ -92,6 +90,7 @@ public:
     }
 
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     ros2_publish_mq_name_ = create_mq_name_for_ros2_publish(topic_name_, id_);
 
@@ -236,10 +235,10 @@ public:
   }
 };
 
-struct DefaultBridgeRequestPolicy;
+struct AgnocastToRosRequestPolicy;
 
 template <typename MessageT>
-using Publisher = agnocast::BasicPublisher<MessageT, agnocast::DefaultBridgeRequestPolicy>;
+using Publisher = agnocast::BasicPublisher<MessageT, agnocast::AgnocastToRosRequestPolicy>;
 
 // The Publisher that does not instantiate a ros2 publisher
 template <typename MessageT>
