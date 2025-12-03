@@ -154,7 +154,7 @@ bool Context::parse_remap_rule(const std::string & arg)
   }
 
   if (rule.match == "__node" || rule.match == "__name") {
-    rule.type = RemapType::NODENAME;
+    rule.type = RemapType::NODE_NAME;
     rule.node_name.clear();  // __node/__name rules are always global
     // TODO(Koichi98): This is a temporary workaround to maintain compatibility with the existing
     // node name remapping logic. This will be removed once a more robust remap handling is
