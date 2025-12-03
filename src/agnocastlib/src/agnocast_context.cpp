@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <charconv>
+#include <sstream>
 
 namespace agnocast
 {
@@ -119,18 +119,20 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
     return rclcpp::ParameterValue(false);
   }
 
-  int64_t int_value;
-  auto int_result =
-    std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
-  if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
-    return rclcpp::ParameterValue(int_value);
+  {
+    std::istringstream iss(value_str);
+    int64_t int_value = 0;
+    if (iss >> int_value && iss.eof()) {
+      return rclcpp::ParameterValue(int_value);
+    }
   }
 
-  double double_value;
-  auto double_result =
-    std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
-  if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
-    return rclcpp::ParameterValue(double_value);
+  {
+    std::istringstream iss(value_str);
+    double double_value = 0.0;
+    if (iss >> double_value && iss.eof()) {
+      return rclcpp::ParameterValue(double_value);
+    }
   }
 
   return rclcpp::ParameterValue(value_str);
