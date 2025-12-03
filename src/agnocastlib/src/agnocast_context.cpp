@@ -143,7 +143,7 @@ bool Context::parse_remap_rule(const std::string & arg)
 
   size_t colon_pos = from.find(':');
   if (colon_pos != std::string::npos && colon_pos < separator) {
-    if (from[0] != '/') {
+    if (!from.empty() && from[0] != '/') {
       rule.node_name = from.substr(0, colon_pos);
       rule.match = from.substr(colon_pos + 1);
     } else {
