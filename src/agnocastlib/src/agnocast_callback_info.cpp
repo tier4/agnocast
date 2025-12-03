@@ -93,7 +93,6 @@ void wait_and_handle_epoll_event(
 
   const uint32_t event_id = event.data.u32;
 
-  // Check if this is a timer event (high bit set)
   if (event_id & TIMER_EVENT_FLAG) {
     const uint32_t timer_id = event_id & ~TIMER_EVENT_FLAG;
     rclcpp::CallbackGroup::SharedPtr callback_group;

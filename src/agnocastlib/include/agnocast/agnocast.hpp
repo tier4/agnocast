@@ -148,23 +148,6 @@ typename Service<ServiceT>::SharedPtr create_service(
     node, service_name, std::forward<Func>(callback), qos, group);
 }
 
-/**
- * @brief Create an Agnocast timer
- *
- * Creates a timer that uses timerfd_create for efficient event-based timing.
- * The timer is integrated with the AgnocastOnlyExecutor's epoll event loop.
- *
- * Supports two callback signatures:
- * - void() : Simple callback without timing info
- * - void(TimerCallbackInfo&) : Callback with timing info (expected/actual call times)
- *
- * @tparam Func Callback function type
- * @param node The agnocast::Node to attach the timer to
- * @param period Timer period
- * @param callback Function to call when timer expires
- * @param group Callback group for thread safety (uses node's default if nullptr)
- * @return Timer ID that can be used to manage the timer
- */
 template <typename Func>
 uint32_t create_timer(
   agnocast::Node * node, std::chrono::nanoseconds period, Func && callback,
