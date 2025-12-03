@@ -141,11 +141,23 @@ bool Context::parse_remap_rule(const std::string & arg)
   std::string to = arg.substr(separator + 2);
 
   RemapRule rule;
-  rule.match = from;
   rule.replacement = to;
 
-  if (from == "__node" || from == "__name") {
+  size_t colon_pos = from.find(':');
+  if (colon_pos != std::string::npos && colon_pos < separator) {
+    if (from[0] != '/') {
+      rule.node_name = from.substr(0, colon_pos);
+      rule.match = from.substr(colon_pos + 1);
+    } else {
+      rule.match = from;
+    }
+  } else {
+    rule.match = from;
+  }
+
+  if (rule.match == "__node" || rule.match == "__name") {
     rule.type = RemapType::NODENAME;
+    rule.node_name.clear();  // __node/__name rules are always global
     // TODO(Koichi98): This is a temporary workaround to maintain compatibility with the existing
     // node name remapping logic. This will be removed once a more robust remap handling is
     // implemented.
@@ -153,10 +165,11 @@ bool Context::parse_remap_rule(const std::string & arg)
       std::lock_guard<std::mutex> lock(g_context_mtx);
       command_line_params.node_name = to;
     }
-  } else if (from == "__ns") {
+  } else if (rule.match == "__ns") {
     rule.type = RemapType::NAMESPACE;
+    rule.node_name.clear();  // __ns rules are always global
   } else {
-    rule.type = RemapType::TOPIC;
+    rule.type = RemapType::TOPIC_OR_SERVICE;
   }
 
   remap_rules_.push_back(rule);
