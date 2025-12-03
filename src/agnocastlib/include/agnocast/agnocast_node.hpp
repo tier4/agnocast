@@ -1,4 +1,5 @@
 #include "agnocast/agnocast_context.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 
 #include <algorithm>
@@ -61,6 +62,14 @@ public:
     return std::make_shared<Subscription<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), std::forward<Func>(callback),
       options);
+  }
+
+  template <typename MessageT>
+  typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
+    const std::string & topic_name, size_t queue_size)
+  {
+    return std::make_shared<Publisher<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
   }
 };
 
