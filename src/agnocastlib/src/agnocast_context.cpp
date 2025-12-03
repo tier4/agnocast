@@ -170,7 +170,10 @@ bool Context::parse_remap_rule(const std::string & arg)
     rule.type = RemapType::TOPIC_OR_SERVICE;
   }
 
-  remap_rules_.push_back(rule);
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    remap_rules_.push_back(rule);
+  }
   return true;
 }
 
