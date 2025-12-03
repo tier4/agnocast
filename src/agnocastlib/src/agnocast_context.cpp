@@ -17,7 +17,6 @@ void Context::init(int argc, char const * const * argv)
     return;
   }
 
-  std::string node_name;
   // Copy argv into a safe container to avoid pointer arithmetic
   std::vector<std::string> args;
   args.reserve(static_cast<size_t>(argc));
