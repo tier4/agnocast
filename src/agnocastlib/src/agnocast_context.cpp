@@ -130,9 +130,7 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
 bool Context::parse_remap_rule(const std::string & arg)
 {
   // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
-
   size_t separator = arg.find(":=");
-
   if (separator == std::string::npos) {
     return false;
   }
