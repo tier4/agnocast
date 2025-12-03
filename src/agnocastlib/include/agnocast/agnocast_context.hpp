@@ -17,7 +17,7 @@ enum class RemapType { NODENAME, NAMESPACE, TOPIC_OR_SERVICE };
 struct RemapRule
 {
   RemapType type;
-  std::string node_name;    // Node name prefix (empty means global rule)
+  std::string node_name;  // Node name prefix (empty means global rule)
   std::string match;
   std::string replacement;
 };
