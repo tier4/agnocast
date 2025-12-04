@@ -1,11 +1,10 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/node_interfaces/node_base.hpp"
 
 #include <algorithm>
 #include <memory>
 #include <string>
-
-#include "agnocast/node_interfaces/node_base.hpp"
 
 namespace agnocast
 {
