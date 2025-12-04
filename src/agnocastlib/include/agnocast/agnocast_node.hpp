@@ -1,8 +1,10 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_timer_info.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -70,6 +72,28 @@ public:
   {
     return std::make_shared<Publisher<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+  }
+
+  template <typename Func>
+  uint32_t create_wall_timer(
+    std::chrono::nanoseconds period, Func && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    if (!group) {
+      group = default_callback_group_;
+    }
+
+    // Check if callback accepts TimerCallbackInfo&
+    if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
+      return register_timer(std::forward<Func>(callback), period, group);
+    } else {
+      // Wrap void() callback to match TimerCallbackInfo& signature
+      static_assert(
+        std::is_invocable_v<Func>,
+        "Callback must be callable with void() or void(TimerCallbackInfo&)");
+      auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
+      return register_timer(std::move(wrapped), period, group);
+    }
   }
 };
 
