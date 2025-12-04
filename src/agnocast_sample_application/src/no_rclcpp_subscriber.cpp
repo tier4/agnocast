@@ -49,8 +49,8 @@ public:
     agnocast_options.callback_group = group;
 
     sub_dynamic_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-      resolved_topic, static_cast<size_t>(queue_size_),
-      std::bind(&NoRclcppSubscriber::callback, this, _1), agnocast_options);
+      "/my_topic_republished", 1, std::bind(&NoRclcppSubscriber::callback, this, _1),
+      agnocast_options);
   }
 };
 
