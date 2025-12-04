@@ -52,6 +52,8 @@ public:
     return node_base_->callback_group_in_node(group);
   }
 
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_node_base_interface()
   {
     return node_base_;
