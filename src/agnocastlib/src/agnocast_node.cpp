@@ -20,12 +20,7 @@ Node::Node(
 void Node::initialize_node(
   const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
 {
-  if (context) {
-    node_base_ = std::make_shared<node_interfaces::NodeBase>(node_name, ns, context);
-  } else {
-    node_base_ = std::make_shared<node_interfaces::NodeBase>(node_name, ns);
-  }
-
+  node_base_ = std::make_shared<node_interfaces::NodeBase>(node_name, ns, context);
 }
 
 }  // namespace agnocast

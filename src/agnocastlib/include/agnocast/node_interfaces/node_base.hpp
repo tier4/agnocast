@@ -20,8 +20,6 @@ public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
-  NodeBase(const std::string & node_name, const std::string & ns);
-
   NodeBase(
     const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
 
@@ -61,6 +59,8 @@ private:
   std::string namespace_;
   std::string fqn_;
 
+  // When loaded as a composable node, a valid context is passed from the component manager.
+  // For standalone agnocast nodes (without rclcpp::init()), this will be nullptr.
   rclcpp::Context::SharedPtr context_;
   rclcpp::CallbackGroup::SharedPtr default_callback_group_;
   std::vector<rclcpp::CallbackGroup::WeakPtr> callback_groups_;

@@ -11,11 +11,6 @@ namespace agnocast
 namespace node_interfaces
 {
 
-NodeBase::NodeBase(const std::string & node_name, const std::string & ns)
-: NodeBase(node_name, ns, rclcpp::contexts::get_global_default_context())
-{
-}
-
 NodeBase::NodeBase(
   const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
 : node_name_(node_name), context_(context)
@@ -156,23 +151,8 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
   return associated_with_executor_;
 }
 
-// NOTE: Thread safety limitation - this function returns a reference after releasing the lock.
-// The caller may use the returned reference while another thread modifies notify_guard_condition_.
-// This is a potential data race. However, rclcpp's implementation has the same issue:
-// rclcpp/src/rclcpp/node_interfaces/node_base.cpp:246-253 also returns a reference after
-// releasing the lock. The interface signature (returning a reference) is defined by
-// rclcpp::node_interfaces::NodeBaseInterface, so we cannot change it without breaking
-// compatibility. In practice, notify_guard_condition_ is typically not modified during
-// the node's lifetime after initialization, so this is unlikely to cause issues.
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
-  std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
-  if (!notify_guard_condition_is_valid_ || !notify_guard_condition_) {
-    throw std::runtime_error(
-      "Notify guard condition is not valid. "
-      "Ensure rclcpp::Context is valid (rclcpp::init() was called or "
-      "valid NodeOptions.context() was provided).");
-  }
   return *notify_guard_condition_;
 }
 
