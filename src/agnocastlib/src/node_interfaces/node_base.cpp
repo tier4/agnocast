@@ -15,7 +15,7 @@ NodeBase::NodeBase(
   const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
 : node_name_(node_name), context_(context)
 {
-  // Normalize namespace (ensure it starts with '/' or is empty)
+  // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
     namespace_ = "/" + ns;
   } else {
@@ -23,8 +23,6 @@ NodeBase::NodeBase(
   }
 
   // Apply node name and namespace remapping from agnocast::Context
-  // Corresponds to rcl_node_init calling rcl_remap_node_name and rcl_remap_node_namespace
-  // in rcl/src/rcl/node.c:222-242
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     auto & global_ctx = g_context;
@@ -35,10 +33,7 @@ NodeBase::NodeBase(
         if (rule.type == RemapType::NODE_NAME) {
           node_name_ = rule.replacement;
         } else if (rule.type == RemapType::NAMESPACE) {
-          // Apply namespace remapping
-          // Corresponds to rcl_remap_node_namespace in rcl/src/rcl/remap.c
           namespace_ = rule.replacement;
-          // Normalize namespace: ensure it starts with '/'
           if (!namespace_.empty() && namespace_[0] != '/') {
             namespace_ = "/" + namespace_;
           }
@@ -52,19 +47,16 @@ NodeBase::NodeBase(
 
 void NodeBase::initialize_common()
 {
-  // Build fully qualified name
   if (namespace_.empty() || namespace_ == "/") {
     fqn_ = "/" + node_name_;
   } else {
     fqn_ = namespace_ + "/" + node_name_;
   }
 
-  // Initialize default callback group
   default_callback_group_ =
     std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
   callback_groups_.push_back(default_callback_group_);
 
-  // Initialize guard condition if context is valid
   if (context_ && context_->is_valid()) {
     notify_guard_condition_ = std::make_unique<rclcpp::GuardCondition>(context_);
     notify_guard_condition_is_valid_ = true;
@@ -153,6 +145,13 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
+  std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
+  if (!notify_guard_condition_is_valid_ || !notify_guard_condition_) {
+    throw std::runtime_error(
+      "Notify guard condition is not valid. "
+      "Ensure rclcpp::Context is valid (rclcpp::init() was called or "
+      "valid NodeOptions.context() was provided).");
+  }
   return *notify_guard_condition_;
 }
 
