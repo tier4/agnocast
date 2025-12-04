@@ -66,6 +66,12 @@ class BasicPublisher
   std::thread ros2_publish_thread_;
   std::mutex ros2_publish_mtx_;
 
+  template <typename NodeT>
+  void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
+  }
+
   void publish_impl(ipc_shared_ptr<MessageT> && message)
   {
     const union ioctl_publish_msg_args publish_msg_args =
@@ -78,8 +84,9 @@ class BasicPublisher
       delete release_ptr;
     }
 
-    if (ros2_publisher_ &&
-        (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0)) {
+    if (
+      ros2_publisher_ &&
+      (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0)) {
       {
         std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
         ros2_message_queue_.push(std::move(message));
@@ -147,11 +154,10 @@ public:
     ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
   }
 
-  BasicPublisher(
-    agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
   : topic_name_(topic_name)  // TODO: resolve topic name similar to rclcpp::Node
   {
-    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
+    constructor_impl(node, topic_name, qos);
 
     // TODO: CARET tracepoint for agnocast::Node
   }
