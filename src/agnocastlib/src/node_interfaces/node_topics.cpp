@@ -85,7 +85,7 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
 
 void NodeTopics::add_remap_rule(const RemapRule & rule)
 {
-  if (rule.type == RemapType::TOPIC) {
+  if (rule.type == RemapType::TOPIC_OR_SERVICE) {
     remap_rules_.push_back(rule);
   }
 }
@@ -186,8 +186,16 @@ std::string NodeTopics::remap_name(const std::string & name) const
   // RCL expands the match side before comparing
   // Example: --ros-args -r foo:=/bar will map "foo" -> "/bar"
 
+  std::string node_name = node_base_->get_name();
+
   for (const auto & rule : remap_rules_) {
-    if (rule.type != RemapType::TOPIC) {
+    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
+      continue;
+    }
+
+    // Check node name prefix match (if specified)
+    // If rule has a node_name, it must match the current node's name
+    if (!rule.node_name.empty() && rule.node_name != node_name) {
       continue;
     }
 

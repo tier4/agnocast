@@ -21,7 +21,7 @@ NodeBase::NodeBase(
   const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
 : node_name_(node_name), context_(context)
 {
-  // Normalize namespace (ensure it starts with '/' or is empty)
+  // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
     namespace_ = "/" + ns;
   } else {
@@ -29,8 +29,6 @@ NodeBase::NodeBase(
   }
 
   // Apply node name and namespace remapping from agnocast::Context
-  // Corresponds to rcl_node_init calling rcl_remap_node_name and rcl_remap_node_namespace
-  // in rcl/src/rcl/node.c:222-242
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     auto & global_ctx = Context::instance();
@@ -41,10 +39,7 @@ NodeBase::NodeBase(
         if (rule.type == RemapType::NODENAME) {
           node_name_ = rule.replacement;
         } else if (rule.type == RemapType::NAMESPACE) {
-          // Apply namespace remapping
-          // Corresponds to rcl_remap_node_namespace in rcl/src/rcl/remap.c
           namespace_ = rule.replacement;
-          // Normalize namespace: ensure it starts with '/'
           if (!namespace_.empty() && namespace_[0] != '/') {
             namespace_ = "/" + namespace_;
           }

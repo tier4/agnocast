@@ -15,15 +15,16 @@ namespace agnocast
 
 /// Remap rule types (corresponds to rcl_remap_type_t in rcl/include/rcl/remap.h)
 enum class RemapType {
-  NODENAME,   ///< Node name remapping (__node or __name)
-  NAMESPACE,  ///< Namespace remapping (__ns)
-  TOPIC       ///< Topic name remapping
+  NODENAME,         ///< Node name remapping (__node or __name)
+  NAMESPACE,        ///< Namespace remapping (__ns)
+  TOPIC_OR_SERVICE  ///< Topic/service name remapping (applies to both)
 };
 
 /// Structure to hold a single remapping rule
 struct RemapRule
 {
   RemapType type;
+  std::string node_name;    ///< Node name prefix (empty means global rule)
   std::string match;        ///< Original name to match
   std::string replacement;  ///< Replacement name
 };
@@ -36,14 +37,14 @@ public:
   static Context & instance();
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_.load(std::memory_order_acquire); }
-  const std::vector<RemapRule> & get_remap_rules() const { return remap_rules_; }
+  std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
 
   /// Get parameter overrides for a specific node
   /// Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
   std::map<std::string, ParameterValue> get_param_overrides(const std::string & node_fqn) const;
 
   /// Deprecated: Use get_param_overrides() instead
-  const std::map<std::string, ParameterValue> & get_parameter_overrides() const
+  std::map<std::string, ParameterValue> get_parameter_overrides() const
   {
     return global_parameter_overrides_;
   }

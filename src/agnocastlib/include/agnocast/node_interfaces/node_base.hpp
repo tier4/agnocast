@@ -22,8 +22,7 @@ class NodeTopics;
 
 /// Implementation of the NodeBase part of the Node API.
 /// Inherits from rclcpp::node_interfaces::NodeBaseInterface for Composable Node compatibility.
-class NodeBase : public rclcpp::node_interfaces::NodeBaseInterface,
-                 public std::enable_shared_from_this<NodeBase>
+class NodeBase : public rclcpp::node_interfaces::NodeBaseInterface
 {
 public:
   using SharedPtr = std::shared_ptr<NodeBase>;

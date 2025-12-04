@@ -116,15 +116,33 @@ bool Context::parse_remap_rule(const std::string & arg)
   std::string to = arg.substr(separator + 2);
 
   RemapRule rule;
-  rule.match = from;
   rule.replacement = to;
 
-  if (from == "__node" || from == "__name") {
-    rule.type = RemapType::NODENAME;
-  } else if (from == "__ns") {
-    rule.type = RemapType::NAMESPACE;
+  // Check for node name prefix (format: "node_name:/topic:=/new_topic")
+  // ROS2 remap format: [node_name:]match:=replacement
+  size_t colon_pos = from.find(':');
+  if (colon_pos != std::string::npos && colon_pos < separator) {
+    // There's a colon in the match part - check if it's a node prefix
+    // Node prefix format: "node_name:/topic" or "node_name:topic"
+    // Not a node prefix if it starts with "/" (absolute topic with colon in name)
+    if (from[0] != '/') {
+      rule.node_name = from.substr(0, colon_pos);
+      rule.match = from.substr(colon_pos + 1);
+    } else {
+      rule.match = from;
+    }
   } else {
-    rule.type = RemapType::TOPIC;
+    rule.match = from;
+  }
+
+  if (rule.match == "__node" || rule.match == "__name") {
+    rule.type = RemapType::NODENAME;
+    rule.node_name.clear();  // __node/__name rules are always global
+  } else if (rule.match == "__ns") {
+    rule.type = RemapType::NAMESPACE;
+    rule.node_name.clear();  // __ns rules are always global
+  } else {
+    rule.type = RemapType::TOPIC_OR_SERVICE;
   }
 
   remap_rules_.push_back(rule);

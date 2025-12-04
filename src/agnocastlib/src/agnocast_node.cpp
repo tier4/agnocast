@@ -59,7 +59,7 @@ void Node::initialize_node(
       // Add topic remap rules to NodeTopics
       auto global_rules = global_ctx.get_remap_rules();
       for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::TOPIC) {
+        if (rule.type == RemapType::TOPIC_OR_SERVICE) {
           node_topics_->add_remap_rule(rule);
         }
       }
