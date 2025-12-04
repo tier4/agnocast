@@ -164,6 +164,7 @@ bool Context::parse_remap_rule(const std::string & arg)
   }
 
   remap_rules_.push_back(rule);
+
   return true;
 }
 
