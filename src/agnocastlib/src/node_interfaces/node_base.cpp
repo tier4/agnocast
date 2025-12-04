@@ -116,7 +116,7 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::create_callback_group(
 {
   (void)group_type;
   (void)automatically_add_to_executor_with_node;
-  // TODO
+  // TODO(Koichi98)
   return nullptr;
 }
 
@@ -128,14 +128,14 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
 bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
   (void)group;
-  // TODO
-  return false;
+  // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
+  return true;
 }
 
 void NodeBase::for_each_callback_group(const CallbackGroupFunction & func)
 {
   (void)func;
-  // TODO
+  // TODO(Koichi98)
 }
 
 std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
@@ -157,13 +157,13 @@ rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 
 bool NodeBase::get_use_intra_process_default() const
 {
-  // TODO
+  // TODO(Koichi98)
   return false;
 }
 
 bool NodeBase::get_enable_topic_statistics_default() const
 {
-  // TODO
+  // TODO(Koichi98)
   return false;
 }
 
@@ -173,7 +173,7 @@ std::string NodeBase::resolve_topic_or_service_name(
   (void)name;
   (void)is_service;
   (void)only_expand;
-  // TODO
+  // TODO(Koichi98)
   return "";
 }
 
