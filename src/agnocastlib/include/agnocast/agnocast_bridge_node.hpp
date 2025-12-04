@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -75,6 +76,7 @@ public:
         auto loaned_msg = pub_ptr->borrow_loaned_message();
         *loaned_msg = *msg;
         pub_ptr->publish(std::move(loaned_msg));
+        std::cerr << "---------------- RECV FROM ROS2 -----------------" << std::endl;
       },
       ros_opts);
     RCLCPP_INFO(parent_node->get_logger(), "Started R2A bridge for '%s'", topic_name.c_str());
@@ -157,7 +159,7 @@ void send_bridge_command(const std::string & topic_name, topic_local_id_t id, Br
   MqMsgBridge msg = {};
   msg.direction = dir;
   msg.target.target_id = id;
-  snprintf(msg.target.topic_name, MAX_NAME_LENGTH, "%s", topic_name.c_str());
+  snprintf(msg.target.topic_name, MAX_TOPIC_NAME_LEN, "%s", topic_name.c_str());
 
   auto fn_current = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_ros_to_agno_node<MessageT>
                                                                : &start_agno_to_ros_node<MessageT>;
@@ -171,9 +173,9 @@ void send_bridge_command(const std::string & topic_name, topic_local_id_t id, Br
     return;
   }
 
-  snprintf(msg.factory.shared_lib_path, MAX_NAME_LENGTH, "%s", info.dli_fname);
+  snprintf(msg.factory.shared_lib_path, MAX_SHARED_LIB_PATH_LEN, "%s", info.dli_fname);
   snprintf(
-    msg.factory.symbol_name, MAX_NAME_LENGTH, "%s",
+    msg.factory.symbol_name, MAX_SYMBOL_NAME_LEN, "%s",
     info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__");
   msg.factory.fn_offset =
     reinterpret_cast<uintptr_t>(fn_current) - reinterpret_cast<uintptr_t>(info.dli_fbase);
