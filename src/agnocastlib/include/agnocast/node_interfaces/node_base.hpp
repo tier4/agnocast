@@ -54,14 +54,6 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
-  // Agnocast-specific
-  // Set NodeTopics reference for resolve_topic_or_service_name.
-  // Unlike rclcpp (which calls rcl_node_resolve_name directly), agnocast delegates
-  // name resolution to NodeTopics. This setter resolves the circular dependency:
-  // NodeBase is created first, then NodeTopics (which needs NodeBase), then this
-  // back-reference is set. Called by Node::initialize_node.
-  void set_node_topics(std::shared_ptr<NodeTopics> node_topics);
-
 private:
   void initialize_common();
 
@@ -78,8 +70,6 @@ private:
   mutable std::recursive_mutex notify_guard_condition_mutex_;
   std::unique_ptr<rclcpp::GuardCondition> notify_guard_condition_;
   bool notify_guard_condition_is_valid_{false};
-
-  std::weak_ptr<NodeTopics> node_topics_;
 };
 
 }  // namespace node_interfaces
