@@ -100,6 +100,7 @@ bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
   (void)group;
   // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
+
   return true;
 }
 
