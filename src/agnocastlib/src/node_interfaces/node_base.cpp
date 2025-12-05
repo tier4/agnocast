@@ -85,10 +85,12 @@ std::shared_ptr<const rcl_node_t> NodeBase::get_shared_rcl_node_handle() const
 rclcpp::CallbackGroup::SharedPtr NodeBase::create_callback_group(
   rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node)
 {
-  (void)group_type;
-  (void)automatically_add_to_executor_with_node;
-  // TODO(Koichi98)
-  return nullptr;
+  auto group =
+    std::make_shared<rclcpp::CallbackGroup>(group_type, automatically_add_to_executor_with_node);
+
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  callback_groups_.push_back(group);
+  return group;
 }
 
 rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
