@@ -36,10 +36,11 @@ public:
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
+  std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
+  static ParameterValue parse_parameter_value(const std::string & value_str);
 
 private:
   bool parse_param_rule(const std::string & arg);
-  static ParameterValue parse_parameter_value(const std::string & value_str);
   bool parse_remap_rule(const std::string & arg);
 
   bool initialized_ = false;
