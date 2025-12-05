@@ -53,7 +53,6 @@ public:
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
 private:
-
   std::string node_name_;
   std::string namespace_;
   std::string fqn_;
