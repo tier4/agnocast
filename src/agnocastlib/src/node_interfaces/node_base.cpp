@@ -98,10 +98,14 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
 
 bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
-  (void)group;
-  // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
-
-  return true;
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  auto it = std::find_if(
+    callback_groups_.begin(), callback_groups_.end(),
+    [&group](const rclcpp::CallbackGroup::WeakPtr & weak_group) {
+      auto shared_group = weak_group.lock();
+      return shared_group && shared_group == group;
+    });
+  return it != callback_groups_.end();
 }
 
 void NodeBase::for_each_callback_group(const CallbackGroupFunction & func)
