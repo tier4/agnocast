@@ -22,6 +22,8 @@ void Node::initialize_node(
 {
   node_base_ = std::make_shared<node_interfaces::NodeBase>(node_name, ns, context);
   logger_ = rclcpp::get_logger(node_base_->get_name());
+
+  // TODO(Koichi98): Initialization of NodeTopicsInterface, NodeParametersInterface, etc.
 }
 
 }  // namespace agnocast
