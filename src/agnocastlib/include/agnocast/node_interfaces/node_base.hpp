@@ -18,8 +18,7 @@ public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
-  NodeBase(
-    std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
+  NodeBase(std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
 
   virtual ~NodeBase() = default;
 
