@@ -27,6 +27,15 @@ TEST(AgnocastUtilsTest, create_mq_name_invalid_topic)
     "");
 }
 
+TEST(AgnocastUtilsTest, create_mq_name_bridge_manager)
+{
+  EXPECT_EQ(
+    agnocast::create_mq_name_for_bridge_parent(12345), "/agnocast_bridge_manager_parent@12345");
+
+  EXPECT_EQ(
+    agnocast::create_mq_name_for_bridge_child(67890), "/agnocast_bridge_manager_child@67890");
+}
+
 TEST(AgnocastUtilsTest, validate_ld_preload_normal)
 {
   setenv("LD_PRELOAD", "libagnocast_heaphook.so:", 1);
