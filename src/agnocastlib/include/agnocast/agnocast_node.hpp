@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
+#include "agnocast/node_interfaces/node_topics.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -66,6 +67,7 @@ private:
 
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
+  node_interfaces::NodeTopics::SharedPtr node_topics_;
 };
 
 }  // namespace agnocast

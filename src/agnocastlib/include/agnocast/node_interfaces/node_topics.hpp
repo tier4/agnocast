@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace agnocast::namespace node_interfaces
+namespace agnocast::node_interfaces
 {
 
 class NodeTopics : public rclcpp::node_interfaces::NodeTopicsInterface
@@ -47,6 +47,6 @@ private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::vector<RemapRule> remap_rules_;  // Only TOPIC type rules
 };
-}  // namespace agnocast::namespacenode_interfaces
+}  // namespace agnocast::node_interfaces
 
 #endif  // AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_

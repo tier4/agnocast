@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace agnocast::namespace node_interfaces
+namespace agnocast::node_interfaces
 {
 
 NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
@@ -12,6 +12,8 @@ NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr nod
 
 std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_expand) const
 {
+  (void)name;
+  (void)only_expand;
   // TODO(Koichi98)
   return "";
 }
@@ -74,14 +76,16 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
 
 std::string NodeTopics::resolve_name(const std::string & input_topic_name) const
 {
+  (void)input_topic_name;
   // TODO(Koichi98)
   return "";
 }
 
 std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
 {
+  (void)input_topic_name;
   // TODO(Koichi98)
   return "";
 }
 
-}  // namespace agnocast::namespacenode_interfaces
+}  // namespace agnocast::node_interfaces
