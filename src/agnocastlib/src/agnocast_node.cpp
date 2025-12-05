@@ -78,12 +78,7 @@ const Node::ParameterValue & Node::declare_parameter(
   const std::string & name, const ParameterValue & default_value,
   const ParameterDescriptor & descriptor, bool ignore_override)
 {
-  // Use rclcpp interface directly - converts agnocast descriptor to rcl_interfaces format
-  rcl_interfaces::msg::ParameterDescriptor rcl_descriptor;
-  rcl_descriptor.description = descriptor.description;
-  rcl_descriptor.read_only = descriptor.read_only;
-
-  return node_parameters_->declare_parameter(name, default_value, rcl_descriptor, ignore_override);
+  return node_parameters_->declare_parameter(name, default_value, descriptor, ignore_override);
 }
 
 }  // namespace agnocast

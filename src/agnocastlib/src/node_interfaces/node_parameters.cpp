@@ -20,6 +20,74 @@ constexpr uint8_t PARAMETER_INTEGER = 2;
 constexpr uint8_t PARAMETER_DOUBLE = 3;
 constexpr uint8_t PARAMETER_STRING = 4;
 
+namespace
+{
+
+/// Validate a parameter value against its descriptor's range constraints.
+/// Returns empty string if valid, or error message if invalid.
+std::string validate_parameter_range(
+  const rclcpp::ParameterValue & value, const rcl_interfaces::msg::ParameterDescriptor & descriptor)
+{
+  // Check floating point range
+  if (!descriptor.floating_point_range.empty()) {
+    const auto & range = descriptor.floating_point_range[0];
+    double val = 0.0;
+
+    if (value.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      val = value.get<double>();
+    } else if (value.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+      val = static_cast<double>(value.get<int64_t>());
+    } else {
+      return "";  // Range check only applies to numeric types
+    }
+
+    if (val < range.from_value || val > range.to_value) {
+      return "Parameter value " + std::to_string(val) + " is out of range [" +
+             std::to_string(range.from_value) + ", " + std::to_string(range.to_value) + "]";
+    }
+
+    // Check step constraint if specified (step > 0)
+    if (range.step > 0.0) {
+      double offset = val - range.from_value;
+      double remainder = std::fmod(offset, range.step);
+      // Allow small floating point tolerance
+      if (remainder > 1e-9 && (range.step - remainder) > 1e-9) {
+        return "Parameter value " + std::to_string(val) +
+               " does not match step constraint (step=" + std::to_string(range.step) + ")";
+      }
+    }
+  }
+
+  // Check integer range
+  if (!descriptor.integer_range.empty()) {
+    const auto & range = descriptor.integer_range[0];
+
+    if (value.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
+      return "";  // Integer range check only applies to integer type
+    }
+
+    int64_t val = value.get<int64_t>();
+
+    if (val < range.from_value || val > range.to_value) {
+      return "Parameter value " + std::to_string(val) + " is out of range [" +
+             std::to_string(range.from_value) + ", " + std::to_string(range.to_value) + "]";
+    }
+
+    // Check step constraint if specified (step > 0)
+    if (range.step > 0) {
+      int64_t offset = val - range.from_value;
+      if (offset % static_cast<int64_t>(range.step) != 0) {
+        return "Parameter value " + std::to_string(val) +
+               " does not match step constraint (step=" + std::to_string(range.step) + ")";
+      }
+    }
+  }
+
+  return "";  // Valid
+}
+
+}  // namespace
+
 NodeParameters::NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
 : node_base_(node_base)
 {
@@ -37,8 +105,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   // Inline the logic from declare_parameter_simple to avoid double locking
   if (parameters_.find(name) == parameters_.end()) {
     ParameterInfo param_info;
-    param_info.descriptor.description = parameter_descriptor.description;
-    param_info.descriptor.read_only = parameter_descriptor.read_only;
+    param_info.descriptor = parameter_descriptor;
 
     // Check for command-line override
     if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
@@ -109,17 +176,31 @@ std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parame
   for (const auto & param : parameters) {
     rcl_interfaces::msg::SetParametersResult result;
     auto it = parameters_.find(param.get_name());
+
+    // Check read-only
     if (it != parameters_.end() && it->second.descriptor.read_only) {
       result.successful = false;
       result.reason = "Parameter is read-only";
-    } else {
-      if (it != parameters_.end()) {
-        it->second.value = param.get_parameter_value();
-      } else {
-        parameters_[param.get_name()] = ParameterInfo{param.get_parameter_value(), {}};
-      }
-      result.successful = true;
+      results.push_back(result);
+      continue;
     }
+
+    // Check range constraints (only for existing parameters with descriptors)
+    if (it != parameters_.end()) {
+      std::string validation_error =
+        validate_parameter_range(param.get_parameter_value(), it->second.descriptor);
+      if (!validation_error.empty()) {
+        result.successful = false;
+        result.reason = validation_error;
+        results.push_back(result);
+        continue;
+      }
+      it->second.value = param.get_parameter_value();
+    } else {
+      parameters_[param.get_name()] =
+        ParameterInfo{param.get_parameter_value(), rcl_interfaces::msg::ParameterDescriptor()};
+    }
+    result.successful = true;
     results.push_back(result);
   }
   return results;
@@ -131,23 +212,35 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   std::lock_guard<std::mutex> lock(g_context_mtx);
   rcl_interfaces::msg::SetParametersResult result;
 
-  // Check all parameters first
+  // Check all parameters first (read-only and range constraints)
   for (const auto & param : parameters) {
     auto it = parameters_.find(param.get_name());
-    if (it != parameters_.end() && it->second.descriptor.read_only) {
-      result.successful = false;
-      result.reason = "Parameter " + param.get_name() + " is read-only";
-      return result;
+    if (it != parameters_.end()) {
+      // Check read-only
+      if (it->second.descriptor.read_only) {
+        result.successful = false;
+        result.reason = "Parameter " + param.get_name() + " is read-only";
+        return result;
+      }
+      // Check range constraints
+      std::string validation_error =
+        validate_parameter_range(param.get_parameter_value(), it->second.descriptor);
+      if (!validation_error.empty()) {
+        result.successful = false;
+        result.reason = "Parameter " + param.get_name() + ": " + validation_error;
+        return result;
+      }
     }
   }
 
-  // Set all parameters
+  // Set all parameters (validation passed)
   for (const auto & param : parameters) {
     auto it = parameters_.find(param.get_name());
     if (it != parameters_.end()) {
       it->second.value = param.get_parameter_value();
     } else {
-      parameters_[param.get_name()] = ParameterInfo{param.get_parameter_value(), {}};
+      parameters_[param.get_name()] =
+        ParameterInfo{param.get_parameter_value(), rcl_interfaces::msg::ParameterDescriptor()};
     }
   }
 
@@ -215,13 +308,12 @@ std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_p
   std::lock_guard<std::mutex> lock(g_context_mtx);
   std::vector<rcl_interfaces::msg::ParameterDescriptor> result;
   for (const auto & name : names) {
-    rcl_interfaces::msg::ParameterDescriptor desc;
-    desc.name = name;
     auto it = parameters_.find(name);
     if (it != parameters_.end()) {
-      desc.description = it->second.descriptor.description;
-      desc.read_only = it->second.descriptor.read_only;
-      // Determine type from rclcpp::ParameterValue
+      // Copy the stored descriptor (includes all fields)
+      rcl_interfaces::msg::ParameterDescriptor desc = it->second.descriptor;
+      desc.name = name;
+      // Set type from actual value
       switch (it->second.value.get_type()) {
         case rclcpp::ParameterType::PARAMETER_BOOL:
           desc.type = PARAMETER_BOOL;
@@ -239,8 +331,14 @@ std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_p
           desc.type = PARAMETER_NOT_SET;
           break;
       }
+      result.push_back(desc);
+    } else {
+      // Parameter not found - return empty descriptor with just the name
+      rcl_interfaces::msg::ParameterDescriptor desc;
+      desc.name = name;
+      desc.type = PARAMETER_NOT_SET;
+      result.push_back(desc);
     }
-    result.push_back(desc);
   }
   return result;
 }

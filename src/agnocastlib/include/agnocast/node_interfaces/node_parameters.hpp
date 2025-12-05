@@ -1,6 +1,7 @@
 #ifndef AGNOCAST__NODE_INTERFACES__NODE_PARAMETERS_HPP_
 #define AGNOCAST__NODE_INTERFACES__NODE_PARAMETERS_HPP_
 
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 
@@ -12,8 +13,7 @@
 namespace agnocast
 {
 
-// Forward declarations (actual definitions in agnocast_node.hpp)
-struct ParameterDescriptor;
+// Forward declaration (actual definition in agnocast_node.hpp)
 struct ParameterInfo;
 
 namespace node_interfaces

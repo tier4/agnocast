@@ -6,7 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <charconv>
+#include <sstream>
 
 namespace agnocast
 {
@@ -102,53 +102,6 @@ void Context::init(int argc, char const * const * argv)
   initialized_.store(true, std::memory_order_release);
 }
 
-bool Context::parse_remap_rule(const std::string & arg)
-{
-  // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
-
-  size_t separator = arg.find(":=");
-
-  if (separator == std::string::npos) {
-    return false;
-  }
-
-  std::string from = arg.substr(0, separator);
-  std::string to = arg.substr(separator + 2);
-
-  RemapRule rule;
-  rule.replacement = to;
-
-  // Check for node name prefix (format: "node_name:/topic:=/new_topic")
-  // ROS2 remap format: [node_name:]match:=replacement
-  size_t colon_pos = from.find(':');
-  if (colon_pos != std::string::npos && colon_pos < separator) {
-    // There's a colon in the match part - check if it's a node prefix
-    // Node prefix format: "node_name:/topic" or "node_name:topic"
-    // Not a node prefix if it starts with "/" (absolute topic with colon in name)
-    if (from[0] != '/') {
-      rule.node_name = from.substr(0, colon_pos);
-      rule.match = from.substr(colon_pos + 1);
-    } else {
-      rule.match = from;
-    }
-  } else {
-    rule.match = from;
-  }
-
-  if (rule.match == "__node" || rule.match == "__name") {
-    rule.type = RemapType::NODENAME;
-    rule.node_name.clear();  // __node/__name rules are always global
-  } else if (rule.match == "__ns") {
-    rule.type = RemapType::NAMESPACE;
-    rule.node_name.clear();  // __ns rules are always global
-  } else {
-    rule.type = RemapType::TOPIC_OR_SERVICE;
-  }
-
-  remap_rules_.push_back(rule);
-  return true;
-}
-
 bool Context::parse_param_rule(const std::string & arg)
 {
   // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
@@ -186,21 +139,63 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
     return rclcpp::ParameterValue(false);
   }
 
-  int64_t int_value;
-  auto int_result =
-    std::from_chars(value_str.data(), value_str.data() + value_str.size(), int_value);
-  if (int_result.ec == std::errc{} && int_result.ptr == value_str.data() + value_str.size()) {
-    return rclcpp::ParameterValue(int_value);
+  {
+    std::istringstream iss(value_str);
+    int64_t int_value = 0;
+    if (iss >> int_value && iss.eof()) {
+      return rclcpp::ParameterValue(int_value);
+    }
   }
 
-  double double_value;
-  auto double_result =
-    std::from_chars(value_str.data(), value_str.data() + value_str.size(), double_value);
-  if (double_result.ec == std::errc{} && double_result.ptr == value_str.data() + value_str.size()) {
-    return rclcpp::ParameterValue(double_value);
+  {
+    std::istringstream iss(value_str);
+    double double_value = 0.0;
+    if (iss >> double_value && iss.eof()) {
+      return rclcpp::ParameterValue(double_value);
+    }
   }
 
   return rclcpp::ParameterValue(value_str);
+}
+
+bool Context::parse_remap_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
+  size_t separator = arg.find(":=");
+  if (separator == std::string::npos) {
+    return false;
+  }
+
+  std::string from = arg.substr(0, separator);
+  std::string to = arg.substr(separator + 2);
+
+  RemapRule rule;
+  rule.replacement = to;
+
+  size_t colon_pos = from.find(':');
+  if (colon_pos != std::string::npos && colon_pos < separator) {
+    if (!from.empty() && from[0] != '/') {
+      rule.node_name = from.substr(0, colon_pos);
+      rule.match = from.substr(colon_pos + 1);
+    } else {
+      rule.match = from;
+    }
+  } else {
+    rule.match = from;
+  }
+
+  if (rule.match == "__node" || rule.match == "__name") {
+    rule.type = RemapType::NODE_NAME;
+    rule.node_name.clear();  // __node/__name rules are always global
+  } else if (rule.match == "__ns") {
+    rule.type = RemapType::NAMESPACE;
+    rule.node_name.clear();  // __ns rules are always global
+  } else {
+    rule.type = RemapType::TOPIC_OR_SERVICE;
+  }
+
+  remap_rules_.push_back(rule);
+  return true;
 }
 
 bool Context::parse_yaml_file(const std::string & file_path)

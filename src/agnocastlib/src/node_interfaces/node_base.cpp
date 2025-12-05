@@ -36,7 +36,7 @@ NodeBase::NodeBase(
       auto global_rules = global_ctx.get_remap_rules();
 
       for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::NODENAME) {
+        if (rule.type == RemapType::NODE_NAME) {
           node_name_ = rule.replacement;
         } else if (rule.type == RemapType::NAMESPACE) {
           namespace_ = rule.replacement;

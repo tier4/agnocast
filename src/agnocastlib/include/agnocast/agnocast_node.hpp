@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rclcpp/node_options.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -18,32 +19,17 @@
 namespace agnocast
 {
 
-// Parameter type constants (from rcl_interfaces/msg/ParameterType)
-// Corresponds to ParameterType constants in ROS 2
-// See: rcl_interfaces/msg/ParameterType.msg
-constexpr uint8_t PARAMETER_NOT_SET = 0;
-constexpr uint8_t PARAMETER_BOOL = 1;
-constexpr uint8_t PARAMETER_INTEGER = 2;
-constexpr uint8_t PARAMETER_DOUBLE = 3;
-constexpr uint8_t PARAMETER_STRING = 4;
-// Note: Array types (5-8) are not supported in agnocast
-
-/**
- * @brief Simplified parameter descriptor (subset of rcl_interfaces::msg::ParameterDescriptor).
- */
-struct ParameterDescriptor
-{
-  std::string description;
-  bool read_only = false;
-};
+// Use rcl_interfaces::msg::ParameterDescriptor directly for rclcpp API compatibility
+using ParameterDescriptor = rcl_interfaces::msg::ParameterDescriptor;
 
 /**
  * @brief Internal struct for holding parameter information.
+ * Same structure as rclcpp::node_interfaces::ParameterInfo.
  */
 struct ParameterInfo
 {
   rclcpp::ParameterValue value;
-  ParameterDescriptor descriptor;
+  rcl_interfaces::msg::ParameterDescriptor descriptor;
 };
 
 class Node
@@ -85,70 +71,142 @@ public:
     return node_topics_->resolve_topic_name(input_topic_name);
   }
 
+  // ===== Parameter Declaration =====
+
+  /// Declare and initialize a parameter, return the effective value.
   const ParameterValue & declare_parameter(
     const std::string & name, const ParameterValue & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false);
 
+  /// Declare and initialize a parameter with a type (templated version).
+  template <typename ParameterT>
+  ParameterT declare_parameter(
+    const std::string & name, const ParameterT & default_value,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
+  {
+    return this
+      ->declare_parameter(name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
+      .get<ParameterT>();
+  }
+
+  /// Undeclare a previously declared parameter.
+  void undeclare_parameter(const std::string & name)
+  {
+    node_parameters_->undeclare_parameter(name);
+  }
+
+  /// Return true if a given parameter is declared.
   bool has_parameter(const std::string & name) const
   {
     return node_parameters_->has_parameter(name);
   }
 
+  // ===== Parameter Setting =====
+
+  /// Set a single parameter.
+  rcl_interfaces::msg::SetParametersResult set_parameter(const rclcpp::Parameter & parameter)
+  {
+    auto results = node_parameters_->set_parameters({parameter});
+    return results.front();
+  }
+
+  /// Set one or more parameters, one at a time.
+  std::vector<rcl_interfaces::msg::SetParametersResult> set_parameters(
+    const std::vector<rclcpp::Parameter> & parameters)
+  {
+    return node_parameters_->set_parameters(parameters);
+  }
+
+  /// Set one or more parameters, all at once.
+  rcl_interfaces::msg::SetParametersResult set_parameters_atomically(
+    const std::vector<rclcpp::Parameter> & parameters)
+  {
+    return node_parameters_->set_parameters_atomically(parameters);
+  }
+
+  // ===== Parameter Getting =====
+
+  /// Return the parameter by the given name.
+  rclcpp::Parameter get_parameter(const std::string & name) const
+  {
+    return node_parameters_->get_parameter(name);
+  }
+
+  /// Get the value of a parameter by the given name, and return true if it was set.
+  bool get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
+  {
+    return node_parameters_->get_parameter(name, parameter);
+  }
+
+  /// Get the value of a parameter by the given name (templated version).
+  template <typename ParameterT>
+  bool get_parameter(const std::string & name, ParameterT & parameter) const
+  {
+    rclcpp::Parameter param;
+    bool result = node_parameters_->get_parameter(name, param);
+    if (result) {
+      parameter = param.get_value<ParameterT>();
+    }
+    return result;
+  }
+
+  /// Get the parameter value, or the "alternative_value" if not set.
+  template <typename ParameterT>
+  bool get_parameter_or(
+    const std::string & name, ParameterT & parameter, const ParameterT & alternative_value) const
+  {
+    bool got_parameter = get_parameter(name, parameter);
+    if (!got_parameter) {
+      parameter = alternative_value;
+    }
+    return got_parameter;
+  }
+
+  /// Return the parameter value, or the "alternative_value" if not set.
+  template <typename ParameterT>
+  ParameterT get_parameter_or(const std::string & name, const ParameterT & alternative_value) const
+  {
+    ParameterT parameter;
+    get_parameter_or(name, parameter, alternative_value);
+    return parameter;
+  }
+
+  /// Return the parameters by the given parameter names.
+  std::vector<rclcpp::Parameter> get_parameters(const std::vector<std::string> & names) const
+  {
+    return node_parameters_->get_parameters(names);
+  }
+
+  // ===== Parameter Description =====
+
+  /// Return the parameter descriptor for the given parameter name.
+  rcl_interfaces::msg::ParameterDescriptor describe_parameter(const std::string & name) const
+  {
+    auto descriptors = node_parameters_->describe_parameters({name});
+    if (descriptors.front().type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET) {
+      throw std::runtime_error("Parameter not declared: " + name);
+    }
+    return descriptors.front();
+  }
+
+  /// Return a vector of parameter descriptors, one for each of the given names.
+  std::vector<rcl_interfaces::msg::ParameterDescriptor> describe_parameters(
+    const std::vector<std::string> & names) const
+  {
+    return node_parameters_->describe_parameters(names);
+  }
+
+  /// Return a vector of parameter types, one for each of the given names.
   std::vector<uint8_t> get_parameter_types(const std::vector<std::string> & names) const
   {
     return node_parameters_->get_parameter_types(names);
   }
 
-  bool get_parameter(const std::string & name, bool & value) const
+  /// Return a list of parameters with any of the given prefixes, up to the given depth.
+  rcl_interfaces::msg::ListParametersResult list_parameters(
+    const std::vector<std::string> & prefixes, uint64_t depth) const
   {
-    rclcpp::Parameter param;
-    if (!node_parameters_->get_parameter(name, param)) {
-      return false;
-    }
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_BOOL) {
-      return false;
-    }
-    value = param.as_bool();
-    return true;
-  }
-
-  bool get_parameter(const std::string & name, int64_t & value) const
-  {
-    rclcpp::Parameter param;
-    if (!node_parameters_->get_parameter(name, param)) {
-      return false;
-    }
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
-      return false;
-    }
-    value = param.as_int();
-    return true;
-  }
-
-  bool get_parameter(const std::string & name, double & value) const
-  {
-    rclcpp::Parameter param;
-    if (!node_parameters_->get_parameter(name, param)) {
-      return false;
-    }
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE) {
-      return false;
-    }
-    value = param.as_double();
-    return true;
-  }
-
-  bool get_parameter(const std::string & name, std::string & value) const
-  {
-    rclcpp::Parameter param;
-    if (!node_parameters_->get_parameter(name, param)) {
-      return false;
-    }
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
-      return false;
-    }
-    value = param.as_string();
-    return true;
+    return node_parameters_->list_parameters(prefixes, depth);
   }
 
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_node_base_interface()

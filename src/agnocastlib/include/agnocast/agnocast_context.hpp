@@ -15,7 +15,7 @@ namespace agnocast
 
 /// Remap rule types (corresponds to rcl_remap_type_t in rcl/include/rcl/remap.h)
 enum class RemapType {
-  NODENAME,         ///< Node name remapping (__node or __name)
+  NODE_NAME,        ///< Node name remapping (__node or __name)
   NAMESPACE,        ///< Namespace remapping (__ns)
   TOPIC_OR_SERVICE  ///< Topic/service name remapping (applies to both)
 };
