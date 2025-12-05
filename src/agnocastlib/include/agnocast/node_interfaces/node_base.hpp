@@ -21,7 +21,7 @@ public:
   using WeakPtr = std::weak_ptr<NodeBase>;
 
   NodeBase(
-    const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
+    std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
 
   virtual ~NodeBase() = default;
 

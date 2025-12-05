@@ -5,15 +5,14 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 
-namespace agnocast
-{
-namespace node_interfaces
+namespace agnocast::node_interfaces
 {
 
 NodeBase::NodeBase(
-  const std::string & node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
-: node_name_(node_name), context_(context)
+  std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
+: node_name_(std::move(node_name)), context_(std::move(context))
 {
   // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
@@ -142,5 +141,4 @@ std::string NodeBase::resolve_topic_or_service_name(
   return "";
 }
 
-}  // namespace node_interfaces
-}  // namespace agnocast
+}  // namespace agnocast::node_interfaces
