@@ -9,9 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace agnocast
-{
-namespace node_interfaces
+namespace agnocast::node_interfaces
 {
 
 class NodeBase : public rclcpp::node_interfaces::NodeBaseInterface
@@ -66,5 +64,4 @@ private:
   std::atomic_bool associated_with_executor_{false};
 };
 
-}  // namespace node_interfaces
-}  // namespace agnocast
+}  // namespace agnocast::node_interfaces
