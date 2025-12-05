@@ -21,25 +21,7 @@ NodeBase::NodeBase(
     namespace_ = ns;
   }
 
-  // Apply node name and namespace remapping from agnocast::Context
-  {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    auto & global_ctx = Context::instance();
-    if (global_ctx.is_initialized()) {
-      auto global_rules = global_ctx.get_remap_rules();
-
-      for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::NODE_NAME) {
-          node_name_ = rule.replacement;
-        } else if (rule.type == RemapType::NAMESPACE) {
-          namespace_ = rule.replacement;
-          if (!namespace_.empty() && namespace_[0] != '/') {
-            namespace_ = "/" + namespace_;
-          }
-        }
-      }
-    }
-  }
+  // TODO(Koichi98): Apply node name and namespace remapping from agnocast::Context
 
   if (namespace_.empty() || namespace_ == "/") {
     fqn_ = "/" + node_name_;

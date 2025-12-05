@@ -2,21 +2,6 @@
 
 #include <gtest/gtest.h>
 
-// ===========================================
-// parse_parameter_value tests
-// ===========================================
-// Limitations compared to rcl:
-// - No yaml parser: Only scalar values are supported. Arrays and complex YAML types are not parsed.
-// - No node name prefix: Node-specific parameter syntax is not supported.
-//
-// Examples of differences:
-// | Input              | rcl                        | agnocast                      |
-// |--------------------|----------------------------|-------------------------------|
-// | -p foo:=123        | int 123                    | int 123                       |
-// | -p foo:=true       | bool true                  | bool true                     |
-// | -p foo:=[1,2,3]    | int array {1,2,3}          | string "[1,2,3]"              |
-// | -p /my_node:foo:=123| foo=123 for /my_node only | param name becomes /my_node:foo|
-
 class ParseParameterValueTest : public ::testing::Test
 {
 };
