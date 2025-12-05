@@ -28,12 +28,6 @@ extern "C" void * initialize_agnocast(
   const size_t heaphook_version_str_len);
 
 template <typename MessageT>
-using Publisher = agnocast::BasicPublisher<MessageT, agnocast::AgnocastToRosRequestPolicy>;
-
-template <typename MessageT>
-using Subscription = agnocast::BasicSubscription<MessageT, agnocast::RosToAgnocastRequestPolicy>;
-
-template <typename MessageT>
 typename Publisher<MessageT>::SharedPtr create_publisher(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
@@ -112,7 +106,7 @@ template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
 {
-  return std::make_shared<PollingSubscriber<MessageT>>(
+  return std::make_shared<BasicPollingSubscriber<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
@@ -120,7 +114,8 @@ template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return std::make_shared<PollingSubscriber<MessageT>>(node, topic_name, qos);
+  return std::make_shared<BasicPollingSubscriber<MessageT, RosToAgnocastRequestPolicy>>(
+    node, topic_name, qos);
 }
 
 template <typename ServiceT, typename Func>

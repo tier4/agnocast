@@ -119,6 +119,11 @@ public:
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 };
 
+struct AgnocastToRosRequestPolicy;
+
+template <typename MessageT>
+using Publisher = agnocast::BasicPublisher<MessageT, agnocast::AgnocastToRosRequestPolicy>;
+
 // The Publisher that does not instantiate a ros2 publisher
 template <typename MessageT>
 class AgnocastOnlyPublisher
