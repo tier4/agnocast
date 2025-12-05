@@ -33,11 +33,6 @@ NodeBase::NodeBase(
   default_callback_group_ =
     std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
   callback_groups_.push_back(default_callback_group_);
-
-  if (context_ && context_->is_valid()) {
-    notify_guard_condition_ = std::make_unique<rclcpp::GuardCondition>(context_);
-    notify_guard_condition_is_valid_ = true;
-  }
 }
 
 const char * NodeBase::get_name() const
@@ -122,14 +117,9 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
-  std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
-  if (!notify_guard_condition_is_valid_ || !notify_guard_condition_) {
-    throw std::runtime_error(
-      "Notify guard condition is not valid. "
-      "Ensure rclcpp::Context is valid (rclcpp::init() was called or "
-      "valid NodeOptions.context() was provided).");
-  }
-  return *notify_guard_condition_;
+  throw std::runtime_error(
+    "notify_guard_condition is not available in agnocast::Node. "
+    "This node uses epoll instead of rcl_wait_set.");
 }
 
 bool NodeBase::get_use_intra_process_default() const

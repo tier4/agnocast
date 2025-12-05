@@ -67,9 +67,6 @@ private:
   mutable std::mutex callback_groups_mutex_;
 
   std::atomic_bool associated_with_executor_{false};
-  mutable std::recursive_mutex notify_guard_condition_mutex_;
-  std::unique_ptr<rclcpp::GuardCondition> notify_guard_condition_;
-  bool notify_guard_condition_is_valid_{false};
 };
 
 }  // namespace node_interfaces

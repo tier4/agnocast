@@ -36,7 +36,6 @@ public:
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
-  std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
 
 private:
   bool parse_param_rule(const std::string & arg);
