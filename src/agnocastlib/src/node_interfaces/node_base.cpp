@@ -117,9 +117,7 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
-  throw std::runtime_error(
-    "notify_guard_condition is not available in agnocast::Node. "
-    "This node uses epoll instead of rcl_wait_set.");
+  throw std::runtime_error("notify_guard_condition is not available in agnocast::Node.");
 }
 
 bool NodeBase::get_use_intra_process_default() const
