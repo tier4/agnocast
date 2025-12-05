@@ -45,6 +45,7 @@ union ioctl_add_subscriber_args {
     struct name_info node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
+    bool qos_is_reliable;
     bool is_take_sub;
   };
   struct
@@ -168,6 +169,7 @@ struct topic_info_ret
   char node_name[NODE_NAME_BUFFER_SIZE];
   uint32_t qos_depth;
   bool qos_is_transient_local;
+  bool qos_is_reliable;
 };
 
 union ioctl_topic_info_args {
@@ -205,7 +207,7 @@ void agnocast_exit_device(void);
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret);
+  const bool qos_is_reliable, const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret);
 
 int add_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,

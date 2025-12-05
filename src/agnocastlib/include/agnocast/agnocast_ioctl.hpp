@@ -63,6 +63,7 @@ union ioctl_add_subscriber_args {
     struct name_info node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
+    bool qos_is_reliable;
     bool is_take_sub;
   };
   struct
@@ -171,6 +172,7 @@ struct topic_info_ret
   char node_name[NODE_NAME_BUFFER_SIZE];
   uint32_t qos_depth;
   bool qos_is_transient_local;
+  bool qos_is_reliable;
 };
 
 #pragma GCC diagnostic push
