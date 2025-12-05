@@ -1,5 +1,10 @@
 #pragma once
 
+#include <rclcpp/parameter_value.hpp>
+
+#include <rcl/arguments.h>
+
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -7,12 +12,15 @@
 namespace agnocast
 {
 
-// Command-line argument flags (corresponds to rcl/include/rcl/arguments.h)
-/// The command-line flag that delineates the start of ROS arguments.
-#define AGNOCAST_ROS_ARGS_FLAG "--ros-args"
+enum class RemapType { NODE_NAME, NAMESPACE, TOPIC_OR_SERVICE };
 
-/// The token that delineates the explicit end of ROS arguments.
-#define AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN "--"
+struct RemapRule
+{
+  RemapType type;
+  std::string node_name;  // Node name prefix (empty means global rule)
+  std::string match;
+  std::string replacement;
+};
 
 class Context
 {
@@ -22,13 +30,22 @@ class Context
   };
 
 public:
+  using ParameterValue = rclcpp::ParameterValue;
+
   CommandLineParams command_line_params;
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
 
 private:
+  bool parse_param_rule(const std::string & arg);
+  static ParameterValue parse_parameter_value(const std::string & value_str);
+  bool parse_remap_rule(const std::string & arg);
+
   bool initialized_ = false;
+  std::vector<RemapRule> remap_rules_;
+
+  std::map<std::string, ParameterValue> global_parameter_overrides_;
 };
 
 extern Context g_context;
