@@ -70,18 +70,18 @@ ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_componen
 
 ### ▼▼▼ Start of generic bridge daemon ▼▼▼
 
-# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
-# execute_process(
-#   COMMAND ros2 interface list -m
-#   OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
-#   RESULT_VARIABLE ros2_list_res
-#   OUTPUT_STRIP_TRAILING_WHITESPACE
-# )
-# if(NOT ros2_list_res EQUAL 0)
-#   message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
-# endif()
+set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
+execute_process(
+  COMMAND ros2 interface list -m
+  OUTPUT_FILE "${MESSAGE_TYPES_FILE}"
+  RESULT_VARIABLE ros2_list_res
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT ros2_list_res EQUAL 0)
+  message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
+endif()
 
-set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/bridge_messages.txt")
+# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/bridge_messages.txt")
 
 set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
 set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
