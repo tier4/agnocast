@@ -17,7 +17,6 @@ void Context::init(int argc, char const * const * argv)
     return;
   }
 
-  std::string node_name;
   // Copy argv into a safe container to avoid pointer arithmetic
   std::vector<std::string> args;
   args.reserve(static_cast<size_t>(argc));
@@ -49,22 +48,12 @@ void Context::init(int argc, char const * const * argv)
         continue;
       }
 
-      // TODO(Koichi98): Will be replaced with a more robust remap parsing logic following rcl's
-      // implementation.
-      if (arg == "-r" && i + 1 < argc) {
-        std::string remap{args[static_cast<size_t>(i) + 1]};
-        const std::string prefix = "__node:=";
-
-        if (remap.compare(0, prefix.size(), prefix) == 0) {
-          node_name = remap.substr(prefix.size());
-
-          {
-            std::lock_guard<std::mutex> lock(g_context_mtx);
-            g_context.command_line_params.node_name = node_name;
-          }
-
-          break;
-        }
+      // Attempt to parse argument as remap rule flag
+      if ((arg == RCL_REMAP_FLAG || arg == RCL_SHORT_REMAP_FLAG) && i + 1 < argc) {
+        i++;
+        std::string remap_arg = args[static_cast<size_t>(i)];
+        parse_remap_rule(remap_arg);
+        continue;
       }
 
       // TODO(Koichi98): Parse other ROS specific arguments.
@@ -138,8 +127,55 @@ Context::ParameterValue Context::parse_parameter_value(const std::string & value
   return rclcpp::ParameterValue(value_str);
 }
 
+bool Context::parse_remap_rule(const std::string & arg)
+{
+  // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
+  size_t separator = arg.find(":=");
+  if (separator == std::string::npos) {
+    return false;
+  }
+
+  std::string from = arg.substr(0, separator);
+  std::string to = arg.substr(separator + 2);
+
+  RemapRule rule;
+  rule.replacement = to;
+
+  size_t colon_pos = from.find(':');
+  if (colon_pos != std::string::npos && colon_pos < separator) {
+    if (!from.empty() && from[0] != '/') {
+      rule.node_name = from.substr(0, colon_pos);
+      rule.match = from.substr(colon_pos + 1);
+    } else {
+      rule.match = from;
+    }
+  } else {
+    rule.match = from;
+  }
+
+  if (rule.match == "__node" || rule.match == "__name") {
+    rule.type = RemapType::NODE_NAME;
+    rule.node_name.clear();  // __node/__name rules are always global
+
+    // TODO(Koichi98): This is a temporary workaround to maintain compatibility with the existing
+    // node name remapping logic. This will be removed once a more robust remap handling is
+    // implemented.
+    command_line_params.node_name = to;
+  } else if (rule.match == "__ns") {
+    rule.type = RemapType::NAMESPACE;
+    rule.node_name.clear();  // __ns rules are always global
+  } else {
+    rule.type = RemapType::TOPIC_OR_SERVICE;
+  }
+
+  remap_rules_.push_back(rule);
+
+  return true;
+}
+
 void init(int argc, char const * const * argv)
 {
+  std::lock_guard<std::mutex> lock(g_context_mtx);
   g_context.init(argc, argv);
 }
 
