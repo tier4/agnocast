@@ -84,4 +84,4 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   return "";
 }
 
-}  // namespace agnocast::node_interfaces
+}  // namespace agnocast::namespacenode_interfaces

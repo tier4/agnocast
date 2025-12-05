@@ -47,6 +47,6 @@ private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
   std::vector<RemapRule> remap_rules_;  // Only TOPIC type rules
 };
-}  // namespace agnocast::node_interfaces
+}  // namespace agnocast::namespacenode_interfaces
 
 #endif  // AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
