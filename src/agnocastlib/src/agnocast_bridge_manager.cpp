@@ -186,6 +186,13 @@ void BridgeManager::setup_signal_handler()
   if (sigaction(SIGHUP, &sa, NULL) == -1) {
     throw std::runtime_error("sigaction failed: " + std::string(strerror(errno)));
   }
+
+  struct sigaction sa_pipe{};
+  sa_pipe.sa_handler = SIG_IGN;
+  sigemptyset(&sa_pipe.sa_mask);
+  if (sigaction(SIGPIPE, &sa_pipe, NULL) == -1) {
+    RCLCPP_WARN(logger_, "Failed to ignore SIGPIPE");
+  }
 }
 
 void BridgeManager::setup_epoll()
