@@ -8,8 +8,8 @@ BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t /*target_pid*/, const rclcpp::Logge
 {
 }
 
-BridgeIpcEventLoop::~BridgeIpcEventLoop()
-{
-}
+// BridgeIpcEventLoop::~BridgeIpcEventLoop()
+// {
+// }
 
 }  // namespace agnocast
