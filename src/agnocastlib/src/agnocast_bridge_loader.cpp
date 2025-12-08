@@ -3,7 +3,7 @@
 namespace agnocast
 {
 
-BridgeLoader::BridgeLoader(rclcpp::Logger logger) : logger_(logger)
+BridgeLoader::BridgeLoader(const rclcpp::Logger logger) : logger_(logger)
 {
 }
 
