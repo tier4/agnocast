@@ -18,4 +18,4 @@ BridgeLoader::~BridgeLoader()
   cached_factories_.clear();
 }
 
-}
+}  // namespace agnocast
