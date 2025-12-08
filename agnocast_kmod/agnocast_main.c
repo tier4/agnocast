@@ -1386,6 +1386,22 @@ static int get_topic_publisher_info(
   return 0;
 }
 
+static int get_subscriber_qos(
+  const struct ipc_namespace * ipc_ns, struct ioctl_get_subscriber_qos_args * args)
+{
+  struct topic_wrapper * wrapper = find_topic(args->topic_name, ipc_ns);
+  if (!wrapper) return -EINVAL;
+
+  struct subscriber_info * sub = find_subscriber_info(wrapper, args->id);
+  if (!sub) return -ENOENT;
+
+  args->qos.depth = sub->qos_depth;
+  args->qos.is_transient_local = sub->qos_is_transient_local;
+  args->qos.is_reliable = sub->qos_is_reliable;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1688,6 +1704,14 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
           sizeof(topic_info_pub_args)))
       goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_SUBSCRIBER_QOS_CMD) {
+    struct ioctl_get_subscriber_qos_args qos_args;
+    if (copy_from_user(&qos_args, (void __user *)arg, sizeof(qos_args))) goto return_EFAULT;
+    qos_args.topic_name[MAX_TOPIC_NAME_LEN - 1] = '\0';
+    ret = get_subscriber_qos(ipc_ns, &qos_args);
+    if (ret == 0) {
+      if (copy_to_user((void __user *)arg, &qos_args, sizeof(qos_args))) goto return_EFAULT;
+    }
   } else {
     goto return_EINVAL;
   }
