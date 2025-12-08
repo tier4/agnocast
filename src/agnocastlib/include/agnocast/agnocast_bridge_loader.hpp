@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -26,6 +27,8 @@ private:
   rclcpp::Logger logger_;
 
   std::map<std::string, std::pair<BridgeFn, std::shared_ptr<void>>> cached_factories_;
+
+  std::pair<void *, uintptr_t> load_library_base(const char * lib_path, const char * symbol_name);
 };
 
 }  // namespace agnocast
