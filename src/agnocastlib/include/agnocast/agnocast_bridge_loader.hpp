@@ -19,6 +19,9 @@ public:
   explicit BridgeLoader(rclcpp::Logger logger);
   ~BridgeLoader();
 
+  BridgeLoader(const BridgeLoader &) = delete;
+  BridgeLoader & operator=(const BridgeLoader &) = delete;
+
 private:
   rclcpp::Logger logger_;
 
