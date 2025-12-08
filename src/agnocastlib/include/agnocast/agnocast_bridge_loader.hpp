@@ -16,7 +16,7 @@ using BridgeFn = std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const Bridge
 class BridgeLoader
 {
 public:
-  explicit BridgeLoader(const rclcpp::Logger logger);
+  explicit BridgeLoader(const rclcpp::Logger & logger);
   ~BridgeLoader();
 
   BridgeLoader(const BridgeLoader &) = delete;
