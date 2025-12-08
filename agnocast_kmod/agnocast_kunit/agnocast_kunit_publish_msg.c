@@ -12,6 +12,7 @@ static bool qos_is_reliable = true;
 static pid_t subscriber_pid = 1000;
 static pid_t publisher_pid = 2000;
 static bool is_take_sub = false;
+static bool ignore_local_publications = false;
 
 static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscriber_id)
 {
@@ -23,7 +24,8 @@ static void setup_one_subscriber(struct kunit * test, topic_local_id_t * subscri
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
-    qos_is_transient_local, qos_is_reliable, is_take_sub, &add_subscriber_args);
+    qos_is_transient_local, qos_is_reliable, is_take_sub, ignore_local_publications,
+    &add_subscriber_args);
   *subscriber_id = add_subscriber_args.ret_id;
 
   KUNIT_ASSERT_EQ(test, ret1, 0);

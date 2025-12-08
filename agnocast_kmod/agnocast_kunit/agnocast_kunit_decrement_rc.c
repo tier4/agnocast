@@ -8,6 +8,7 @@ static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const bool QOS_IS_TRANSIENT_LOCAL = true;
 static const bool QOS_IS_RELIABLE = true;
+static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 static const uint32_t QOS_DEPTH = 1;
 
 static void setup_one_publisher(
@@ -126,7 +127,8 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret3 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, false, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, false, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   int ret4 = increment_message_entry_rc(
