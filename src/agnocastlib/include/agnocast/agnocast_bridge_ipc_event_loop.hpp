@@ -10,7 +10,7 @@ namespace agnocast
 class BridgeIpcEventLoop
 {
 public:
-  BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger logger);
+  BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & logger);
   ~BridgeIpcEventLoop() = default;
 
   BridgeIpcEventLoop(const BridgeIpcEventLoop &) = delete;

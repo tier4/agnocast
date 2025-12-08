@@ -3,7 +3,7 @@
 namespace agnocast
 {
 
-BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t /*target_pid*/, const rclcpp::Logger logger)
+BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t /*target_pid*/, const rclcpp::Logger & logger)
 : logger_(logger)
 {
 }
