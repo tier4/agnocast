@@ -22,6 +22,7 @@ BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & 
 {
   try {
     setup_mq(target_pid);
+    // TODO:: signal, epoll setup will be implemented in following PRs
   } catch (...) {
     cleanup_resources();
     throw;
