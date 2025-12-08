@@ -161,7 +161,9 @@ class TakeSubscription : public SubscriptionBase
 public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
-  TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  TakeSubscription(
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   : SubscriptionBase(node, topic_name)
   {
     {
@@ -177,11 +179,8 @@ public:
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
 
-    // Force ignore_local_publications to false.
-    // Loop avoidance is managed by the bridge logic (via standard subscriptions),
-    // so it is not required here.
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, false, node->get_fully_qualified_name());
+      initialize(qos, true, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
   }
@@ -234,9 +233,10 @@ public:
   using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
 
   explicit PollingSubscriber(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1},
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   {
-    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
+    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos, options);
   };
 
   // `takeData()` is remaining for backward compatibility.
