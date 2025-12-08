@@ -50,7 +50,14 @@ std::pair<void *, uintptr_t> BridgeLoader::load_library_base(
     return {nullptr, 0};
   }
 
-  struct link_map * map = static_cast<struct link_map *>(handle);
+  // struct link_map * map = static_cast<struct link_map *>(handle);
+  struct link_map * map = nullptr;
+  if (dlinfo(handle, RTLD_DI_LINKMAP, &map) != 0) {
+    // dlinfoに失敗した場合はハンドルを閉じてエラーを返す
+    // (通常ここに来ることは稀ですが、安全性のため)
+    dlclose(handle);
+    return {nullptr, 0};
+  }
   return {handle, map->l_addr};
 }
 
