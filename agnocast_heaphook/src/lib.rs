@@ -30,6 +30,13 @@ const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
 };
 
+#[cfg(not(test))]
+#[repr(C)]
+struct InitializeAgnocastResult {
+    mempool_ptr: *mut c_void,
+    mempool_size: u64,
+}
+
 type LibcStartMainType = unsafe extern "C" fn(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
     argc: c_int,
@@ -146,12 +153,6 @@ impl AgnocastSharedMemory {
     /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
     unsafe fn new() -> Self {
         use std::{ffi::CString, os::raw::c_char};
-
-        #[repr(C)]
-        struct InitializeAgnocastResult {
-            mempool_ptr: *mut c_void,
-            mempool_size: u64,
-        }
 
         extern "C" {
             fn initialize_agnocast(
@@ -340,6 +341,75 @@ fn should_use_heap() -> bool {
 fn should_use_heap() -> bool {
     // In tests, we use the heap only when the allocator is uninitialized.
     AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
+}
+
+#[cfg(not(test))]
+#[no_mangle]
+unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
+    extern "C" {
+        fn agnocast_child_initialize_pool() -> InitializeAgnocastResult;
+    }
+
+    let result = agnocast_child_initialize_pool();
+
+    if result.mempool_ptr.is_null() {
+        return false;
+    }
+
+    let _ = libc::pthread_atfork(None, None, Some(post_fork_handler_in_child));
+    IS_FORKED_CHILD.store(false, Ordering::Relaxed);
+
+    let shm = AgnocastSharedMemory {
+        start: result.mempool_ptr as usize,
+        end: (result.mempool_ptr as usize) + (result.mempool_size as usize),
+    };
+
+    if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
+        panic!("[ERROR] [Agnocast] Shared memory has already been initialized in daemon.");
+    }
+
+    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .set(AgnocastSharedMemoryAllocator::new(
+            AGNOCAST_SHARED_MEMORY.get().unwrap(),
+        ))
+        .is_err()
+    {
+        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized in daemon.");
+    }
+
+    // TODO : Remove Start
+    let layout = Layout::from_size_align(100, MIN_ALIGN).unwrap();
+    let test_ptr_nonnull = AGNOCAST_SHARED_MEMORY_ALLOCATOR
+        .get()
+        .unwrap()
+        .inner
+        .allocate(layout);
+
+    if let Some(ptr) = test_ptr_nonnull {
+        let raw_ptr = ptr.as_ptr().cast();
+
+        if is_shared(raw_ptr) {
+            eprintln!(
+                "[DEBUG] Agnocast Init Success! Direct alloc ptr {:p} is inside shared memory.",
+                raw_ptr
+            );
+            AGNOCAST_SHARED_MEMORY_ALLOCATOR
+                .get()
+                .unwrap()
+                .inner
+                .deallocate(ptr);
+        } else {
+            eprintln!(
+                "[ERROR] Agnocast Failed! Ptr {:p} is NOT in shared memory.",
+                raw_ptr
+            );
+        }
+    } else {
+        eprintln!("[ERROR] Agnocast Failed! Internal allocator returned None.");
+    }
+    // TODO: Remove End
+
+    true
 }
 
 /// # Safety

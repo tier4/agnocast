@@ -11,6 +11,8 @@
 #include <mutex>
 #include <span>
 
+extern "C" bool agnocast_heaphook_init_daemon();
+
 namespace agnocast
 {
 
@@ -303,6 +305,7 @@ struct initialize_agnocast_result initialize_agnocast(
     }
 
     if (pid == 0) {
+      agnocast_heaphook_init_daemon();
       poll_for_unlink();
     }
   }
@@ -315,6 +318,34 @@ struct initialize_agnocast_result initialize_agnocast(
   }
 
   struct initialize_agnocast_result result = {};
+  result.mempool_ptr = mempool_ptr;
+  result.mempool_size = add_process_args.ret_shm_size;
+  return result;
+}
+
+extern "C" struct initialize_agnocast_result agnocast_child_initialize_pool()
+{
+  struct initialize_agnocast_result result = {nullptr, 0};
+
+  if (agnocast_fd < 0) {
+    fprintf(stderr, "[ERROR] [Agnocast] agnocast_fd is not initialized.\n");
+    return result;  // null ptr
+  }
+
+  union ioctl_add_process_args add_process_args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    fprintf(stderr, "[ERROR] [Agnocast] AGNOCAST_ADD_PROCESS_CMD failed: %s\n", strerror(errno));
+    return result;
+  }
+
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
+
+  if (mempool_ptr == nullptr) {
+    fprintf(stderr, "[ERROR] [Agnocast] map_writable_area failed.\n");
+    return result;
+  }
+
   result.mempool_ptr = mempool_ptr;
   result.mempool_size = add_process_args.ret_shm_size;
   return result;

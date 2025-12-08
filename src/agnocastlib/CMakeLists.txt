@@ -35,10 +35,14 @@ add_library(agnocast SHARED
 
 ament_target_dependencies(agnocast cie_thread_configurator)
 
+set(AGNOCAST_HEAPHOOK_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/../../agnocast_heaphook/target/release/libagnocast_heaphook.so")
+
 target_link_libraries(agnocast
-  ${rclcpp_LIBRARIES}
-  ${tracetools_LIBRARIES}
-  ${LTTNGUST_LIBRARIES}
+    ${rclcpp_LIBRARIES}
+    ${tracetools_LIBRARIES}
+    ${LTTNGUST_LIBRARIES}
+    ${AGNOCAST_HEAPHOOK_LIBRARY}
+    ${YAMLCPP_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
