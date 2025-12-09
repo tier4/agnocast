@@ -345,12 +345,12 @@ fn should_use_heap() -> bool {
 
 #[cfg(not(test))]
 #[no_mangle]
-unsafe extern "C" fn agnocast_heaphook_init_daemon() -> bool {
+unsafe extern "C" fn init_child_allocator() -> bool {
     extern "C" {
-        fn agnocast_child_initialize_pool() -> InitializeAgnocastResult;
+        fn agnocast_attach_pool() -> InitializeAgnocastResult;
     }
 
-    let result = agnocast_child_initialize_pool();
+    let result = agnocast_attach_pool();
 
     if result.mempool_ptr.is_null() {
         return false;

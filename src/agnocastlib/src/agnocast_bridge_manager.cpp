@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+extern "C" bool init_child_allocator();
+
 namespace agnocast
 {
 
@@ -30,7 +32,9 @@ BridgeManager::BridgeManager(pid_t target_pid)
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
-  // TODO(yutarokobayashi): heaphook init
+  if (!init_child_allocator()) {
+    RCLCPP_ERROR(logger_, "Heaphook init FAILED.");
+  }
 }
 
 BridgeManager::~BridgeManager()

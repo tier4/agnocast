@@ -12,8 +12,6 @@
 #include <mutex>
 #include <span>
 
-extern "C" bool agnocast_heaphook_init_daemon();  // TODO: Remove
-
 namespace agnocast
 {
 
@@ -351,7 +349,7 @@ struct initialize_agnocast_result initialize_agnocast(
   return result;
 }
 
-extern "C" struct initialize_agnocast_result agnocast_child_initialize_pool()
+extern "C" struct initialize_agnocast_result agnocast_attach_pool()
 {
   struct initialize_agnocast_result result = {nullptr, 0};
 
