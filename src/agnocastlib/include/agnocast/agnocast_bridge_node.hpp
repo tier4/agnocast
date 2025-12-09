@@ -87,10 +87,10 @@ public:
     // to the ROS side to ensure the bridge satisfies the downstream requirements.
     ros_sub_ = parent_node->create_subscription<MessageT>(
       topic_name, sub_qos,
-      [pub_ptr](const typename MessageT::ConstSharedPtr msg) {
-        auto loaned_msg = pub_ptr->borrow_loaned_message();
+      [this](const typename MessageT::ConstSharedPtr msg) {
+        auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
         *loaned_msg = *msg;
-        pub_ptr->publish(std::move(loaned_msg));
+        this->agnocast_pub_->publish(std::move(loaned_msg));
       },
       ros_opts);
   }
@@ -128,11 +128,15 @@ public:
     // from the corresponding Agnocast publisher (e.g. Reliable or BestEffort).
     agnocast_sub_ = std::make_shared<AgnoSub>(
       parent_node.get(), topic_name, sub_qos,
-      [pub_ptr](const agnocast::ipc_shared_ptr<MessageT> msg) {
-        if (pub_ptr->get_subscription_count() > 0) {
-          auto loaned_msg = pub_ptr->borrow_loaned_message();
-          loaned_msg.get() = *msg;
-          pub_ptr->publish(std::move(loaned_msg));
+      [this](const agnocast::ipc_shared_ptr<MessageT> msg) {
+        if (this->ros_pub_->get_subscription_count() > 0) {
+          auto loaned_msg = this->ros_pub_->borrow_loaned_message();
+          if (loaned_msg.is_valid()) {
+            loaned_msg.get() = *msg;
+            this->ros_pub_->publish(std::move(loaned_msg));
+          } else {
+            this->ros_pub_->publish(*msg);
+          }
         }
       },
       agno_opts);
