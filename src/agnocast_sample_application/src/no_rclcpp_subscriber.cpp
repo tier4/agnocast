@@ -17,7 +17,7 @@ class NoRclcppSubscriber : public agnocast::Node
   }
 
 public:
-  explicit NoRclcppSubscriber()
+  explicit NoRclcppSubscriber() : agnocast::Node("no_rclcpp_subscriber")
   {
     RCLCPP_INFO(get_logger(), "NoRclcppSubscriber node (name=%s) started.", get_name().c_str());
 
