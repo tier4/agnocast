@@ -377,38 +377,6 @@ unsafe extern "C" fn init_child_allocator() -> bool {
         panic!("[ERROR] [Agnocast] The memory allocator has already been initialized in daemon.");
     }
 
-    // TODO : Remove Start
-    let layout = Layout::from_size_align(100, MIN_ALIGN).unwrap();
-    let test_ptr_nonnull = AGNOCAST_SHARED_MEMORY_ALLOCATOR
-        .get()
-        .unwrap()
-        .inner
-        .allocate(layout);
-
-    if let Some(ptr) = test_ptr_nonnull {
-        let raw_ptr = ptr.as_ptr().cast();
-
-        if is_shared(raw_ptr) {
-            eprintln!(
-                "[DEBUG] Agnocast Init Success! Direct alloc ptr {:p} is inside shared memory.",
-                raw_ptr
-            );
-            AGNOCAST_SHARED_MEMORY_ALLOCATOR
-                .get()
-                .unwrap()
-                .inner
-                .deallocate(ptr);
-        } else {
-            eprintln!(
-                "[ERROR] Agnocast Failed! Ptr {:p} is NOT in shared memory.",
-                raw_ptr
-            );
-        }
-    } else {
-        eprintln!("[ERROR] Agnocast Failed! Internal allocator returned None.");
-    }
-    // TODO: Remove End
-
     true
 }
 
