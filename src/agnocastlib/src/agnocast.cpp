@@ -70,7 +70,7 @@ void poll_for_unlink()
   exit(0);
 }
 
-void poll_for_bridge_manager(pid_t target_pid)
+void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
@@ -79,7 +79,8 @@ void poll_for_bridge_manager(pid_t target_pid)
   }
 
   try {
-    // TODO: BridgeManager run();
+    // BridgeManager manager(target_pid);
+    // manager.run();
   } catch (const std::exception & e) {
     exit(1);
   }
