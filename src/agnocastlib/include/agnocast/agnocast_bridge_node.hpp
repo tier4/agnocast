@@ -106,7 +106,8 @@ class AgnocastToRosBridge
 
 public:
   explicit AgnocastToRosBridge(
-    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name)
+    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name,
+    const rclcpp::QoS & sub_qos)
   {
     // ROS Publisher configuration acts as a source for downstream ROS nodes.
     // We use Reliable and TransientLocal as a "catch-all" configuration.
@@ -123,11 +124,10 @@ public:
     auto pub_ptr = ros_pub_;
 
     // Subscribe to Agnocast (shared memory).
-    // Shared memory access is inherently fast, so we use BestEffort and Volatile
-    // to minimize protocol overhead and fetch the latest data available.
+    // The QoS settings are now passed via argument to inherit the settings
+    // from the corresponding Agnocast publisher (e.g. Reliable or BestEffort).
     agnocast_sub_ = std::make_shared<AgnoSub>(
-      parent_node.get(), topic_name,
-      rclcpp::QoS(DEFAULT_QOS_DEPTH).best_effort().durability_volatile(),
+      parent_node.get(), topic_name, sub_qos,
       [pub_ptr](const agnocast::ipc_shared_ptr<MessageT> msg) {
         if (pub_ptr->get_subscription_count() > 0) {
           auto loaned_msg = pub_ptr->borrow_loaned_message();
