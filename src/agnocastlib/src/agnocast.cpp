@@ -357,11 +357,6 @@ static void shutdown_agnocast()
   }
 }
 
-extern "C" void * agnocast_child_initialize_pool()
-{
-  // TODO: init memory pool
-}
-
 class Cleanup
 {
 public:
