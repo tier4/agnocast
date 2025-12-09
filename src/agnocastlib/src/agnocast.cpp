@@ -82,7 +82,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
     // BridgeManager manager(target_pid); // NOTE: Open the incoming message queue internally.
     // manager.run();
   } catch (const std::exception & e) {
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   exit(0);
 }
@@ -286,22 +286,6 @@ void spawn_daemon_process(Func && func)
   }
 }
 
-bool wait_for_mq_ready(const std::string & mq_name)
-{
-  constexpr int max_retries = 10;
-  constexpr auto retry_delay = std::chrono::milliseconds(100);
-
-  for (int i = 0; i < max_retries; ++i) {
-    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
-    if (mq != (mqd_t)-1) {
-      mq_close(mq);
-      return true;
-    }
-    std::this_thread::sleep_for(retry_delay);
-  }
-  return false;
-}
-
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 struct initialize_agnocast_result initialize_agnocast(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
@@ -348,7 +332,6 @@ struct initialize_agnocast_result initialize_agnocast(
   pid_t parent_pid = getpid();
   // TODO: Temporarily commented out to prevent premature startup until implementation is complete.
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
-  // wait_for_mq_ready(create_mq_name_for_bridge_parent(parent_pid));
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
