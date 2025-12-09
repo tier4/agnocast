@@ -1,3 +1,5 @@
+#pragma once
+
 #include "rclcpp/callback_group.hpp"
 #include "rclcpp/context.hpp"
 #include "rclcpp/guard_condition.hpp"
