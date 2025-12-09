@@ -16,6 +16,7 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
   (void)name;
   (void)only_expand;
   // TODO(Koichi98)
+
   return "";
 }
 
