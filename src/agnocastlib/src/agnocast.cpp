@@ -329,8 +329,9 @@ struct initialize_agnocast_result initialize_agnocast(
     spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
-  pid_t parent_pid = getpid();
-  // TODO: Temporarily commented out to prevent premature startup until implementation is complete.
+  // pid_t parent_pid = getpid();
+  // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+  // implementation is complete.
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   void * mempool_ptr =
