@@ -343,6 +343,7 @@ fn should_use_heap() -> bool {
     AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
 }
 
+/// Initializes the child allocator for bridge functionality.
 /// # Safety
 /// This function is intended to be initialized **only in an uninitialized child process**.
 /// Attempting to initialize TLSF in a process where the allocator is already set
@@ -369,7 +370,10 @@ unsafe extern "C" fn init_child_allocator() -> bool {
     };
 
     if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
-        panic!("[ERROR] [Agnocast] Shared memory has already been initialized.");
+        panic!(
+            "[ERROR] [Agnocast] Shared memory has already been initialized.\n\
+             init_child_allocator must only be called once in an uninitialized child process."
+        );
     }
 
     if AGNOCAST_SHARED_MEMORY_ALLOCATOR
@@ -378,7 +382,10 @@ unsafe extern "C" fn init_child_allocator() -> bool {
         ))
         .is_err()
     {
-        panic!("[ERROR] [Agnocast] The memory allocator has already been initialized.");
+        panic!(
+            "[ERROR] [Agnocast] The memory allocator has already been initialized.\n\
+            init_child_allocator must only be called once in an uninitialized child process."
+        );
     }
 
     true
