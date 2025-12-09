@@ -33,7 +33,7 @@ BridgeManager::BridgeManager(pid_t target_pid)
   rclcpp::init(0, nullptr, init_options);
 
   if (!init_child_allocator()) {
-    RCLCPP_ERROR(logger_, "Heaphook init FAILED.");
+    RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not attach to shared memory pool.");
   }
 }
 
