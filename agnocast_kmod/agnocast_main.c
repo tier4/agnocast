@@ -71,6 +71,7 @@ struct subscriber_info
   int64_t latest_received_entry_id;
   char * node_name;
   bool is_take_sub;
+  bool ignore_local_publications;
   bool need_mmap_update;
   struct hlist_node node;
 };
@@ -222,7 +223,7 @@ static struct subscriber_info * find_subscriber_info(
 static int insert_subscriber_info(
   struct topic_wrapper * wrapper, const char * node_name, const pid_t subscriber_pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool qos_is_reliable,
-  const bool is_take_sub, struct subscriber_info ** new_info)
+  const bool is_take_sub, bool ignore_local_publications, struct subscriber_info ** new_info)
 {
   if (qos_depth > MAX_QOS_DEPTH) {
     dev_warn(
@@ -272,6 +273,7 @@ static int insert_subscriber_info(
   }
   (*new_info)->node_name = node_name_copy;
   (*new_info)->is_take_sub = is_take_sub;
+  (*new_info)->ignore_local_publications = ignore_local_publications;
   (*new_info)->need_mmap_update = true;
   INIT_HLIST_NODE(&(*new_info)->node);
   uint32_t hash_val = hash_min(new_id, SUB_INFO_HASH_BITS);
@@ -748,7 +750,8 @@ int add_process(
 int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  const bool qos_is_reliable, const bool is_take_sub, union ioctl_add_subscriber_args * ioctl_ret)
+  const bool qos_is_reliable, const bool is_take_sub, const bool ignore_local_publications,
+  union ioctl_add_subscriber_args * ioctl_ret)
 {
   int ret;
 
@@ -761,7 +764,7 @@ int add_subscriber(
   struct subscriber_info * sub_info;
   ret = insert_subscriber_info(
     wrapper, node_name, subscriber_pid, qos_depth, qos_is_transient_local, qos_is_reliable,
-    is_take_sub, &sub_info);
+    is_take_sub, ignore_local_publications, &sub_info);
   if (ret < 0) {
     return ret;
   }
@@ -934,6 +937,9 @@ int publish_msg(
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
   {
     if (sub_info->is_take_sub) continue;
+    if (sub_info->ignore_local_publications && (sub_info->pid == pub_info->pid)) {
+      continue;
+    }
     ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
     subscriber_num++;
   }
@@ -1428,7 +1434,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     node_name_buf[sub_args.node_name.len] = '\0';
     ret = add_subscriber(
       topic_name_buf, ipc_ns, node_name_buf, pid, sub_args.qos_depth,
-      sub_args.qos_is_transient_local, sub_args.qos_is_reliable, sub_args.is_take_sub, &sub_args);
+      sub_args.qos_is_transient_local, sub_args.qos_is_reliable, sub_args.is_take_sub,
+      sub_args.ignore_local_publications, &sub_args);
     kfree(combined_buf);
     if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
       goto return_EFAULT;
