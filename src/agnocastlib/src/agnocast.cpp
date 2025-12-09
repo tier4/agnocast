@@ -79,7 +79,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    // BridgeManager manager(target_pid);
+    // BridgeManager manager(target_pid); // NOTE: Open the incoming message queue internally.
     // manager.run();
   } catch (const std::exception & e) {
     exit(1);
