@@ -18,6 +18,8 @@ public:
   BridgeManager(const BridgeManager &) = delete;
   BridgeManager & operator=(const BridgeManager &) = delete;
 
+  void run();
+
 private:
   const pid_t target_pid_;
   rclcpp::Logger logger_;
