@@ -83,6 +83,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
     BridgeManager manager(target_pid);
     manager.run();
   } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
     exit(EXIT_FAILURE);
   }
   exit(0);
