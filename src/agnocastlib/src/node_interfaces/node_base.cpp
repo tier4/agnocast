@@ -21,7 +21,8 @@ NodeBase::NodeBase(
     namespace_ = ns;
   }
 
-  // Apply node name and namespace remapping from agnocast::Context
+  // Apply node name and namespace remapping from agnocast::Context.
+  // Following rclcpp's "first-wins" behavior: only the first matching rule of each type is applied.
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
@@ -30,11 +31,16 @@ NodeBase::NodeBase(
       for (const auto & rule : global_rules) {
         if (rule.type == RemapType::NODE_NAME) {
           node_name_ = rule.replacement;
-        } else if (rule.type == RemapType::NAMESPACE) {
+          break;
+        }
+      }
+      for (const auto & rule : global_rules) {
+        if (rule.type == RemapType::NAMESPACE) {
           namespace_ = rule.replacement;
           if (!namespace_.empty() && namespace_[0] != '/') {
             namespace_ = "/" + namespace_;
           }
+          break;
         }
       }
     }
