@@ -74,18 +74,4 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
     "Timers interface is not available.");
 }
 
-std::string NodeTopics::resolve_name(const std::string & input_topic_name) const
-{
-  (void)input_topic_name;
-  // TODO(Koichi98)
-  return "";
-}
-
-std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
-{
-  (void)input_topic_name;
-  // TODO(Koichi98)
-  return "";
-}
-
 }  // namespace agnocast::node_interfaces

@@ -1,6 +1,3 @@
-#ifndef AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
-#define AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
-
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_topics_interface.hpp"
@@ -41,12 +38,6 @@ public:
   rclcpp::node_interfaces::NodeTimersInterface * get_node_timers_interface() const override;
 
 private:
-  std::string resolve_name(const std::string & input_topic_name) const;
-  std::string expand_topic_name(const std::string & input_topic_name) const;
-  std::string remap_name(const std::string & name) const;
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
-  std::vector<RemapRule> remap_rules_;  // Only TOPIC type rules
 };
 }  // namespace agnocast::node_interfaces
-
-#endif  // AGNOCAST__NODE_INTERFACES__NODE_TOPICS_HPP_
