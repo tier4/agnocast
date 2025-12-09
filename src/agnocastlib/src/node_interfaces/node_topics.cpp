@@ -1,12 +1,13 @@
 #include "agnocast/node_interfaces/node_topics.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace agnocast::node_interfaces
 {
 
 NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
-: node_base_(node_base)
+: node_base_(std::move(node_base))
 {
 }
 
