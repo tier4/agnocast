@@ -35,6 +35,7 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+  bool ignore_local_publications{false};
 };
 
 // These are cut out of the class for information hiding.
@@ -74,7 +75,8 @@ protected:
   topic_local_id_t id_;
   const std::string topic_name_;
   union ioctl_add_subscriber_args initialize(
-    const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name);
+    const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
+    const std::string & node_name);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
@@ -92,7 +94,7 @@ class BasicSubscription : public SubscriptionBase
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
+      initialize(qos, false, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
@@ -159,7 +161,9 @@ class TakeSubscription : public SubscriptionBase
 public:
   using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
 
-  TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  TakeSubscription(
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   : SubscriptionBase(node, topic_name)
   {
     {
@@ -176,7 +180,7 @@ public:
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, node->get_fully_qualified_name());
+      initialize(qos, true, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
   }
@@ -229,9 +233,10 @@ public:
   using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
 
   explicit PollingSubscriber(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1},
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   {
-    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
+    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos, options);
   };
 
   // `takeData()` is remaining for backward compatibility.
