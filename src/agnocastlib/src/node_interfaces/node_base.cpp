@@ -100,6 +100,7 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
 bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
   std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  // NOLINTNEXTLINE(readability-use-anyofallof) - align with rclcpp::node_interfaces::NodeBase
   for (auto & weak_group : callback_groups_) {
     auto cur_group = weak_group.lock();
     if (cur_group && (cur_group == group)) {
