@@ -14,6 +14,7 @@ static const uint32_t QOS_DEPTH = 1;
 static const bool QOS_IS_TRANSIENT_LOCAL = false;
 static const bool QOS_IS_RELIABLE = true;
 static const bool IS_TAKE_SUB = false;
+static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 
 static void setup_processes(struct kunit * test, const int process_num)
 {
@@ -58,7 +59,8 @@ static topic_local_id_t setup_one_subscriber(struct kunit * test, const pid_t su
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
