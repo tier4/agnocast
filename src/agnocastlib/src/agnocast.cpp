@@ -70,6 +70,22 @@ void poll_for_unlink()
   exit(0);
 }
 
+void poll_for_bridge_manager(pid_t target_pid)
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  try {
+    // TODO: BridgeManager run();
+  } catch (const std::exception & e) {
+    exit(1);
+  }
+  exit(0);
+}
+
 struct semver
 {
   int major;
@@ -254,6 +270,37 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+template <typename Func>
+void spawn_daemon_process(Func && func)
+{
+  pid_t pid = fork();
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  if (pid == 0) {
+    func();
+    exit(0);
+  }
+}
+
+bool wait_for_mq_ready(const std::string & mq_name)
+{
+  constexpr int max_retries = 10;
+  constexpr auto retry_delay = std::chrono::milliseconds(100);
+
+  for (int i = 0; i < max_retries; ++i) {
+    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+    if (mq != (mqd_t)-1) {
+      mq_close(mq);
+      return true;
+    }
+    std::this_thread::sleep_for(retry_delay);
+  }
+  return false;
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 struct initialize_agnocast_result initialize_agnocast(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
@@ -294,18 +341,13 @@ struct initialize_agnocast_result initialize_agnocast(
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-      poll_for_unlink();
-    }
+    spawn_daemon_process([]() { poll_for_unlink(); });
   }
+
+  pid_t parent_pid = getpid();
+  spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
+
+  wait_for_mq_ready(create_mq_name_for_bridge_parent(parent_pid));
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
