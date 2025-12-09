@@ -9,13 +9,15 @@ namespace agnocast
 
 {
 
+static constexpr size_t DEFAULT_QOS_DEPTH = 10;
+
 template <typename MessageT>
 void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
 {
-  (void)topic_name;  // TODO: Remove
-  (void)id;          // TODO: Remove
-  (void)dir;         // TODO: Remove
-  // TODO: Implement the actual message queue communication to request a bridge.
+  (void)topic_name;  // TODO(yutarokobayashi): Remove
+  (void)id;          // TODO(yutarokobayashi): Remove
+  (void)dir;         // TODO(yutarokobayashi): Remove
+  // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
   // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
@@ -47,7 +49,7 @@ struct AgnocastToRosRequestPolicy
 struct NoBridgeRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string &, const rclcpp::QoS &)
+  static void request_bridge(const std::string & /*unused*/, const rclcpp::QoS & /*unused*/)
   {
     // Do nothing
   }
@@ -63,14 +65,14 @@ class RosToAgnocastBridge
 
 public:
   explicit RosToAgnocastBridge(
-    rclcpp::Node::SharedPtr parent_node, const std::string & topic_name,
+    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name,
     const rclcpp::QoS & sub_qos)
   {
     // Agnocast relies on shared memory, so network reliability concepts do not apply.
     // TransientLocal is hardcoded here as a catch-all configuration that supports
     // any subscriber requirement (volatile or durable) by preserving data.
     agnocast_pub_ = std::make_shared<AgnoPub>(
-      parent_node.get(), topic_name, rclcpp::QoS(10).transient_local(),
+      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(),
       agnocast::PublisherOptions{});
     ros_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -91,6 +93,49 @@ public:
         pub_ptr->publish(std::move(loaned_msg));
       },
       ros_opts);
+  }
+};
+
+template <typename MessageT>
+class AgnocastToRosBridge
+{
+  using AgnoSub = agnocast::BasicSubscription<MessageT, NoBridgeRequestPolicy>;
+  typename rclcpp::Publisher<MessageT>::SharedPtr ros_pub_;
+  typename AgnoSub::SharedPtr agnocast_sub_;
+  rclcpp::CallbackGroup::SharedPtr agno_cb_group_;
+
+public:
+  explicit AgnocastToRosBridge(
+    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name)
+  {
+    // ROS Publisher configuration acts as a source for downstream ROS nodes.
+    // We use Reliable and TransientLocal as a "catch-all" configuration.
+    // This ensures that this bridge can serve both Volatile and Durable (TransientLocal)
+    // ROS subscribers without connectivity issues.
+    ros_pub_ = parent_node->create_publisher<MessageT>(
+      topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).reliable().transient_local());
+    agno_cb_group_ =
+      parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
+    agnocast::SubscriptionOptions agno_opts;
+    agno_opts.ignore_local_publications = true;
+    agno_opts.callback_group = agno_cb_group_;
+    auto pub_ptr = ros_pub_;
+
+    // Subscribe to Agnocast (shared memory).
+    // Shared memory access is inherently fast, so we use BestEffort and Volatile
+    // to minimize protocol overhead and fetch the latest data available.
+    agnocast_sub_ = std::make_shared<AgnoSub>(
+      parent_node.get(), topic_name,
+      rclcpp::QoS(DEFAULT_QOS_DEPTH).best_effort().durability_volatile(),
+      [pub_ptr](const agnocast::ipc_shared_ptr<MessageT> msg) {
+        if (pub_ptr->get_subscription_count() > 0) {
+          auto loaned_msg = pub_ptr->borrow_loaned_message();
+          loaned_msg.get() = *msg;
+          pub_ptr->publish(std::move(loaned_msg));
+        }
+      },
+      agno_opts);
   }
 };
 
