@@ -16,6 +16,8 @@ BridgeManager::BridgeManager(pid_t target_pid)
   event_loop_(target_pid, logger_),
   loader_(logger_)
 {
+  // Optimization: Fail-fast to avoid rclcpp::init overhead.
+  // Note that the process ensures correct termination even without this check.
   if (kill(target_pid_, 0) != 0) {
     throw std::runtime_error("Target parent process is already dead.");
   }
