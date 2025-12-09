@@ -11,7 +11,7 @@
 #include <mutex>
 #include <span>
 
-extern "C" bool agnocast_heaphook_init_daemon();
+extern "C" bool agnocast_heaphook_init_daemon();  // TODO: Remove
 
 namespace agnocast
 {
@@ -305,7 +305,7 @@ struct initialize_agnocast_result initialize_agnocast(
     }
 
     if (pid == 0) {
-      agnocast_heaphook_init_daemon();
+      agnocast_heaphook_init_daemon();  // TOOD: REMOVE
       poll_for_unlink();
     }
   }
