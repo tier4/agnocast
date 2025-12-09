@@ -28,19 +28,20 @@ NodeBase::NodeBase(
     if (g_context.is_initialized()) {
       auto global_rules = g_context.get_remap_rules();
 
-      for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::NODE_NAME) {
-          node_name_ = rule.replacement;
-          break;
-        }
+      auto node_name_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
+      if (node_name_it != global_rules.end()) {
+        node_name_ = node_name_it->replacement;
       }
-      for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::NAMESPACE) {
-          namespace_ = rule.replacement;
-          if (!namespace_.empty() && namespace_[0] != '/') {
-            namespace_ = "/" + namespace_;
-          }
-          break;
+
+      auto namespace_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
+      if (namespace_it != global_rules.end()) {
+        namespace_ = namespace_it->replacement;
+        if (!namespace_.empty() && namespace_[0] != '/') {
+          namespace_ = "/" + namespace_;
         }
       }
     }
