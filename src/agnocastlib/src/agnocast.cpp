@@ -1,5 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
+#include "agnocast/agnocast_bridge_manager.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -79,9 +80,10 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    // BridgeManager manager(target_pid); // NOTE: Open the incoming message queue internally.
-    // manager.run();
+    BridgeManager manager(target_pid);
+    manager.run();
   } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
     exit(EXIT_FAILURE);
   }
   exit(0);
