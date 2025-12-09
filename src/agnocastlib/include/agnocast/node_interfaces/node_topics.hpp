@@ -1,3 +1,5 @@
+#pragma once
+
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_topics_interface.hpp"
 
