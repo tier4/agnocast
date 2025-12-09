@@ -119,7 +119,7 @@ template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const size_t qos_history_depth)
 {
-  return std::make_shared<PollingSubscriber<MessageT>>(
+  return std::make_shared<BasicPollingSubscriber<MessageT, RosToAgnocastRequestPolicy>>(
     node, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
 }
 
@@ -127,7 +127,8 @@ template <typename MessageT>
 typename PollingSubscriber<MessageT>::SharedPtr create_subscription(
   rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
 {
-  return std::make_shared<PollingSubscriber<MessageT>>(node, topic_name, qos);
+  return std::make_shared<BasicPollingSubscriber<MessageT, RosToAgnocastRequestPolicy>>(
+    node, topic_name, qos);
 }
 
 template <typename ServiceT>
