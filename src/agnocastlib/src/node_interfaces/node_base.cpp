@@ -3,7 +3,6 @@
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/contexts/default_context.hpp"
 
-#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -101,19 +100,24 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
 bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
   std::lock_guard<std::mutex> lock(callback_groups_mutex_);
-  auto it = std::find_if(
-    callback_groups_.begin(), callback_groups_.end(),
-    [&group](const rclcpp::CallbackGroup::WeakPtr & weak_group) {
-      auto shared_group = weak_group.lock();
-      return shared_group && shared_group == group;
-    });
-  return it != callback_groups_.end();
+  for (auto & weak_group : callback_groups_) {
+    auto cur_group = weak_group.lock();
+    if (cur_group && (cur_group == group)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void NodeBase::for_each_callback_group(const CallbackGroupFunction & func)
 {
-  (void)func;
-  // TODO(Koichi98)
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  for (auto & weak_group : callback_groups_) {
+    auto group = weak_group.lock();
+    if (group) {
+      func(group);
+    }
+  }
 }
 
 std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
