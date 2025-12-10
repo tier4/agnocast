@@ -47,14 +47,26 @@ BridgeManager::~BridgeManager()
   }
 }
 
-void BridgeManager::run()  // NOLINT(readability-convert-member-functions-to-static)
+void BridgeManager::run()
 {
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
   start_ros_execution();
 
-  // TODO(yutarokobayashi): event_loop_;
+  // TODO(yutarokobayashi): Setup event_loop handler.
+
+  while (!shutdown_requested_) {
+    check_parent_alive();
+    check_active_bridges();
+    check_should_exit();
+
+    if (shutdown_requested_) {
+      break;
+    }
+
+    // TODO(yutarokobayashi): Run the loop only once. Wait for 1s to avoid busy looping.
+  }
 }
 
 void BridgeManager::start_ros_execution()
@@ -72,6 +84,47 @@ void BridgeManager::start_ros_execution()
       RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
     }
   });
+}
+
+void BridgeManager::check_parent_alive()
+{
+  if (!is_parent_alive_) {
+    return;
+  }
+  if (kill(target_pid_, 0) != 0) {
+    is_parent_alive_ = false;
+    // TODO(yutarokobayashi): close parent mq
+  }
+}
+
+void BridgeManager::check_active_bridges()
+{
+  // TODO(yutarokobayashi): Verifying the number of connections and get remove bridge name
+  remove_active_bridges("TOPIC_R2A");
+}
+
+// TODO(yutarokobayashi): Reconsider the exit logic.
+// This implementation should be revisited and finalized after fully understanding the overall
+// shutdown sequence.
+void BridgeManager::check_should_exit()
+{
+  if (!is_parent_alive_ && active_bridges_.empty()) {
+    shutdown_requested_ = true;
+    if (executor_) {
+      executor_->cancel();
+    }
+  }
+}
+
+void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
+{
+  if (active_bridges_.count(topic_name_with_dirction) == 0) {
+    return;
+  }
+
+  active_bridges_.erase(topic_name_with_dirction);
+  // TODO(yutarokobayashi): Unregister from the kernel only if the paired bridge in the reverse
+  // direction is also missing.
 }
 
 }  // namespace agnocast
