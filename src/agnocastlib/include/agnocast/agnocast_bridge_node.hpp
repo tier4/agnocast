@@ -160,14 +160,20 @@ void send_bridge_request(const std::string & topic_name, topic_local_id_t id, Br
 {
   (void)topic_name;  // TODO(yutarokobayashi): Remove
   (void)id;          // TODO(yutarokobayashi): Remove
-  (void)dir;         // TODO(yutarokobayashi): Remove
 
+  // We capture 'fn_reverse' because bridge_manager is responsible for managing both directions
+  // independently. Storing the reverse factory allows us to instantiate the return path on-demand
+  // within the same process.
   auto fn_current = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_ros_to_agno_node<MessageT>
                                                                : &start_agno_to_ros_node<MessageT>;
   auto fn_reverse = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_agno_to_ros_node<MessageT>
                                                                : &start_ros_to_agno_node<MessageT>;
 
+  (void)fn_current;  // TODO(yutarokobayashi): Remove
+  (void)fn_reverse;  // TODO(yutarokobayashi): Remove
+
   // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
+  //
   // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
