@@ -35,6 +35,13 @@ BridgeManager::BridgeManager(pid_t target_pid)
 
 BridgeManager::~BridgeManager()
 {
+  if (executor_) {
+    executor_->cancel();
+  }
+  if (executor_thread_.joinable()) {
+    executor_thread_.join();
+  }
+
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
@@ -45,7 +52,26 @@ void BridgeManager::run()  // NOLINT(readability-convert-member-functions-to-sta
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
+  start_ros_execution();
+
   // TODO(yutarokobayashi): event_loop_;
+}
+
+void BridgeManager::start_ros_execution()
+{
+  std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
+  container_node_ = std::make_shared<rclcpp::Node>(node_name);
+
+  executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
+  executor_->add_node(container_node_);
+
+  executor_thread_ = std::thread([this]() {
+    try {
+      this->executor_->spin();
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
+    }
+  });
 }
 
 }  // namespace agnocast
