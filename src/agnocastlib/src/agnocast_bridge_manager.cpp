@@ -65,7 +65,7 @@ void BridgeManager::run()
       break;
     }
 
-    // TODO(yutarokobayashi): Run the loop only once. Sleep for 1s to avoid busy looping.
+    // TODO(yutarokobayashi): Run the loop only once. Wait for 1s to avoid busy looping.
   }
 }
 
