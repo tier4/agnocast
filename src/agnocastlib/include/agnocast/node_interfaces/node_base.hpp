@@ -1,3 +1,5 @@
+#pragma once
+
 #include "rclcpp/callback_group.hpp"
 #include "rclcpp/context.hpp"
 #include "rclcpp/guard_condition.hpp"
@@ -59,6 +61,7 @@ private:
   rclcpp::Context::SharedPtr context_;
   rclcpp::CallbackGroup::SharedPtr default_callback_group_;
   std::vector<rclcpp::CallbackGroup::WeakPtr> callback_groups_;
+  mutable std::mutex callback_groups_mutex_;
 
   std::atomic_bool associated_with_executor_{false};
 };
