@@ -14,6 +14,9 @@
 namespace agnocast::node_interfaces
 {
 
+// Forward declaration
+class NodeTopics;
+
 class NodeBase : public rclcpp::node_interfaces::NodeBaseInterface
 {
 public:
@@ -53,6 +56,15 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
+  // ===== Agnocast-specific =====
+
+  /// Set NodeTopics reference for resolve_topic_or_service_name.
+  /// Unlike rclcpp (which calls rcl_node_resolve_name directly), agnocast delegates
+  /// name resolution to NodeTopics. This setter resolves the circular dependency:
+  /// NodeBase is created first, then NodeTopics (which needs NodeBase), then this
+  /// back-reference is set. Called by Node::initialize_node.
+  void set_node_topics(std::shared_ptr<NodeTopics> node_topics);
+
 private:
   std::string node_name_;
   std::string namespace_;
@@ -68,6 +80,8 @@ private:
   std::atomic_bool associated_with_executor_{false};
 
   bool enable_topic_statistics_default_;
+
+  std::weak_ptr<NodeTopics> node_topics_;
 };
 
 }  // namespace agnocast::node_interfaces

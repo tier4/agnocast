@@ -1,6 +1,7 @@
 #include "agnocast/node_interfaces/node_base.hpp"
 
 #include "agnocast/agnocast_context.hpp"
+#include "agnocast/node_interfaces/node_topics.hpp"
 #include "rclcpp/contexts/default_context.hpp"
 
 #include <stdexcept>
@@ -174,11 +175,40 @@ bool NodeBase::get_enable_topic_statistics_default() const
 std::string NodeBase::resolve_topic_or_service_name(
   const std::string & name, bool is_service, bool only_expand) const
 {
-  (void)name;
   (void)is_service;
   (void)only_expand;
-  // TODO(Koichi98)
-  return "";
+
+  // Try to use NodeTopics for name resolution if available
+  auto topics = node_topics_.lock();
+  if (topics) {
+    return topics->resolve_topic_name(name);
+  }
+
+  // Fallback: simple name resolution
+  if (name.empty()) {
+    return name;
+  }
+
+  // Absolute name - return as is
+  if (name[0] == '/') {
+    return name;
+  }
+
+  // Private name - prepend fully qualified node name
+  if (name[0] == '~') {
+    return fqn_ + "/" + name.substr(1);
+  }
+
+  // Relative name - prepend namespace
+  if (namespace_.empty() || namespace_ == "/") {
+    return "/" + name;
+  }
+  return namespace_ + "/" + name;
+}
+
+void NodeBase::set_node_topics(std::shared_ptr<NodeTopics> node_topics)
+{
+  node_topics_ = node_topics;
 }
 
 }  // namespace agnocast::node_interfaces
