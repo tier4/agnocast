@@ -12,7 +12,8 @@ namespace agnocast
 static constexpr size_t DEFAULT_QOS_DEPTH = 10;
 
 template <typename MessageT>
-void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir);
+void send_bridge_request(
+  const std::string & topic_name, topic_local_id_t id, BridgeDirection direction);
 
 // Policy for agnocast::Subscription.
 // Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
@@ -156,7 +157,8 @@ std::shared_ptr<void> start_agno_to_ros_node(
 }
 
 template <typename MessageT>
-void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
+void send_bridge_request(
+  const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
 {
   (void)topic_name;  // TODO(yutarokobayashi): Remove
   (void)id;          // TODO(yutarokobayashi): Remove
@@ -164,10 +166,12 @@ void send_bridge_request(const std::string & topic_name, topic_local_id_t id, Br
   // We capture 'fn_reverse' because bridge_manager is responsible for managing both directions
   // independently. Storing the reverse factory allows us to instantiate the return path on-demand
   // within the same process.
-  auto fn_current = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_ros_to_agno_node<MessageT>
-                                                               : &start_agno_to_ros_node<MessageT>;
-  auto fn_reverse = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_agno_to_ros_node<MessageT>
-                                                               : &start_ros_to_agno_node<MessageT>;
+  auto fn_current = (direction == BridgeDirection::ROS2_TO_AGNOCAST)
+                      ? &start_ros_to_agno_node<MessageT>
+                      : &start_agno_to_ros_node<MessageT>;
+  auto fn_reverse = (direction == BridgeDirection::ROS2_TO_AGNOCAST)
+                      ? &start_agno_to_ros_node<MessageT>
+                      : &start_ros_to_agno_node<MessageT>;
 
   (void)fn_current;  // TODO(yutarokobayashi): Remove
   (void)fn_reverse;  // TODO(yutarokobayashi): Remove
