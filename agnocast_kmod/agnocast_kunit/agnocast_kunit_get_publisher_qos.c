@@ -65,10 +65,11 @@ void test_case_pub_error_topic_not_found(struct kunit * test)
 
 void test_case_error_publisher_not_found(struct kunit * test)
 {
-  setup_process(test, PUBLISHER_PID);
   union ioctl_add_publisher_args add_pub_args;
   struct ioctl_get_publisher_qos_args get_qos_args;
   int ret;
+
+  setup_process(test, PUBLISHER_PID);
 
   ret = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, PUBLISHER_PID, QOS_DEPTH, false,
