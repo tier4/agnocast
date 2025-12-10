@@ -61,7 +61,9 @@ void BridgeManager::run()
     check_active_bridges();
     check_should_exit();
 
-    if (shutdown_requested_) break;
+    if (shutdown_requested_) {
+      break;
+    }
 
     // TODO(yutarokobayashi): Run the loop only once.
   }
@@ -86,11 +88,12 @@ void BridgeManager::start_ros_execution()
 
 void BridgeManager::check_parent_alive()
 {
-  if (!is_parent_alive_) return;
+  if (!is_parent_alive_) {
+    return;
+  }
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
     // TODO(yutarokobayashi): close parent mq
-    check_should_exit();
   }
 }
 
@@ -103,7 +106,9 @@ void BridgeManager::check_should_exit()
 {
   if (!is_parent_alive_ && active_bridges_.empty()) {
     shutdown_requested_ = true;
-    if (executor_) executor_->cancel();
+    if (executor_) {
+      executor_->cancel();
+    }
   }
 }
 
