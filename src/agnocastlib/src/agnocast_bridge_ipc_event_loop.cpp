@@ -38,7 +38,7 @@ BridgeIpcEventLoop::~BridgeIpcEventLoop()
 bool BridgeIpcEventLoop::spin_once(int timeout_ms)
 {
   constexpr int MAX_EVENTS = 10;
-  std::array<struct epoll_event, MAX_EVENTS> events;
+  std::array<struct epoll_event, MAX_EVENTS> events{};
 
   int n = -1;
   do {
