@@ -62,8 +62,7 @@ void BridgeManager::start_ros_execution()
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
 
-  executor_ =
-    std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(rclcpp::ExecutorOptions(), 0, 0);
+  executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
   executor_->add_node(container_node_);
 
   executor_thread_ = std::thread([this]() {
