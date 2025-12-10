@@ -96,6 +96,12 @@ public:
   }
 };
 
+// We should document that things don't work well when Agnocast publishers have a mix of transient
+// local and volatile durability settings. If we ever face a requirement to support topics with
+// such mixed durability settings, we could achieve this by creating Agnocast subscribers with
+// transient local, and making an exception so that only Agnocast subscribers used for the bridge
+// feature can also receive from volatile Agnocast publishers. (This isn't very clean, so we'd
+// prefer to avoid it if possible.)
 template <typename MessageT>
 class AgnocastToRosBridge
 {
