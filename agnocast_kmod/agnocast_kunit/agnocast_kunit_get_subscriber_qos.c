@@ -60,7 +60,7 @@ void test_case_qos_transient_reliable(struct kunit * test)
   verify_subscriber_qos(test, true, true);
 }
 
-void test_case_error_topic_not_found(struct kunit * test)
+void test_case_sub_error_topic_not_found(struct kunit * test)
 {
   struct ioctl_get_subscriber_qos_args get_qos_args;
   topic_local_id_t dummy_id;
