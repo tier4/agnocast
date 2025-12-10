@@ -168,6 +168,16 @@ bool Context::parse_remap_rule(const std::string & arg)
   return true;
 }
 
+std::map<std::string, Context::ParameterValue> Context::get_param_overrides(
+  const std::string & node_fqn) const
+{
+  // Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
+  // For now, just return global parameter overrides (from -p flags)
+  // Node-specific parameters from YAML files are not yet supported
+  (void)node_fqn;
+  return global_parameter_overrides_;
+}
+
 void init(int argc, char const * const * argv)
 {
   std::lock_guard<std::mutex> lock(g_context_mtx);

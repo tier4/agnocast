@@ -90,7 +90,7 @@ class BasicSubscription : public SubscriptionBase
 
   template <typename NodeT, typename Func>
   uint32_t constructor_impl(
-    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    NodeT * node, const std::string & /* topic_name */, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
     union ioctl_add_subscriber_args add_subscriber_args =

@@ -27,7 +27,7 @@ public:
 
     // Get parameter values
     std::string topic_name;
-    int64_t queue_size;
+    int64_t queue_size = 1;
     get_parameter("topic_name", topic_name);
     get_parameter("queue_size", queue_size);
 

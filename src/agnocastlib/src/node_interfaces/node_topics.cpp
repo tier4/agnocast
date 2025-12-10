@@ -11,19 +11,23 @@ NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr nod
 {
 }
 
+// ===== Implemented methods =====
+
 std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_expand) const
 {
-  (void)name;
-  (void)only_expand;
-  // TODO(Koichi98)
-
-  return "";
+  // Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c:134-162
+  if (only_expand) {
+    return expand_topic_name(name);
+  }
+  return resolve_name(name);
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
 {
   return node_base_.get();
 }
+
+// ===== Not supported methods =====
 
 rclcpp::PublisherBase::SharedPtr NodeTopics::create_publisher(
   const std::string & topic_name, const rclcpp::PublisherFactory & publisher_factory,
@@ -74,6 +78,133 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
   throw std::runtime_error(
     "NodeTopics::get_node_timers_interface is not supported in agnocast. "
     "Timers interface is not available.");
+}
+
+// ===== Agnocast-specific methods =====
+
+void NodeTopics::add_remap_rule(const RemapRule & rule)
+{
+  if (rule.type == RemapType::TOPIC_OR_SERVICE) {
+    remap_rules_.push_back(rule);
+  }
+}
+
+// ===== Private methods =====
+
+std::string NodeTopics::resolve_name(const std::string & input_topic_name) const
+{
+  // Corresponds to rcl_resolve_name in rcl/src/rcl/node_resolve_name.c:32-131
+  // Two-step process:
+  // 1. Expand topic name (handle ~, {node}, {ns}, relative/absolute paths)
+  // 2. Apply remapping rules (--ros-args -r old:=new)
+  std::string expanded_topic_name = expand_topic_name(input_topic_name);
+  std::string remapped_topic_name = remap_name(expanded_topic_name);
+  return remapped_topic_name;
+}
+
+std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
+{
+  // Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c:44-219
+  // Handles:
+  // - Private topics: "~foo" -> "/namespace/node_name/foo"
+  // - Substitutions: "{node}" -> node_name, "{ns}" or "{namespace}" -> namespace
+  // - Relative topics: "foo" -> "/namespace/foo"
+  // - Absolute topics: "/foo" -> "/foo" (unchanged)
+
+  if (input_topic_name.empty()) {
+    return input_topic_name;
+  }
+
+  std::string local_output = input_topic_name;
+  std::string node_name = node_base_->get_name();
+  std::string namespace_ = node_base_->get_namespace();
+
+  // Check for substitutions in the topic name
+  bool has_a_substitution = input_topic_name.find('{') != std::string::npos;
+  bool has_a_namespace_tilde = !input_topic_name.empty() && input_topic_name[0] == '~';
+  bool is_absolute = !input_topic_name.empty() && input_topic_name[0] == '/';
+
+  // If absolute and no substitution, return as-is
+  if (is_absolute && !has_a_substitution) {
+    return input_topic_name;
+  }
+
+  // Handle private topic name (starts with '~')
+  // Replace ~ with namespace/node_name
+  if (has_a_namespace_tilde) {
+    if (namespace_.empty() || namespace_ == std::string("/")) {
+      local_output = "/" + node_name + input_topic_name.substr(1);
+    } else {
+      local_output = namespace_ + "/" + node_name + input_topic_name.substr(1);
+    }
+  }
+
+  // Handle substitutions ({node}, {ns}, {namespace})
+  if (has_a_substitution) {
+    size_t pos = 0;
+    while ((pos = local_output.find('{', pos)) != std::string::npos) {
+      size_t end_pos = local_output.find('}', pos);
+      if (end_pos == std::string::npos) {
+        break;  // Malformed substitution
+      }
+
+      std::string substitution = local_output.substr(pos, end_pos - pos + 1);
+      std::string replacement;
+
+      if (substitution == "{node}") {
+        replacement = node_name;
+      } else if (substitution == "{ns}" || substitution == "{namespace}") {
+        replacement = namespace_;
+      }
+      // Unknown substitutions are left as-is
+
+      if (!replacement.empty()) {
+        local_output.replace(pos, substitution.length(), replacement);
+        pos += replacement.length();
+      } else {
+        pos = end_pos + 1;
+      }
+    }
+  }
+
+  // Make relative topic names absolute by prepending namespace
+  if (!local_output.empty() && local_output[0] != '/') {
+    if (namespace_.empty() || namespace_ == std::string("/")) {
+      local_output = "/" + local_output;
+    } else {
+      local_output = namespace_ + "/" + local_output;
+    }
+  }
+
+  return local_output;
+}
+
+std::string NodeTopics::remap_name(const std::string & name) const
+{
+  // Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
+  // RCL expands the match side before comparing
+  // Example: --ros-args -r foo:=/bar will map "foo" -> "/bar"
+
+  std::string node_name = node_base_->get_name();
+
+  for (const auto & rule : remap_rules_) {
+    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
+      continue;
+    }
+
+    // Check node name prefix match (if specified)
+    // If rule has a node_name, it must match the current node's name
+    if (!rule.node_name.empty() && rule.node_name != node_name) {
+      continue;
+    }
+
+    // Expand the match side and compare
+    std::string expanded_match = expand_topic_name(rule.match);
+    if (expanded_match == name) {
+      return rule.replacement;
+    }
+  }
+  return name;
 }
 
 }  // namespace agnocast::node_interfaces

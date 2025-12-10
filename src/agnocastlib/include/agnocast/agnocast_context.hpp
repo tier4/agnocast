@@ -24,19 +24,16 @@ struct RemapRule
 
 class Context
 {
-  struct CommandLineParams
-  {
-    std::string node_name;
-  };
-
 public:
   using ParameterValue = rclcpp::ParameterValue;
-
-  CommandLineParams command_line_params;
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
   std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
+
+  /// Get parameter overrides for a specific node
+  /// Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
+  std::map<std::string, ParameterValue> get_param_overrides(const std::string & node_fqn) const;
 
 private:
   bool parse_param_rule(const std::string & arg);
