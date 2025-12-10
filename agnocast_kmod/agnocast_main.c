@@ -1413,6 +1413,31 @@ int get_subscriber_qos(
   return 0;
 }
 
+int get_publisher_qos(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
+  struct ioctl_get_publisher_qos_args * args)
+{
+  const struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (get_publisher_qos)\n", topic_name);
+    return -EINVAL;
+  }
+
+  const struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    dev_warn(
+      agnocast_device,
+      "Publisher (id=%d) for the topic (topic_name=%s) not found. (get_publisher_qos)\n",
+      publisher_id, topic_name);
+    return -EINVAL;
+  }
+
+  args->ret_depth = pub_info->qos_depth;
+  args->ret_is_transient_local = pub_info->qos_is_transient_local;
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1738,6 +1763,31 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       if (copy_to_user(
             (struct ioctl_get_subscriber_qos_args __user *)arg, &get_sub_qos_args,
             sizeof(get_sub_qos_args)))
+        goto return_EFAULT;
+    }
+  } else if (cmd == AGNOCAST_GET_PUBLISHER_QOS_CMD) {
+    struct ioctl_get_publisher_qos_args get_pub_qos_args;
+    if (copy_from_user(
+          &get_pub_qos_args, (struct ioctl_get_publisher_qos_args __user *)arg,
+          sizeof(get_pub_qos_args)))
+      goto return_EFAULT;
+    if (get_pub_qos_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_pub_qos_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)get_pub_qos_args.topic_name.ptr,
+          get_pub_qos_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[get_pub_qos_args.topic_name.len] = '\0';
+    ret =
+      get_publisher_qos(topic_name_buf, ipc_ns, get_pub_qos_args.publisher_id, &get_pub_qos_args);
+    kfree(topic_name_buf);
+    if (ret == 0) {
+      if (copy_to_user(
+            (struct ioctl_get_publisher_qos_args __user *)arg, &get_pub_qos_args,
+            sizeof(get_pub_qos_args)))
         goto return_EFAULT;
     }
   } else {
