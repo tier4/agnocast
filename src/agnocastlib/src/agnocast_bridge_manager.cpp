@@ -49,6 +49,8 @@ BridgeManager::~BridgeManager()
 
 void BridgeManager::run()
 {
+  constexpr int EVENT_LOOP_TIMEOUT_MS = 1000;
+
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
@@ -65,7 +67,7 @@ void BridgeManager::run()
       break;
     }
 
-    // TODO(yutarokobayashi): Run the loop only once. Wait for 1s to avoid busy looping.
+    event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS);
   }
 }
 
