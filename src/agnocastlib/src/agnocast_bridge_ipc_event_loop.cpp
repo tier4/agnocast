@@ -40,21 +40,18 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
   constexpr int MAX_EVENTS = 10;
   std::array<struct epoll_event, MAX_EVENTS> events{};
 
-  int n = -1;
+  int event_count = -1;
   do {
-    n = epoll_wait(epoll_fd_, events.data(), MAX_EVENTS, timeout_ms);
-  } while (n < 0 && errno == EINTR);
-
-  if (n < 0) {
+    event_count = epoll_wait(epoll_fd_, events.data(), MAX_EVENTS, timeout_ms);
+  } while (event_count < 0 && errno == EINTR);
+  if (event_count < 0) {
     RCLCPP_ERROR(logger_, "epoll_wait failed: %s", strerror(errno));
     return false;
   }
-
-  if (n == 0) {
+  if (event_count == 0) {
     return false;
   }
-
-  for (int i = 0; i < n; ++i) {
+  for (int event_index = 0; event_index < event_count; ++event_index) {
     // TODO(yutarokobayashi): Event  processing (mq, signal)
   }
 
