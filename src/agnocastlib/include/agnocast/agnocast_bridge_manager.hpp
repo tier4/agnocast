@@ -28,7 +28,7 @@ private:
   BridgeIpcEventLoop event_loop_;
   BridgeLoader loader_;
 
-  bool is_parent_alive_{true};
+  bool is_parent_alive_ = true;
   bool shutdown_requested_ = false;
 
   rclcpp::Node::SharedPtr container_node_;

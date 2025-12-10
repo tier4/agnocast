@@ -56,7 +56,7 @@ void BridgeManager::run()
 
   // TODO(yutarokobayashi): Setup event_loop handler.
 
-  while (!shutdown_requested_ && rclcpp::ok()) {
+  while (!shutdown_requested_) {
     check_parent_alive();
     check_active_bridges();
     check_should_exit();
