@@ -67,7 +67,9 @@ void BridgeManager::run()
       break;
     }
 
-    event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS);
+    if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
+      break;
+    }
   }
 }
 

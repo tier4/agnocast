@@ -49,7 +49,7 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
     return false;
   }
   if (event_count == 0) {
-    return false;
+    return true;
   }
   for (int event_index = 0; event_index < event_count; ++event_index) {
     // TODO(yutarokobayashi): Event  processing (mq, signal)
