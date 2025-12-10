@@ -178,6 +178,7 @@ void send_bridge_request(
 
   // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
   // std::string mq_name = create_mq_name_for_bridge_parent(getppid());
+  // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
 }  // namespace agnocast
