@@ -10,8 +10,11 @@ namespace agnocast::node_interfaces
 {
 
 NodeBase::NodeBase(
-  std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
-: node_name_(std::move(node_name)), context_(std::move(context))
+  std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
+  bool enable_topic_statistics_default)
+: node_name_(std::move(node_name)),
+  context_(std::move(context)),
+  enable_topic_statistics_default_(enable_topic_statistics_default)
 {
   // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
@@ -163,8 +166,9 @@ bool NodeBase::get_use_intra_process_default() const
 
 bool NodeBase::get_enable_topic_statistics_default() const
 {
-  // TODO(Koichi98)
-  return false;
+  // Note: Topic statistics collection/publication is not yet implemented in Agnocast.
+  // This value is propagated from NodeOptions but has no effect currently.
+  return enable_topic_statistics_default_;
 }
 
 std::string NodeBase::resolve_topic_or_service_name(
