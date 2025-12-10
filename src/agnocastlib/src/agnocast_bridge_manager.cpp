@@ -118,7 +118,8 @@ void BridgeManager::remove_active_bridges(const std::string & topic_name_with_di
   if (!active_bridges_.count(topic_name_with_dirction)) return;
 
   active_bridges_.erase(topic_name_with_dirction);
-  // TODO(yutarokobayashi): Removed from kernel
+  // TODO(yutarokobayashi): Unregister from the kernel only if the paired bridge in the reverse
+  // direction is also missing.
 }
 
 }  // namespace agnocast
