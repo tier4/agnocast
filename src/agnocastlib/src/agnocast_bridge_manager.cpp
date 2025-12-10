@@ -115,8 +115,10 @@ void BridgeManager::check_should_exit()
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
 {
-  (void)topic_name_with_dirction;  // TODO(yutarokobayashi): Remove
-  // TODO(yutarokobayashi): Removed from active_bridges
+  if (!active_bridges_.count(topic_name_with_dirction)) return;
+
+  active_bridges_.erase(topic_name_with_dirction);
+  // TODO(yutarokobayashi): Removed from kernel
 }
 
 }  // namespace agnocast
