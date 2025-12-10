@@ -8,12 +8,11 @@
 namespace agnocast
 {
 
-#define MAX_PUBLISHER_NUM 4     // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16   // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10        // Maximum QoS depth for each publisher/subscriber
-#define MAX_RELEASE_NUM 3       // Maximum number of entries that can be released at one ioctl
-#define VERSION_BUFFER_LEN 32   // Maximum size of version number represented as a string
-#define MAX_TOPIC_NAME_LEN 256  // Maximum length for a topic name string
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+#define MAX_QOS_DEPTH 10       // Maximum QoS depth for each publisher/subscriber
+#define MAX_RELEASE_NUM 3      // Maximum number of entries that can be released at one ioctl
+#define VERSION_BUFFER_LEN 32  // Maximum size of version number represented as a string
 
 #define MAX_TOPIC_INFO_RET_NUM std::max(MAX_PUBLISHER_NUM, MAX_SUBSCRIBER_NUM)
 
@@ -189,10 +188,12 @@ union ioctl_topic_info_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 struct ioctl_get_subscriber_qos_args
 {
-  char topic_name[MAX_TOPIC_NAME_LEN];
-  topic_local_id_t id;
+  struct name_info topic_name;
+  topic_local_id_t subscriber_id;
 
   struct
   {
@@ -201,6 +202,7 @@ struct ioctl_get_subscriber_qos_args
     bool is_reliable;
   } qos;
 };
+#pragma GCC diagnostic pop
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)

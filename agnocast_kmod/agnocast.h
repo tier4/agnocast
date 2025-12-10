@@ -7,7 +7,6 @@
 #define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
 #define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
-#define MAX_TOPIC_NAME_LEN 256     // Maximum length for a topic name string
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
 
@@ -137,8 +136,8 @@ struct ioctl_get_exit_process_args
 
 struct ioctl_get_subscriber_qos_args
 {
-  char topic_name[MAX_TOPIC_NAME_LEN];
-  topic_local_id_t id;
+  struct name_info topic_name;
+  topic_local_id_t subscriber_id;
 
   struct
   {
