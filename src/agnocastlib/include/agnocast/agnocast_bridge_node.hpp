@@ -121,7 +121,6 @@ public:
     agnocast::SubscriptionOptions agno_opts;
     agno_opts.ignore_local_publications = true;
     agno_opts.callback_group = agno_cb_group_;
-    auto pub_ptr = ros_pub_;
 
     // Subscribe to Agnocast (shared memory).
     // The QoS settings are now passed via argument to inherit the settings
@@ -129,14 +128,12 @@ public:
     agnocast_sub_ = std::make_shared<AgnoSub>(
       parent_node.get(), topic_name, sub_qos,
       [this](const agnocast::ipc_shared_ptr<MessageT> msg) {
-        if (this->ros_pub_->get_subscription_count() > 0) {
-          auto loaned_msg = this->ros_pub_->borrow_loaned_message();
-          if (loaned_msg.is_valid()) {
-            loaned_msg.get() = *msg;
-            this->ros_pub_->publish(std::move(loaned_msg));
-          } else {
-            this->ros_pub_->publish(*msg);
-          }
+        auto loaned_msg = this->ros_pub_->borrow_loaned_message();
+        if (loaned_msg.is_valid()) {
+          loaned_msg.get() = *msg;
+          this->ros_pub_->publish(std::move(loaned_msg));
+        } else {
+          this->ros_pub_->publish(*msg);
         }
       },
       agno_opts);
