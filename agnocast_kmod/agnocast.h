@@ -138,13 +138,12 @@ struct ioctl_get_subscriber_qos_args
 {
   struct name_info topic_name;
   topic_local_id_t subscriber_id;
-
   struct
   {
     uint32_t depth;
     bool is_transient_local;
     bool is_reliable;
-  } qos;
+  };
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
