@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/node_interfaces/node_base.hpp"
+#include "agnocast/node_interfaces/node_topics.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -8,49 +10,44 @@
 namespace agnocast
 {
 
-inline std::string query_node_name()
-{
-  std::string node_name;
-  {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    node_name = g_context.command_line_params.node_name;
-  }
-  return node_name;
-}
-
 class Node
 {
-  std::string node_name_;
-  rclcpp::Logger logger_;
-  rclcpp::CallbackGroup::SharedPtr default_callback_group_;
-
 public:
   using SharedPtr = std::shared_ptr<Node>;
 
-  Node() : node_name_(query_node_name()), logger_(rclcpp::get_logger(node_name_))
-  {
-    default_callback_group_ =
-      std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
-  }
+  explicit Node(
+    const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
+  explicit Node(
+    const std::string & node_name, const std::string & namespace_,
+    const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+
+  std::string get_name() const { return node_base_->get_name(); }
   rclcpp::Logger get_logger() const { return logger_; }
+  std::string get_namespace() const { return node_base_->get_namespace(); }
+  std::string get_fully_qualified_name() const { return node_base_->get_fully_qualified_name(); }
 
-  std::string get_name() const { return node_name_; }
-
-  // TODO(sykwer): Implement get_fully_qualified_name with valid logic, similar to rclcpp::Node.
-  const char * get_fully_qualified_name() const { return node_name_.c_str(); }
-
-  rclcpp::CallbackGroup::SharedPtr get_default_callback_group() const
+  rclcpp::CallbackGroup::SharedPtr get_default_callback_group()
   {
-    return default_callback_group_;
+    return node_base_->get_default_callback_group();
   }
 
-  // cppcheck-suppress functionStatic
-  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group) const
+  rclcpp::CallbackGroup::SharedPtr create_callback_group(
+    rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
   {
-    (void)callback_group;
-    // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
-    return true;
+    return node_base_->create_callback_group(group_type, automatically_add_to_executor_with_node);
+  }
+
+  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group)
+  {
+    return node_base_->callback_group_in_node(callback_group);
+  }
+
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_node_base_interface()
+  {
+    return node_base_;
   }
 
   template <typename MessageT, typename Func>
@@ -62,6 +59,15 @@ public:
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), std::forward<Func>(callback),
       options);
   }
+
+private:
+  void initialize_node(
+    const std::string & node_name, const std::string & ns,
+    rclcpp::Context::SharedPtr context = nullptr);
+
+  rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
+  node_interfaces::NodeBase::SharedPtr node_base_;
+  node_interfaces::NodeTopics::SharedPtr node_topics_;
 };
 
 }  // namespace agnocast

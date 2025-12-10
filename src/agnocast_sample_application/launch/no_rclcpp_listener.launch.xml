@@ -1,5 +1,13 @@
 <launch>
-    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen">
+    <arg name="use_remap" default="false" />
+
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(eval 'not $(var use_remap)')">
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+    </node>
+
+    <!-- check node_name remap -->
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(var use_remap)">
+        <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <remap from="__node" to="no_rclcpp_listener_remapped" />
     </node>
 </launch>
