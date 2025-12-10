@@ -147,6 +147,7 @@ inline rclcpp::QoS get_subscriber_qos(const char * topic_name, topic_local_id_t 
   args.id = id;
 
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_QOS_CMD, &args) < 0) {
+    //  In the future, This exception will be caught by BridgeLoader::create_bridge_instance
     throw std::runtime_error("Failed to fetch subscriber QoS from agnocast kernel module");
   }
   return rclcpp::QoS(args.ret_depth)
@@ -165,6 +166,7 @@ inline rclcpp::QoS get_publisher_qos(const char * topic_name, topic_local_id_t i
   args.id = id;
 
   if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_QOS_CMD, &args) < 0) {
+    //  In the future, This exception will be caught by BridgeLoader::create_bridge_instance.
     throw std::runtime_error("Failed to fetch publisher QoS from agnocast kernel module");
   }
 
