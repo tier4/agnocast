@@ -1427,7 +1427,7 @@ int get_publisher_qos(
   if (!pub_info) {
     dev_warn(
       agnocast_device,
-      "publisher (id=%d) for the topic (topic_name=%s) not found. (get_publisher_qos)\n",
+      "Publisher (id=%d) for the topic (topic_name=%s) not found. (get_publisher_qos)\n",
       publisher_id, topic_name);
     return -EINVAL;
   }
