@@ -192,8 +192,11 @@ union ioctl_topic_info_args {
 #pragma GCC diagnostic ignored "-Wpedantic"
 struct ioctl_get_subscriber_qos_args
 {
-  struct name_info topic_name;
-  topic_local_id_t subscriber_id;
+  struct
+  {
+    struct name_info topic_name;
+    topic_local_id_t subscriber_id;
+  };
   struct
   {
     uint32_t depth;
