@@ -1386,7 +1386,7 @@ static int get_topic_publisher_info(
   return 0;
 }
 
-static int get_subscriber_qos(
+int get_subscriber_qos(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, struct ioctl_get_subscriber_qos_args * args)
 {
