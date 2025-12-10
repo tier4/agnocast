@@ -118,7 +118,9 @@ void BridgeManager::check_should_exit()
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
 {
-  if (!active_bridges_.count(topic_name_with_dirction)) return;
+  if (active_bridges_.count(topic_name_with_dirction) == 0) {
+    return;
+  }
 
   active_bridges_.erase(topic_name_with_dirction);
   // TODO(yutarokobayashi): Unregister from the kernel only if the paired bridge in the reverse
