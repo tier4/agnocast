@@ -12,14 +12,7 @@ namespace agnocast
 static constexpr size_t DEFAULT_QOS_DEPTH = 10;
 
 template <typename MessageT>
-void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
-{
-  (void)topic_name;  // TODO(yutarokobayashi): Remove
-  (void)id;          // TODO(yutarokobayashi): Remove
-  (void)dir;         // TODO(yutarokobayashi): Remove
-  // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
-  // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
-}
+void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir);
 
 // Policy for agnocast::Subscription.
 // Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
@@ -145,5 +138,37 @@ public:
       agno_opts);
   }
 };
+
+template <typename MessageT>
+std::shared_ptr<void> start_ros_to_agno_node(
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+{
+  // TODO(yutarokobayashi): Implementation of get_subscriber_qos
+  return std::make_shared<RosToAgnocastBridge<MessageT>>(node, info.topic_name, rclcpp::QoS(10));
+}
+
+template <typename MessageT>
+std::shared_ptr<void> start_agno_to_ros_node(
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+{
+  // TODO(yutarokobayashi): Implementation of get_publisher_qos
+  return std::make_shared<AgnocastToRosBridge<MessageT>>(node, info.topic_name, rclcpp::QoS(10));
+}
+
+template <typename MessageT>
+void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
+{
+  (void)topic_name;  // TODO(yutarokobayashi): Remove
+  (void)id;          // TODO(yutarokobayashi): Remove
+  (void)dir;         // TODO(yutarokobayashi): Remove
+
+  auto fn_current = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_ros_to_agno_node<MessageT>
+                                                               : &start_agno_to_ros_node<MessageT>;
+  auto fn_reverse = (dir == BridgeDirection::ROS2_TO_AGNOCAST) ? &start_agno_to_ros_node<MessageT>
+                                                               : &start_ros_to_agno_node<MessageT>;
+
+  // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
+  // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
+}
 
 }  // namespace agnocast
