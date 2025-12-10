@@ -1,5 +1,6 @@
 #include "agnocast/agnocast.hpp"
 
+#include "agnocast/agnocast_bridge_manager.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -67,6 +68,24 @@ void poll_for_unlink()
     }
   }
 
+  exit(0);
+}
+
+void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  try {
+    BridgeManager manager(target_pid);
+    manager.run();
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
+    exit(EXIT_FAILURE);
+  }
   exit(0);
 }
 
@@ -254,6 +273,21 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+template <typename Func>
+void spawn_daemon_process(Func && func)
+{
+  pid_t pid = fork();
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+  if (pid == 0) {
+    func();
+    exit(0);
+  }
+}
+
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 struct initialize_agnocast_result initialize_agnocast(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
@@ -294,18 +328,13 @@ struct initialize_agnocast_result initialize_agnocast(
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-      poll_for_unlink();
-    }
+    spawn_daemon_process([]() { poll_for_unlink(); });
   }
+
+  // pid_t parent_pid = getpid();
+  // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+  // implementation is complete.
+  // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
