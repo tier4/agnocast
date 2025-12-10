@@ -26,8 +26,7 @@ public:
   {
     RCLCPP_INFO(get_logger(), "NoRclcppPubSub node (name=%s) started.", get_name().c_str());
 
-    auto group =
-      std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
+    auto group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions agnocast_options;
     agnocast_options.callback_group = group;
 

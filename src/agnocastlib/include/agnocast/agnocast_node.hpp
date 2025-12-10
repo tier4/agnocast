@@ -1,6 +1,7 @@
 #pragma once
 
 #include "agnocast/agnocast_context.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
 #include "agnocast/node_interfaces/node_parameters.hpp"
