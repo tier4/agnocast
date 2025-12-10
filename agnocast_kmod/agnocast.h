@@ -143,9 +143,9 @@ struct ioctl_get_subscriber_qos_args
   };
   struct
   {
-    uint32_t depth;
-    bool is_transient_local;
-    bool is_reliable;
+    uint32_t ret_depth;
+    bool ret_is_transient_local;
+    bool ret_is_reliable;
   };
 };
 

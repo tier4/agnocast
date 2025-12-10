@@ -1406,9 +1406,9 @@ static int get_subscriber_qos(
     return -EINVAL;
   }
 
-  args->depth = sub_info->qos_depth;
-  args->is_transient_local = sub_info->qos_is_transient_local;
-  args->is_reliable = sub_info->qos_is_reliable;
+  args->ret_depth = sub_info->qos_depth;
+  args->ret_is_transient_local = sub_info->qos_is_transient_local;
+  args->ret_is_reliable = sub_info->qos_is_reliable;
 
   return 0;
 }
