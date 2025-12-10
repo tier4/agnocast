@@ -188,6 +188,24 @@ union ioctl_topic_info_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+struct ioctl_get_subscriber_qos_args
+{
+  struct
+  {
+    struct name_info topic_name;
+    topic_local_id_t subscriber_id;
+  };
+  struct
+  {
+    uint32_t ret_depth;
+    bool ret_is_transient_local;
+    bool ret_is_reliable;
+  };
+};
+#pragma GCC diagnostic pop
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -199,6 +217,7 @@ union ioctl_topic_info_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_GET_SUBSCRIBER_QOS_CMD _IOWR(0xA6, 12, struct ioctl_get_subscriber_qos_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast
