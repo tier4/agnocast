@@ -9,13 +9,15 @@ namespace agnocast
 
 {
 
+static constexpr size_t DEFAULT_QOS_DEPTH = 10;
+
 template <typename MessageT>
 void send_bridge_request(const std::string & topic_name, topic_local_id_t id, BridgeDirection dir)
 {
-  (void)topic_name;  // TODO: Remove
-  (void)id;          // TODO: Remove
-  (void)dir;         // TODO: Remove
-  // TODO: Implement the actual message queue communication to request a bridge.
+  (void)topic_name;  // TODO(yutarokobayashi): Remove
+  (void)id;          // TODO(yutarokobayashi): Remove
+  (void)dir;         // TODO(yutarokobayashi): Remove
+  // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
   // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
 }
 
@@ -47,7 +49,7 @@ struct AgnocastToRosRequestPolicy
 struct NoBridgeRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string &, const rclcpp::QoS &)
+  static void request_bridge(const std::string & /*unused*/, const rclcpp::QoS & /*unused*/)
   {
     // Do nothing
   }
@@ -63,14 +65,14 @@ class RosToAgnocastBridge
 
 public:
   explicit RosToAgnocastBridge(
-    rclcpp::Node::SharedPtr parent_node, const std::string & topic_name,
+    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name,
     const rclcpp::QoS & sub_qos)
   {
     // Agnocast relies on shared memory, so network reliability concepts do not apply.
     // TransientLocal is hardcoded here as a catch-all configuration that supports
     // any subscriber requirement (volatile or durable) by preserving data.
     agnocast_pub_ = std::make_shared<AgnoPub>(
-      parent_node.get(), topic_name, rclcpp::QoS(10).transient_local(),
+      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(),
       agnocast::PublisherOptions{});
     ros_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -85,12 +87,62 @@ public:
     // to the ROS side to ensure the bridge satisfies the downstream requirements.
     ros_sub_ = parent_node->create_subscription<MessageT>(
       topic_name, sub_qos,
-      [pub_ptr](const typename MessageT::ConstSharedPtr msg) {
-        auto loaned_msg = pub_ptr->borrow_loaned_message();
+      [this](const typename MessageT::ConstSharedPtr msg) {
+        auto loaned_msg = this->agnocast_pub_->borrow_loaned_message();
         *loaned_msg = *msg;
-        pub_ptr->publish(std::move(loaned_msg));
+        this->agnocast_pub_->publish(std::move(loaned_msg));
       },
       ros_opts);
+  }
+};
+
+// We should document that things don't work well when Agnocast publishers have a mix of transient
+// local and volatile durability settings. If we ever face a requirement to support topics with
+// such mixed durability settings, we could achieve this by creating Agnocast subscribers with
+// transient local, and making an exception so that only Agnocast subscribers used for the bridge
+// feature can also receive from volatile Agnocast publishers. (This isn't very clean, so we'd
+// prefer to avoid it if possible.)
+template <typename MessageT>
+class AgnocastToRosBridge
+{
+  using AgnoSub = agnocast::BasicSubscription<MessageT, NoBridgeRequestPolicy>;
+  typename rclcpp::Publisher<MessageT>::SharedPtr ros_pub_;
+  typename AgnoSub::SharedPtr agnocast_sub_;
+  rclcpp::CallbackGroup::SharedPtr agno_cb_group_;
+
+public:
+  explicit AgnocastToRosBridge(
+    const rclcpp::Node::SharedPtr & parent_node, const std::string & topic_name,
+    const rclcpp::QoS & sub_qos)
+  {
+    // ROS Publisher configuration acts as a source for downstream ROS nodes.
+    // We use Reliable and TransientLocal as a "catch-all" configuration.
+    // This ensures that this bridge can serve both Volatile and Durable (TransientLocal)
+    // ROS subscribers without connectivity issues.
+    ros_pub_ = parent_node->create_publisher<MessageT>(
+      topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).reliable().transient_local());
+    agno_cb_group_ =
+      parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
+    agnocast::SubscriptionOptions agno_opts;
+    agno_opts.ignore_local_publications = true;
+    agno_opts.callback_group = agno_cb_group_;
+
+    // Subscribe to Agnocast (shared memory).
+    // The QoS settings are now passed via argument to inherit the settings
+    // from the corresponding Agnocast publisher (e.g. Reliable or BestEffort).
+    agnocast_sub_ = std::make_shared<AgnoSub>(
+      parent_node.get(), topic_name, sub_qos,
+      [this](const agnocast::ipc_shared_ptr<MessageT> msg) {
+        auto loaned_msg = this->ros_pub_->borrow_loaned_message();
+        if (loaned_msg.is_valid()) {
+          loaned_msg.get() = *msg;
+          this->ros_pub_->publish(std::move(loaned_msg));
+        } else {
+          this->ros_pub_->publish(*msg);
+        }
+      },
+      agno_opts);
   }
 };
 
