@@ -35,6 +35,13 @@ BridgeManager::BridgeManager(pid_t target_pid)
 
 BridgeManager::~BridgeManager()
 {
+  if (executor_) {
+    executor_->cancel();
+  }
+  if (executor_thread_.joinable()) {
+    executor_thread_.join();
+  }
+
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
