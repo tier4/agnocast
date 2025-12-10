@@ -263,6 +263,10 @@ int get_subscriber_num(
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
+int get_subscriber_qos(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, struct ioctl_get_subscriber_qos_args * args);
+
 void process_exit_cleanup(const pid_t pid);
 
 void enqueue_exit_pid(const pid_t pid);
