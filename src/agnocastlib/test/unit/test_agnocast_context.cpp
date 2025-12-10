@@ -2,10 +2,6 @@
 
 #include <gtest/gtest.h>
 
-class ParseParameterValueTest : public ::testing::Test
-{
-};
-
 TEST_F(ParseParameterValueTest, parse_integer)
 {
   auto result = agnocast::Context::parse_parameter_value("123");
