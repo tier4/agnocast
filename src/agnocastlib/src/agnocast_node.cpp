@@ -23,7 +23,10 @@ void Node::initialize_node(
   node_base_ = std::make_shared<node_interfaces::NodeBase>(node_name, ns, std::move(context));
   logger_ = rclcpp::get_logger(node_base_->get_name());
 
-  // TODO(Koichi98): Initialization of NodeTopicsInterface, NodeParametersInterface, etc.
+  node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
+
+  // TODO(Koichi98): Initialization of NodeParametersInterface, apply parameter overrides from
+  // agnocast::Context.
 }
 
 }  // namespace agnocast

@@ -3,7 +3,6 @@
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/contexts/default_context.hpp"
 
-#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -21,7 +20,31 @@ NodeBase::NodeBase(
     namespace_ = ns;
   }
 
-  // TODO(Koichi98): Apply node name and namespace remapping from agnocast::Context
+  // Apply node name and namespace remapping from agnocast::Context.
+  // Following rclcpp's "first-wins" behavior: only the first matching rule of each type is applied.
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
+      auto global_rules = g_context.get_remap_rules();
+
+      auto node_name_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
+      if (node_name_it != global_rules.end()) {
+        node_name_ = node_name_it->replacement;
+      }
+
+      auto namespace_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
+      if (namespace_it != global_rules.end()) {
+        namespace_ = namespace_it->replacement;
+        if (!namespace_.empty() && namespace_[0] != '/') {
+          namespace_ = "/" + namespace_;
+        }
+      }
+    }
+  }
 
   if (namespace_.empty() || namespace_ == "/") {
     fqn_ = "/" + node_name_;
@@ -85,10 +108,12 @@ std::shared_ptr<const rcl_node_t> NodeBase::get_shared_rcl_node_handle() const
 rclcpp::CallbackGroup::SharedPtr NodeBase::create_callback_group(
   rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node)
 {
-  (void)group_type;
-  (void)automatically_add_to_executor_with_node;
-  // TODO(Koichi98)
-  return nullptr;
+  auto group =
+    std::make_shared<rclcpp::CallbackGroup>(group_type, automatically_add_to_executor_with_node);
+
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  callback_groups_.push_back(group);
+  return group;
 }
 
 rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
@@ -98,16 +123,26 @@ rclcpp::CallbackGroup::SharedPtr NodeBase::get_default_callback_group()
 
 bool NodeBase::callback_group_in_node(rclcpp::CallbackGroup::SharedPtr group)
 {
-  (void)group;
-  // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
-
-  return true;
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  // NOLINTNEXTLINE(readability-use-anyofallof) - align with rclcpp::node_interfaces::NodeBase
+  for (auto & weak_group : callback_groups_) {
+    auto cur_group = weak_group.lock();
+    if (cur_group && (cur_group == group)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void NodeBase::for_each_callback_group(const CallbackGroupFunction & func)
 {
-  (void)func;
-  // TODO(Koichi98)
+  std::lock_guard<std::mutex> lock(callback_groups_mutex_);
+  for (auto & weak_group : callback_groups_) {
+    auto group = weak_group.lock();
+    if (group) {
+      func(group);
+    }
+  }
 }
 
 std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
