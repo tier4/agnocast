@@ -42,6 +42,8 @@ private:
   void check_parent_alive();
   void check_active_bridges();
   void check_should_exit();
+
+  void remove_active_bridges(const std::string & topic_name_with_dirction);
 };
 
 }  // namespace agnocast

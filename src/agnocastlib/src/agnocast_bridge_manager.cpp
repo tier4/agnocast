@@ -99,7 +99,8 @@ void BridgeManager::check_parent_alive()
 
 void BridgeManager::check_active_bridges()
 {
-  // TODO(yutarokobayashi): Verifying the number of connections and dynamic bridge removal
+  // TODO(yutarokobayashi): Verifying the number of connections and get remove bridge name
+  remove_active_bridges("TOPIC_R2A");
 }
 
 void BridgeManager::check_should_exit()
@@ -110,6 +111,12 @@ void BridgeManager::check_should_exit()
       executor_->cancel();
     }
   }
+}
+
+void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
+{
+  (void)topic_name_with_dirction;  // TODO(yutarokobayashi): Remove
+  // TODO(yutarokobayashi): Removed from active_bridges
 }
 
 }  // namespace agnocast
