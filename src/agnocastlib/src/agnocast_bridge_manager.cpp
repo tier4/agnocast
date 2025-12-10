@@ -103,6 +103,9 @@ void BridgeManager::check_active_bridges()
   remove_active_bridges("TOPIC_R2A");
 }
 
+// TODO(yutarokobayashi): Reconsider the exit logic.
+// This implementation should be revisited and finalized after fully understanding the overall
+// shutdown sequence.
 void BridgeManager::check_should_exit()
 {
   if (!is_parent_alive_ && active_bridges_.empty()) {
