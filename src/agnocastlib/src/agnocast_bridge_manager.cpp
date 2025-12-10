@@ -8,8 +8,6 @@
 #include <stdexcept>
 #include <string>
 
-extern "C" bool init_child_allocator();
-
 namespace agnocast
 {
 
@@ -33,26 +31,27 @@ BridgeManager::BridgeManager(pid_t target_pid)
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
-  void * handle = dlopen(NULL, RTLD_NOW);
-  if (!handle) {
+  void * handle = dlopen(nullptr, RTLD_NOW);
+  if (handle == nullptr) {
     RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not open symbol table.");
     exit(EXIT_FAILURE);
   }
 
-  auto init_child_allocator = reinterpret_cast<bool (*)()>(dlsym(handle, "init_child_allocator"));
+  auto init_child_allocator_ptr =
+    reinterpret_cast<bool (*)()>(dlsym(handle, "init_child_allocator"));
 
   const char * dlsym_error = dlerror();
-  if (dlsym_error || !init_child_allocator) {
+  if ((dlsym_error != nullptr) || (init_child_allocator_ptr == nullptr)) {
     RCLCPP_ERROR(
       logger_,
       "[Bridge] Heaphook init failed: Symbol 'init_child_allocator' not found. "
       "Error: %s. Make sure libagnocast_heaphook.so is loaded via LD_PRELOAD.",
       dlsym_error ? dlsym_error : "Symbol is null");
     dlclose(handle);
-    throw std::runtime_error("Heaphook symbol lookup failed");
+    exit(EXIT_FAILURE);
   }
 
-  if (!init_child_allocator()) {
+  if (!init_child_allocator_ptr()) {
     RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not attach to shared memory pool.");
     dlclose(handle);
     exit(EXIT_FAILURE);
