@@ -62,11 +62,15 @@ void test_case_qos_transient_reliable(struct kunit * test)
 
 void test_case_error_topic_not_found(struct kunit * test)
 {
-  setup_process(test, SUBSCRIBER_PID);
   struct ioctl_get_subscriber_qos_args get_qos_args;
-  topic_local_id_t dummy_id = 0;
+  topic_local_id_t dummy_id;
+  int ret;
 
-  int ret =
+  setup_process(test, SUBSCRIBER_PID);
+
+  dummy_id = 0;
+
+  ret =
     get_subscriber_qos("/non_existent_topic", current->nsproxy->ipc_ns, dummy_id, &get_qos_args);
 
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -77,14 +81,16 @@ void test_case_error_subscriber_not_found(struct kunit * test)
   setup_process(test, SUBSCRIBER_PID);
   union ioctl_add_subscriber_args add_sub_args;
   struct ioctl_get_subscriber_qos_args get_qos_args;
+  int ret;
 
-  add_subscriber(
+  ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, SUBSCRIBER_PID, QOS_DEPTH, false, false, false,
     false, &add_sub_args);
+  KUNIT_ASSERT_EQ(test, ret, 0);
 
   topic_local_id_t invalid_id = add_sub_args.ret_id + 999;
 
-  int ret = get_subscriber_qos(TOPIC_NAME, current->nsproxy->ipc_ns, invalid_id, &get_qos_args);
+  ret = get_subscriber_qos(TOPIC_NAME, current->nsproxy->ipc_ns, invalid_id, &get_qos_args);
 
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
