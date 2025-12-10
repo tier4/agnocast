@@ -28,11 +28,22 @@ private:
   BridgeIpcEventLoop event_loop_;
   BridgeLoader loader_;
 
+  bool is_parent_alive_ = true;
+  bool shutdown_requested_ = false;
+
   rclcpp::Node::SharedPtr container_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::thread executor_thread_;
 
+  std::map<std::string, std::shared_ptr<void>> active_bridges_;
+
   void start_ros_execution();
+
+  void check_parent_alive();
+  void check_active_bridges();
+  void check_should_exit();
+
+  void remove_active_bridges(const std::string & topic_name_with_dirction);
 };
 
 }  // namespace agnocast
