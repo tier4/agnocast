@@ -60,7 +60,16 @@ TEST_F(ParseParameterValueTest, parse_empty_string)
 
 TEST_F(ParseParameterValueTest, parse_array_as_string)
 {
+  // Array syntax is not supported and treated as a plain string
   auto result = agnocast::Context::parse_parameter_value("[1,2,3]");
   EXPECT_EQ(result.get_type(), rclcpp::ParameterType::PARAMETER_STRING);
   EXPECT_EQ(result.get<std::string>(), "[1,2,3]");
+}
+
+TEST_F(ParseParameterValueTest, parse_node_prefix_as_string)
+{
+  // Node prefix syntax is not supported and treated as a plain string
+  auto result = agnocast::Context::parse_parameter_value("/my_node:foo");
+  EXPECT_EQ(result.get_type(), rclcpp::ParameterType::PARAMETER_STRING);
+  EXPECT_EQ(result.get<std::string>(), "/my_node:foo");
 }
