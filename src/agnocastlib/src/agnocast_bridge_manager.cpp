@@ -47,14 +47,24 @@ BridgeManager::~BridgeManager()
   }
 }
 
-void BridgeManager::run()  // NOLINT(readability-convert-member-functions-to-static)
+void BridgeManager::run()
 {
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
   start_ros_execution();
 
-  // TODO(yutarokobayashi): event_loop_;
+  // TODO(yutarokobayashi): Setup event_loop handler.
+
+  while (!shutdown_requested_ && rclcpp::ok()) {
+    check_parent_alive();
+    check_active_bridges();
+    check_should_exit();
+
+    if (shutdown_requested_) break;
+
+    // TODO(yutarokobayashi): Run the loop only once.
+  }
 }
 
 void BridgeManager::start_ros_execution()
@@ -72,6 +82,29 @@ void BridgeManager::start_ros_execution()
       RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
     }
   });
+}
+
+void BridgeManager::check_parent_alive()
+{
+  if (!is_parent_alive_) return;
+  if (kill(target_pid_, 0) != 0) {
+    is_parent_alive_ = false;
+    // TODO(yutarokobayashi): close parent mq
+    check_should_exit();
+  }
+}
+
+void BridgeManager::check_active_bridges()
+{
+  // TODO(yutarokobayashi): Verifying the number of connections and dynamic bridge removal
+}
+
+void BridgeManager::check_should_exit()
+{
+  if (!is_parent_alive_ && active_bridges_.empty()) {
+    shutdown_requested_ = true;
+    if (executor_) executor_->cancel();
+  }
 }
 
 }  // namespace agnocast
