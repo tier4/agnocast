@@ -1390,14 +1390,14 @@ static int get_subscriber_qos(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, struct ioctl_get_subscriber_qos_args * args)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  const struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(
       agnocast_device, "Topic (topic_name=%s) not found. (get_subscriber_qos)\n", topic_name);
     return -EINVAL;
   }
 
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
       agnocast_device,
