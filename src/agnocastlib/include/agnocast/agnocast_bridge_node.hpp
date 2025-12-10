@@ -140,20 +140,60 @@ public:
   }
 };
 
+inline rclcpp::QoS get_subscriber_qos(const char * topic_name, topic_local_id_t id)
+{
+  struct ioctl_get_subscriber_qos_args args = {};
+  snprintf(args.topic_name, TOPIC_NAME_BUFFER_SIZE, "%s", topic_name);
+  args.id = id;
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_QOS_CMD, &args) < 0) {
+    RCLCPP_WARN(
+      rclcpp::get_logger("agnocast_bridge"), "Failed to fetch QoS for '%s' (ID:%d). Using default.",
+      topic_name, id);
+    return rclcpp::QoS(10);
+  }
+  return rclcpp::QoS(args.ret_depth)
+    .durability(
+      args.ret_is_transient_local ? rclcpp::DurabilityPolicy::TransientLocal
+                                  : rclcpp::DurabilityPolicy::Volatile)
+    .reliability(
+      args.ret_is_reliable ? rclcpp::ReliabilityPolicy::Reliable
+                           : rclcpp::ReliabilityPolicy::BestEffort);
+}
+
+inline rclcpp::QoS get_publisher_qos(const char * topic_name, topic_local_id_t id)
+{
+  struct ioctl_get_publisher_qos_args args = {};
+  snprintf(args.topic_name, TOPIC_NAME_BUFFER_SIZE, "%s", topic_name);
+  args.id = id;
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_QOS_CMD, &args) < 0) {
+    RCLCPP_WARN(
+      rclcpp::get_logger("agnocast_bridge"), "Failed to fetch QoS for '%s' (ID:%d). Using default.",
+      topic_name, id);
+    return rclcpp::QoS(10);
+  }
+
+  return rclcpp::QoS(args.ret_depth)
+    .durability(
+      args.ret_is_transient_local ? rclcpp::DurabilityPolicy::TransientLocal
+                                  : rclcpp::DurabilityPolicy::Volatile);
+}
+
 template <typename MessageT>
 std::shared_ptr<void> start_ros_to_agno_node(
   rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
 {
-  // TODO(yutarokobayashi): Implementation of get_subscriber_qos
-  return std::make_shared<RosToAgnocastBridge<MessageT>>(node, info.topic_name, rclcpp::QoS(10));
+  return std::make_shared<RosToAgnocastBridge<MessageT>>(
+    node, info.topic_name, get_subscriber_qos(info.topic_name, info.target_id));
 }
 
 template <typename MessageT>
 std::shared_ptr<void> start_agno_to_ros_node(
   rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
 {
-  // TODO(yutarokobayashi): Implementation of get_publisher_qos
-  return std::make_shared<AgnocastToRosBridge<MessageT>>(node, info.topic_name, rclcpp::QoS(10));
+  return std::make_shared<AgnocastToRosBridge<MessageT>>(
+    node, info.topic_name, get_publisher_qos(info.topic_name, info.target_id));
 }
 
 template <typename MessageT>
