@@ -185,6 +185,8 @@ private:
     const std::string & node_name, const std::string & ns,
     rclcpp::Context::SharedPtr context = nullptr);
 
+  void apply_remap_rules_from_arguments(const std::vector<std::string> & arguments);
+
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;

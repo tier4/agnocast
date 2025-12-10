@@ -13,6 +13,9 @@ Node::Node(const std::string & node_name, const rclcpp::NodeOptions & options)
   for (const auto & param : options.parameter_overrides()) {
     node_parameters_->add_parameter_override(param.get_name(), param.get_parameter_value());
   }
+
+  // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
+  apply_remap_rules_from_arguments(options.arguments());
 }
 
 Node::Node(
@@ -25,6 +28,9 @@ Node::Node(
   for (const auto & param : options.parameter_overrides()) {
     node_parameters_->add_parameter_override(param.get_name(), param.get_parameter_value());
   }
+
+  // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
+  apply_remap_rules_from_arguments(options.arguments());
 }
 
 void Node::initialize_node(
@@ -84,6 +90,47 @@ const Node::ParameterValue & Node::declare_parameter(
   rcl_descriptor.read_only = descriptor.read_only;
 
   return node_parameters_->declare_parameter(name, default_value, rcl_descriptor, ignore_override);
+}
+
+void Node::apply_remap_rules_from_arguments(const std::vector<std::string> & arguments)
+{
+  // Parse remap rules from NodeOptions::arguments()
+  // Format: --ros-args -r from:=to -r from2:=to2 ...
+  bool parsing_ros_args = false;
+  for (size_t i = 0; i < arguments.size(); ++i) {
+    const std::string & arg = arguments[i];
+
+    if (arg == "--ros-args") {
+      parsing_ros_args = true;
+      continue;
+    }
+
+    if (arg == "--") {
+      parsing_ros_args = false;
+      continue;
+    }
+
+    if (parsing_ros_args && (arg == "-r" || arg == "--remap") && i + 1 < arguments.size()) {
+      ++i;
+      const std::string & remap_arg = arguments[i];
+
+      // Parse remap rule: from:=to
+      size_t separator = remap_arg.find(":=");
+      if (separator == std::string::npos) {
+        continue;
+      }
+
+      std::string from = remap_arg.substr(0, separator);
+      std::string to = remap_arg.substr(separator + 2);
+
+      RemapRule rule;
+      rule.type = RemapType::TOPIC_OR_SERVICE;
+      rule.match = from;
+      rule.replacement = to;
+
+      node_topics_->add_remap_rule(rule);
+    }
+  }
 }
 
 }  // namespace agnocast
