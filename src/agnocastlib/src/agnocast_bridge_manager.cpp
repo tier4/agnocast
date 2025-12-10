@@ -1,5 +1,6 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
+#include <dlfcn.h>
 #include <sys/prctl.h>
 #include <unistd.h>
 
@@ -32,10 +33,32 @@ BridgeManager::BridgeManager(pid_t target_pid)
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
-  if (!init_child_allocator()) {
-    RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not attach to shared memory pool.");
+  void * handle = dlopen(NULL, RTLD_NOW);
+  if (!handle) {
+    RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not open symbol table.");
     exit(EXIT_FAILURE);
   }
+
+  auto init_child_allocator = reinterpret_cast<bool (*)()>(dlsym(handle, "init_child_allocator"));
+
+  const char * dlsym_error = dlerror();
+  if (dlsym_error || !init_child_allocator) {
+    RCLCPP_ERROR(
+      logger_,
+      "[Bridge] Heaphook init failed: Symbol 'init_child_allocator' not found. "
+      "Error: %s. Make sure libagnocast_heaphook.so is loaded via LD_PRELOAD.",
+      dlsym_error ? dlsym_error : "Symbol is null");
+    dlclose(handle);
+    throw std::runtime_error("Heaphook symbol lookup failed");
+  }
+
+  if (!init_child_allocator()) {
+    RCLCPP_ERROR(logger_, "[Bridge] Heaphook init failed: Could not attach to shared memory pool.");
+    dlclose(handle);
+    exit(EXIT_FAILURE);
+  }
+
+  dlclose(handle);
 }
 
 BridgeManager::~BridgeManager()
