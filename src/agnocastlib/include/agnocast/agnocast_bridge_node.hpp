@@ -160,7 +160,6 @@ template <typename MessageT>
 void send_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
 {
-  MqMsgBridge msg = {};
   (void)topic_name;  // TODO(yutarokobayashi): Remove
   (void)id;          // TODO(yutarokobayashi): Remove
 
@@ -178,14 +177,7 @@ void send_bridge_request(
   (void)fn_reverse;  // TODO(yutarokobayashi): Remove
 
   // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
-
-  if (mqd_t mq = mq_open(create_mq_name_for_bridge_parent(getpid()).c_str(), O_WRONLY);
-      mq != (mqd_t)-1) {
-    if (mq_send(mq, (const char *)&msg, sizeof(msg), 0) < 0)
-      RCLCPP_ERROR(
-        rclcpp::get_logger("agnocast_bridge_requester"), "mq_send failed: %s", strerror(errno));
-    mq_close(mq);
-  }
+  // std::string mq_name = create_mq_name_for_bridge_parent(getppid());
 }
 
 }  // namespace agnocast
