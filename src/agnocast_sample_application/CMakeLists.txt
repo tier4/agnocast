@@ -42,6 +42,16 @@ target_include_directories(no_rclcpp_listener PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_library(no_rclcpp_listener_component SHARED src/no_rclcpp_composable_subscriber.cpp)
+ament_target_dependencies(no_rclcpp_listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
+
+rclcpp_components_register_node(
+  no_rclcpp_listener_component
+  PLUGIN "NoRclcppComposableSubscriber"
+  EXECUTABLE no_rclcpp_composable_listener
+)
+
 add_executable(client src/minimal_client.cpp)
 ament_target_dependencies(client rclcpp agnocastlib agnocast_sample_interfaces)
 target_include_directories(client PRIVATE
@@ -75,6 +85,14 @@ install(TARGETS listener_component
 ament_export_targets(export_cie_listener_component)
 install(TARGETS cie_listener_component
         EXPORT export_cie_listener_component
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+)
+
+ament_export_targets(export_no_rclcpp_listener_component)
+install(TARGETS no_rclcpp_listener_component
+        EXPORT export_no_rclcpp_listener_component
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
