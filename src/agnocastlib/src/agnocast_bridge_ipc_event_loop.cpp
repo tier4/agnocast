@@ -3,11 +3,18 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
+#include <rclcpp/logging.hpp>
+
 #include <fcntl.h>
+#include <sys/epoll.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <array>
 #include <cerrno>
+#include <cstring>
+#include <stdexcept>
+#include <string>
 #include <system_error>
 
 namespace agnocast
@@ -21,59 +28,54 @@ BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & 
 : logger_(logger)
 {
   try {
-    setup_mq(target_pid);
-    // TODO:: signal, epoll setup will be implemented in following PRs
+    setup_epoll();
   } catch (...) {
-    cleanup_resources();
+    if (epoll_fd_ != -1) {
+      close(epoll_fd_);
+    }
     throw;
   }
 }
 
 BridgeIpcEventLoop::~BridgeIpcEventLoop()
 {
-  cleanup_resources();
+  if (epoll_fd_ != -1) {
+    close(epoll_fd_);
+    epoll_fd_ = -1;
+  }
 }
 
-void BridgeIpcEventLoop::cleanup_resources()
+bool BridgeIpcEventLoop::spin_once(int timeout_ms)
 {
-  auto close_and_unlink_mq = [](mqd_t & fd, const std::string & name) {
-    if (fd != (mqd_t)-1) {
-      mq_close(fd);
-      fd = (mqd_t)-1;
-    }
-    if (!name.empty()) {
-      mq_unlink(name.c_str());
-    }
-  };
+  constexpr int MAX_EVENTS = 10;
+  std::array<struct epoll_event, MAX_EVENTS> events{};
 
-  close_and_unlink_mq(mq_parent_fd_, mq_parent_name_);
-  close_and_unlink_mq(mq_child_fd_, mq_child_name_);
+  int event_count = -1;
+  do {
+    event_count = epoll_wait(epoll_fd_, events.data(), MAX_EVENTS, timeout_ms);
+  } while (event_count < 0 && errno == EINTR);
+  if (event_count < 0) {
+    RCLCPP_ERROR(logger_, "epoll_wait failed: %s", strerror(errno));
+    return false;
+  }
+  if (event_count == 0) {
+    return true;
+  }
+  for (int event_index = 0; event_index < event_count; ++event_index) {
+    // TODO(yutarokobayashi): Event  processing (mq, signal)
+  }
+
+  return true;
 }
 
-void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
+void BridgeIpcEventLoop::setup_epoll()
 {
-  auto create_and_open = [](const std::string & name, const std::string & label) -> mqd_t {
-    struct mq_attr attr
-    {
-    };
-    attr.mq_maxmsg = MQ_MAX_MSG;
-    attr.mq_msgsize = MQ_MSG_SIZE;
+  epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
+  if (epoll_fd_ == -1) {
+    throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
+  }
 
-    mq_unlink(name.c_str());
-
-    mqd_t fd = mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, MQ_PERMS, &attr);
-
-    if (fd == (mqd_t)-1) {
-      throw std::system_error(errno, std::generic_category(), label + " MQ open failed");
-    }
-    return fd;
-  };
-
-  mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
-  mq_parent_fd_ = create_and_open(mq_parent_name_, "Parent");
-
-  mq_child_name_ = create_mq_name_for_bridge_child(getpid());
-  mq_child_fd_ = create_and_open(mq_child_name_, "Child");
+  // TODO(yutarokobayashi): Add epoll (mq, signal)
 }
 
 }  // namespace agnocast
