@@ -234,6 +234,14 @@ public:
       options);
   }
 
+  template <typename MessageT>
+  typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
+    const std::string & topic_name, size_t queue_size)
+  {
+    return std::make_shared<Publisher<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+  }
+
 private:
   void initialize_node(
     const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options);

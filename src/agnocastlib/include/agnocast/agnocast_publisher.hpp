@@ -25,6 +25,8 @@
 namespace agnocast
 {
 
+class Node;
+
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
@@ -56,13 +58,54 @@ class BasicPublisher
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> opened_mqs_;
   PublisherOptions options_;
 
-  // ROS2 publish related variables
+  // ROS2 publish related variables (only used when constructed with rclcpp::Node)
   typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
-  mqd_t ros2_publish_mq_;
+  mqd_t ros2_publish_mq_ = -1;
   std::string ros2_publish_mq_name_;
   std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
   std::thread ros2_publish_thread_;
   std::mutex ros2_publish_mtx_;
+
+  template <typename NodeT>
+  void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
+  }
+
+  void publish_impl(ipc_shared_ptr<MessageT> && message)
+  {
+    const union ioctl_publish_msg_args publish_msg_args =
+      publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+
+    message.set_entry_id(publish_msg_args.ret_entry_id);
+
+    for (uint32_t i = 0; i < publish_msg_args.ret_released_num; i++) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_msg_args.ret_released_addrs[i]);
+      delete release_ptr;
+    }
+
+    if (
+      ros2_publisher_ &&
+      (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0)) {
+      {
+        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+        ros2_message_queue_.push(std::move(message));
+      }
+
+      MqMsgROS2Publish mq_msg = {};
+      mq_msg.should_terminate = false;
+      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
+        // thread hasn't received it yet. Thus, there's no need to send it again since the
+        // notification has already been sent.
+        if (errno != EAGAIN) {
+          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+        }
+      }
+    } else {
+      message.reset();
+    }
+  }
 
 public:
   using SharedPtr = std::shared_ptr<BasicPublisher<MessageT, BridgeRequestPolicy>>;
@@ -111,22 +154,32 @@ public:
     ros2_publish_thread_ = std::thread([this]() { do_ros2_publish(); });
   }
 
+  BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  : topic_name_(topic_name)  // TODO: resolve topic name similar to rclcpp::Node
+  {
+    constructor_impl(node, topic_name, qos);
+
+    // TODO: CARET tracepoint for agnocast::Node
+  }
+
   ~BasicPublisher()
   {
-    MqMsgROS2Publish mq_msg = {};
-    mq_msg.should_terminate = true;
-    if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-      RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
-    }
+    if (ros2_publisher_) {
+      MqMsgROS2Publish mq_msg = {};
+      mq_msg.should_terminate = true;
+      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+      }
 
-    ros2_publish_thread_.join();
+      ros2_publish_thread_.join();
 
-    if (mq_close(ros2_publish_mq_) == -1) {
-      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
-    }
+      if (mq_close(ros2_publish_mq_) == -1) {
+        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+      }
 
-    if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
-      RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+      if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
+        RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+      }
     }
 
     for (auto & [_, t] : opened_mqs_) {
@@ -198,40 +251,16 @@ public:
 
     decrement_borrowed_publisher_num();
 
-    const union ioctl_publish_msg_args publish_msg_args =
-      publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
-
-    message.set_entry_id(publish_msg_args.ret_entry_id);
-
-    for (uint32_t i = 0; i < publish_msg_args.ret_released_num; i++) {
-      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_msg_args.ret_released_addrs[i]);
-      delete release_ptr;
-    }
-
-    if (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0) {
-      {
-        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
-        ros2_message_queue_.push(std::move(message));
-      }
-
-      MqMsgROS2Publish mq_msg = {};
-      mq_msg.should_terminate = false;
-      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
-        // thread hasn't received it yet. Thus, there's no need to send it again since the
-        // notification has already been sent.
-        if (errno != EAGAIN) {
-          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
-        }
-      }
-    } else {
-      message.reset();
-    }
+    publish_impl(std::move(message));
   }
 
   uint32_t get_subscription_count() const
   {
-    return ros2_publisher_->get_subscription_count() + get_subscription_count_core(topic_name_);
+    uint32_t count = get_subscription_count_core(topic_name_);
+    if (ros2_publisher_) {
+      count += ros2_publisher_->get_subscription_count();
+    }
+    return count;
   }
 };
 
