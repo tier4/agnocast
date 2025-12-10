@@ -147,10 +147,7 @@ inline rclcpp::QoS get_subscriber_qos(const char * topic_name, topic_local_id_t 
   args.id = id;
 
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_QOS_CMD, &args) < 0) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("agnocast_bridge"), "Failed to fetch QoS for '%s' (ID:%d). Using default.",
-      topic_name, id);
-    return rclcpp::QoS(10);
+    throw std::runtime_error("Failed to fetch subscriber QoS from agnocast kernel module");
   }
   return rclcpp::QoS(args.ret_depth)
     .durability(
@@ -168,10 +165,7 @@ inline rclcpp::QoS get_publisher_qos(const char * topic_name, topic_local_id_t i
   args.id = id;
 
   if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_QOS_CMD, &args) < 0) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("agnocast_bridge"), "Failed to fetch QoS for '%s' (ID:%d). Using default.",
-      topic_name, id);
-    return rclcpp::QoS(10);
+    throw std::runtime_error("Failed to fetch publisher QoS from agnocast kernel module");
   }
 
   return rclcpp::QoS(args.ret_depth)
