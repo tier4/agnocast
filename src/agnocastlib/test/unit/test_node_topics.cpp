@@ -39,15 +39,12 @@ TEST_F(NodeTopicsExpandTest, absolute_path_with_node_substitution)
 TEST_F(NodeTopicsExpandTest, absolute_path_with_ns_substitution)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  // {ns} is replaced with "/my_ns", so "/{ns}" becomes "//my_ns"
-  // This matches RCL behavior where {ns} includes the leading slash
   EXPECT_EQ(node_topics->resolve_topic_name("/{ns}", true), "//my_ns");
 }
 
 TEST_F(NodeTopicsExpandTest, absolute_path_with_namespace_substitution)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  // {namespace} is replaced with "/my_ns", so "/{namespace}" becomes "//my_ns"
   EXPECT_EQ(node_topics->resolve_topic_name("/{namespace}", true), "//my_ns");
 }
 
@@ -76,7 +73,6 @@ TEST_F(NodeTopicsExpandTest, relative_path_node_only)
 TEST_F(NodeTopicsExpandTest, relative_path_ns_only)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  // {ns} is replaced with "/my_ns" which is already absolute, so no prefix is added
   EXPECT_EQ(node_topics->resolve_topic_name("{ns}", true), "/my_ns");
 }
 
@@ -143,16 +139,12 @@ TEST_F(NodeTopicsExpandTest, root_namespace_ns_substitution)
 TEST_F(NodeTopicsExpandTest, multiple_substitutions)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  // {ns} -> "/my_ns", {node} -> "my_node"
-  // "{ns}/{node}/topic" -> "/my_ns/my_node/topic"
   EXPECT_EQ(node_topics->resolve_topic_name("{ns}/{node}/topic", true), "/my_ns/my_node/topic");
 }
 
 TEST_F(NodeTopicsExpandTest, tilde_with_multiple_substitutions)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  // ~ -> "/my_ns/my_node", {ns} -> "/my_ns", {node} -> "my_node"
-  // "~/{ns}/{node}" -> "/my_ns/my_node//my_ns/my_node"
   EXPECT_EQ(
     node_topics->resolve_topic_name("~/{ns}/{node}", true), "/my_ns/my_node//my_ns/my_node");
 }
@@ -192,6 +184,5 @@ TEST_F(NodeTopicsExpandTest, nested_namespace_tilde)
 TEST_F(NodeTopicsExpandTest, nested_namespace_substitution)
 {
   auto node_topics = create_node_topics("my_node", "/ns1/ns2");
-  // {ns} -> "/ns1/ns2", so "{ns}/topic" -> "/ns1/ns2/topic"
   EXPECT_EQ(node_topics->resolve_topic_name("{ns}/topic", true), "/ns1/ns2/topic");
 }
