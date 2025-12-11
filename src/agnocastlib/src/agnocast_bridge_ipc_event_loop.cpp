@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <utility>
 
 namespace agnocast
 {
@@ -60,13 +61,20 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
   for (int event_index = 0; event_index < event_count; ++event_index) {
     int fd = events[event_index].data.fd;
     if (fd == mq_parent_fd_) {  // NOLINT(bugprone-branch-clone)
-      // TODO(yutarokobayashi): run event_loop parent handler.
+      if (parent_cb_) {
+        parent_cb_(fd);
+      }
     } else {
       // TODO(yutarokobayashi): run event_loop other handler.
     }
   }
 
   return true;
+}
+
+void BridgeIpcEventLoop::set_parent_mq_handler(EventCallback cb)
+{
+  parent_cb_ = std::move(cb);
 }
 
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)

@@ -39,6 +39,10 @@ private:
 
   void start_ros_execution();
 
+  void on_mq_event(mqd_t fd, bool allow_delegation);
+
+  void handle_create_request(const MqMsgBridge & req, bool allow_delegation);
+
   void check_parent_alive();
   void check_active_bridges();
   void check_should_exit();
