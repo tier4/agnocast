@@ -6,11 +6,10 @@
 class NodeTopicsExpandTest : public ::testing::Test
 {
 protected:
-  void SetUp() override { rclcpp::init(0, nullptr); }
+  void SetUp() override {}
 
-  void TearDown() override { rclcpp::shutdown(); }
+  void TearDown() override {}
 
-  // Store node to keep it alive during the test
   agnocast::Node::SharedPtr node_;
 
   rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr create_node_topics(
