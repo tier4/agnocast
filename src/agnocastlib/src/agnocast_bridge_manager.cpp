@@ -133,7 +133,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
     // If allow_delegation is true, retrieve the PID of the current owner and delegate.
     // Otherwise, abort to avoid loops.
   } else {
-    // Handle unexpected ioctl errors
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
   }
 }
 
