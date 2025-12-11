@@ -1464,7 +1464,7 @@ static struct bridge_info * find_bridge_info(
 
 int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
 {
-  struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
+  const struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
   if (existing) {
     if (existing->pid == pid) {
       dev_info(
