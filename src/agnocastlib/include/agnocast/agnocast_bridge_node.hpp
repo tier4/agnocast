@@ -249,18 +249,21 @@ void send_bridge_request(
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
-  mqd_t mq = mq_open(create_mq_name_for_bridge_parent(getpid()).c_str(), O_WRONLY);
+  std::string mq_name = create_mq_name_for_bridge_parent(getpid());
+  mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
 
   if (mq == -1) {
-    RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
-    return;
+    RCLCPP_ERROR(
+      logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
   }
 
   if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
-    RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
-  }
+    RCLCPP_ERROR(
+      logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
 
-  mq_close(mq);
-}
+    mq_close(mq);
+  }
 
 }  // namespace agnocast
