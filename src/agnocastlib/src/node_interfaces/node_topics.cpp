@@ -83,73 +83,97 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
 {
   // Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c:44-219
   // Handles:
-  // - Private topics: "~foo" -> "/namespace/node_name/foo"
-  // - Substitutions: "{node}" -> node_name, "{ns}" or "{namespace}" -> namespace
-  // - Relative topics: "foo" -> "/namespace/foo"
+  // - Private topics: "~foo" -> "/node_namespace/node_name/foo"
+  // - Substitutions: "{node}" -> node_name, "{ns}" or "{namespace}" -> node_namespace
+  // - Relative topics: "foo" -> "/node_namespace/foo"
   // - Absolute topics: "/foo" -> "/foo" (unchanged)
+  //
+  // TODO: Support custom substitutions via rcutils_string_map_t (see rcl_expand_topic_name)
+  // TODO: Validate input_topic_name using rcl_validate_topic_name
+  // TODO: Validate node_name using rmw_validate_node_name
+  // TODO: Validate node_namespace using rmw_validate_namespace
 
   if (input_topic_name.empty()) {
-    return input_topic_name;
+    throw std::invalid_argument("topic name must not be empty");
   }
 
-  std::string local_output = input_topic_name;
-  std::string node_name = node_base_->get_name();
-  std::string namespace_ = node_base_->get_namespace();
+  const std::string node_name = node_base_->get_name();
+  const std::string node_namespace = node_base_->get_namespace();
 
-  // Check for substitutions in the topic name
+  // Check if the topic has substitutions to be made
   bool has_a_substitution = input_topic_name.find('{') != std::string::npos;
-  bool has_a_namespace_tilde = !input_topic_name.empty() && input_topic_name[0] == '~';
-  bool is_absolute = !input_topic_name.empty() && input_topic_name[0] == '/';
+  bool has_a_namespace_tilde = input_topic_name[0] == '~';
+  bool is_absolute = input_topic_name[0] == '/';
 
-  // If absolute and no substitution, return as-is
+  // If absolute and doesn't have any substitution, nothing to do
   if (is_absolute && !has_a_substitution) {
     return input_topic_name;
   }
 
-  // Handle private topic name (starts with '~')
-  // Replace ~ with namespace/node_name
+  std::string local_output;
+
+  // If has_a_namespace_tilde, replace that first
   if (has_a_namespace_tilde) {
-    if (namespace_.empty() || namespace_ == std::string("/")) {
-      local_output = "/" + node_name + input_topic_name.substr(1);
+    // Special case where node_namespace is just '/'
+    // then no additional separating '/' is needed
+    if (node_namespace.length() == 1) {
+      local_output = node_namespace + node_name + input_topic_name.substr(1);
     } else {
-      local_output = namespace_ + "/" + node_name + input_topic_name.substr(1);
+      local_output = node_namespace + "/" + node_name + input_topic_name.substr(1);
     }
   }
 
-  // Handle substitutions ({node}, {ns}, {namespace})
+  // If it has any substitutions, replace those
   if (has_a_substitution) {
-    size_t pos = 0;
-    while ((pos = local_output.find('{', pos)) != std::string::npos) {
-      size_t end_pos = local_output.find('}', pos);
-      if (end_pos == std::string::npos) {
-        break;  // Malformed substitution
+    // Assumptions entering this scope about the topic string:
+    // - All {} are matched and balanced
+    // - There is no nesting, i.e. {{}}
+    // - There are no empty substitution substr, i.e. '{}' versus '{something}'
+    const std::string & current_output = local_output.empty() ? input_topic_name : local_output;
+    std::string result = current_output;
+    size_t search_pos = 0;
+
+    while (true) {
+      size_t next_opening_brace = result.find('{', search_pos);
+      if (next_opening_brace == std::string::npos) {
+        break;
+      }
+      size_t next_closing_brace = result.find('}', next_opening_brace);
+      if (next_closing_brace == std::string::npos) {
+        break;
       }
 
-      std::string substitution = local_output.substr(pos, end_pos - pos + 1);
-      std::string replacement;
+      // conclusion based on above assumptions: next_closing_brace - next_opening_brace > 1
+      size_t substitution_substr_len = next_closing_brace - next_opening_brace + 1;
+      std::string substitution = result.substr(next_opening_brace, substitution_substr_len);
 
+      // Figure out what the replacement is for this substitution
+      std::string replacement;
       if (substitution == "{node}") {
         replacement = node_name;
       } else if (substitution == "{ns}" || substitution == "{namespace}") {
-        replacement = namespace_;
-      }
-      // Unknown substitutions are left as-is
-
-      if (!replacement.empty()) {
-        local_output.replace(pos, substitution.length(), replacement);
-        pos += replacement.length();
+        replacement = node_namespace;
       } else {
-        pos = end_pos + 1;
+        // TODO: Check custom substitutions map before throwing
+        throw std::invalid_argument("unknown substitution: " + substitution);
       }
+
+      // Do the replacement
+      result.replace(next_opening_brace, substitution_substr_len, replacement);
+      search_pos = next_opening_brace + replacement.length();
     }
+    local_output = result;
   }
 
-  // Make relative topic names absolute by prepending namespace
-  if (!local_output.empty() && local_output[0] != '/') {
-    if (namespace_.empty() || namespace_ == std::string("/")) {
-      local_output = "/" + local_output;
+  // Finally make the name absolute if it isn't already
+  const std::string & name_to_check = local_output.empty() ? input_topic_name : local_output;
+  if (name_to_check[0] != '/') {
+    // Special case where node_namespace is just '/'
+    // then no additional separating '/' is needed
+    if (node_namespace.length() == 1) {
+      local_output = node_namespace + name_to_check;
     } else {
-      local_output = namespace_ + "/" + local_output;
+      local_output = node_namespace + "/" + name_to_check;
     }
   }
 
