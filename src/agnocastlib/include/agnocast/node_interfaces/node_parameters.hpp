@@ -9,13 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace agnocast
-{
-
-// Forward declaration (actual definition in agnocast_node.hpp)
-struct ParameterInfo;
-
-namespace node_interfaces
+namespace agnocast::node_interfaces
 {
 
 /// Implementation of the NodeParameters part of the Node API.
@@ -88,9 +82,7 @@ public:
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
-  std::map<std::string, ParameterInfo> parameters_;
   std::map<std::string, ParameterValue> parameter_overrides_;
 };
 
-}  // namespace node_interfaces
-}  // namespace agnocast
+}  // namespace agnocast::node_interfaces
