@@ -2218,8 +2218,6 @@ void process_exit_cleanup(const pid_t pid)
   }
 
   struct bridge_info * br_info;
-  int bkt;
-  struct hlist_node * tmp;
   hash_for_each_safe(bridge_htable, bkt, tmp, br_info, node)
   {
     if (br_info->pid == pid) {
