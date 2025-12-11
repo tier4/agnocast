@@ -56,7 +56,7 @@ void BridgeManager::run()
 
   start_ros_execution();
 
-  // TODO(yutarokobayashi): Setup event_loop handler.
+  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event(fd, true); });
 
   while (!shutdown_requested_) {
     check_parent_alive();
@@ -88,6 +88,48 @@ void BridgeManager::start_ros_execution()
       RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
     }
   });
+}
+
+void BridgeManager::on_mq_event(mqd_t fd, bool allow_delegation)
+{
+  MqMsgBridge req{};
+  while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    handle_create_request(req, allow_delegation);
+  }
+}
+
+void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_delegation*/)
+{
+  // The 'allow_delegation' flag indicates the source of the request:
+  // - true: Initial request from the parent process. Delegation to an existing owner is allowed.
+  // - false: Request received from a peer child process (already delegated). Further delegation
+  //          is disabled to prevent infinite loops.
+  // Note: This check (if false) acts as a safety guard against unexpected infinite recursion loops
+  // due to race conditions or timing issues. It is not expected to be triggered in normal
+  // operation.
+
+  // Locally, unique keys include the direction. However, we register the raw topic name (without
+  // direction) to the kernel to enforce single-process ownership for the entire topic.
+  std::string topic_name(
+    &req.target.topic_name[0], strnlen(&req.target.topic_name[0], sizeof(req.target.topic_name)));
+  std::string topic_name_with_direction =
+    topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_R2A" : "_A2R");
+
+  if (active_bridges_.count(topic_name_with_direction) != 0U) {
+    return;
+  }
+
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
+  // Attempt to register the bridge with the kernel
+
+  // Registration successful: Load and create the bridge instance
+  // Rollback kernel registration if bridge creation fails
+
+  // The bridge is already registered in the kernel (EEXIST case)
+  // If allow_delegation is true, retrieve the PID of the current owner and delegate.
+  // Otherwise, abort to avoid loops.
+
+  // Handle unexpected ioctl errors
 }
 
 void BridgeManager::check_parent_alive()
