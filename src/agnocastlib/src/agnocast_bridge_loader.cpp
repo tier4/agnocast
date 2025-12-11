@@ -14,8 +14,12 @@ BridgeLoader::~BridgeLoader()
 
 std::shared_ptr<void> BridgeLoader::load_and_create(
   const MqMsgBridge & req, const std::string & topic_name_with_direction,
-  rclcpp::Node::SharedPtr node)
+  const rclcpp::Node::SharedPtr & node)
 {
+  (void)req;                        // TODO(yutarokobayashi): Remove
+  (void)topic_name_with_direction;  // TODO(yutarokobayashi): Remove
+  (void)node;                       // TODO(yutarokobayashi): Remove
+
   // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
 
   // Resolve the factory function and library handle from the shared library using the

@@ -22,9 +22,9 @@ public:
   BridgeLoader(const BridgeLoader &) = delete;
   BridgeLoader & operator=(const BridgeLoader &) = delete;
 
-  std::shared_ptr<void> load_and_create(
+  static std::shared_ptr<void> load_and_create(
     const MqMsgBridge & req, const std::string & topic_name_with_direction,
-    rclcpp::Node::SharedPtr node);
+    const rclcpp::Node::SharedPtr & node);
 
 private:
   rclcpp::Logger logger_;
