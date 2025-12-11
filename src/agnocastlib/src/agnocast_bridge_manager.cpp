@@ -114,7 +114,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
 
   {
     std::lock_guard<std::mutex> lock(executor_mutex_);
-    if (active_bridges_.count(unique_key) != 0U) {
+    if (active_bridges_.count(topic_name_with_direction) != 0U) {
       return;
     }
   }
