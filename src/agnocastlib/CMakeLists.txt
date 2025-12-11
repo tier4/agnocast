@@ -31,7 +31,10 @@ add_library(agnocast SHARED
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp src/agnocast_only_executor.cpp
   src/agnocast_only_single_threaded_executor.cpp src/agnocast_only_multi_threaded_executor.cpp
-  src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp src/agnocast_bridge_ipc_event_loop.cpp src/agnocast_bridge_loader.cpp)
+  src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
+  src/agnocast_node.cpp src/node_interfaces/node_base.cpp
+  src/node_interfaces/node_topics.cpp
+  src/agnocast_bridge_ipc_event_loop.cpp src/agnocast_bridge_loader.cpp src/agnocast_bridge_manager.cpp)
 
 ament_target_dependencies(agnocast cie_thread_configurator)
 
@@ -114,7 +117,8 @@ if(BUILD_TESTING)
     test/unit/test_agnocast_utils.cpp
     test/unit/test_agnocast_subscription.cpp
     test/unit/test_mocked_agnocast.cpp
-    test/unit/test_agnocast_executors.cpp)
+    test/unit/test_agnocast_executors.cpp
+    test/unit/test_agnocast_context.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
