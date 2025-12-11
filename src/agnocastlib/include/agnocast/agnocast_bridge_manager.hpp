@@ -34,7 +34,6 @@ private:
   rclcpp::Node::SharedPtr container_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::thread executor_thread_;
-  std::mutex executor_mutex_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
 

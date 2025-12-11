@@ -112,11 +112,8 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   std::string topic_name_with_direction =
     topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_R2A" : "_A2R");
 
-  {
-    std::lock_guard<std::mutex> lock(executor_mutex_);
-    if (active_bridges_.count(topic_name_with_direction) != 0U) {
-      return;
-    }
+  if (active_bridges_.count(topic_name_with_direction) != 0U) {
+    return;
   }
 
   // Attempt to register the bridge with the kernel
