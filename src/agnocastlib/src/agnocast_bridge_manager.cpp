@@ -116,6 +116,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
     return;
   }
 
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
   // Attempt to register the bridge with the kernel
 
   // Registration successful: Load and create the bridge instance
