@@ -5,14 +5,16 @@
 #include <mqueue.h>
 #include <sys/types.h>
 
+#include <functional>
 #include <string>
 
 namespace agnocast
 {
-
 class BridgeIpcEventLoop
 {
 public:
+  using EventCallback = std::function<void(int fd)>;
+
   BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & logger);
   ~BridgeIpcEventLoop();
 
@@ -20,6 +22,8 @@ public:
   BridgeIpcEventLoop & operator=(const BridgeIpcEventLoop &) = delete;
 
   bool spin_once(int timeout_ms);
+
+  void set_parent_mq_handler(EventCallback cb);
 
 private:
   rclcpp::Logger logger_;
@@ -29,6 +33,8 @@ private:
   mqd_t mq_parent_fd_ = (mqd_t)-1;
 
   std::string mq_parent_name_;
+
+  EventCallback parent_cb_;
 
   void setup_mq(pid_t target_pid);
   void setup_epoll();
