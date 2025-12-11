@@ -16,10 +16,11 @@ NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr nod
 std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_expand) const
 {
   // Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c:134-162
+  std::string expanded_topic_name = expand_topic_name(name);
   if (only_expand) {
-    return expand_topic_name(name);
+    return expanded_topic_name;
   }
-  return resolve_name(name);
+  return remap_name(expanded_topic_name);
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
@@ -90,17 +91,6 @@ void NodeTopics::add_remap_rule(const RemapRule & rule)
 }
 
 // ===== Private methods =====
-
-std::string NodeTopics::resolve_name(const std::string & input_topic_name) const
-{
-  // Corresponds to rcl_resolve_name in rcl/src/rcl/node_resolve_name.c:32-131
-  // Two-step process:
-  // 1. Expand topic name (handle ~, {node}, {ns}, relative/absolute paths)
-  // 2. Apply remapping rules (--ros-args -r old:=new)
-  std::string expanded_topic_name = expand_topic_name(input_topic_name);
-  std::string remapped_topic_name = remap_name(expanded_topic_name);
-  return remapped_topic_name;
-}
 
 std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
 {

@@ -44,7 +44,6 @@ public:
   void add_remap_rule(const RemapRule & rule);
 
 private:
-  std::string resolve_name(const std::string & input_topic_name) const;
   std::string expand_topic_name(const std::string & input_topic_name) const;
   std::string remap_name(const std::string & name) const;
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
