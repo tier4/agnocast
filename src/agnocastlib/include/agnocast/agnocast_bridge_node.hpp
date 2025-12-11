@@ -268,4 +268,6 @@ void send_bridge_request(
     mq_close(mq);
   }
 
+  mq_close(mq);
+
 }  // namespace agnocast
