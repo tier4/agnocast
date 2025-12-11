@@ -14,13 +14,13 @@ NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr nod
 std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_expand) const
 {
   // Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c:134-162
-
+  std::string expanded_topic_name = expand_topic_name(name);
   if (only_expand) {
-    return expand_topic_name(name);
+    return expanded_topic_name;
   }
 
-  // TODO(Koichi98)
-  return "";
+  // TODO(Koichi98) return remap_name(expanded_topic_name);
+  return expanded_topic_name;
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
