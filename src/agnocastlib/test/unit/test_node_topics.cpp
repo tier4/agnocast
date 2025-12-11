@@ -1,9 +1,7 @@
-#include "agnocast/node_interfaces/node_topics.hpp"
+#include "agnocast/agnocast_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <gtest/gtest.h>
-
-using agnocast::node_interfaces::NodeTopics;
 
 class NodeTopicsExpandTest : public ::testing::Test
 {
@@ -12,13 +10,14 @@ protected:
 
   void TearDown() override { rclcpp::shutdown(); }
 
-  NodeTopics::SharedPtr create_node_topics(
+  // Store node to keep it alive during the test
+  agnocast::Node::SharedPtr node_;
+
+  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr create_node_topics(
     const std::string & node_name, const std::string & node_namespace)
   {
-    rclcpp::NodeOptions options;
-    options.arguments({"--ros-args", "-r", "__ns:=" + node_namespace});
-    auto node = std::make_shared<rclcpp::Node>(node_name, options);
-    return std::make_shared<NodeTopics>(node->get_node_base_interface());
+    node_ = std::make_shared<agnocast::Node>(node_name, node_namespace);
+    return node_->get_node_topics_interface();
   }
 };
 

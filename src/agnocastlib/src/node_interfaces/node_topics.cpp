@@ -82,16 +82,12 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
 std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
 {
   // Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c:44-219
-  // Handles:
-  // - Private topics: "~foo" -> "/node_namespace/node_name/foo"
-  // - Substitutions: "{node}" -> node_name, "{ns}" or "{namespace}" -> node_namespace
-  // - Relative topics: "foo" -> "/node_namespace/foo"
-  // - Absolute topics: "/foo" -> "/foo" (unchanged)
   //
-  // TODO: Support custom substitutions via rcutils_string_map_t (see rcl_expand_topic_name)
-  // TODO: Validate input_topic_name using rcl_validate_topic_name
-  // TODO: Validate node_name using rmw_validate_node_name
-  // TODO: Validate node_namespace using rmw_validate_namespace
+  // TODOs
+  // - Support custom substitutions via rcutils_string_map_t
+  // - Validate input_topic_name using rcl_validate_topic_name
+  // - Validate node_name using rmw_validate_node_name
+  // - Validate node_namespace using rmw_validate_namespace
 
   if (input_topic_name.empty()) {
     throw std::invalid_argument("topic name must not be empty");
