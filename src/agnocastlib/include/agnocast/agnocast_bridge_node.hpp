@@ -5,6 +5,21 @@
 #include "agnocast/agnocast_subscription.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <mqueue.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
 namespace agnocast
 
 {
@@ -20,9 +35,10 @@ void send_bridge_request(
 struct RosToAgnocastRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
+  static void request_bridge(const std::string & /*topic_name*/, topic_local_id_t /*id*/)
   {
-    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
+    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+    // send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
   }
 };
 
@@ -31,9 +47,10 @@ struct RosToAgnocastRequestPolicy
 struct AgnocastToRosRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
+  static void request_bridge(const std::string & /*topic_name*/, topic_local_id_t /*id*/)
   {
-    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
+    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+    // send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
 
@@ -199,9 +216,7 @@ template <typename MessageT>
 void send_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
 {
-  (void)topic_name;  // TODO(yutarokobayashi): Remove
-  (void)id;          // TODO(yutarokobayashi): Remove
-
+  static const auto logger = rclcpp::get_logger("agnocast_bridge_requester");
   // We capture 'fn_reverse' because bridge_manager is responsible for managing both directions
   // independently. Storing the reverse factory allows us to instantiate the return path on-demand
   // within the same process.
@@ -212,12 +227,40 @@ void send_bridge_request(
                       ? &start_agno_to_ros_node<MessageT>
                       : &start_ros_to_agno_node<MessageT>;
 
-  (void)fn_current;  // TODO(yutarokobayashi): Remove
-  (void)fn_reverse;  // TODO(yutarokobayashi): Remove
+  Dl_info info = {};
+  if (dladdr(reinterpret_cast<void *>(fn_current), &info) == 0 || !info.dli_fname) {
+    RCLCPP_ERROR(logger, "dladdr failed or filename NULL.");
+    return;
+  }
 
-  // TODO(yutarokobayashi): Implement the actual message queue communication to request a bridge.
-  // std::string mq_name = create_mq_name_for_bridge_parent(getppid());
-  // Note: This implementation depends on AgnocastPublisher and AgnocastSubscription.
+  MqMsgBridge msg = {};
+  msg.direction = direction;
+  msg.target.target_id = id;
+  snprintf(
+    reinterpret_cast<char *>(msg.target.topic_name), TOPIC_NAME_BUFFER_SIZE, "%s",
+    topic_name.c_str());
+  snprintf(
+    reinterpret_cast<char *>(msg.factory.shared_lib_path), SHARED_LIB_PATH_BUFFER_SIZE, "%s",
+    info.dli_fname);
+  snprintf(
+    reinterpret_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s",
+    info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__");
+  auto base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
+  msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
+  msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
+
+  mqd_t mq = mq_open(create_mq_name_for_bridge_parent(getpid()).c_str(), O_WRONLY);
+
+  if (mq == -1) {
+    RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+    return;
+  }
+
+  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
+    RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+  }
+
+  mq_close(mq);
 }
 
 }  // namespace agnocast
