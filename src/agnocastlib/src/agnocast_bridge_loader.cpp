@@ -13,41 +13,21 @@ BridgeLoader::~BridgeLoader()
 }
 
 std::shared_ptr<void> BridgeLoader::load_and_create(
-  const MqMsgBridge & req, const std::string & unique_key, rclcpp::Node::SharedPtr node)
+  const MqMsgBridge & req, const std::string & topic_name_with_direction,
+  rclcpp::Node::SharedPtr node)
 {
-  auto [entry_func, lib_handle] = resolve_factory_function(req, unique_key);
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
 
-  if (!entry_func) {
-    const char * err = dlerror();
-    RCLCPP_ERROR(
-      logger_, "Failed to resolve factory for '%s': %s", unique_key.c_str(),
-      err ? err : "Unknown error");
-    return nullptr;
-  }
+  // Resolve the factory function and library handle from the shared library using the
+  // topic_name_with_direction.
 
-  return create_bridge_instance(entry_func, lib_handle, node, req.target);
-}
+  // Validate the resolution result.
+  //    If the factory function pointer is invalid (null):
+  //      - Retrieve the dynamic linking error message (dlerror).
+  //      - Log an error message indicating the failure to resolve the factory.
+  //      - Return nullptr to stop the process.
 
-std::pair<void * (*)(), void *> BridgeLoader::resolve_factory_function(
-  const MqMsgBridge & req, const std::string & unique_key)
-{
-  (void)req;         // TODO(yutarokobayashi): Remove
-  (void)unique_key;  // TODO(yutarokobayashi): Remove
-
-  // TODO(yutarokobayashi): Implement dynamic library loading (dlopen/dlsym)
-
-  return {nullptr, nullptr};
-}
-
-std::shared_ptr<void> BridgeLoader::create_bridge_instance(
-  void * (*entry_func)(), void * lib_handle, rclcpp::Node::SharedPtr node,
-  const std::string & target)
-{
-  (void)entry_func;  // TODO(yutarokobayashi): Remove
-  (void)lib_handle;  // TODO(yutarokobayashi): Remove
-  (void)node;        // TODO(yutarokobayashi): Remove
-  (void)target;      // TODO(yutarokobayashi): Remove
-
+  // Invoke the resolved factory function to create the bridge instance and return it.
   return nullptr;
 }
 

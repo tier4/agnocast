@@ -119,11 +119,19 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
     return;
   }
 
+  //  Preparing the entity before kernel registration prevents the state where “it was registered
+  //  but the entity does not exist.”
+  auto pending_bridge = loader_.load_and_create(req, topic_name_with_direction, container_node_);
+
+  if (!pending_bridge) {
+    RCLCPP_ERROR(
+      logger_, "Failed to create bridge instance for '%s'. Aborting.",
+      topic_name_with_direction.c_str());
+    return;
+  }
+
   // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
   // Attempt to register the bridge with the kernel
-
-  // Registration successful: Load and create the bridge instance
-  // Rollback kernel registration if bridge creation fails
 
   // The bridge is already registered in the kernel (EEXIST case)
   // If allow_delegation is true, retrieve the PID of the current owner and delegate.
