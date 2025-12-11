@@ -12,7 +12,7 @@ BridgeLoader::~BridgeLoader()
   cached_factories_.clear();
 }
 
-std::shared_ptr<void> BridgeLoader::load_and_create(
+std::shared_ptr<void> BridgeLoader::create(
   const MqMsgBridge & req, const std::string & topic_name_with_direction,
   const rclcpp::Node::SharedPtr & node)
 {
