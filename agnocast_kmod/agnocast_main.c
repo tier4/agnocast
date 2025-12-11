@@ -108,7 +108,7 @@ DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
 struct bridge_info
 {
-  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  char * topic_name;
   pid_t pid;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
@@ -1455,9 +1455,7 @@ static struct bridge_info * find_bridge_info(
   uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
   hash_for_each_possible(bridge_htable, br_info, node, hash_val)
   {
-    if (
-      ipc_ns == br_info->ipc_ns &&
-      strncmp(br_info->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
+    if (ipc_ns == br_info->ipc_ns && strcmp(br_info->topic_name, topic_name) == 0) {
       return br_info;
     }
   }
@@ -1477,19 +1475,22 @@ int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namesp
     return -ENOMEM;
   }
 
+  br_info->topic_name = kstrdup(topic_name, GFP_KERNEL);
+  if (!br_info->topic_name) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kstrdup. (add_bridge)\n",
+      topic_name);
+    kfree(br_info);
+    return -ENOMEM;
+  }
+
+  strcpy(br_info->topic_name, topic_name);
+
   br_info->pid = pid;
-  strscpy(br_info->topic_name, topic_name, sizeof(br_info->topic_name));
   br_info->ipc_ns = ipc_ns;
 
   INIT_HLIST_NODE(&br_info->node);
   uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
-
-  if (find_bridge_info(topic_name, ipc_ns)) {
-    kfree(br_info);
-    dev_warn(
-      agnocast_device, "Bridge (topic=%s) exists (race condition). (add_bridge)\n", topic_name);
-    return -EEXIST;
-  }
 
   hash_add(bridge_htable, &br_info->node, hash_val);
 
@@ -2216,6 +2217,20 @@ void process_exit_cleanup(const pid_t pid)
     }
   }
 
+  struct bridge_info * br_info;
+  int bkt;
+  struct hlist_node * tmp;
+  hash_for_each_safe(bridge_htable, bkt, tmp, br_info, node)
+  {
+    if (br_info->pid == pid) {
+      hash_del(&br_info->node);
+      if (br_info->topic_name) {
+        kfree(br_info->topic_name);
+      }
+      kfree(br_info);
+    }
+  }
+
 #ifndef KUNIT_BUILD
   dev_info(agnocast_device, "Process (pid=%d) has exited. (process_exit_cleanup)\n", pid);
 #endif
@@ -2426,11 +2441,27 @@ static void remove_all_process_info(void)
   }
 }
 
+static void remove_all_bridge_info(void)
+{
+  struct bridge_info * br_info;
+  int bkt;
+  struct hlist_node * tmp;
+  hash_for_each_safe(bridge_htable, bkt, tmp, br_info, node)
+  {
+    hash_del(&br_info->node);
+    if (br_info->topic_name) {
+      kfree(br_info->topic_name);
+    }
+    kfree(br_info);
+  }
+}
+
 void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
+  remove_all_bridge_info();
   mutex_unlock(&global_mutex);
 }
 
