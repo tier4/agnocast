@@ -1438,6 +1438,73 @@ int get_publisher_qos(
   return 0;
 }
 
+struct bridge_info
+{
+  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  pid_t pid;
+  const struct ipc_namespace * ipc_ns;
+  struct hlist_node node;
+};
+
+static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
+static DEFINE_MUTEX(bridge_htable_mutex);
+
+static struct bridge_info * find_bridge_info(
+  const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info;
+  uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
+  hash_for_each_possible(bridge_htable, br_info, node, hash_val)
+  {
+    if (
+      ipc_ns == br_info->ipc_ns &&
+      strncmp(br_info->topic_name, topic_name, TOPIC_NAME_BUFFER_SIZE) == 0) {
+      return br_info;
+    }
+  }
+  return NULL;
+}
+
+int add_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  mutex_lock(&bridge_htable_mutex);
+  if (find_bridge_info(topic_name, ipc_ns)) {
+    mutex_unlock(&bridge_htable_mutex);
+    dev_warn(agnocast_device, "Bridge (topic=%s) already exists. (add_bridge)\n", topic_name);
+    return -EEXIST;
+  }
+  mutex_unlock(&bridge_htable_mutex);
+
+  struct bridge_info * br_info = kmalloc(sizeof(*br_info), GFP_KERNEL);
+  if (!br_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (add_bridge)\n");
+    return -ENOMEM;
+  }
+
+  br_info->pid = pid;
+  strscpy(br_info->topic_name, topic_name, sizeof(br_info->topic_name));
+  br_info->ipc_ns = ipc_ns;
+
+  INIT_HLIST_NODE(&br_info->node);
+  uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
+
+  mutex_lock(&bridge_htable_mutex);
+
+  if (find_bridge_info(topic_name, ipc_ns)) {
+    mutex_unlock(&bridge_htable_mutex);
+    kfree(br_info);
+    dev_warn(
+      agnocast_device, "Bridge (topic=%s) exists (race condition). (add_bridge)\n", topic_name);
+    return -EEXIST;
+  }
+
+  hash_add(bridge_htable, &br_info->node, hash_val);
+
+  mutex_unlock(&bridge_htable_mutex);
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1790,6 +1857,20 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             sizeof(get_pub_qos_args)))
         goto return_EFAULT;
     }
+  } else if (cmd == AGNOCAST_ADD_BRIDGE_CMD) {
+    struct ioctl_add_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    if (bridge_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(bridge_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)bridge_args.topic_name.ptr, bridge_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[bridge_args.topic_name.len] = '\0';
+    ret = add_bridge(bridge_args.pid, topic_name_buf, ipc_ns);
+    kfree(topic_name_buf);
   } else {
     goto return_EINVAL;
   }
