@@ -1464,9 +1464,17 @@ static struct bridge_info * find_bridge_info(
 
 int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
 {
-  if (find_bridge_info(topic_name, ipc_ns)) {
-    dev_warn(agnocast_device, "Bridge (topic=%s) already exists. (add_bridge)\n", topic_name);
-    return -EEXIST;
+  struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
+  if (existing) {
+    if (existing->pid == pid) {
+      dev_info(
+        agnocast_device, "Bridge (topic=%s) already registered by this process.\n", topic_name);
+      return 0;
+    } else {
+      dev_warn(
+        agnocast_device, "Bridge (topic=%s) already exists with different pid.\n", topic_name);
+      return -EEXIST;
+    }
   }
 
   struct bridge_info * br_info = kmalloc(sizeof(*br_info), GFP_KERNEL);
