@@ -34,10 +34,15 @@ private:
   rclcpp::Node::SharedPtr container_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::thread executor_thread_;
+  std::mutex executor_mutex_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
 
   void start_ros_execution();
+
+  void on_mq_event(mqd_t fd, bool allow_delegation);
+
+  void handle_create_request(const MqMsgBridge & req, bool allow_delegation);
 
   void check_parent_alive();
   void check_active_bridges();
