@@ -34,7 +34,7 @@ private:
   void setup_epoll();
 
   mqd_t create_and_open_mq(const std::string & name, const std::string & label);
-  void add_fd_to_epoll(int fd, const std::string & label);
+  void add_fd_to_epoll(int fd, const std::string & label) const;
 
   void cleanup_resources();
 };

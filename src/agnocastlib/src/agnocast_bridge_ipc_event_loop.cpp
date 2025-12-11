@@ -20,8 +20,8 @@
 namespace agnocast
 {
 
-constexpr long MQ_MAX_MESSAGES = 10;
-constexpr long MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
+constexpr int64_t MQ_MAX_MESSAGES = 10;
+constexpr int64_t MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
 constexpr mode_t MQ_PERMS = 0600;
 
 BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & logger)
@@ -59,7 +59,7 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
   }
   for (int event_index = 0; event_index < event_count; ++event_index) {
     int fd = events[event_index].data.fd;
-    if (fd == mq_parent_fd_) {
+    if (fd == mq_parent_fd_) {  // NOLINT(bugprone-branch-clone)
       // TODO(yutarokobayashi): run event_loop parent handler.
     } else {
       // TODO(yutarokobayashi): run event_loop other handler.
@@ -101,14 +101,14 @@ mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name, const std
 
   mqd_t fd = mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, MQ_PERMS, &attr);
 
-  if (fd == (mqd_t)-1) {
+  if (fd == -1) {
     throw std::system_error(errno, std::generic_category(), label + " MQ open failed");
   }
 
   return fd;
 }
 
-void BridgeIpcEventLoop::add_fd_to_epoll(int fd, const std::string & label)
+void BridgeIpcEventLoop::add_fd_to_epoll(int fd, const std::string & label) const
 {
   struct epoll_event ev = {};
   ev.events = EPOLLIN;
@@ -128,11 +128,11 @@ void BridgeIpcEventLoop::cleanup_resources()
     epoll_fd_ = -1;
   }
 
-  if (mq_parent_fd_ != (mqd_t)-1) {
+  if (mq_parent_fd_ != -1) {
     if (mq_close(mq_parent_fd_) == -1) {
       RCLCPP_WARN(logger_, "Failed to close mq_parent_fd: %s", strerror(errno));
     }
-    mq_parent_fd_ = (mqd_t)-1;
+    mq_parent_fd_ = -1;
   }
 
   if (!mq_parent_name_.empty()) {
