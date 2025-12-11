@@ -104,6 +104,9 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   // - true: Initial request from the parent process. Delegation to an existing owner is allowed.
   // - false: Request received from a peer child process (already delegated). Further delegation
   //          is disabled to prevent infinite loops.
+  // Note: This check (if false) acts as a safety guard against unexpected infinite recursion loops
+  // due to race conditions or timing issues. It is not expected to be triggered in normal
+  // operation.
 
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
