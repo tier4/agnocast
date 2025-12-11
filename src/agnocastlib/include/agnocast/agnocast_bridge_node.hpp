@@ -230,7 +230,7 @@ void send_bridge_request(
                       : &start_ros_to_agno_node<MessageT>;
 
   Dl_info info = {};
-  if (dladdr(reinterpret_cast<void *>(fn_current), &info) == 0 || !info.dli_fname) {
+  if (dladdr(static_cast<void *>(fn_current), &info) == 0 || !info.dli_fname) {
     RCLCPP_ERROR(logger, "dladdr failed or filename NULL.");
     return;
   }
@@ -239,13 +239,12 @@ void send_bridge_request(
   msg.direction = direction;
   msg.target.target_id = id;
   snprintf(
-    reinterpret_cast<char *>(msg.target.topic_name), TOPIC_NAME_BUFFER_SIZE, "%s",
-    topic_name.c_str());
+    static_cast<char *>(msg.target.topic_name), TOPIC_NAME_BUFFER_SIZE, "%s", topic_name.c_str());
   snprintf(
-    reinterpret_cast<char *>(msg.factory.shared_lib_path), SHARED_LIB_PATH_BUFFER_SIZE, "%s",
+    static_cast<char *>(msg.factory.shared_lib_path), SHARED_LIB_PATH_BUFFER_SIZE, "%s",
     info.dli_fname);
   snprintf(
-    reinterpret_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s",
+    static_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s",
     info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__");
   auto base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
