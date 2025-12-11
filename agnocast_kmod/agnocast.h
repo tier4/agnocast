@@ -293,6 +293,8 @@ int get_publisher_qos(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
   struct ioctl_get_publisher_qos_args * args);
 
+int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns);
+
 void process_exit_cleanup(const pid_t pid);
 
 void enqueue_exit_pid(const pid_t pid);

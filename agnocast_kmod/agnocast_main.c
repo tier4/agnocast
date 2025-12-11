@@ -106,6 +106,16 @@ struct entry_node
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
+struct bridge_info
+{
+  char topic_name[TOPIC_NAME_BUFFER_SIZE];
+  pid_t pid;
+  const struct ipc_namespace * ipc_ns;
+  struct hlist_node node;
+};
+
+static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
+
 #ifndef KUNIT_BUILD
 // Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
 // Thus, PIDs must be converted from global to local before they are passed from kernel to user.
@@ -1438,17 +1448,6 @@ int get_publisher_qos(
   return 0;
 }
 
-struct bridge_info
-{
-  char topic_name[TOPIC_NAME_BUFFER_SIZE];
-  pid_t pid;
-  const struct ipc_namespace * ipc_ns;
-  struct hlist_node node;
-};
-
-static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
-static DEFINE_MUTEX(bridge_htable_mutex);
-
 static struct bridge_info * find_bridge_info(
   const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
@@ -1465,15 +1464,12 @@ static struct bridge_info * find_bridge_info(
   return NULL;
 }
 
-int add_bridge(const pid_t pid, const char * topic_name, const struct ipc_namespace * ipc_ns)
+int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
 {
-  mutex_lock(&bridge_htable_mutex);
   if (find_bridge_info(topic_name, ipc_ns)) {
-    mutex_unlock(&bridge_htable_mutex);
     dev_warn(agnocast_device, "Bridge (topic=%s) already exists. (add_bridge)\n", topic_name);
     return -EEXIST;
   }
-  mutex_unlock(&bridge_htable_mutex);
 
   struct bridge_info * br_info = kmalloc(sizeof(*br_info), GFP_KERNEL);
   if (!br_info) {
@@ -1488,10 +1484,7 @@ int add_bridge(const pid_t pid, const char * topic_name, const struct ipc_namesp
   INIT_HLIST_NODE(&br_info->node);
   uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
 
-  mutex_lock(&bridge_htable_mutex);
-
   if (find_bridge_info(topic_name, ipc_ns)) {
-    mutex_unlock(&bridge_htable_mutex);
     kfree(br_info);
     dev_warn(
       agnocast_device, "Bridge (topic=%s) exists (race condition). (add_bridge)\n", topic_name);
@@ -1499,8 +1492,6 @@ int add_bridge(const pid_t pid, const char * topic_name, const struct ipc_namesp
   }
 
   hash_add(bridge_htable, &br_info->node, hash_val);
-
-  mutex_unlock(&bridge_htable_mutex);
 
   return 0;
 }
@@ -1869,7 +1860,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[bridge_args.topic_name.len] = '\0';
-    ret = add_bridge(bridge_args.pid, topic_name_buf, ipc_ns);
+    ret = add_bridge(topic_name_buf, bridge_args.pid, ipc_ns);
     kfree(topic_name_buf);
   } else {
     goto return_EINVAL;
