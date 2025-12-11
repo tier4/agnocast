@@ -100,9 +100,11 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   // - Substitutions: "{node}" -> node_name, "{ns}" or "{namespace}" -> namespace
   // - Relative topics: "foo" -> "/namespace/foo"
   // - Absolute topics: "/foo" -> "/foo" (unchanged)
+  //
+  // TODO: Support custom substitutions via rcutils_string_map_t (see rcl_expand_topic_name)
 
   if (input_topic_name.empty()) {
-    return input_topic_name;
+    throw std::invalid_argument("topic name must not be empty");
   }
 
   std::string local_output = input_topic_name;
@@ -145,15 +147,12 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
         replacement = node_name;
       } else if (substitution == "{ns}" || substitution == "{namespace}") {
         replacement = namespace_;
-      }
-      // Unknown substitutions are left as-is
-
-      if (!replacement.empty()) {
-        local_output.replace(pos, substitution.length(), replacement);
-        pos += replacement.length();
       } else {
-        pos = end_pos + 1;
+        throw std::invalid_argument("unknown substitution: " + substitution);
       }
+
+      local_output.replace(pos, substitution.length(), replacement);
+      pos += replacement.length();
     }
   }
 
