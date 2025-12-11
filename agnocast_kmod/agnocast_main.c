@@ -1484,8 +1484,6 @@ int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namesp
     return -ENOMEM;
   }
 
-  strcpy(br_info->topic_name, topic_name);
-
   br_info->pid = pid;
   br_info->ipc_ns = ipc_ns;
 
