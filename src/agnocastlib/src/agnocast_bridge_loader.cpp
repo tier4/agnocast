@@ -1,10 +1,5 @@
 #include "agnocast/agnocast_bridge_loader.hpp"
 
-#include <dlfcn.h>
-#include <link.h>
-
-#include <cstring>
-
 namespace agnocast
 {
 
@@ -17,28 +12,43 @@ BridgeLoader::~BridgeLoader()
   cached_factories_.clear();
 }
 
-std::pair<void *, uintptr_t> BridgeLoader::load_library_base(
-  const char * lib_path, const char * symbol_name)
+std::shared_ptr<void> BridgeLoader::load_and_create(
+  const MqMsgBridge & req, const std::string & unique_key, rclcpp::Node::SharedPtr node)
 {
-  void * handle = nullptr;
+  auto [entry_func, lib_handle] = resolve_factory_function(req, unique_key);
 
-  if (std::strcmp(symbol_name, "__MAIN_EXECUTABLE__") == 0) {
-    handle = dlopen(NULL, RTLD_NOW);
-  } else {
-    handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+  if (!entry_func) {
+    const char * err = dlerror();
+    RCLCPP_ERROR(
+      logger_, "Failed to resolve factory for '%s': %s", unique_key.c_str(),
+      err ? err : "Unknown error");
+    return nullptr;
   }
 
-  if (!handle) {
-    return {nullptr, 0};
-  }
+  return create_bridge_instance(entry_func, lib_handle, node, req.target);
+}
 
-  struct link_map * map = nullptr;
-  if (dlinfo(handle, RTLD_DI_LINKMAP, &map) == -1 || !map) {
-    dlclose(handle);
-    return {nullptr, 0};
-  }
+std::pair<void * (*)(), void *> BridgeLoader::resolve_factory_function(
+  const MqMsgBridge & req, const std::string & unique_key)
+{
+  (void)req;         // TODO(yutarokobayashi): Remove
+  (void)unique_key;  // TODO(yutarokobayashi): Remove
 
-  return {handle, map->l_addr};
+  // TODO(yutarokobayashi): Implement dynamic library loading (dlopen/dlsym)
+
+  return {nullptr, nullptr};
+}
+
+std::shared_ptr<void> BridgeLoader::create_bridge_instance(
+  void * (*entry_func)(), void * lib_handle, rclcpp::Node::SharedPtr node,
+  const std::string & target)
+{
+  (void)entry_func;  // TODO(yutarokobayashi): Remove
+  (void)lib_handle;  // TODO(yutarokobayashi): Remove
+  (void)node;        // TODO(yutarokobayashi): Remove
+  (void)target;      // TODO(yutarokobayashi): Remove
+
+  return nullptr;
 }
 
 }  // namespace agnocast

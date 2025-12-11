@@ -3,7 +3,6 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -23,12 +22,13 @@ public:
   BridgeLoader(const BridgeLoader &) = delete;
   BridgeLoader & operator=(const BridgeLoader &) = delete;
 
+  std::shared_ptr<void> load_and_create(
+    const MqMsgBridge & req, const std::string & unique_key, rclcpp::Node::SharedPtr node);
+
 private:
   rclcpp::Logger logger_;
 
   std::map<std::string, std::pair<BridgeFn, std::shared_ptr<void>>> cached_factories_;
-
-  std::pair<void *, uintptr_t> load_library_base(const char * lib_path, const char * symbol_name);
 };
 
 }  // namespace agnocast
