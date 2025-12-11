@@ -84,9 +84,14 @@ std::string validate_parameter_range(
 
 }  // namespace
 
-NodeParameters::NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
+NodeParameters::NodeParameters(
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
+  const std::vector<rclcpp::Parameter> & parameter_overrides)
 : node_base_(node_base)
 {
+  for (const auto & param : parameter_overrides) {
+    parameter_overrides_[param.get_name()] = param.get_parameter_value();
+  }
 }
 
 // ===== rclcpp interface methods =====
@@ -414,14 +419,6 @@ const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parame
 {
   std::lock_guard<std::mutex> lock(g_context_mtx);
   return parameter_overrides_;
-}
-
-// ===== Agnocast-specific methods =====
-
-void NodeParameters::add_parameter_override(const std::string & name, const ParameterValue & value)
-{
-  std::lock_guard<std::mutex> lock(g_context_mtx);
-  parameter_overrides_[name] = value;
 }
 
 }  // namespace agnocast::node_interfaces

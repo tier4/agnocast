@@ -9,11 +9,6 @@ Node::Node(const std::string & node_name, const rclcpp::NodeOptions & options)
 {
   initialize_node(node_name, "", options);
 
-  // Apply parameter overrides from NodeOptions (takes precedence over global context)
-  for (const auto & param : options.parameter_overrides()) {
-    node_parameters_->add_parameter_override(param.get_name(), param.get_parameter_value());
-  }
-
   // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
   apply_remap_rules_from_arguments(options.arguments());
 }
@@ -23,11 +18,6 @@ Node::Node(
   const rclcpp::NodeOptions & options)
 {
   initialize_node(node_name, namespace_, options);
-
-  // Apply parameter overrides from NodeOptions (takes precedence over global context)
-  for (const auto & param : options.parameter_overrides()) {
-    node_parameters_->add_parameter_override(param.get_name(), param.get_parameter_value());
-  }
 
   // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
   apply_remap_rules_from_arguments(options.arguments());
@@ -45,28 +35,38 @@ void Node::initialize_node(
   // Set NodeTopics back-reference in NodeBase for resolve_topic_or_service_name
   node_base_->set_node_topics(node_topics_);
 
-  // Create NodeParameters with NodeBase
-  node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(node_base_);
-
-  // Apply global context for topic remapping and parameter overrides
+  // Apply global context for topic remapping
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
-      // Add topic remap rules to NodeTopics
       auto global_rules = g_context.get_remap_rules();
       for (const auto & rule : global_rules) {
         if (rule.type == RemapType::TOPIC_OR_SERVICE) {
           node_topics_->add_remap_rule(rule);
         }
       }
+    }
+  }
 
-      // Get parameter overrides for this specific node (YAML + global overrides)
+  // Collect parameter overrides (global context first, then NodeOptions takes precedence)
+  std::vector<rclcpp::Parameter> parameter_overrides;
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
       auto node_params = g_context.get_param_overrides(get_fully_qualified_name());
       for (const auto & [name, value] : node_params) {
-        node_parameters_->add_parameter_override(name, value);
+        parameter_overrides.emplace_back(name, value);
       }
     }
   }
+  // NodeOptions overrides take precedence (added last)
+  for (const auto & param : options.parameter_overrides()) {
+    parameter_overrides.push_back(param);
+  }
+
+  // Create NodeParameters with collected overrides
+  node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(
+    node_base_, parameter_overrides);
 }
 
 const Node::ParameterValue & Node::declare_parameter(

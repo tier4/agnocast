@@ -27,7 +27,9 @@ public:
   using WeakPtr = std::weak_ptr<NodeParameters>;
   using ParameterValue = rclcpp::ParameterValue;
 
-  explicit NodeParameters(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base);
+  explicit NodeParameters(
+    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
+    const std::vector<rclcpp::Parameter> & parameter_overrides);
 
   virtual ~NodeParameters() = default;
 
@@ -81,10 +83,6 @@ public:
     const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler) override;
 
   const std::map<std::string, rclcpp::ParameterValue> & get_parameter_overrides() const override;
-
-  // ===== Internal helper methods (for rclcpp API implementation) =====
-
-  void add_parameter_override(const std::string & name, const ParameterValue & value);
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
