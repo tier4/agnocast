@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
+#include <dlfcn.h>
 #include <sys/types.h>
 
 #include <atomic>
@@ -80,6 +81,37 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
+    initialize_agnocast_result result = agnocast_attach_pool();
+
+    if (result.mempool_ptr == nullptr) {
+      exit(EXIT_FAILURE);
+    }
+
+    void * handle = dlopen(nullptr, RTLD_NOW);
+    if (handle == nullptr) {
+      const char * error_msg = dlerror();
+      exit(EXIT_FAILURE);
+    }
+
+    using InitFunc = bool (*)(void *, size_t);
+    auto init_child_allocator_ptr =
+      reinterpret_cast<InitFunc>(dlsym(handle, "init_child_allocator"));
+
+    const char * dlsym_error = dlerror();
+    if ((dlsym_error != nullptr) || (init_child_allocator_ptr == nullptr)) {
+      dlclose(handle);
+      exit(EXIT_FAILURE);
+    }
+
+    bool success = init_child_allocator_ptr(result.mempool_ptr, result.mempool_size);
+
+    if (!success) {
+      dlclose(handle);
+      exit(EXIT_FAILURE);
+    }
+
+    dlclose(handle);
+
     BridgeManager manager(target_pid);
     manager.run();
   } catch (const std::exception & e) {
@@ -349,7 +381,7 @@ struct initialize_agnocast_result initialize_agnocast(
   return result;
 }
 
-extern "C" struct initialize_agnocast_result agnocast_attach_pool()
+struct initialize_agnocast_result agnocast_attach_pool()
 {
   struct initialize_agnocast_result result = {nullptr, 0};
 

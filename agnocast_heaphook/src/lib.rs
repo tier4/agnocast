@@ -350,14 +350,11 @@ fn should_use_heap() -> bool {
 /// will result in a panic.
 #[cfg(not(test))]
 #[no_mangle]
-unsafe extern "C" fn init_child_allocator() -> bool {
-    extern "C" {
-        fn agnocast_attach_pool() -> InitializeAgnocastResult;
-    }
-
-    let result = agnocast_attach_pool();
-
-    if result.mempool_ptr.is_null() {
+pub unsafe extern "C" fn init_child_allocator(
+    mempool_ptr: *mut c_void,
+    mempool_size: usize,
+) -> bool {
+    if mempool_ptr.is_null() || mempool_size == 0 {
         return false;
     }
 
@@ -365,8 +362,8 @@ unsafe extern "C" fn init_child_allocator() -> bool {
     IS_FORKED_CHILD.store(false, Ordering::Relaxed);
 
     let shm = AgnocastSharedMemory {
-        start: result.mempool_ptr as usize,
-        end: (result.mempool_ptr as usize) + (result.mempool_size as usize),
+        start: mempool_ptr as usize,
+        end: (mempool_ptr as usize) + mempool_size,
     };
 
     if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
