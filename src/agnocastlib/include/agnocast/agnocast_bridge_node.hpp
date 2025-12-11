@@ -257,6 +257,7 @@ void send_bridge_request(
     RCLCPP_ERROR(
       logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
       errno);
+    return;
   }
 
   if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
@@ -265,6 +266,7 @@ void send_bridge_request(
       errno);
 
     mq_close(mq);
+    return;
   }
 
   mq_close(mq);
