@@ -37,7 +37,8 @@ struct RosToAgnocastRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & /*topic_name*/, topic_local_id_t /*id*/)
   {
-    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until the
+    // bridge function is complete.
     // send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
   }
 };
@@ -49,7 +50,8 @@ struct AgnocastToRosRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & /*topic_name*/, topic_local_id_t /*id*/)
   {
-    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+    // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until the
+    // bridge function is complete.
     // send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
