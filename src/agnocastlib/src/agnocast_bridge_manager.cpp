@@ -121,7 +121,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
 
   //  Preparing the entity before kernel registration prevents the state where “it was registered
   //  but the entity does not exist.”
-  auto pending_bridge = loader_.load_and_create(req, topic_name_with_direction, container_node_);
+  auto pending_bridge = loader_.create(req, topic_name_with_direction, container_node_);
 
   if (!pending_bridge) {
     RCLCPP_ERROR(
