@@ -269,5 +269,6 @@ void send_bridge_request(
   }
 
   mq_close(mq);
+}
 
 }  // namespace agnocast
