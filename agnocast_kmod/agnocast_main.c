@@ -2061,6 +2061,21 @@ bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ip
   return find_topic(topic_name, ipc_ns) != NULL;
 }
 
+bool is_in_bridge_htable(const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  return (br_info != NULL);
+}
+
+pid_t get_bridge_owner_pid(const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  if (br_info) {
+    return br_info->pid;
+  }
+  return -1;
+}
+
 #endif
 
 // =========================================
