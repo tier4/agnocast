@@ -90,7 +90,7 @@ class BasicSubscription : public SubscriptionBase
 
   template <typename NodeT, typename Func>
   uint32_t constructor_impl(
-    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    NodeT * node, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
     union ioctl_add_subscriber_args add_subscriber_args =
@@ -119,8 +119,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -141,8 +141,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
