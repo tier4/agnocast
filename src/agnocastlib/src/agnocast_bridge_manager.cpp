@@ -201,8 +201,17 @@ void BridgeManager::check_should_exit()
   }
 }
 
-int BridgeManager::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
+int BridgeManager::get_agnocast_connection_count(
+  const std::string & /*topic_name*/, bool /*is_r2a*/)
 {
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
+  // Expected implementation steps:
+  // 1. Prepare ioctl arguments based on the topic name.
+  // 2. If is_r2a is true, call ioctl with AGNOCAST_GET_SUBSCRIBER_NUM_CMD.
+  // 3. If is_r2a is false, call ioctl with AGNOCAST_GET_PUBLISHER_NUM_CMD.
+  // 4. Return the retrieved count on success, or -1 on failure.
+  // Return the count if ioctl succeeded (0), otherwise return -1 (error)
+  return -1;
 }
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
