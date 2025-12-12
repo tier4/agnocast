@@ -1,4 +1,5 @@
 #include "agnocast.h"
+#include "agnocast_kunit/agnocast_kunit_add_bridge.h"
 #include "agnocast_kunit/agnocast_kunit_add_process.h"
 #include "agnocast_kunit/agnocast_kunit_add_publisher.h"
 #include "agnocast_kunit/agnocast_kunit_add_subscriber.h"
@@ -29,6 +30,7 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_GET_SUBSCRIBER_NUM,
   TEST_CASES_GET_SUBSCRIBER_QOS,
   TEST_CASES_GET_PUBLISHER_QOS,
+  TEST_CASES_ADD_BRIDGE,
   TEST_CASES_DO_EXIT,
   {},
 };

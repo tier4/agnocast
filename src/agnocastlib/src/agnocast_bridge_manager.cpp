@@ -120,16 +120,24 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   }
 
   // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
-  // Attempt to register the bridge with the kernel
+  struct ioctl_add_bridge_args add_bridge_args
+  {
+  };
+  std::memset(&add_bridge_args, 0, sizeof(add_bridge_args));
+  add_bridge_args.pid = getpid();
+  add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
 
-  // Registration successful: Load and create the bridge instance
-  // Rollback kernel registration if bridge creation fails
-
-  // The bridge is already registered in the kernel (EEXIST case)
-  // If allow_delegation is true, retrieve the PID of the current owner and delegate.
-  // Otherwise, abort to avoid loops.
-
-  // Handle unexpected ioctl errors
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
+    // Registration successful: Load and create the bridge instance
+    // Rollback kernel registration if bridge creation fails
+  } else if (errno == EEXIST) {
+    [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
+    // The bridge is already registered in the kernel (EEXIST case)
+    // If allow_delegation is true, retrieve the PID of the current owner and delegate.
+    // Otherwise, abort to avoid loops.
+  } else {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
+  }
 }
 
 void BridgeManager::check_parent_alive()
