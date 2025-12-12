@@ -40,6 +40,7 @@ private:
   void start_ros_execution();
 
   void on_mq_event(mqd_t fd, bool allow_delegation);
+  void on_signal();
 
   void handle_create_request(const MqMsgBridge & req, bool allow_delegation);
 
