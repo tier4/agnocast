@@ -27,7 +27,8 @@ void test_case_add_bridge_already_exists_same_pid(struct kunit * test)
 {
   // Arrange
   struct ioctl_add_bridge_args args = {0};
-  add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  KUNIT_ASSERT_EQ(test, ret_setup, 0);
 
   // Act
   int ret = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
@@ -42,7 +43,8 @@ void test_case_add_bridge_already_exists_diff_pid(struct kunit * test)
 {
   // Arrange
   struct ioctl_add_bridge_args args = {0};
-  add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  KUNIT_ASSERT_EQ(test, ret_setup, 0);
 
   // Act
   int ret = add_bridge(TOPIC_NAME, OTHER_PID, current->nsproxy->ipc_ns, &args);
