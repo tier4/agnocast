@@ -128,11 +128,11 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
-    auto bridge = loader_.load_and_create(req, topic_name_with_direction, container_node_);
+    auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
     if (bridge) {
       active_bridges_[topic_name_with_direction] = bridge;
     } else {
-      RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", unique_key.c_str());
+      RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
       // Rollback kernel registration.
     }
   } else if (errno == EEXIST) {
