@@ -50,6 +50,13 @@ public:
     return node_base_;
   }
 
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr get_node_topics_interface()
+  {
+    return node_topics_;
+  }
+
   template <typename MessageT, typename Func>
   typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
     const std::string & topic_name, size_t queue_size, Func && callback,
