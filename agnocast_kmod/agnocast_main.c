@@ -1473,7 +1473,7 @@ int add_bridge(
         agnocast_device, "Bridge (topic=%s) already registered by this process.\n", topic_name);
       return 0;
     } else {
-      dev_warn(
+      dev_info(
         agnocast_device, "Bridge (topic=%s) already exists with different pid.\n", topic_name);
       if (ioctl_ret) {
         ioctl_ret->ret_pid = existing->pid;
