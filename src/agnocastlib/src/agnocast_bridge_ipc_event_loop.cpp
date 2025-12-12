@@ -77,6 +77,26 @@ void BridgeIpcEventLoop::set_parent_mq_handler(EventCallback cb)
   parent_cb_ = std::move(cb);
 }
 
+void BridgeIpcEventLoop::close_parent_mq()
+{
+  if (mq_parent_fd_ != -1) {
+    if (mq_close(mq_parent_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close mq_parent_fd: %s", strerror(errno));
+    }
+    mq_parent_fd_ = -1;
+  }
+
+  if (!mq_parent_name_.empty()) {
+    if (mq_unlink(mq_parent_name_.c_str()) == -1) {
+      if (errno != ENOENT) {
+        RCLCPP_WARN(
+          logger_, "Failed to unlink mq %s: %s", mq_parent_name_.c_str(), strerror(errno));
+      }
+    }
+    mq_parent_name_.clear();
+  }
+}
+
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
@@ -136,22 +156,7 @@ void BridgeIpcEventLoop::cleanup_resources()
     epoll_fd_ = -1;
   }
 
-  if (mq_parent_fd_ != -1) {
-    if (mq_close(mq_parent_fd_) == -1) {
-      RCLCPP_WARN(logger_, "Failed to close mq_parent_fd: %s", strerror(errno));
-    }
-    mq_parent_fd_ = -1;
-  }
-
-  if (!mq_parent_name_.empty()) {
-    if (mq_unlink(mq_parent_name_.c_str()) == -1) {
-      if (errno != ENOENT) {
-        RCLCPP_WARN(
-          logger_, "Failed to unlink mq %s: %s", mq_parent_name_.c_str(), strerror(errno));
-      }
-    }
-    mq_parent_name_.clear();
-  }
+  close_parent_mq();
 }
 
 }  // namespace agnocast
