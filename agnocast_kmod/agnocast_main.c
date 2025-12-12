@@ -1462,7 +1462,9 @@ static struct bridge_info * find_bridge_info(
   return NULL;
 }
 
-int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
+int add_bridge(
+  const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns,
+  struct ioctl_add_bridge_args * ioctl_ret)
 {
   const struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
   if (existing) {
@@ -1473,6 +1475,9 @@ int add_bridge(const char * topic_name, const pid_t pid, const struct ipc_namesp
     } else {
       dev_warn(
         agnocast_device, "Bridge (topic=%s) already exists with different pid.\n", topic_name);
+      if (ioctl_ret) {
+        ioctl_ret->ret_pid = existing->pid;
+      }
       return -EEXIST;
     }
   }
@@ -1867,8 +1872,13 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[bridge_args.topic_name.len] = '\0';
-    ret = add_bridge(topic_name_buf, bridge_args.pid, ipc_ns);
+    ret = add_bridge(topic_name_buf, bridge_args.pid, ipc_ns, &bridge_args);
     kfree(topic_name_buf);
+    if (ret == -EEXIST) {
+      if (copy_to_user(
+            (struct ioctl_add_bridge_args __user *)arg, &bridge_args, sizeof(bridge_args)))
+        goto return_EFAULT;
+    }
   } else {
     goto return_EINVAL;
   }

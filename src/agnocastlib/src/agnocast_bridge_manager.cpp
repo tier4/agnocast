@@ -120,7 +120,9 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   }
 
   // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
-  struct ioctl_add_bridge_args add_bridge_args;
+  struct ioctl_add_bridge_args add_bridge_args
+  {
+  };
   std::memset(&add_bridge_args, 0, sizeof(add_bridge_args));
   add_bridge_args.pid = getpid();
   add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -129,6 +131,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
     // Registration successful: Load and create the bridge instance
     // Rollback kernel registration if bridge creation fails
   } else if (errno == EEXIST) {
+    [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
     // If allow_delegation is true, retrieve the PID of the current owner and delegate.
     // Otherwise, abort to avoid loops.
