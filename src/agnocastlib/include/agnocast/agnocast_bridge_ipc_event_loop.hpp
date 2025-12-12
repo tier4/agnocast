@@ -14,6 +14,7 @@ class BridgeIpcEventLoop
 {
 public:
   using EventCallback = std::function<void(int fd)>;
+  using SignalCallback = std::function<void()>;
 
   BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & logger);
   ~BridgeIpcEventLoop();
@@ -24,6 +25,7 @@ public:
   bool spin_once(int timeout_ms);
 
   void set_parent_mq_handler(EventCallback cb);
+  void set_signal_handler(SignalCallback cb);
 
   void close_parent_mq();
 
@@ -31,14 +33,20 @@ private:
   rclcpp::Logger logger_;
 
   int epoll_fd_ = -1;
+  int signal_fd_ = -1;
 
   mqd_t mq_parent_fd_ = (mqd_t)-1;
 
   std::string mq_parent_name_;
 
   EventCallback parent_cb_;
+  SignalCallback signal_cb_;
+
+  static void ignore_signals(std::initializer_list<int> signals);
+  static sigset_t block_signals(std::initializer_list<int> signals);
 
   void setup_mq(pid_t target_pid);
+  void setup_signals();
   void setup_epoll();
 
   mqd_t create_and_open_mq(const std::string & name, const std::string & label);
