@@ -6,7 +6,6 @@
 #include <rclcpp/logging.hpp>
 
 #include <fcntl.h>
-#include <signal.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/stat.h>
@@ -14,6 +13,7 @@
 
 #include <array>
 #include <cerrno>
+#include <csignal>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -68,7 +68,9 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
         parent_cb_(fd);
       }
     } else if (fd == signal_fd_) {
-      struct signalfd_siginfo fdsi;
+      struct signalfd_siginfo fdsi
+      {
+      };
       ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
       if (s == sizeof(struct signalfd_siginfo)) {
         if ((fdsi.ssi_signo == SIGTERM || fdsi.ssi_signo == SIGINT) && signal_cb_) {
@@ -89,7 +91,7 @@ void BridgeIpcEventLoop::set_parent_mq_handler(EventCallback cb)
 
 void BridgeIpcEventLoop::set_signal_handler(SignalCallback cb)
 {
-  signal_cb_ = cb;
+  signal_cb_ = std::move(cb);
 }
 
 void BridgeIpcEventLoop::close_parent_mq()

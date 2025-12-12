@@ -42,8 +42,8 @@ private:
   EventCallback parent_cb_;
   SignalCallback signal_cb_;
 
-  void ignore_signals(std::initializer_list<int> signals);
-  sigset_t block_signals(std::initializer_list<int> signals);
+  static void ignore_signals(std::initializer_list<int> signals);
+  static sigset_t block_signals(std::initializer_list<int> signals);
 
   void setup_mq(pid_t target_pid);
   void setup_signals();
