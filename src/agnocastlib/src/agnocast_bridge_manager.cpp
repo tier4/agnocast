@@ -187,6 +187,8 @@ void BridgeManager::check_active_bridges()
     std::string reverse_key(topic_name_view);
     reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
 
+    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
+    // We set the threshold to 1 to exclude this self-count and detect only external demand.
     const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
     const int threshold = reverse_exists ? 1 : 0;
 
