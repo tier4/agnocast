@@ -83,11 +83,10 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
 {
   // Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c:44-219
   //
-  // TODOs
-  // - Support custom substitutions via rcutils_string_map_t
-  // - Validate input_topic_name using rcl_validate_topic_name
-  // - Validate node_name using rmw_validate_node_name
-  // - Validate node_namespace using rmw_validate_namespace
+  // TODO(Koichi98): Support custom substitutions via rcutils_string_map_t
+  // TODO(Koichi98): Validate input_topic_name using rcl_validate_topic_name
+  // TODO(Koichi98): Validate node_name using rmw_validate_node_name
+  // TODO(Koichi98): Validate node_namespace using rmw_validate_namespace
 
   if (input_topic_name.empty()) {
     throw std::invalid_argument("topic name must not be empty");
@@ -112,7 +111,7 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   if (has_a_namespace_tilde) {
     // Special case where node_namespace is just '/'
     // then no additional separating '/' is needed
-    if (node_namespace.length() == 1) {
+    if (node_namespace == "/") {
       local_output = node_namespace + node_name + input_topic_name.substr(1);
     } else {
       local_output = node_namespace + "/" + node_name + input_topic_name.substr(1);
@@ -150,7 +149,7 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
       } else if (substitution == "{ns}" || substitution == "{namespace}") {
         replacement = node_namespace;
       } else {
-        // TODO: Check custom substitutions map before throwing
+        // TODO(Koichi98): Check custom substitutions map before throwing
         throw std::invalid_argument("unknown substitution: " + substitution);
       }
 
@@ -166,7 +165,7 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   if (name_to_check[0] != '/') {
     // Special case where node_namespace is just '/'
     // then no additional separating '/' is needed
-    if (node_namespace.length() == 1) {
+    if (node_namespace == "/") {
       local_output = node_namespace + name_to_check;
     } else {
       local_output = node_namespace + "/" + name_to_check;
