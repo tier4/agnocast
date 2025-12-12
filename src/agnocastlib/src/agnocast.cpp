@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
+#include <dlfcn.h>
 #include <sys/types.h>
 
 #include <atomic>
@@ -36,6 +37,114 @@ std::mutex mmap_mtx;
 // Root Cause: T2's callback uses `shm_addr` that T1 fetched but hadn't initialized/mapped yet.
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
+
+void * map_area(
+  const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
+{
+  const std::string shm_name = create_shm_name(pid);
+
+  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
+  const int shm_mode = 0666;
+  int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
+  if (shm_fd == -1) {
+    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
+    close(agnocast_fd);
+    return nullptr;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(shm_fds_mtx);
+    shm_fds.push_back(shm_fd);
+  }
+
+  if (writable) {
+    if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
+      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
+
+    const int new_shm_mode = 0444;
+    if (fchmod(shm_fd, new_shm_mode) == -1) {
+      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
+  }
+
+  int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
+  void * ret = mmap(
+    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
+    0);
+
+  if (ret == MAP_FAILED) {
+    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
+    close(agnocast_fd);
+    return nullptr;
+  }
+
+  return ret;
+}
+
+void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+{
+  return map_area(pid, shm_addr, shm_size, true);
+}
+
+void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+{
+  if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
+    exit(EXIT_FAILURE);
+  }
+}
+
+void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
+{
+  void * handle = dlopen(nullptr, RTLD_NOW);
+  if (!handle) {
+    throw std::runtime_error(std::string("dlopen failed: ") + (dlerror() ? dlerror() : "Unknown"));
+  }
+
+  using InitFunc = bool (*)(void *, size_t);
+  auto init_func = reinterpret_cast<InitFunc>(dlsym(handle, "init_child_allocator"));
+
+  const char * dlsym_error = dlerror();
+  if (dlsym_error || !init_func) {
+    dlclose(handle);
+    throw std::runtime_error(
+      std::string("dlsym 'init_child_allocator' failed: ") +
+      (dlsym_error ? dlsym_error : "Symbol is null"));
+  }
+
+  bool success = init_func(mempool_ptr, mempool_size);
+  dlclose(handle);
+
+  if (!success) {
+    throw std::runtime_error("init_child_allocator returned false.");
+  }
+}
+
+struct initialize_agnocast_result setup_agnocast_resources()
+{
+  if (agnocast_fd < 0) {
+    throw std::runtime_error("[Agnocast] agnocast_fd is not initialized.");
+  }
+
+  union ioctl_add_process_args add_process_args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    throw std::runtime_error(
+      std::string("[Agnocast] AGNOCAST_ADD_PROCESS_CMD failed: ") + strerror(errno));
+  }
+
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
+
+  if (mempool_ptr == nullptr) {
+    throw std::runtime_error("[Agnocast] map_writable_area failed.");
+  }
+
+  return {mempool_ptr, add_process_args.ret_shm_size};
+}
 
 void poll_for_unlink()
 {
@@ -75,17 +184,22 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
-    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   try {
+    auto resource = setup_agnocast_resources();
+
+    load_and_initialize_heaphook(resource.mempool_ptr, resource.mempool_size);
+
     BridgeManager manager(target_pid);
     manager.run();
+
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
     exit(EXIT_FAILURE);
   }
+
   exit(0);
 }
 
@@ -211,66 +325,6 @@ bool is_version_consistent(
   }
 
   return true;
-}
-
-void * map_area(
-  const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
-{
-  const std::string shm_name = create_shm_name(pid);
-
-  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
-  const int shm_mode = 0666;
-  int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
-  if (shm_fd == -1) {
-    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
-    close(agnocast_fd);
-    return nullptr;
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(shm_fds_mtx);
-    shm_fds.push_back(shm_fd);
-  }
-
-  if (writable) {
-    if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
-      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
-      close(agnocast_fd);
-      return nullptr;
-    }
-
-    const int new_shm_mode = 0444;
-    if (fchmod(shm_fd, new_shm_mode) == -1) {
-      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
-      close(agnocast_fd);
-      return nullptr;
-    }
-  }
-
-  int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
-  void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
-    0);
-
-  if (ret == MAP_FAILED) {
-    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
-    close(agnocast_fd);
-    return nullptr;
-  }
-
-  return ret;
-}
-
-void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
-{
-  return map_area(pid, shm_addr, shm_size, true);
-}
-
-void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
-{
-  if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
-    exit(EXIT_FAILURE);
-  }
 }
 
 template <typename Func>
