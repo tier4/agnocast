@@ -7,7 +7,7 @@ agnocast_heaphook/ @Koichi98 @veqcc @sykwer
 src/agnocastlib/src/*executor* @Koichi98 @atsushi421 @sykwer
 src/agnocastlib/include/agnocast/*executor* @Koichi98 @atsushi421 @sykwer
 src/agnocastlib/src/*component_container* @Koichi98 @atsushi421 @sykwer
-src/agnocastlib/include/*component_container* @Koichi98 @atsushi421 @sykwer
+src/agnocastlib/include/agnocast/*component_container* @Koichi98 @atsushi421 @sykwer
 src/agnocastlib/src/*bridge* @kobayu858 @Koichi98 @sykwer
 src/agnocastlib/include/agnocast/*bridge* @kobayu858 @Koichi98 @sykwer 
 
