@@ -63,9 +63,13 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
   }
   for (int event_index = 0; event_index < event_count; ++event_index) {
     int fd = events[event_index].data.fd;
-    if (fd == mq_parent_fd_) {  // NOLINT(bugprone-branch-clone)
+    if (fd == mq_parent_fd_) {
       if (parent_cb_) {
         parent_cb_(fd);
+      }
+    } else if (fd == mq_child_fd_) {
+      if (child_cb_) {
+        child_cb_(fd);
       }
     } else if (fd == signal_fd_) {
       struct signalfd_siginfo fdsi
@@ -77,8 +81,6 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
           signal_cb_();
         }
       }
-    } else {
-      // TODO(yutarokobayashi): run event_loop other handler.
     }
   }
   return true;
@@ -87,6 +89,11 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
 void BridgeIpcEventLoop::set_parent_mq_handler(EventCallback cb)
 {
   parent_cb_ = std::move(cb);
+}
+
+void BridgeIpcEventLoop::set_child_mq_handler(EventCallback cb)
+{
+  child_cb_ = std::move(cb);
 }
 
 void BridgeIpcEventLoop::set_signal_handler(SignalCallback cb)
@@ -149,6 +156,8 @@ void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
   mq_parent_fd_ = create_and_open_mq(mq_parent_name_, "Parent");
+  mq_child_name_ = create_mq_name_for_bridge_child(getpid());
+  mq_child_fd_ = create_and_open_mq(mq_child_name_, "Child");
 }
 
 void BridgeIpcEventLoop::setup_signals()
@@ -224,6 +233,22 @@ void BridgeIpcEventLoop::cleanup_resources()
   }
 
   close_parent_mq();
+
+  if (mq_child_fd_ != -1) {
+    if (mq_close(mq_child_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close mq_child_fd: %s", strerror(errno));
+    }
+    mq_child_fd_ = -1;
+  }
+
+  if (!mq_child_name_.empty()) {
+    if (mq_unlink(mq_child_name_.c_str()) == -1) {
+      if (errno != ENOENT) {
+        RCLCPP_WARN(logger_, "Failed to unlink mq %s: %s", mq_child_name_.c_str(), strerror(errno));
+      }
+    }
+    mq_child_name_.clear();
+  }
 }
 
 }  // namespace agnocast

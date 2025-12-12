@@ -56,7 +56,8 @@ void BridgeManager::run()
 
   start_ros_execution();
 
-  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event(fd, true); });
+  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event_parent(fd); });
+  event_loop_.set_child_mq_handler([this](int fd) { this->on_mq_event_child(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
@@ -91,11 +92,19 @@ void BridgeManager::start_ros_execution()
   });
 }
 
-void BridgeManager::on_mq_event(mqd_t fd, bool allow_delegation)
+void BridgeManager::on_mq_event_parent(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
-    handle_create_request(req, allow_delegation);
+    handle_create_request(req);
+  }
+}
+
+void BridgeManager::on_mq_event_child(mqd_t fd)
+{
+  MqMsgBridge req{};
+  while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    handle_delegate_request(req);
   }
 }
 
@@ -107,16 +116,8 @@ void BridgeManager::on_signal()
   }
 }
 
-void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_delegation*/)
+void BridgeManager::handle_create_request(const MqMsgBridge & req)
 {
-  // The 'allow_delegation' flag indicates the source of the request:
-  // - true: Initial request from the parent process. Delegation to an existing owner is allowed.
-  // - false: Request received from a peer child process (already delegated). Further delegation
-  //          is disabled to prevent infinite loops.
-  // Note: This check (if false) acts as a safety guard against unexpected infinite recursion loops
-  // due to race conditions or timing issues. It is not expected to be triggered in normal
-  // operation.
-
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   std::string topic_name(
@@ -147,11 +148,15 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
-    // If allow_delegation is true, retrieve the PID of the current owner and delegate.
-    // Otherwise, abort to avoid loops.
+    // Retrieve the PID of the current owner and delegate.
   } else {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
   }
+}
+
+void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
+{
+  // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
 }
 
 void BridgeManager::check_parent_alive()
