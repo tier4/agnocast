@@ -1513,12 +1513,12 @@ int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_nam
   struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
 
   if (!br_info) {
-    dev_info(agnocast_device, "Bridge (topic=%s) not found.\n", topic_name);
+    dev_warn(agnocast_device, "Bridge (topic=%s) not found.\n", topic_name);
     return -ENOENT;
   }
 
   if (br_info->pid != pid) {
-    dev_info(
+    dev_warn(
       agnocast_device, "Bridge (topic=%s) pid mismatch. Expected %d, got %d.\n", topic_name,
       br_info->pid, pid);
     return -EPERM;
