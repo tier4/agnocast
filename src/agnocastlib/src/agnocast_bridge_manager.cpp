@@ -119,17 +119,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
     return;
   }
 
-  //  Preparing the entity before kernel registration prevents the state where “it was registered
-  //  but the entity does not exist.”
-  auto pending_bridge = loader_.create(req, topic_name_with_direction, container_node_);
-
-  if (!pending_bridge) {
-    RCLCPP_ERROR(
-      logger_, "Failed to create bridge instance for '%s'. Aborting.",
-      topic_name_with_direction.c_str());
-    return;
-  }
-
   // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
   struct ioctl_add_bridge_args add_bridge_args
   {
