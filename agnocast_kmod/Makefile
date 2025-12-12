@@ -19,6 +19,7 @@ else
 	  agnocast_kunit/agnocast_kunit_get_publisher_qos.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_qos.o \
+	  agnocast_kunit/agnocast_kunit_add_bridge.o \
 	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage
   else
