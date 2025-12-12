@@ -6,7 +6,9 @@
 #include <rclcpp/logging.hpp>
 
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/epoll.h>
+#include <sys/signalfd.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -30,6 +32,7 @@ BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & 
 {
   try {
     setup_mq(target_pid);
+    setup_signals();
     setup_epoll();
   } catch (...) {
     cleanup_resources();
@@ -64,17 +67,29 @@ bool BridgeIpcEventLoop::spin_once(int timeout_ms)
       if (parent_cb_) {
         parent_cb_(fd);
       }
+    } else if (fd == signal_fd_) {
+      struct signalfd_siginfo fdsi;
+      ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
+      if (s == sizeof(struct signalfd_siginfo)) {
+        if ((fdsi.ssi_signo == SIGTERM || fdsi.ssi_signo == SIGINT) && signal_cb_) {
+          signal_cb_();
+        }
+      }
     } else {
       // TODO(yutarokobayashi): run event_loop other handler.
     }
   }
-
   return true;
 }
 
 void BridgeIpcEventLoop::set_parent_mq_handler(EventCallback cb)
 {
   parent_cb_ = std::move(cb);
+}
+
+void BridgeIpcEventLoop::set_signal_handler(SignalCallback cb)
+{
+  signal_cb_ = cb;
 }
 
 void BridgeIpcEventLoop::close_parent_mq()
@@ -97,10 +112,52 @@ void BridgeIpcEventLoop::close_parent_mq()
   }
 }
 
+void BridgeIpcEventLoop::ignore_signals(std::initializer_list<int> signals)
+{
+  struct sigaction sa
+  {
+  };
+  sa.sa_handler = SIG_IGN;
+  sa.sa_flags = 0;
+  sigemptyset(&sa.sa_mask);
+
+  for (int sig : signals) {
+    if (sigaction(sig, &sa, nullptr) == -1) {
+      throw std::system_error(errno, std::generic_category(), "sigaction(SIG_IGN) failed");
+    }
+  }
+}
+
+sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
+{
+  sigset_t mask;
+  sigemptyset(&mask);
+  for (int sig : signals) {
+    sigaddset(&mask, sig);
+  }
+
+  if (int err = pthread_sigmask(SIG_BLOCK, &mask, nullptr); err != 0) {
+    throw std::system_error(err, std::generic_category(), "pthread_sigmask failed");
+  }
+
+  return mask;
+}
+
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
   mq_parent_fd_ = create_and_open_mq(mq_parent_name_, "Parent");
+}
+
+void BridgeIpcEventLoop::setup_signals()
+{
+  ignore_signals({SIGPIPE, SIGHUP});
+  sigset_t mask = block_signals({SIGTERM, SIGINT});
+
+  signal_fd_ = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+  if (signal_fd_ == -1) {
+    throw std::system_error(errno, std::generic_category(), "signalfd failed");
+  }
 }
 
 void BridgeIpcEventLoop::setup_epoll()
@@ -111,6 +168,7 @@ void BridgeIpcEventLoop::setup_epoll()
   }
 
   add_fd_to_epoll(mq_parent_fd_, "Parent MQ");
+  add_fd_to_epoll(signal_fd_, "Signal");
 }
 
 mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name, const std::string & label)
@@ -154,6 +212,13 @@ void BridgeIpcEventLoop::cleanup_resources()
       RCLCPP_WARN(logger_, "Failed to close epoll_fd: %s", strerror(errno));
     }
     epoll_fd_ = -1;
+  }
+
+  if (signal_fd_ != -1) {
+    if (close(signal_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close signal_fd: %s", strerror(errno));
+    }
+    signal_fd_ = -1;
   }
 
   close_parent_mq();

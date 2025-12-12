@@ -57,6 +57,7 @@ void BridgeManager::run()
   start_ros_execution();
 
   event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event(fd, true); });
+  event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
     check_parent_alive();
@@ -95,6 +96,14 @@ void BridgeManager::on_mq_event(mqd_t fd, bool allow_delegation)
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
     handle_create_request(req, allow_delegation);
+  }
+}
+
+void BridgeManager::on_signal()
+{
+  shutdown_requested_ = true;
+  if (executor_) {
+    executor_->cancel();
   }
 }
 
