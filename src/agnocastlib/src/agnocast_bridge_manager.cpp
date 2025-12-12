@@ -153,8 +153,39 @@ void BridgeManager::check_parent_alive()
 
 void BridgeManager::check_active_bridges()
 {
-  // TODO(yutarokobayashi): Verifying the number of connections and get remove bridge name
-  remove_active_bridges("TOPIC_R2A");
+  constexpr std::string_view SUFFIX_R2A = "_R2A";
+  constexpr std::string_view SUFFIX_A2R = "_A2R";
+  constexpr size_t SUFFIX_LEN = 4;  // "_R2A" or "_A2R" length
+
+  std::vector<std::string> to_remove;
+  to_remove.reserve(active_bridges_.size());
+
+  for (const auto & [key, bridge] : active_bridges_) {
+    if (key.size() <= SUFFIX_LEN) {
+      continue;
+    }
+
+    std::string_view key_view = key;
+    std::string_view suffix = key_view.substr(key_view.size() - SUFFIX_LEN);
+    std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
+
+    bool is_r2a = (suffix == SUFFIX_R2A);
+    std::string reverse_key(topic_name_view);
+    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
+
+    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
+    const int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
+
+    if (count >= 0 && count <= threshold) {
+      to_remove.push_back(key);
+    }
+  }
+
+  for (const auto & key : to_remove) {
+    remove_active_bridges(key);
+  }
 }
 
 // TODO(yutarokobayashi): Reconsider the exit logic.
@@ -168,6 +199,10 @@ void BridgeManager::check_should_exit()
       executor_->cancel();
     }
   }
+}
+
+int BridgeManager::get_agnocast_connection_count(const std::string & topic_name, bool is_r2a)
+{
 }
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
