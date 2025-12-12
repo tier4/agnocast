@@ -81,10 +81,10 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   // Register Reverse Function
   if (req.factory.fn_offset_reverse != 0) {
     const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
-    std::string reverse_key = std::string(req.target.topic_name) + suffix;
+    std::string topic_name_with_reverse = std::string(req.target.topic_name) + suffix;
 
     auto reverse_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset_reverse);
-    cached_factories_[reverse_key] = {reverse_func, lib_handle_ptr};
+    cached_factories_[topic_name_with_reverse] = {reverse_func, lib_handle_ptr};
   }
 
   return {entry_func, lib_handle_ptr};
