@@ -19,7 +19,7 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
     return expanded_topic_name;
   }
 
-  // TODO(Koichi98) return remap_name(expanded_topic_name);
+  // TODO(Koichi98): remap_name, then rmw_validate_full_topic_name (see node_resolve_name.c:91-105)
   return expanded_topic_name;
 }
 

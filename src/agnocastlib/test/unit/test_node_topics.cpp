@@ -39,12 +39,16 @@ TEST_F(NodeTopicsExpandTest, absolute_path_with_node_substitution)
 TEST_F(NodeTopicsExpandTest, absolute_path_with_ns_substitution)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
+  // Produces invalid "//", but matches rcl_expand_topic_name. rmw_validate_full_topic_name catches
+  // this.
   EXPECT_EQ(node_topics->resolve_topic_name("/{ns}", true), "//my_ns");
 }
 
 TEST_F(NodeTopicsExpandTest, absolute_path_with_namespace_substitution)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
+  // Same as above: produces invalid "//" but matches rcl_expand_topic_name behavior.
+  // Validation should catch this in the full resolve_topic_name flow.
   EXPECT_EQ(node_topics->resolve_topic_name("/{namespace}", true), "//my_ns");
 }
 
@@ -145,6 +149,8 @@ TEST_F(NodeTopicsExpandTest, multiple_substitutions)
 TEST_F(NodeTopicsExpandTest, tilde_with_multiple_substitutions)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
+  // This also produces "//" in the middle, which is invalid but matches rcl_expand_topic_name.
+  // rmw_validate_full_topic_name() should catch this.
   EXPECT_EQ(
     node_topics->resolve_topic_name("~/{ns}/{node}", true), "/my_ns/my_node//my_ns/my_node");
 }
