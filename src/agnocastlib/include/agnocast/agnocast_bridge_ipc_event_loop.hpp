@@ -25,6 +25,8 @@ public:
 
   void set_parent_mq_handler(EventCallback cb);
 
+  void close_parent_mq();
+
 private:
   rclcpp::Logger logger_;
 

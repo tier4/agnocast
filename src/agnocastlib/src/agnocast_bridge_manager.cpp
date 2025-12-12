@@ -147,7 +147,7 @@ void BridgeManager::check_parent_alive()
   }
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
-    // TODO(yutarokobayashi): close parent mq
+    event_loop_.close_parent_mq();
   }
 }
 
