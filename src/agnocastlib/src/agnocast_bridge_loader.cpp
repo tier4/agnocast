@@ -27,7 +27,7 @@ std::shared_ptr<void> BridgeLoader::create(
 
   auto [entry_func, lib_handle] = resolve_factory_function(req, topic_name_with_direction);
 
-  if (!entry_func) {
+  if (entry_func == nullptr) {
     const char * err = dlerror();
     RCLCPP_ERROR(
       logger_, "Failed to resolve factory for '%s': %s", topic_name_with_direction.c_str(),
@@ -41,7 +41,7 @@ std::shared_ptr<void> BridgeLoader::create(
 std::pair<void *, uintptr_t> BridgeLoader::load_library(
   const char * /*lib_path*/, const char * /*symbol_name*/)
 {
-  // TODO: Implement library loading and base address retrieval.
+  // TODO(yutarokobayashi): Implement library loading and base address retrieval.
   // This function should:
   // - Open the specified library (or main executable) via dlopen.
   // - Query the link map (dlinfo) to find the runtime load address.
@@ -60,8 +60,8 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   dlerror();
   auto [raw_handle, base_addr] = load_library(req.factory.shared_lib_path, req.factory.symbol_name);
 
-  if (!raw_handle || (base_addr == 0 && req.factory.fn_offset == 0)) {
-    if (raw_handle) {
+  if ((raw_handle == nullptr) || (base_addr == 0 && req.factory.fn_offset == 0)) {
+    if (raw_handle != nullptr) {
       dlclose(raw_handle);
     }
     return {nullptr, nullptr};
@@ -69,7 +69,9 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
 
   // Manage Handle Lifecycle
   std::shared_ptr<void> lib_handle_ptr(raw_handle, [](void * h) {
-    if (h) dlclose(h);
+    if (h != nullptr) {
+      dlclose(h);
+    }
   });
 
   // Resolve Main Function
