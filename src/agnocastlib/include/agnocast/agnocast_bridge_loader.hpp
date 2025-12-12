@@ -22,10 +22,10 @@ public:
   BridgeLoader(const BridgeLoader &) = delete;
   BridgeLoader & operator=(const BridgeLoader &) = delete;
 
+  // NOLINT(readability-convert-member-functions-to-static)
   std::shared_ptr<void> create(
     const MqMsgBridge & req, const std::string & topic_name_with_direction,
-    const rclcpp::Node::SharedPtr &
-      node);  // NOLINT(readability-convert-member-functions-to-static)
+    const rclcpp::Node::SharedPtr & node);
 
 private:
   rclcpp::Logger logger_;

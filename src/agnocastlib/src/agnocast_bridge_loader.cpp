@@ -12,9 +12,10 @@ BridgeLoader::~BridgeLoader()
   cached_factories_.clear();
 }
 
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 std::shared_ptr<void> BridgeLoader::create(
   const MqMsgBridge & req, const std::string & topic_name_with_direction,
-  const rclcpp::Node::SharedPtr & node)  // NOLINT(readability-convert-member-functions-to-static)
+  const rclcpp::Node::SharedPtr & node)
 {
   (void)req;                        // TODO(yutarokobayashi): Remove
   (void)topic_name_with_direction;  // TODO(yutarokobayashi): Remove
