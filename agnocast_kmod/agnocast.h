@@ -163,6 +163,19 @@ struct ioctl_get_publisher_qos_args
   };
 };
 
+struct ioctl_add_bridge_args
+{
+  struct
+  {
+    pid_t pid;
+    struct name_info topic_name;
+  };
+  struct
+  {
+    pid_t ret_pid;
+  };
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -176,6 +189,7 @@ struct ioctl_get_publisher_qos_args
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
 #define AGNOCAST_GET_SUBSCRIBER_QOS_CMD _IOWR(0xA6, 12, struct ioctl_get_subscriber_qos_args)
 #define AGNOCAST_GET_PUBLISHER_QOS_CMD _IOWR(0xA6, 13, struct ioctl_get_publisher_qos_args)
+#define AGNOCAST_ADD_BRIDGE_CMD _IOWR(0xA6, 14, struct ioctl_add_bridge_args)
 
 // ================================================
 // ros2cli ioctls
@@ -285,6 +299,10 @@ int get_subscriber_qos(
 int get_publisher_qos(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
   struct ioctl_get_publisher_qos_args * args);
+
+int add_bridge(
+  const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns,
+  struct ioctl_add_bridge_args * ioctl_ret);
 
 void process_exit_cleanup(const pid_t pid);
 
