@@ -39,12 +39,7 @@ void Node::initialize_node(
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
-      auto global_rules = g_context.get_remap_rules();
-      for (const auto & rule : global_rules) {
-        if (rule.type == RemapType::TOPIC_OR_SERVICE) {
-          node_topics_->add_remap_rule(rule);
-        }
-      }
+      node_topics_->set_global_arguments(g_context.get_remap_rules());
     }
   }
 
@@ -65,8 +60,8 @@ void Node::initialize_node(
   }
 
   // Create NodeParameters with collected overrides
-  node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(
-    node_base_, parameter_overrides);
+  node_parameters_ =
+    std::make_shared<node_interfaces::NodeParameters>(node_base_, parameter_overrides);
 }
 
 const Node::ParameterValue & Node::declare_parameter(
@@ -80,6 +75,7 @@ void Node::apply_remap_rules_from_arguments(const std::vector<std::string> & arg
 {
   // Parse remap rules from NodeOptions::arguments()
   // Format: --ros-args -r from:=to -r from2:=to2 ...
+  std::vector<RemapRule> local_rules;
   bool parsing_ros_args = false;
   for (size_t i = 0; i < arguments.size(); ++i) {
     const std::string & arg = arguments[i];
@@ -112,9 +108,10 @@ void Node::apply_remap_rules_from_arguments(const std::vector<std::string> & arg
       rule.match = from;
       rule.replacement = to;
 
-      node_topics_->add_remap_rule(rule);
+      local_rules.push_back(rule);
     }
   }
+  node_topics_->set_local_arguments(std::move(local_rules));
 }
 
 }  // namespace agnocast
