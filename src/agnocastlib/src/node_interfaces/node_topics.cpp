@@ -181,6 +181,36 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   return local_output;
 }
 
+const RemapRule * NodeTopics::remap_first_match(
+  const std::vector<RemapRule> * remap_rules, const std::string & name) const
+{
+  // Corresponds to rcl_remap_first_match in rcl/src/rcl/remap.c:103-162
+  if (remap_rules == nullptr) {
+    return nullptr;
+  }
+
+  std::string node_name = node_base_->get_name();
+
+  for (const auto & rule : *remap_rules) {
+    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
+      // Not the type of remap rule we're looking for
+      continue;
+    }
+    // Check node name prefix match (if specified)
+    // If rule has a node_name, it must match the current node's name
+    if (!rule.node_name.empty() && rule.node_name != node_name) {
+      // Rule has a node name prefix and the supplied node name didn't match
+      continue;
+    }
+    // Expand the match side and compare
+    std::string expanded_match = expand_topic_name(rule.match);
+    if (expanded_match == name) {
+      return &rule;
+    }
+  }
+  return nullptr;
+}
+
 std::string NodeTopics::remap_name(
   const std::vector<RemapRule> * local_arguments, const std::vector<RemapRule> * global_arguments,
   const std::string & name) const
@@ -189,39 +219,12 @@ std::string NodeTopics::remap_name(
   // RCL expands the match side before comparing
   // Example: --ros-args -r foo:=/bar will map "foo" -> "/bar"
 
-  std::string node_name = node_base_->get_name();
-
-  // Helper lambda to find first matching rule in a rule set
-  // Corresponds to rcl_remap_first_match in rcl/src/rcl/remap.c:103-162
-  auto find_first_match = [this, &name,
-                           &node_name](const std::vector<RemapRule> * rules) -> const RemapRule * {
-    if (rules == nullptr) {
-      return nullptr;
-    }
-    for (const auto & rule : *rules) {
-      if (rule.type != RemapType::TOPIC_OR_SERVICE) {
-        continue;
-      }
-      // Check node name prefix match (if specified)
-      // If rule has a node_name, it must match the current node's name
-      if (!rule.node_name.empty() && rule.node_name != node_name) {
-        continue;
-      }
-      // Expand the match side and compare
-      std::string expanded_match = expand_topic_name(rule.match);
-      if (expanded_match == name) {
-        return &rule;
-      }
-    }
-    return nullptr;
-  };
-
   // Look at local rules first (remap.c:195-202)
-  const RemapRule * rule = find_first_match(local_arguments);
+  const RemapRule * rule = remap_first_match(local_arguments, name);
 
   // Check global rules if no local rule matched (remap.c:204-211)
   if (rule == nullptr) {
-    rule = find_first_match(global_arguments);
+    rule = remap_first_match(global_arguments, name);
   }
 
   // Do the remapping (remap.c:213-229)

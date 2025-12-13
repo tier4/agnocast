@@ -46,6 +46,9 @@ public:
 
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
+  // Corresponds to rcl_remap_first_match in rcl/src/rcl/remap.c:103-162
+  const RemapRule * remap_first_match(
+    const std::vector<RemapRule> * remap_rules, const std::string & name) const;
   // Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
   std::string remap_name(
     const std::vector<RemapRule> * local_arguments, const std::vector<RemapRule> * global_arguments,
