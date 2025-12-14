@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
+#include "agnocast/node_interfaces/node_parameters.hpp"
 #include "agnocast/node_interfaces/node_topics.hpp"
 
 #include <algorithm>
@@ -57,6 +58,13 @@ public:
     return node_topics_;
   }
 
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
+  {
+    return node_parameters_;
+  }
+
   template <typename MessageT, typename Func>
   typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
     const std::string & topic_name, size_t queue_size, Func && callback,
@@ -73,6 +81,7 @@ private:
 
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
+  node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
 };
 

@@ -168,6 +168,14 @@ bool Context::parse_remap_rule(const std::string & arg)
   return true;
 }
 
+std::map<std::string, Context::ParameterValue> Context::get_param_overrides(
+  const std::string & node_fqn) const
+{
+  // TODO(Koichi98): Support node-specific parameters from YAML files
+  (void)node_fqn;
+  return global_parameter_overrides_;
+}
+
 void init(int argc, char const * const * argv)
 {
   std::lock_guard<std::mutex> lock(g_context_mtx);
