@@ -156,10 +156,6 @@ void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
  */
 struct initialize_agnocast_result register_process_and_map_shm()
 {
-  if (agnocast_fd < 0) {
-    throw std::runtime_error("[Agnocast] agnocast_fd is not initialized.");
-  }
-
   union ioctl_add_process_args add_process_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
     throw std::runtime_error(
