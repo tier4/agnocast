@@ -33,7 +33,7 @@ add_library(agnocast SHARED
   src/agnocast_only_single_threaded_executor.cpp src/agnocast_only_multi_threaded_executor.cpp
   src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
   src/agnocast_node.cpp src/node_interfaces/node_base.cpp
-  src/node_interfaces/node_topics.cpp
+  src/node_interfaces/node_parameters.cpp src/node_interfaces/node_topics.cpp
   src/agnocast_bridge_ipc_event_loop.cpp src/agnocast_bridge_loader.cpp src/agnocast_bridge_manager.cpp)
 
 ament_target_dependencies(agnocast cie_thread_configurator)
