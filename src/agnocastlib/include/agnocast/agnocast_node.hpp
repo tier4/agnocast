@@ -68,9 +68,6 @@ public:
   }
 
 private:
-  void initialize_node(
-    const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options);
-
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
