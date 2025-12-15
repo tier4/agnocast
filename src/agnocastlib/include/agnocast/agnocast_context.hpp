@@ -20,10 +20,6 @@ public:
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
   std::vector<RemapRule> get_remap_rules() const { return parsed_arguments_.remap_rules; }
-  std::map<std::string, ParameterValue> get_param_overrides() const
-  {
-    return parsed_arguments_.parameter_overrides;
-  }
 
 private:
   bool initialized_ = false;

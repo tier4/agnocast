@@ -162,7 +162,6 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
 
 ParsedArguments parse_arguments(int argc, char const * const * argv)
 {
-  // Copy argv into a safe container to avoid pointer arithmetic
   std::vector<std::string> args;
   args.reserve(static_cast<size_t>(argc));
   for (int i = 0; i < argc; ++i) {
