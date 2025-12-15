@@ -39,8 +39,6 @@ public:
   std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
   static ParameterValue parse_parameter_value(const std::string & value_str);
 
-  /// Get parameter overrides applicable to a node (global overrides + node-specific overrides)
-  /// Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
   std::map<std::string, ParameterValue> get_param_overrides(const std::string & node_fqn) const;
 
 private:

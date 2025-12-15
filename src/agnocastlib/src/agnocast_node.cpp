@@ -37,12 +37,10 @@ void Node::initialize_node(
       }
     }
   }
-  // NodeOptions overrides take precedence (added last)
   for (const auto & param : options.parameter_overrides()) {
     parameter_overrides.push_back(param);
   }
 
-  // Create NodeParameters with collected overrides
   node_parameters_ =
     std::make_shared<node_interfaces::NodeParameters>(node_base_, parameter_overrides);
 }
