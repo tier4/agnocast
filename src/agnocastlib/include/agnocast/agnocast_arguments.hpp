@@ -29,7 +29,6 @@ struct ParsedArguments
   std::map<std::string, ParameterValue> parameter_overrides;
 };
 
-ParsedArguments parse_arguments(int argc, char const * const * argv);
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments);
 
 ParameterValue parse_parameter_value(const std::string & value_str);

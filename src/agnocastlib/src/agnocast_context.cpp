@@ -12,7 +12,13 @@ void Context::init(int argc, char const * const * argv)
     return;
   }
 
-  parsed_arguments_ = parse_arguments(argc, argv);
+  std::vector<std::string> args;
+  args.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    args.emplace_back(argv[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  }
+
+  parsed_arguments_ = parse_arguments(args);
   initialized_ = true;
 }
 
