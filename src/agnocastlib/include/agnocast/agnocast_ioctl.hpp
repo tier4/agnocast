@@ -162,6 +162,11 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+union ioctl_get_publisher_num_args {
+  struct name_info topic_name;
+  uint32_t ret_publisher_num;
+};
+
 struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
@@ -260,6 +265,7 @@ struct ioctl_remove_bridge_args
 #define AGNOCAST_GET_PUBLISHER_QOS_CMD _IOWR(0xA6, 13, struct ioctl_get_publisher_qos_args)
 #define AGNOCAST_ADD_BRIDGE_CMD _IOWR(0xA6, 14, struct ioctl_add_bridge_args)
 #define AGNOCAST_REMOVE_BRIDGE_CMD _IOW(0xA6, 15, struct ioctl_remove_bridge_args)
+#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 16, union ioctl_get_publisher_num_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast

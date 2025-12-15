@@ -128,6 +128,11 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+union ioctl_get_publisher_num_args {
+  struct name_info topic_name;
+  uint32_t ret_publisher_num;
+};
+
 struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
@@ -197,6 +202,7 @@ struct ioctl_remove_bridge_args
 #define AGNOCAST_GET_PUBLISHER_QOS_CMD _IOWR(0xA6, 13, struct ioctl_get_publisher_qos_args)
 #define AGNOCAST_ADD_BRIDGE_CMD _IOWR(0xA6, 14, struct ioctl_add_bridge_args)
 #define AGNOCAST_REMOVE_BRIDGE_CMD _IOW(0xA6, 15, struct ioctl_remove_bridge_args)
+#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 16, union ioctl_get_publisher_num_args)
 
 // ================================================
 // ros2cli ioctls
@@ -296,6 +302,10 @@ int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   union ioctl_get_subscriber_num_args * ioctl_ret);
 
+int get_publisher_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_publisher_num_args * ioctl_ret);
+
 int get_topic_list(
   const struct ipc_namespace * ipc_ns, union ioctl_topic_list_args * topic_list_args);
 
@@ -335,7 +345,6 @@ int get_entry_rc(
 bool is_in_subscriber_htable(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id);
-int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 bool is_in_publisher_htable(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t publisher_id);
