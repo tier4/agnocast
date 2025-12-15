@@ -63,7 +63,9 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   // symbol. This ensures that a subsequent call to dlerror() will report only errors that occurred
   // after this point.
   dlerror();
-  auto [raw_handle, base_addr] = load_library(req.factory.shared_lib_path, req.factory.symbol_name);
+  auto [raw_handle, base_addr] = load_library(
+    static_cast<const char *>(req.factory.shared_lib_path),
+    static_cast<const char *>(req.factory.symbol_name));
 
   if ((raw_handle == nullptr) || (base_addr == 0)) {
     if (raw_handle != nullptr) {
@@ -94,7 +96,8 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
 
   // Register Reverse Function
   const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
-  std::string topic_name_with_reverse = std::string(req.target.topic_name) + suffix;
+  std::string topic_name_with_reverse =
+    std::string(static_cast<const char *>(req.target.topic_name)) + suffix;
 
   uintptr_t reverse_addr = base_addr + req.factory.fn_offset_reverse;
   BridgeFn reverse_func = nullptr;
@@ -121,13 +124,19 @@ bool BridgeLoader::is_address_in_library_code_segment(void * handle, uintptr_t a
     return false;
   }
 
-  ElfW(Addr) base = lm->l_addr;
-  ElfW(Ehdr) * ehdr = reinterpret_cast<ElfW(Ehdr) *>(base);
-  ElfW(Phdr) * phdr = reinterpret_cast<ElfW(Phdr) *>(base + ehdr->e_phoff);
+  const auto base = static_cast<uintptr_t>(lm->l_addr);
+  const auto * ehdr = reinterpret_cast<const ElfW(Ehdr) *>(base);
+  const auto * phdr = reinterpret_cast<const ElfW(Phdr) *>(base + ehdr->e_phoff);
+
   for (int i = 0; i < ehdr->e_phnum; ++i) {
-    if (phdr[i].p_type == PT_LOAD && (phdr[i].p_flags & PF_X)) {
-      uintptr_t seg_start = base + phdr[i].p_vaddr;
-      uintptr_t seg_end = seg_start + phdr[i].p_memsz;
+    const auto & segment = phdr[i];  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const auto flags = segment.p_flags;
+    constexpr auto exec_flag = static_cast<ElfW(Word)>(PF_X);
+
+    if (segment.p_type == PT_LOAD && ((flags & exec_flag) != 0U)) {
+      const uintptr_t seg_start = base + segment.p_vaddr;
+      const uintptr_t seg_end = seg_start + segment.p_memsz;
+
       if (addr >= seg_start && addr < seg_end) {
         return true;
       }
