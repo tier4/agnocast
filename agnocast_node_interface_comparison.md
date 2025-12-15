@@ -275,25 +275,113 @@ auto sub2 = agnocast::create_subscription<MsgType>(
 
 | 機能 | agnocast | サポートレベル | 備考 |
 |------|----------|---------------|------|
-| プライベートトピック (`~topic`) | ✓ | **完全サポート** | agnocast_node.cpp:112-121 |
-| 相対トピック (`topic`) | ✓ | **完全サポート** | agnocast_node.cpp:152-159 |
-| 絶対トピック (`/topic`) | ✓ | **完全サポート** | agnocast_node.cpp:108-110 |
-| 置換 (`{node}`) | ✓ | **完全サポート** | agnocast_node.cpp:136 |
-| 置換 (`{ns}`, `{namespace}`) | ✓ | **完全サポート** | agnocast_node.cpp:138-139 |
-| トピックリマッピング | ✓ | **完全サポート** | agnocast_node.cpp:164-186 |
+| プライベートトピック (`~topic`) | ✓ | **完全サポート** | node_topics.cpp:128-137 |
+| 相対トピック (`topic`) | ✓ | **完全サポート** | node_topics.cpp:181-191 |
+| 絶対トピック (`/topic`) | ✓ | **完全サポート** | node_topics.cpp:121-124 |
+| 置換 (`{node}`) | ✓ | **完全サポート** | node_topics.cpp:165-166 |
+| 置換 (`{ns}`, `{namespace}`) | ✓ | **完全サポート** | node_topics.cpp:167-168 |
+| トピックリマッピング | ✓ | **完全サポート** | node_topics.cpp:196-222 |
+| カスタム置換 | ✗ | **未サポート** | TODO: rcutils_string_map_t対応 |
 | サービスリマッピング | ✗ | **未サポート** | - |
 
 **主要メソッド**:
 
-- `resolve_topic_name()`: agnocast_node.cpp:68-72
-- `expand_topic_name()`: agnocast_node.cpp:86-162
-- `remap_name()`: agnocast_node.cpp:164-186
+- `resolve_topic_name()`: node_topics.cpp:16-24
+- `expand_topic_name()`: node_topics.cpp:95-193
+- `remap_name()`: node_topics.cpp:196-222
 
 **RCL対応**:
 
 - `rcl_expand_topic_name`: rcl/src/rcl/expand_topic_name.c:44-219
 - `rcl_remap_name`: rcl/src/rcl/remap.c:167-231
 - `rcl_node_resolve_name`: rcl/src/rcl/node_resolve_name.c:134-162
+
+#### 4.2.1 expand_topic_name 詳細比較
+
+**アーキテクチャの違い**:
+
+| 項目 | rclcpp (RCL) | agnocast |
+|------|-------------|----------|
+| 関数シグネチャ | `rcl_expand_topic_name(input, node, ns, subs, alloc, out)` | `expand_topic_name(input)` (メンバ関数) |
+| 実装場所 | rcl (C) + rclcpp (C++ラッパー) | NodeTopicsクラス内 |
+| node_name/namespace取得 | 引数から | `node_base_->get_name()/get_namespace()` |
+
+**機能比較**:
+
+| 機能 | rclcpp | agnocast | 差分 |
+|------|--------|----------|------|
+| 絶対パス (`/foo`) | ✓ | ✓ | 同等 |
+| 相対パス (`foo`) | ✓ | ✓ | 同等 |
+| チルダ展開 (`~`) | ✓ | ✓ | 同等 |
+| `{node}` substitution | ✓ | ✓ | 同等 |
+| `{ns}` substitution | ✓ | ✓ | 同等 |
+| `{namespace}` substitution | ✓ | ✓ | 同等 |
+| カスタムsubstitution | ✓ (`rcutils_string_map_t`) | ✗ | **差分あり** |
+| 入力バリデーション | ✓ (`rcl_validate_topic_name`) | △ (empty checkのみ) | **差分あり** |
+| ノード名バリデーション | ✓ (`rmw_validate_node_name`) | ✗ | **差分あり** |
+| namespace バリデーション | ✓ (`rmw_validate_namespace`) | ✗ | **差分あり** |
+
+**具体的な入出力の差分**:
+
+同等の動作をするケース:
+
+| 入力 | node | namespace | 両方の出力 |
+|------|------|-----------|------------|
+| `/chatter` | my_node | /my_ns | `/chatter` |
+| `chatter` | my_node | /my_ns | `/my_ns/chatter` |
+| `{node}/chatter` | my_node | /my_ns | `/my_ns/my_node/chatter` |
+| `/{node}` | my_node | /my_ns | `/my_node` |
+| `{node}` | my_node | /my_ns | `/my_ns/my_node` |
+| `{ns}` | my_node | /my_ns | `/my_ns` |
+| `{namespace}/{node}/chatter` | my_node | /my_ns | `/my_ns/my_node/chatter` |
+| `ping` | my_node | `/` | `/ping` |
+| `~` | my_node | `/` | `/my_node` |
+| `~` | my_node | /my_ns | `/my_ns/my_node` |
+| `~/ping` | my_node | `/` | `/my_node/ping` |
+| `~/ping` | my_node | /my_ns | `/my_ns/my_node/ping` |
+
+差分があるケース:
+
+| 入力 | rclcpp | agnocast | 説明 |
+|------|--------|----------|------|
+| `""` (空) | `RCL_RET_INVALID_ARGUMENT` | `std::invalid_argument` | 例外型は異なるがエラーになる |
+| `"white space"` | `RCL_RET_TOPIC_NAME_INVALID` | **そのまま処理される** | agnocastはバリデーションなし |
+| `{ping}` (カスタムsubs登録時) | 展開される (`/my_ns/pong`) | `std::invalid_argument` | agnocastは未サポート |
+| `{unknown}` | `RCL_RET_UNKNOWN_SUBSTITUTION` | `std::invalid_argument` | エラー処理は同等 |
+| 不正なノード名使用時 | `RCL_RET_NODE_INVALID_NAME` | **エラーなし** | agnocastはバリデーションなし |
+
+**RCLとの変数名対応**:
+
+| RCL (expand_topic_name.c) | agnocast (node_topics.cpp) |
+|---------------------------|---------------------------|
+| `node_namespace` | `node_namespace` |
+| `has_a_substitution` | `has_a_substitution` |
+| `has_a_namespace_tilde` | `has_a_namespace_tilde` |
+| `is_absolute` | `is_absolute` |
+| `local_output` | `local_output` |
+| `next_opening_brace` | `next_opening_brace` |
+| `next_closing_brace` | `next_closing_brace` |
+| `substitution_substr_len` | `substitution_substr_len` |
+
+**RCLとのコード構造対応**:
+
+| 処理 | RCL (expand_topic_name.c) | agnocast (node_topics.cpp) |
+|------|---------------------------|---------------------------|
+| substitutionチェック | L98 | L117 |
+| チルダチェック | L99 | L118 |
+| 絶対パスチェック | L100 | L119 |
+| チルダ展開 | L114-125 | L128-137 |
+| substitution展開 | L127-194 | L139-178 |
+| 絶対パス変換 | L196-215 | L181-191 |
+
+**TODOコメント** (node_topics.cpp:104-107):
+
+```cpp
+// TODO: Support custom substitutions via rcutils_string_map_t (see rcl_expand_topic_name)
+// TODO: Validate input_topic_name using rcl_validate_topic_name
+// TODO: Validate node_name using rmw_validate_node_name
+// TODO: Validate node_namespace using rmw_validate_namespace
+```
 
 ---
 
@@ -501,8 +589,9 @@ if (msg) {
 ### 8.2 部分サポート機能 (⚠)
 
 1. **名前解決**: トピックのみ (サービス固有の処理なし)
-2. **QoS**: QoSオブジェクトは受け取るが、完全な機能は使用していない可能性
-3. **CLI上書き**: 配列型パラメータ未対応
+2. **トピック名展開**: バリデーションなし、カスタム置換未対応 (TODO記録済み)
+3. **QoS**: QoSオブジェクトは受け取るが、完全な機能は使用していない可能性
+4. **CLI上書き**: 配列型パラメータ未対応
 
 ### 8.3 未サポート機能 (✗)
 
@@ -615,8 +704,13 @@ if (msg) {
 ### node_interfaces/node_topics.hpp & node_topics.cpp
 
 - `rclcpp::node_interfaces::NodeTopicsInterface`を継承
-- トピック名解決 (resolve_topic_name)
-- リマップルール管理
+- トピック名解決 (resolve_topic_name): node_topics.cpp:16-24
+- トピック名展開 (expand_topic_name): node_topics.cpp:95-193
+  - RCL準拠の変数名 (`node_namespace`, `next_opening_brace`, `next_closing_brace`, `substitution_substr_len`)
+  - RCL準拠のコード構造（チルダ展開 → substitution展開 → 絶対パス変換）
+  - TODOコメントでバリデーション対応を記録
+- リマップ処理 (remap_name): node_topics.cpp:196-222
+- リマップルール管理 (add_remap_rule): node_topics.cpp:86-91
 
 ### agnocast_publisher.hpp
 
@@ -727,6 +821,57 @@ class MyNode : public rclcpp::Node {
 - サービスリマッピングが機能しない
 
 **理由**: agnocast::Nodeはサービス機能を提供しないため、サービス名解決は優先度が低い
+
+### 12.7 トピック名展開のバリデーション未対応
+
+**制限**: `expand_topic_name()`で入力バリデーションが行われない
+
+**影響**:
+
+- 不正なトピック名（スペース含む等）がそのまま処理される
+- 不正なノード名/namespaceでもエラーにならない
+
+**RCLとの比較**:
+
+| バリデーション | RCL | agnocast |
+|--------------|-----|----------|
+| トピック名 | `rcl_validate_topic_name` | なし (TODO) |
+| ノード名 | `rmw_validate_node_name` | なし (TODO) |
+| namespace | `rmw_validate_namespace` | なし (TODO) |
+
+**TODOコメント** (node_topics.cpp:105-107):
+
+```cpp
+// TODO: Validate input_topic_name using rcl_validate_topic_name
+// TODO: Validate node_name using rmw_validate_node_name
+// TODO: Validate node_namespace using rmw_validate_namespace
+```
+
+### 12.8 カスタム置換の未対応
+
+**制限**: `{node}`, `{ns}`, `{namespace}`以外のカスタム置換がサポートされていない
+
+**影響**:
+
+- `rcutils_string_map_t`でユーザー定義置換を登録できない
+- カスタム置換を使用すると`std::invalid_argument`がスローされる
+
+**RCLとの比較**:
+
+```cpp
+// RCLではカスタム置換が可能
+rcutils_string_map_set(&subs, "ping", "pong");
+// {ping} → pong に展開される
+
+// agnocastでは未サポート
+// {ping} → std::invalid_argument("unknown substitution: {ping}")
+```
+
+**TODOコメント** (node_topics.cpp:104):
+
+```cpp
+// TODO: Support custom substitutions via rcutils_string_map_t (see rcl_expand_topic_name)
+```
 
 ### 12.6 RemapType::TOPIC_OR_SERVICE
 
