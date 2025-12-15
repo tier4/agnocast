@@ -9,6 +9,7 @@ env:
   CARGO_TERM_COLOR: always
   ROS_DISTRO: humble
   RUST_TOOLCHAIN: "1.75.0"
+  CCACHE_DIR: ~/.ccache
 
 jobs:
   build-and-test-agnocastlib-heaphook:
@@ -48,7 +49,6 @@ jobs:
       with:
         path: |
           /var/cache/apt/archives
-          /var/lib/apt/lists
         key: ${{ runner.os }}-apt-ros2-${{ env.ROS_DISTRO }}-v1
 
     - name: Setup ROS 2 environment
@@ -80,6 +80,11 @@ jobs:
         rosdep update
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
+    - name: Ensure ccache dir exists
+      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      run: |
+        mkdir -p "${CCACHE_DIR}"
+
     - name: Cache ccache
       if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       uses: actions/cache@v4
@@ -98,7 +103,6 @@ jobs:
     - name: Build src
       if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       env:
-        CCACHE_DIR: ~/.ccache
         CCACHE_COMPRESS: "true"
         CCACHE_COMPRESSLEVEL: "6"
       run: |
@@ -109,6 +113,12 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         ccache --show-stats
+
+    - name: Cleanup apt archives for caching
+      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      run: |
+        sudo rm -f /var/cache/apt/archives/lock
+        sudo rm -rf /var/cache/apt/archives/partial
 
     - name: Run clang-tidy for agnocastlib
       if: steps.check_diff.outputs.cpp_changed == 'true'
