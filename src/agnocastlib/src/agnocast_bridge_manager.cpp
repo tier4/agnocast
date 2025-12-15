@@ -201,7 +201,8 @@ void BridgeManager::check_active_bridges()
 
     if (count <= threshold) {
       if (count < 0) {
-        RCLCPP_WARN(logger_, "Get subscriber count failed for %s. Removing bridge.", key.c_str());
+        RCLCPP_ERROR(
+          logger_, "Failed to get connection count for %s. Removing bridge.", key.c_str());
       }
       to_remove.push_back(key);
     }
