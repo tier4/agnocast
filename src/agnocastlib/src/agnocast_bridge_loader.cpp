@@ -49,13 +49,7 @@ std::shared_ptr<void> BridgeLoader::create_bridge_instance(
     }
 
     if (lib_handle) {
-      // The following pattern ensures that lib_handle (the dynamic library handle) stays alive
-      // for as long as bridge_resource is in use. We create a shared_ptr to a BundleType
-      // (which holds both lib_handle and bridge_resource), and then use the aliasing constructor
-      // of shared_ptr to return a shared_ptr that points to bridge_resource.get(), but whose
-      // control block keeps the BundleType (and thus lib_handle) alive. This prevents the library
-      // from being unloaded while bridge_resource (which may contain code/data from the library)
-      // is still in use.
+      // Prevent library unload while bridge_resource is alive (aliasing constructor)
       using BundleType = std::pair<std::shared_ptr<void>, std::shared_ptr<void>>;
       auto bundle = std::make_shared<BundleType>(lib_handle, bridge_resource);
       return {bundle, bridge_resource.get()};
