@@ -62,11 +62,11 @@ std::pair<void *, uintptr_t> BridgeLoader::load_library_base(
 }
 
 std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_function(
-  const MqMsgBridge & req, const std::string & unique_key)
+  const MqMsgBridge & req, const std::string & topic_name_with_direction)
 {
-  auto it = cached_factories_.find(unique_key);
+  auto it = cached_factories_.find(topic_name_with_direction);
   if (it != cached_factories_.end()) {
-    RCLCPP_INFO(logger_, "Cache hit for '%s'", unique_key.c_str());
+    RCLCPP_INFO(logger_, "Cache hit for '%s'", topic_name_with_direction.c_str());
     return it->second;
   }
 
@@ -79,25 +79,44 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
     return {nullptr, nullptr};
   }
 
-  std::shared_ptr<void> lib_handle_ptr;
-  if (raw_handle) {
-    lib_handle_ptr.reset(raw_handle, [](void * h) {
-      if (h) dlclose(h);
-    });
+  // Manage Handle Lifecycle
+  std::shared_ptr<void> lib_handle_ptr(raw_handle, [](void * h) {
+    if (h != nullptr) {
+      dlclose(h);
+    }
+  });
+
+  // Resolve Main Function
+  uintptr_t entry_addr = base_addr + req.factory.fn_offset;
+  BridgeFn entry_func = nullptr;
+
+  if (is_address_in_library_code_segment(raw_handle, entry_addr)) {
+    entry_func = reinterpret_cast<BridgeFn>(entry_addr);
+  } else {
+    RCLCPP_ERROR(
+      logger_, "Main factory function pointer for '%s' is out of bounds: 0x%lx",
+      topic_name_with_direction.c_str(), static_cast<unsigned long>(entry_addr));
+    return {nullptr, nullptr};
   }
 
-  BridgeFn entry_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset);
+  // Register Reverse Function
+  const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
+  std::string topic_name_with_reverse = std::string(req.target.topic_name) + suffix;
 
-  cached_factories_[unique_key] = {entry_func, lib_handle_ptr};
+  uintptr_t reverse_addr = base_addr + req.factory.fn_offset_reverse;
+  BridgeFn reverse_func = nullptr;
 
-  if (req.factory.fn_offset_reverse != 0) {
-    std::string topic_name = req.target.topic_name;
-    std::string reverse_key =
-      topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A");
-
-    BridgeFn reverse_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset_reverse);
-    cached_factories_[reverse_key] = {reverse_func, lib_handle_ptr};
+  if (is_address_in_library_code_segment(raw_handle, reverse_addr)) {
+    reverse_func = reinterpret_cast<BridgeFn>(reverse_addr);
+  } else {
+    RCLCPP_ERROR(
+      logger_, "Reverse function pointer for '%s' is out of bounds: 0x%lx",
+      topic_name_with_reverse.c_str(), static_cast<unsigned long>(reverse_addr));
+    return {nullptr, nullptr};
   }
+
+  cached_factories_[topic_name_with_direction] = {entry_func, lib_handle_ptr};
+  cached_factories_[topic_name_with_reverse] = {reverse_func, lib_handle_ptr};
 
   return {entry_func, lib_handle_ptr};
 }
@@ -121,6 +140,28 @@ std::shared_ptr<void> BridgeLoader::create_bridge_instance(
     RCLCPP_ERROR(logger_, "Exception in factory: %s", e.what());
     return nullptr;
   }
+}
+
+bool BridgeLoader::is_address_in_library_code_segment(void * handle, uintptr_t addr)
+{
+  struct link_map * lm = nullptr;
+  if (dlinfo(handle, RTLD_DI_LINKMAP, &lm) != 0 || lm == nullptr) {
+    return false;
+  }
+
+  ElfW(Addr) base = lm->l_addr;
+  ElfW(Ehdr) * ehdr = reinterpret_cast<ElfW(Ehdr) *>(base);
+  ElfW(Phdr) * phdr = reinterpret_cast<ElfW(Phdr) *>(base + ehdr->e_phoff);
+  for (int i = 0; i < ehdr->e_phnum; ++i) {
+    if (phdr[i].p_type == PT_LOAD && (phdr[i].p_flags & PF_X)) {
+      uintptr_t seg_start = base + phdr[i].p_vaddr;
+      uintptr_t seg_end = seg_start + phdr[i].p_memsz;
+      if (addr >= seg_start && addr < seg_end) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace agnocast

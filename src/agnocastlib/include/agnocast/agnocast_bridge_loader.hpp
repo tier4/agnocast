@@ -32,6 +32,8 @@ private:
     BridgeFn entry_func, std::shared_ptr<void> lib_handle, rclcpp::Node::SharedPtr node,
     const BridgeTargetInfo & target);
 
+  bool is_address_in_library_code_segment(void * handle, uintptr_t addr);
+
   rclcpp::Logger logger_;
 
   std::map<std::string, std::pair<BridgeFn, std::shared_ptr<void>>> cached_factories_;
