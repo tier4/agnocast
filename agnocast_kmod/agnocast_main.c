@@ -1508,6 +1508,31 @@ int add_bridge(
   return 0;
 }
 
+int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+
+  if (!br_info) {
+    dev_warn(agnocast_device, "Bridge (topic=%s) not found.\n", topic_name);
+    return -ENOENT;
+  }
+
+  if (br_info->pid != pid) {
+    dev_warn(
+      agnocast_device, "Bridge (topic=%s) pid mismatch. Expected %d, got %d.\n", topic_name,
+      br_info->pid, pid);
+    return -EPERM;
+  }
+
+  hash_del(&br_info->node);
+  kfree(br_info->topic_name);
+  kfree(br_info);
+
+  dev_info(agnocast_device, "Bridge (topic=%s) removed successfully.\n", topic_name);
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1879,6 +1904,22 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             (struct ioctl_add_bridge_args __user *)arg, &bridge_args, sizeof(bridge_args)))
         goto return_EFAULT;
     }
+  } else if (cmd == AGNOCAST_REMOVE_BRIDGE_CMD) {
+    struct ioctl_remove_bridge_args remove_bridge_args;
+    if (copy_from_user(&remove_bridge_args, (void __user *)arg, sizeof(remove_bridge_args)))
+      goto return_EFAULT;
+    if (remove_bridge_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(remove_bridge_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)remove_bridge_args.topic_name.ptr,
+          remove_bridge_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
+    ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, ipc_ns);
+    kfree(topic_name_buf);
   } else {
     goto return_EINVAL;
   }
