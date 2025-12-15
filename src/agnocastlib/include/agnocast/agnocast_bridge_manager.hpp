@@ -39,8 +39,8 @@ private:
 
   void start_ros_execution();
 
-  void on_mq_event_parent(mqd_t fd);
-  void on_mq_event_child(mqd_t fd);
+  void on_mq_create_request(mqd_t fd);
+  void on_mq_delegation_request(mqd_t fd);
   void on_signal();
 
   void handle_create_request(const MqMsgBridge & req);

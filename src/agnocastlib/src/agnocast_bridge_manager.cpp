@@ -56,8 +56,8 @@ void BridgeManager::run()
 
   start_ros_execution();
 
-  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event_parent(fd); });
-  event_loop_.set_child_mq_handler([this](int fd) { this->on_mq_event_child(fd); });
+  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_create_request(fd); });
+  event_loop_.set_child_mq_handler([this](int fd) { this->on_mq_delegation_request(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
@@ -92,7 +92,7 @@ void BridgeManager::start_ros_execution()
   });
 }
 
-void BridgeManager::on_mq_event_parent(mqd_t fd)
+void BridgeManager::on_mq_create_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
@@ -100,7 +100,7 @@ void BridgeManager::on_mq_event_parent(mqd_t fd)
   }
 }
 
-void BridgeManager::on_mq_event_child(mqd_t fd)
+void BridgeManager::on_mq_delegation_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
