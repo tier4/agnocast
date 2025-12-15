@@ -20,8 +20,8 @@ Node::Node(
 
   node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
 
-  // TODO(Koichi98): Initialization of NodeParametersInterface, apply parameter overrides from
-  // agnocast::Context.
+  node_parameters_ =
+    std::make_shared<node_interfaces::NodeParameters>(node_base_, options.parameter_overrides());
 }
 
 }  // namespace agnocast
