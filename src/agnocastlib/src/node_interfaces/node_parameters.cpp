@@ -1,5 +1,7 @@
 #include "agnocast/node_interfaces/node_parameters.hpp"
 
+#include "agnocast/agnocast_context.hpp"
+
 namespace agnocast::node_interfaces
 {
 
@@ -13,9 +15,9 @@ std::map<std::string, rclcpp::ParameterValue> resolve_parameter_overrides(
   // (In agnocast, g_context serves as the global argument source,
   //  similar to rcl_context->global_arguments in rclcpp)
   {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    if (g_context.is_initialized()) {
-      auto node_params = g_context.get_param_overrides(node_fqn);
+    std::lock_guard<std::mutex> lock(agnocast::g_context_mtx);
+    if (agnocast::g_context.is_initialized()) {
+      auto node_params = agnocast::g_context.get_param_overrides(node_fqn);
       for (const auto & [name, value] : node_params) {
         result[name] = value;
       }
