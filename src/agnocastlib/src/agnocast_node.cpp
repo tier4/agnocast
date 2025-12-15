@@ -43,25 +43,8 @@ void Node::initialize_node(
     }
   }
 
-  // Collect parameter overrides (global context first, then NodeOptions takes precedence)
-  std::vector<rclcpp::Parameter> parameter_overrides;
-  {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    if (g_context.is_initialized()) {
-      auto node_params = g_context.get_param_overrides(get_fully_qualified_name());
-      for (const auto & [name, value] : node_params) {
-        parameter_overrides.emplace_back(name, value);
-      }
-    }
-  }
-  // NodeOptions overrides take precedence (added last)
-  for (const auto & param : options.parameter_overrides()) {
-    parameter_overrides.push_back(param);
-  }
-
-  // Create NodeParameters with collected overrides
   node_parameters_ =
-    std::make_shared<node_interfaces::NodeParameters>(node_base_, parameter_overrides);
+    std::make_shared<node_interfaces::NodeParameters>(node_base_, options.parameter_overrides());
 }
 
 const Node::ParameterValue & Node::declare_parameter(

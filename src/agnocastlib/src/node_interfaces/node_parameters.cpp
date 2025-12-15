@@ -19,6 +19,33 @@ constexpr uint8_t PARAMETER_STRING = 4;
 namespace
 {
 
+/// Similar to rclcpp::detail::resolve_parameter_overrides()
+std::map<std::string, rclcpp::ParameterValue>
+resolve_parameter_overrides(
+  const std::string & node_fqn,
+  const std::vector<rclcpp::Parameter> & parameter_overrides)
+{
+  std::map<std::string, rclcpp::ParameterValue> result;
+
+  // global before local so that local overwrites global
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
+      auto node_params = g_context.get_param_overrides(node_fqn);
+      for (const auto & [name, value] : node_params) {
+        result[name] = value;
+      }
+    }
+  }
+
+  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
+  for (const auto & param : parameter_overrides) {
+    result[param.get_name()] = param.get_parameter_value();
+  }
+
+  return result;
+}
+
 /// Validate a parameter value against its descriptor's range constraints.
 /// Returns empty string if valid, or error message if invalid.
 std::string validate_parameter_range(
@@ -89,9 +116,8 @@ NodeParameters::NodeParameters(
   const std::vector<rclcpp::Parameter> & parameter_overrides)
 : node_base_(node_base)
 {
-  for (const auto & param : parameter_overrides) {
-    parameter_overrides_[param.get_name()] = param.get_parameter_value();
-  }
+  parameter_overrides_ = resolve_parameter_overrides(
+    node_base->get_fully_qualified_name(), parameter_overrides);
 }
 
 // ===== rclcpp interface methods =====
