@@ -209,7 +209,7 @@ void BridgeManager::check_active_bridges()
   }
 
   for (const auto & key : to_remove) {
-    remove_active_bridges(key);
+    remove_active_bridge(key);
   }
 }
 
@@ -239,7 +239,7 @@ int BridgeManager::get_agnocast_connection_count(
   return -1;
 }
 
-void BridgeManager::remove_active_bridges(const std::string & topic_name_with_direction)
+void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)
 {
   if (topic_name_with_direction.size() <= SUFFIX_LEN) {
     return;
