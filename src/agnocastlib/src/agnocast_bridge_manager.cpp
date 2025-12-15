@@ -172,8 +172,45 @@ void BridgeManager::check_parent_alive()
 
 void BridgeManager::check_active_bridges()
 {
-  // TODO(yutarokobayashi): Verifying the number of connections and get remove bridge name
-  remove_active_bridges("TOPIC_R2A");
+  constexpr std::string_view SUFFIX_R2A = "_R2A";
+  constexpr std::string_view SUFFIX_A2R = "_A2R";
+  constexpr size_t SUFFIX_LEN = 4;  // "_R2A" or "_A2R" length
+
+  std::vector<std::string> to_remove;
+  to_remove.reserve(active_bridges_.size());
+
+  for (const auto & [key, bridge] : active_bridges_) {
+    if (key.size() <= SUFFIX_LEN) {
+      continue;
+    }
+
+    std::string_view key_view = key;
+    std::string_view suffix = key_view.substr(key_view.size() - SUFFIX_LEN);
+    std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
+
+    bool is_r2a = (suffix == SUFFIX_R2A);
+    std::string reverse_key(topic_name_view);
+    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
+
+    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
+    // We set the threshold to 1 to exclude this self-count and detect only external demand.
+    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
+    const int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
+
+    if (count <= threshold) {
+      if (count < 0) {
+        RCLCPP_ERROR(
+          logger_, "Failed to get connection count for %s. Removing bridge.", key.c_str());
+      }
+      to_remove.push_back(key);
+    }
+  }
+
+  for (const auto & key : to_remove) {
+    remove_active_bridges(key);
+  }
 }
 
 // TODO(yutarokobayashi): Reconsider the exit logic.
@@ -187,6 +224,19 @@ void BridgeManager::check_should_exit()
       executor_->cancel();
     }
   }
+}
+
+int BridgeManager::get_agnocast_connection_count(
+  const std::string & /*topic_name*/, bool /*is_r2a*/)
+{
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
+  // Expected implementation steps:
+  // 1. Prepare ioctl arguments based on the topic name.
+  // 2. If is_r2a is true, call ioctl with AGNOCAST_GET_SUBSCRIBER_NUM_CMD.
+  // 3. If is_r2a is false, call ioctl with AGNOCAST_GET_PUBLISHER_NUM_CMD.
+  // 4. Return the retrieved count on success, or -1 on failure.
+  // Return the count if ioctl succeeded (0), otherwise return -1 (error)
+  return -1;
 }
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)

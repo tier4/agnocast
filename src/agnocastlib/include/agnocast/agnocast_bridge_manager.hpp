@@ -50,6 +50,7 @@ private:
   void check_active_bridges();
   void check_should_exit();
 
+  static int get_agnocast_connection_count(const std::string & topic_name, bool is_r2a);
   void remove_active_bridges(const std::string & topic_name_with_dirction);
 };
 
