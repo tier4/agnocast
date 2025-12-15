@@ -2,13 +2,15 @@
 
 #include "agnocast/agnocast_context.hpp"
 
+#include <utility>
+
 namespace agnocast::node_interfaces
 {
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
   const std::vector<rclcpp::Parameter> & parameter_overrides)
-: node_base_(node_base)
+: node_base_(std::move(node_base))
 {
   // TODO(Koichi98): Initialize parameter_overrides_ from parameter_overrides
   (void)parameter_overrides;
