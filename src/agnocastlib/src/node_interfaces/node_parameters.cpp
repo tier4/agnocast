@@ -11,6 +11,7 @@ NodeParameters::NodeParameters(
 : node_base_(node_base)
 {
   // TODO(Koichi98): Initialize parameter_overrides_ from parameter_overrides
+  (void)parameter_overrides;
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
