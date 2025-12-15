@@ -53,8 +53,10 @@ std::shared_ptr<void> BridgeLoader::create_bridge_instance(
       using BundleType = std::pair<std::shared_ptr<void>, std::shared_ptr<void>>;
       auto bundle = std::make_shared<BundleType>(lib_handle, bridge_resource);
       return {bundle, bridge_resource.get()};
+    } else {
+      RCLCPP_ERROR(logger_, "Library handle is missing. Cannot ensure bridge lifetime safety.");
+      return nullptr;
     }
-    return bridge_resource;
 
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "Exception in factory: %s", e.what());
