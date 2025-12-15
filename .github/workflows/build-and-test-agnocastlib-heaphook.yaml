@@ -50,6 +50,12 @@ jobs:
           /var/cache/apt/archives
         key: ${{ runner.os }}-apt-ros2-${{ env.ROS_DISTRO }}-v1
 
+    - name: Fix apt cache permissions
+      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      run: |
+        sudo chown -R root:root /var/cache/apt/archives || true
+        sudo chmod -R 755 /var/cache/apt/archives || true
+
     - name: Setup ROS 2 environment
       if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
@@ -113,6 +119,7 @@ jobs:
       run: |
         sudo rm -f /var/cache/apt/archives/lock
         sudo rm -rf /var/cache/apt/archives/partial
+        sudo chmod -R a+r /var/cache/apt/archives
 
     - name: Run clang-tidy for agnocastlib
       if: steps.check_diff.outputs.cpp_changed == 'true'
