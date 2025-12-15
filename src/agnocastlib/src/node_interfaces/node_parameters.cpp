@@ -150,7 +150,9 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
-  return parameter_overrides_;
+  // TODO(Koichi98)
+  throw std::runtime_error(
+    "NodeParameters::get_parameter_overrides is not yet implemented in agnocast");
 }
 
 }  // namespace agnocast::node_interfaces

@@ -78,7 +78,6 @@ public:
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
-  std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
 };
 
 }  // namespace agnocast::node_interfaces
