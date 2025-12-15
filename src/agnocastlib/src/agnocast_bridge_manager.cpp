@@ -194,12 +194,10 @@ void BridgeManager::check_active_bridges()
 
     int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
 
-    if (count >= 0 && count <= threshold) {
-      to_remove.push_back(key);
-    } else if (count < 0 && !is_parent_alive_) {
-      // Normally fail-safe (keep on error), but force removal if parent is dead
-      // to ensure the daemon exits and prevent a zombie state.
-      RCLCPP_WARN(logger_, "Parent dead: Removing bridge %s despite status error.", key.c_str());
+    if (count <= threshold) {
+      if (count < 0) {
+        RCLCPP_WARN(logger_, "Get subscriber count failed for %s. Removing bridge.", key.c_str());
+      }
       to_remove.push_back(key);
     }
   }
