@@ -1135,6 +1135,20 @@ int get_subscriber_num(
   return 0;
 }
 
+int get_publisher_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_publisher_num_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (wrapper) {
+    ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper);
+  } else {
+    ioctl_ret->ret_publisher_num = 0;
+  }
+
+  return 0;
+}
+
 static int get_exit_process(
   const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
 {
@@ -1732,6 +1746,28 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_PUBLISHER_NUM_CMD) {
+    union ioctl_get_publisher_num_args get_publisher_num_args;
+    if (copy_from_user(
+          &get_publisher_num_args, (union ioctl_get_publisher_num_args __user *)arg,
+          sizeof(get_publisher_num_args)))
+      goto return_EFAULT;
+    if (get_publisher_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_publisher_num_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)get_publisher_num_args.topic_name.ptr,
+          get_publisher_num_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[get_publisher_num_args.topic_name.len] = '\0';
+    ret = get_publisher_num(topic_name_buf, ipc_ns, &get_publisher_num_args);
+    kfree(topic_name_buf);
+    if (copy_to_user(
+          (union ioctl_get_publisher_num_args __user *)arg, &get_publisher_num_args,
+          sizeof(get_publisher_num_args)))
+      goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
     struct ioctl_get_exit_process_args get_exit_process_args;
     ret = get_exit_process(ipc_ns, &get_exit_process_args);
@@ -2058,15 +2094,6 @@ bool is_in_subscriber_htable(
     return false;
   }
   return true;
-}
-
-int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_ns)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
-  if (!wrapper) {
-    return 0;
-  }
-  return get_size_pub_info_htable(wrapper);
 }
 
 bool is_in_publisher_htable(
