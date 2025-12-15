@@ -9,7 +9,6 @@ env:
   CARGO_TERM_COLOR: always
   ROS_DISTRO: humble
   RUST_TOOLCHAIN: "1.75.0"
-  CCACHE_DIR: ~/.ccache
 
 jobs:
   build-and-test-agnocastlib-heaphook:
@@ -80,22 +79,17 @@ jobs:
         rosdep update
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
-    - name: Ensure ccache dir exists
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
-      run: |
-        mkdir -p "${CCACHE_DIR}"
-
     - name: Cache ccache
       if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.ccache
+        path: ~/.ccache
         key: ${{ runner.os }}-ccache-${{ github.repository }}-v1
 
     - name: Configure ccache
       if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
+        mkdir -p ~/.ccache
         ccache --version
         ccache --max-size=1G
         ccache --zero-stats
