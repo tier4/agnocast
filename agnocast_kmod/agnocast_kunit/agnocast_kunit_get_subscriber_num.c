@@ -2,14 +2,14 @@
 
 #include "../agnocast.h"
 
-char * node_name = "/kunit_test_node";
-uint32_t qos_depth = 10;
-bool qos_is_transient_local = false;
-bool qos_is_reliable = true;
-pid_t subscriber_pid = 1000;
-pid_t publisher_pid = 2000;
-bool is_take_sub = false;
-bool ignore_local_publications = false;
+static char * node_name = "/kunit_test_node";
+static uint32_t qos_depth = 10;
+static bool qos_is_transient_local = false;
+static bool qos_is_reliable = true;
+static pid_t subscriber_pid = 1000;
+static pid_t publisher_pid = 2000;
+static bool is_take_sub = false;
+static bool ignore_local_publications = false;
 
 static void setup_one_subscriber(struct kunit * test, char * topic_name)
 {
