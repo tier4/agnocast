@@ -38,7 +38,6 @@ public:
   bool is_initialized() const { return initialized_; }
   std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
   static ParameterValue parse_parameter_value(const std::string & value_str);
-  std::map<std::string, ParameterValue> get_param_overrides(const std::string & node_fqn) const;
 
 private:
   bool parse_param_rule(const std::string & arg);
