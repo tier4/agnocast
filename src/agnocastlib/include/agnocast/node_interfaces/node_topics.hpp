@@ -41,12 +41,20 @@ public:
   rclcpp::node_interfaces::NodeTimersInterface * get_node_timers_interface() const override;
 
   // ===== Internal helper methods (for rclcpp API implementation) =====
-  void add_remap_rule(const RemapRule & rule);
+  void set_local_arguments(std::vector<RemapRule> rules);
+  void set_global_arguments(std::vector<RemapRule> rules);
 
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
-  std::string remap_name(const std::string & name) const;
+  // Corresponds to rcl_remap_first_match in rcl/src/rcl/remap.c:103-162
+  const RemapRule * remap_first_match(
+    const std::vector<RemapRule> * remap_rules, const std::string & name) const;
+  // Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
+  std::string remap_name(
+    const std::vector<RemapRule> * local_arguments, const std::vector<RemapRule> * global_arguments,
+    const std::string & name) const;
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
-  std::vector<RemapRule> remap_rules_;  // Only TOPIC type rules
+  std::vector<RemapRule> local_arguments_;   // From NodeOptions::arguments()
+  std::vector<RemapRule> global_arguments_;  // From agnocast::init (global context)
 };
 }  // namespace agnocast::node_interfaces

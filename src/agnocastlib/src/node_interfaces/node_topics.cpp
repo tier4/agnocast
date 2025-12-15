@@ -20,7 +20,7 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
   if (only_expand) {
     return expanded_topic_name;
   }
-  return remap_name(expanded_topic_name);
+  return remap_name(&local_arguments_, &global_arguments_, expanded_topic_name);
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
@@ -83,10 +83,23 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
 
 // ===== Agnocast-specific methods =====
 
-void NodeTopics::add_remap_rule(const RemapRule & rule)
+void NodeTopics::set_local_arguments(std::vector<RemapRule> rules)
 {
-  if (rule.type == RemapType::TOPIC_OR_SERVICE) {
-    remap_rules_.push_back(rule);
+  local_arguments_.clear();
+  for (const auto & rule : rules) {
+    if (rule.type == RemapType::TOPIC_OR_SERVICE) {
+      local_arguments_.push_back(rule);
+    }
+  }
+}
+
+void NodeTopics::set_global_arguments(std::vector<RemapRule> rules)
+{
+  global_arguments_.clear();
+  for (const auto & rule : rules) {
+    if (rule.type == RemapType::TOPIC_OR_SERVICE) {
+      global_arguments_.push_back(rule);
+    }
   }
 }
 
@@ -193,31 +206,58 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   return local_output;
 }
 
-std::string NodeTopics::remap_name(const std::string & name) const
+const RemapRule * NodeTopics::remap_first_match(
+  const std::vector<RemapRule> * remap_rules, const std::string & name) const
+{
+  // Corresponds to rcl_remap_first_match in rcl/src/rcl/remap.c:103-162
+  if (remap_rules == nullptr) {
+    return nullptr;
+  }
+
+  std::string node_name = node_base_->get_name();
+
+  for (const auto & rule : *remap_rules) {
+    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
+      // Not the type of remap rule we're looking for
+      continue;
+    }
+    // Check node name prefix match (if specified)
+    // If rule has a node_name, it must match the current node's name
+    if (!rule.node_name.empty() && rule.node_name != node_name) {
+      // Rule has a node name prefix and the supplied node name didn't match
+      continue;
+    }
+    // Expand the match side and compare
+    std::string expanded_match = expand_topic_name(rule.match);
+    if (expanded_match == name) {
+      return &rule;
+    }
+  }
+  return nullptr;
+}
+
+std::string NodeTopics::remap_name(
+  const std::vector<RemapRule> * local_arguments, const std::vector<RemapRule> * global_arguments,
+  const std::string & name) const
 {
   // Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
   // RCL expands the match side before comparing
   // Example: --ros-args -r foo:=/bar will map "foo" -> "/bar"
 
-  std::string node_name = node_base_->get_name();
+  // Look at local rules first (remap.c:195-202)
+  const RemapRule * rule = remap_first_match(local_arguments, name);
 
-  for (const auto & rule : remap_rules_) {
-    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
-      continue;
-    }
-
-    // Check node name prefix match (if specified)
-    // If rule has a node_name, it must match the current node's name
-    if (!rule.node_name.empty() && rule.node_name != node_name) {
-      continue;
-    }
-
-    // Expand the match side and compare
-    std::string expanded_match = expand_topic_name(rule.match);
-    if (expanded_match == name) {
-      return rule.replacement;
-    }
+  // Check global rules if no local rule matched (remap.c:204-211)
+  if (rule == nullptr) {
+    rule = remap_first_match(global_arguments, name);
   }
+
+  // Do the remapping (remap.c:213-229)
+  if (rule != nullptr) {
+    // Expand the replacement side to FQN (same as rcl_remap_name in remap.c:214-220)
+    return expand_topic_name(rule->replacement);
+  }
+
   return name;
 }
 
