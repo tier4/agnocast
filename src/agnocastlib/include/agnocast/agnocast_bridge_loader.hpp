@@ -33,7 +33,7 @@ private:
   std::map<std::string, std::pair<BridgeFn, std::shared_ptr<void>>> cached_factories_;
 
   std::shared_ptr<void> create_bridge_instance(
-    BridgeFn entry_func, std::shared_ptr<void> lib_handle, rclcpp::Node::SharedPtr node,
+    BridgeFn entry_func, const std::shared_ptr<void> & lib_handle, rclcpp::Node::SharedPtr node,
     const BridgeTargetInfo & target);
   static std::pair<void *, uintptr_t> load_library(const char * lib_path, const char * symbol_name);
   std::pair<BridgeFn, std::shared_ptr<void>> resolve_factory_function(

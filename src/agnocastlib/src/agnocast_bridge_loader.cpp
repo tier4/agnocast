@@ -7,6 +7,7 @@
 #include <cstdint>  // uintptr_t
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 
 namespace agnocast
 {
@@ -38,20 +39,22 @@ std::shared_ptr<void> BridgeLoader::create(
 }
 
 std::shared_ptr<void> BridgeLoader::create_bridge_instance(
-  BridgeFn entry_func, std::shared_ptr<void> lib_handle, rclcpp::Node::SharedPtr node,
+  BridgeFn entry_func, const std::shared_ptr<void> & lib_handle, rclcpp::Node::SharedPtr node,
   const BridgeTargetInfo & target)
 {
   try {
-    auto bridge_resource = entry_func(node, target);
-    if (!bridge_resource) return nullptr;
+    auto bridge_resource = entry_func(std::move(node), target);
+    if (!bridge_resource) {
+      return nullptr;
+    }
 
     if (lib_handle) {
       using BundleType = std::pair<std::shared_ptr<void>, std::shared_ptr<void>>;
       auto bundle = std::make_shared<BundleType>(lib_handle, bridge_resource);
-      return std::shared_ptr<void>(bundle, bridge_resource.get());
-    } else {
-      return bridge_resource;
+      return {bundle, bridge_resource.get()};
     }
+    return bridge_resource;
+
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "Exception in factory: %s", e.what());
     return nullptr;
@@ -64,12 +67,12 @@ std::pair<void *, uintptr_t> BridgeLoader::load_library(
   void * handle = nullptr;
 
   if (std::strcmp(symbol_name, "__MAIN_EXECUTABLE__") == 0) {
-    handle = dlopen(NULL, RTLD_NOW);
+    handle = dlopen(nullptr, RTLD_NOW);
   } else {
     handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL);
   }
 
-  if (!handle) {
+  if (handle == nullptr) {
     return {nullptr, 0};
   }
 
