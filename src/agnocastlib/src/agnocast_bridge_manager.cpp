@@ -56,7 +56,8 @@ void BridgeManager::run()
 
   start_ros_execution();
 
-  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_event(fd, true); });
+  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_create_request(fd); });
+  event_loop_.set_peer_mq_handler([this](int fd) { this->on_mq_delegation_request(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
@@ -91,11 +92,19 @@ void BridgeManager::start_ros_execution()
   });
 }
 
-void BridgeManager::on_mq_event(mqd_t fd, bool allow_delegation)
+void BridgeManager::on_mq_create_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
-    handle_create_request(req, allow_delegation);
+    handle_create_request(req);
+  }
+}
+
+void BridgeManager::on_mq_delegation_request(mqd_t fd)
+{
+  MqMsgBridge req{};
+  while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    handle_delegate_request(req);
   }
 }
 
@@ -107,16 +116,8 @@ void BridgeManager::on_signal()
   }
 }
 
-void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_delegation*/)
+void BridgeManager::handle_create_request(const MqMsgBridge & req)
 {
-  // The 'allow_delegation' flag indicates the source of the request:
-  // - true: Initial request from the parent process. Delegation to an existing owner is allowed.
-  // - false: Request received from a peer child process (already delegated). Further delegation
-  //          is disabled to prevent infinite loops.
-  // Note: This check (if false) acts as a safety guard against unexpected infinite recursion loops
-  // due to race conditions or timing issues. It is not expected to be triggered in normal
-  // operation.
-
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   std::string topic_name(
@@ -147,11 +148,15 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req, bool /*allow_
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
-    // If allow_delegation is true, retrieve the PID of the current owner and delegate.
-    // Otherwise, abort to avoid loops.
+    // Retrieve the PID of the current owner and delegate.
   } else {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
   }
+}
+
+void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
+{
+  // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
 }
 
 void BridgeManager::check_parent_alive()
@@ -167,8 +172,45 @@ void BridgeManager::check_parent_alive()
 
 void BridgeManager::check_active_bridges()
 {
-  // TODO(yutarokobayashi): Verifying the number of connections and get remove bridge name
-  remove_active_bridges("TOPIC_R2A");
+  constexpr std::string_view SUFFIX_R2A = "_R2A";
+  constexpr std::string_view SUFFIX_A2R = "_A2R";
+  constexpr size_t SUFFIX_LEN = 4;  // "_R2A" or "_A2R" length
+
+  std::vector<std::string> to_remove;
+  to_remove.reserve(active_bridges_.size());
+
+  for (const auto & [key, bridge] : active_bridges_) {
+    if (key.size() <= SUFFIX_LEN) {
+      continue;
+    }
+
+    std::string_view key_view = key;
+    std::string_view suffix = key_view.substr(key_view.size() - SUFFIX_LEN);
+    std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
+
+    bool is_r2a = (suffix == SUFFIX_R2A);
+    std::string reverse_key(topic_name_view);
+    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
+
+    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
+    // We set the threshold to 1 to exclude this self-count and detect only external demand.
+    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
+    const int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
+
+    if (count <= threshold) {
+      if (count < 0) {
+        RCLCPP_ERROR(
+          logger_, "Failed to get connection count for %s. Removing bridge.", key.c_str());
+      }
+      to_remove.push_back(key);
+    }
+  }
+
+  for (const auto & key : to_remove) {
+    remove_active_bridges(key);
+  }
 }
 
 // TODO(yutarokobayashi): Reconsider the exit logic.
@@ -182,6 +224,19 @@ void BridgeManager::check_should_exit()
       executor_->cancel();
     }
   }
+}
+
+int BridgeManager::get_agnocast_connection_count(
+  const std::string & /*topic_name*/, bool /*is_r2a*/)
+{
+  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
+  // Expected implementation steps:
+  // 1. Prepare ioctl arguments based on the topic name.
+  // 2. If is_r2a is true, call ioctl with AGNOCAST_GET_SUBSCRIBER_NUM_CMD.
+  // 3. If is_r2a is false, call ioctl with AGNOCAST_GET_PUBLISHER_NUM_CMD.
+  // 4. Return the retrieved count on success, or -1 on failure.
+  // Return the count if ioctl succeeded (0), otherwise return -1 (error)
+  return -1;
 }
 
 void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
