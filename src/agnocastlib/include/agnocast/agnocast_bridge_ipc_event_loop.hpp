@@ -25,7 +25,7 @@ public:
   bool spin_once(int timeout_ms);
 
   void set_parent_mq_handler(EventCallback cb);
-  void set_child_mq_handler(EventCallback cb);
+  void set_peer_mq_handler(EventCallback cb);
   void set_signal_handler(SignalCallback cb);
 
   void close_parent_mq();
@@ -37,13 +37,13 @@ private:
   int signal_fd_ = -1;
 
   mqd_t mq_parent_fd_ = (mqd_t)-1;
-  mqd_t mq_child_fd_ = (mqd_t)-1;
+  mqd_t mq_peer_fd_ = (mqd_t)-1;
 
   std::string mq_parent_name_;
-  std::string mq_child_name_;
+  std::string mq_self_name_;
 
   EventCallback parent_cb_;
-  EventCallback child_cb_;
+  EventCallback peer_cb_;
   SignalCallback signal_cb_;
 
   static void ignore_signals(std::initializer_list<int> signals);
