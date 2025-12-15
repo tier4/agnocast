@@ -244,9 +244,6 @@ public:
   }
 
 private:
-  void initialize_node(
-    const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options);
-
   void apply_remap_rules_from_arguments(const std::vector<std::string> & arguments);
 
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};

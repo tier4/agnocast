@@ -171,12 +171,11 @@ bool Context::parse_remap_rule(const std::string & arg)
 std::map<std::string, Context::ParameterValue> Context::get_param_overrides(
   const std::string & node_fqn) const
 {
-  // Corresponds to rcl_arguments_get_param_overrides in rcl/src/rcl/arguments.c
-  // For now, just return global parameter overrides (from -p flags)
-  // Node-specific parameters from YAML files are not yet supported
+  // TODO(Koichi98): Support node-specific parameters from YAML files
   (void)node_fqn;
   return global_parameter_overrides_;
 }
+
 
 void init(int argc, char const * const * argv)
 {

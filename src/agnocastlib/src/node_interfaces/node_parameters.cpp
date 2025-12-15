@@ -16,10 +16,8 @@ constexpr uint8_t PARAMETER_INTEGER = 2;
 constexpr uint8_t PARAMETER_DOUBLE = 3;
 constexpr uint8_t PARAMETER_STRING = 4;
 
-namespace
-{
-
-/// Similar to rclcpp::detail::resolve_parameter_overrides()
+// TODO(Koichi98): In rclcpp, parameters are also loaded from NodeOptions::arguments()
+// (e.g. --params-file). This is not yet implemented in agnocast.
 std::map<std::string, rclcpp::ParameterValue>
 resolve_parameter_overrides(
   const std::string & node_fqn,
@@ -27,18 +25,16 @@ resolve_parameter_overrides(
 {
   std::map<std::string, rclcpp::ParameterValue> result;
 
-  // global before local so that local overwrites global
   {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    if (g_context.is_initialized()) {
-      auto node_params = g_context.get_param_overrides(node_fqn);
+    std::lock_guard<std::mutex> lock(agnocast::g_context_mtx);
+    if (agnocast::g_context.is_initialized()) {
+      auto node_params = agnocast::g_context.get_param_overrides(node_fqn);
       for (const auto & [name, value] : node_params) {
         result[name] = value;
       }
     }
   }
 
-  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
     result[param.get_name()] = param.get_parameter_value();
   }
@@ -108,8 +104,6 @@ std::string validate_parameter_range(
 
   return "";  // Valid
 }
-
-}  // namespace
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
@@ -443,7 +437,6 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
-  std::lock_guard<std::mutex> lock(g_context_mtx);
   return parameter_overrides_;
 }
 

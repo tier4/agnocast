@@ -6,28 +6,16 @@ namespace agnocast
 {
 
 Node::Node(const std::string & node_name, const rclcpp::NodeOptions & options)
+: Node(node_name, "", options)
 {
-  initialize_node(node_name, "", options);
-
-  // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
-  apply_remap_rules_from_arguments(options.arguments());
 }
 
 Node::Node(
   const std::string & node_name, const std::string & namespace_,
   const rclcpp::NodeOptions & options)
 {
-  initialize_node(node_name, namespace_, options);
-
-  // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
-  apply_remap_rules_from_arguments(options.arguments());
-}
-
-void Node::initialize_node(
-  const std::string & node_name, const std::string & ns, const rclcpp::NodeOptions & options)
-{
   node_base_ = std::make_shared<node_interfaces::NodeBase>(
-    node_name, ns, options.context(), options.enable_topic_statistics());
+    node_name, namespace_, options.context(), options.enable_topic_statistics());
   logger_ = rclcpp::get_logger(node_base_->get_name());
 
   node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
@@ -45,6 +33,9 @@ void Node::initialize_node(
 
   node_parameters_ =
     std::make_shared<node_interfaces::NodeParameters>(node_base_, options.parameter_overrides());
+
+  // Apply remap rules from NodeOptions::arguments() (from launch file <remap> tags)
+  apply_remap_rules_from_arguments(options.arguments());
 }
 
 const Node::ParameterValue & Node::declare_parameter(
