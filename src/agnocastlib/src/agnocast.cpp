@@ -98,6 +98,20 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+/**
+ * @brief Bootstraps the Rust-side heap allocator by dynamically resolving and invoking the
+ * initialization routine.
+ *
+ * This function acts as the bridge between the C++ infrastructure (which manages OS-level
+ * resources) and the Rust application logic (which manages memory allocation strategy).
+ *
+ * Mechanism:
+ * 1. Uses `dlopen(nullptr)` to perform self-introspection on the running process's symbol table.
+ * 2. Resolves the `init_child_allocator` symbol, which is exposed by the linked Rust library.
+ * 3. Injects the prepared shared memory pool into the Rust runtime to initialize the TLSF
+ * allocator.
+ *
+ */
 void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
 {
   void * handle = dlopen(nullptr, RTLD_NOW);
@@ -124,7 +138,23 @@ void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
   }
 }
 
-struct initialize_agnocast_result setup_agnocast_resources()
+/**
+ * @brief Manually registers the process and maps shared memory to bootstrap the allocator.
+ *
+ * This function performs the low-level initialization required to set up the shared memory
+ * environment for the Bridge Manager process.
+ *
+ * The sequence of responsibilities is:
+ * 1. Negotiate with the kernel driver via `ioctl` to register this process context.
+ * 2. Map the physical memory region assigned by the driver into the virtual address space.
+ *
+ * @note **Critical Dependency Order:**
+ * This function MUST be called before `load_and_initialize_heaphook()`.
+ * The returned `mempool_ptr` is passed directly to the Rust symbol `init_child_allocator`
+ * to initialize the TLSF (Two-Level Segregated Fit) allocator. Accessing the custom
+ * heap before this function returns will result in undefined behavior or crashes.
+ */
+struct initialize_agnocast_result register_process_and_map_shm()
 {
   if (agnocast_fd < 0) {
     throw std::runtime_error("[Agnocast] agnocast_fd is not initialized.");
@@ -188,9 +218,9 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    auto resource = setup_agnocast_resources();
+    const auto [mempool_ptr, mempool_size] = register_process_and_map_shm();
 
-    load_and_initialize_heaphook(resource.mempool_ptr, resource.mempool_size);
+    load_and_initialize_heaphook(mempool_ptr, mempool_size);
 
     BridgeManager manager(target_pid);
     manager.run();
