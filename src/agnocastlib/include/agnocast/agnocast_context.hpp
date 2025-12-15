@@ -1,26 +1,11 @@
 #pragma once
 
-#include <rclcpp/parameter_value.hpp>
+#include "agnocast/agnocast_arguments.hpp"
 
-#include <rcl/arguments.h>
-
-#include <map>
 #include <mutex>
-#include <string>
-#include <vector>
 
 namespace agnocast
 {
-
-enum class RemapType { NODE_NAME, NAMESPACE, TOPIC_OR_SERVICE };
-
-struct RemapRule
-{
-  RemapType type;
-  std::string node_name;  // Node name prefix (empty means global rule)
-  std::string match;
-  std::string replacement;
-};
 
 class Context
 {
@@ -30,23 +15,19 @@ class Context
   };
 
 public:
-  using ParameterValue = rclcpp::ParameterValue;
-
   CommandLineParams command_line_params;
 
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
-  std::vector<RemapRule> get_remap_rules() const { return remap_rules_; }
-  static ParameterValue parse_parameter_value(const std::string & value_str);
+  std::vector<RemapRule> get_remap_rules() const { return parsed_arguments_.remap_rules; }
+  std::map<std::string, ParameterValue> get_param_overrides() const
+  {
+    return parsed_arguments_.parameter_overrides;
+  }
 
 private:
-  bool parse_param_rule(const std::string & arg);
-  bool parse_remap_rule(const std::string & arg);
-
   bool initialized_ = false;
-  std::vector<RemapRule> remap_rules_;
-
-  std::map<std::string, ParameterValue> global_parameter_overrides_;
+  ParsedArguments parsed_arguments_;
 };
 
 extern Context g_context;
