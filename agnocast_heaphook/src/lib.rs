@@ -138,7 +138,6 @@ struct AgnocastSharedMemory {
     end: usize,
 }
 
-/// aaa
 impl AgnocastSharedMemory {
     #[cfg(not(test))]
     /// Initializes shared memory.
