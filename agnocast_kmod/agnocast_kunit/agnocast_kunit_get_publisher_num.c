@@ -59,8 +59,6 @@ void test_case_get_publisher_num_normal(struct kunit * test)
 void test_case_get_publisher_num_many(struct kunit * test)
 {
   char * topic_name = "/kunit_test_topic";
-  /* MAX_PUBLISHER_NUM が定義されている前提です。未定義なら MAX_SUBSCRIBER_NUM
-   * と同じ値を使用してください */
   for (int i = 0; i < MAX_PUBLISHER_NUM; i++) {
     setup_one_publisher(test, topic_name);
   }
