@@ -42,7 +42,7 @@ void Node::initialize_node(
   }
 
   node_parameters_ =
-    std::make_shared<node_interfaces::NodeParameters>(node_base_, parameter_overrides);
+    std::make_shared<node_interfaces::NodeParameters>(node_base_, options.parameter_overrides());
 }
 
 }  // namespace agnocast
