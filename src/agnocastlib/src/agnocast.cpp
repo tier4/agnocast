@@ -154,7 +154,7 @@ void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
  * to initialize the TLSF (Two-Level Segregated Fit) allocator. Accessing the custom
  * heap before this function returns will result in undefined behavior or crashes.
  */
-struct initialize_agnocast_result register_process_and_map_shm()
+struct initialize_agnocast_result acquire_agnocast_resources()
 {
   union ioctl_add_process_args add_process_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
@@ -214,7 +214,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    const auto [mempool_ptr, mempool_size] = register_process_and_map_shm();
+    const auto [mempool_ptr, mempool_size] = acquire_agnocast_resources();
 
     load_and_initialize_heaphook(mempool_ptr, mempool_size);
 
