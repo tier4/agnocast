@@ -5,37 +5,12 @@
 namespace agnocast::node_interfaces
 {
 
-// TODO(Koichi98): In rclcpp, parameters are also loaded from NodeOptions::arguments()
-// (e.g. --params-file). This is not yet implemented in agnocast.
-std::map<std::string, rclcpp::ParameterValue> resolve_parameter_overrides(
-  const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides)
-{
-  std::map<std::string, rclcpp::ParameterValue> result;
-
-  {
-    std::lock_guard<std::mutex> lock(agnocast::g_context_mtx);
-    if (agnocast::g_context.is_initialized()) {
-      auto node_params = agnocast::g_context.get_param_overrides(node_fqn);
-      for (const auto & [name, value] : node_params) {
-        result[name] = value;
-      }
-    }
-  }
-
-  for (const auto & param : parameter_overrides) {
-    result[param.get_name()] = param.get_parameter_value();
-  }
-
-  return result;
-}
-
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
   const std::vector<rclcpp::Parameter> & parameter_overrides)
 : node_base_(node_base)
 {
-  parameter_overrides_ =
-    resolve_parameter_overrides(node_base->get_fully_qualified_name(), parameter_overrides);
+  // TODO(Koichi98): Initialize parameter_overrides_ from parameter_overrides
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
