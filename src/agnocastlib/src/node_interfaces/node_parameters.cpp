@@ -5,15 +5,13 @@
 namespace agnocast::node_interfaces
 {
 
-/// Similar to rclcpp::detail::resolve_parameter_overrides()
+// TODO(Koichi98): In rclcpp, parameters are also loaded from NodeOptions::arguments()
+// (e.g. --params-file). This is not yet implemented in agnocast.
 std::map<std::string, rclcpp::ParameterValue> resolve_parameter_overrides(
   const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides)
 {
   std::map<std::string, rclcpp::ParameterValue> result;
 
-  // global before local so that local overwrites global
-  // (In agnocast, g_context serves as the global argument source,
-  //  similar to rcl_context->global_arguments in rclcpp)
   {
     std::lock_guard<std::mutex> lock(agnocast::g_context_mtx);
     if (agnocast::g_context.is_initialized()) {
@@ -24,7 +22,6 @@ std::map<std::string, rclcpp::ParameterValue> resolve_parameter_overrides(
     }
   }
 
-  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
     result[param.get_name()] = param.get_parameter_value();
   }

@@ -15,8 +15,6 @@
 namespace agnocast::node_interfaces
 {
 
-/// Implementation of the NodeParameters part of the Node API.
-/// Inherits from rclcpp::node_interfaces::NodeParametersInterface for compatibility.
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
 public:
