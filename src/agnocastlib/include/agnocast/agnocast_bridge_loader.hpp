@@ -35,6 +35,7 @@ private:
   static std::pair<void *, uintptr_t> load_library(const char * lib_path, const char * symbol_name);
   std::pair<BridgeFn, std::shared_ptr<void>> resolve_factory_function(
     const MqMsgBridge & req, const std::string & unique_key);
+  bool is_address_in_library_code_segment(void * handle, uintptr_t addr);
 };
 
 }  // namespace agnocast

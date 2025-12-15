@@ -1,8 +1,10 @@
 #include "agnocast/agnocast_bridge_loader.hpp"
 
 #include <dlfcn.h>
+#include <elf.h>
 #include <link.h>
 
+#include <cstdint>  // uintptr_t
 #include <cstring>
 #include <stdexcept>
 
@@ -57,10 +59,13 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
     return it->second;
   }
 
+  // Clear any existing dynamic linker error state before loading the library and resolving the
+  // symbol. This ensures that a subsequent call to dlerror() will report only errors that occurred
+  // after this point.
   dlerror();
   auto [raw_handle, base_addr] = load_library(req.factory.shared_lib_path, req.factory.symbol_name);
 
-  if ((raw_handle == nullptr) || (base_addr == 0 && req.factory.fn_offset == 0)) {
+  if ((raw_handle == nullptr) || (base_addr == 0)) {
     if (raw_handle != nullptr) {
       dlclose(raw_handle);
     }
@@ -75,19 +80,60 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   });
 
   // Resolve Main Function
-  auto entry_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset);
-  cached_factories_[topic_name_with_direction] = {entry_func, lib_handle_ptr};
+  uintptr_t entry_addr = base_addr + req.factory.fn_offset;
+  BridgeFn entry_func = nullptr;
 
-  // Register Reverse Function
-  if (req.factory.fn_offset_reverse != 0) {
-    const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
-    std::string topic_name_with_reverse = std::string(req.target.topic_name) + suffix;
-
-    auto reverse_func = reinterpret_cast<BridgeFn>(base_addr + req.factory.fn_offset_reverse);
-    cached_factories_[topic_name_with_reverse] = {reverse_func, lib_handle_ptr};
+  if (is_address_in_library_code_segment(raw_handle, entry_addr)) {
+    entry_func = reinterpret_cast<BridgeFn>(entry_addr);
+  } else {
+    RCLCPP_ERROR(
+      logger_, "Main factory function pointer for '%s' is out of bounds: 0x%lx",
+      topic_name_with_direction.c_str(), static_cast<unsigned long>(entry_addr));
+    return {nullptr, nullptr};
   }
 
+  // Register Reverse Function
+  const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
+  std::string topic_name_with_reverse = std::string(req.target.topic_name) + suffix;
+
+  uintptr_t reverse_addr = base_addr + req.factory.fn_offset_reverse;
+  BridgeFn reverse_func = nullptr;
+
+  if (is_address_in_library_code_segment(raw_handle, reverse_addr)) {
+    reverse_func = reinterpret_cast<BridgeFn>(reverse_addr);
+  } else {
+    RCLCPP_ERROR(
+      logger_, "Reverse function pointer for '%s' is out of bounds: 0x%lx",
+      topic_name_with_reverse.c_str(), static_cast<unsigned long>(reverse_addr));
+    return {nullptr, nullptr};
+  }
+
+  cached_factories_[topic_name_with_direction] = {entry_func, lib_handle_ptr};
+  cached_factories_[topic_name_with_reverse] = {reverse_func, lib_handle_ptr};
+
   return {entry_func, lib_handle_ptr};
+}
+
+bool BridgeLoader::is_address_in_library_code_segment(void * handle, uintptr_t addr)
+{
+  struct link_map * lm = nullptr;
+  if (dlinfo(handle, RTLD_DI_LINKMAP, &lm) != 0 || lm == nullptr) {
+    return false;
+  }
+
+  ElfW(Addr) base = lm->l_addr;
+  ElfW(Ehdr) * ehdr = reinterpret_cast<ElfW(Ehdr) *>(base);
+  ElfW(Phdr) * phdr = reinterpret_cast<ElfW(Phdr) *>(base + ehdr->e_phoff);
+  for (int i = 0; i < ehdr->e_phnum; ++i) {
+    if (phdr[i].p_type == PT_LOAD && (phdr[i].p_flags & PF_X)) {
+      uintptr_t seg_start = base + phdr[i].p_vaddr;
+      uintptr_t seg_end = seg_start + phdr[i].p_memsz;
+      if (addr >= seg_start && addr < seg_end) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace agnocast
