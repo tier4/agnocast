@@ -141,15 +141,14 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
     auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
-    if (bridge) {
-      active_bridges_[topic_name_with_direction] = bridge;
+
+    if (!bridge) {
+      RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
+      rollback_kernel_registration(topic_name, req.direction);
       return;
     }
 
-    // User-space creation failed, so we attempt to revert the kernel registration.
-    RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-    rollback_kernel_registration(topic_name, req.direction);
-    return;
+    active_bridges_[topic_name_with_direction] = bridge;
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
