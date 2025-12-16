@@ -4,7 +4,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
 
-/// aaa
 namespace agnocast
 {
 
