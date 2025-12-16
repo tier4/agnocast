@@ -1580,9 +1580,15 @@ int remove_publisher(
     }
   }
 
-  hash_del(&pub_info->node);
-  kfree(pub_info->node_name);
-  kfree(pub_info);
+  if (pub_info->entries_num == 0) {
+    hash_del(&pub_info->node);
+    kfree(pub_info->node_name);
+    kfree(pub_info);
+  } else {
+    dev_info(
+      agnocast_device, "Publisher (id=%d) removed but pub_info kept for %d orphaned entries.\n",
+      publisher_id, pub_info->entries_num);
+  }
 
   if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
     struct rb_node * n = rb_first(&wrapper->topic.entries);

@@ -151,7 +151,7 @@ void test_case_remove_publisher_leaves_orphaned_messages(struct kunit * test)
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   union ioctl_get_publisher_num_args get_pub_args;
   get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
-  KUNIT_EXPECT_EQ(test, get_pub_args.ret_publisher_num, 0);
+  KUNIT_EXPECT_EQ(test, get_pub_args.ret_publisher_num, 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
   KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, sub_id), 1);
   KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, pub_id), 0);
