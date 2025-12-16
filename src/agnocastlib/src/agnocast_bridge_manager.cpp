@@ -172,6 +172,7 @@ void BridgeManager::rollback_kernel_registration(
   topic_name_with_reverse +=
     ((direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_A2R : SUFFIX_R2A);
 
+  // Only rollback if no bridges remain to avoid removing an active topic.
   if (active_bridges_.count(topic_name_with_reverse) > 0U) {
     return;
   }
