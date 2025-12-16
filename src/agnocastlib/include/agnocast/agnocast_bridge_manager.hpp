@@ -39,15 +39,19 @@ private:
 
   void start_ros_execution();
 
-  void on_mq_event(mqd_t fd, bool allow_delegation);
+  void on_mq_create_request(mqd_t fd);
+  void on_mq_delegation_request(mqd_t fd);
+  void on_signal();
 
-  void handle_create_request(const MqMsgBridge & req, bool allow_delegation);
+  void handle_create_request(const MqMsgBridge & req);
+  void handle_delegate_request(const MqMsgBridge & req);
 
   void check_parent_alive();
   void check_active_bridges();
   void check_should_exit();
 
-  void remove_active_bridges(const std::string & topic_name_with_dirction);
+  static int get_agnocast_connection_count(const std::string & topic_name, bool is_r2a);
+  void remove_active_bridge(const std::string & topic_name_with_direction);
 };
 
 }  // namespace agnocast

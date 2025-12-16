@@ -106,6 +106,16 @@ struct entry_node
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
 
+struct bridge_info
+{
+  char * topic_name;
+  pid_t pid;
+  const struct ipc_namespace * ipc_ns;
+  struct hlist_node node;
+};
+
+static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
+
 #ifndef KUNIT_BUILD
 // Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
 // Thus, PIDs must be converted from global to local before they are passed from kernel to user.
@@ -1125,6 +1135,20 @@ int get_subscriber_num(
   return 0;
 }
 
+int get_publisher_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  union ioctl_get_publisher_num_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (wrapper) {
+    ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper);
+  } else {
+    ioctl_ret->ret_publisher_num = 0;
+  }
+
+  return 0;
+}
+
 static int get_exit_process(
   const struct ipc_namespace * ipc_ns, struct ioctl_get_exit_process_args * ioctl_ret)
 {
@@ -1438,6 +1462,91 @@ int get_publisher_qos(
   return 0;
 }
 
+static struct bridge_info * find_bridge_info(
+  const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info;
+  uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
+  hash_for_each_possible(bridge_htable, br_info, node, hash_val)
+  {
+    if (ipc_ns == br_info->ipc_ns && strcmp(br_info->topic_name, topic_name) == 0) {
+      return br_info;
+    }
+  }
+  return NULL;
+}
+
+int add_bridge(
+  const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns,
+  struct ioctl_add_bridge_args * ioctl_ret)
+{
+  const struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
+  if (existing) {
+    if (existing->pid == pid) {
+      dev_info(
+        agnocast_device, "Bridge (topic=%s) already registered by this process.\n", topic_name);
+      return 0;
+    } else {
+      dev_info(
+        agnocast_device, "Bridge (topic=%s) already exists with different pid.\n", topic_name);
+      if (ioctl_ret) {
+        ioctl_ret->ret_pid = existing->pid;
+      }
+      return -EEXIST;
+    }
+  }
+
+  struct bridge_info * br_info = kmalloc(sizeof(*br_info), GFP_KERNEL);
+  if (!br_info) {
+    dev_warn(agnocast_device, "kmalloc failed. (add_bridge)\n");
+    return -ENOMEM;
+  }
+
+  br_info->topic_name = kstrdup(topic_name, GFP_KERNEL);
+  if (!br_info->topic_name) {
+    dev_warn(
+      agnocast_device, "Failed to add a new topic (topic_name=%s) by kstrdup. (add_bridge)\n",
+      topic_name);
+    kfree(br_info);
+    return -ENOMEM;
+  }
+
+  br_info->pid = pid;
+  br_info->ipc_ns = ipc_ns;
+
+  INIT_HLIST_NODE(&br_info->node);
+  uint32_t hash_val = full_name_hash(NULL, topic_name, strlen(topic_name));
+
+  hash_add(bridge_htable, &br_info->node, hash_val);
+
+  return 0;
+}
+
+int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
+{
+  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+
+  if (!br_info) {
+    dev_warn(agnocast_device, "Bridge (topic=%s) not found.\n", topic_name);
+    return -ENOENT;
+  }
+
+  if (br_info->pid != pid) {
+    dev_warn(
+      agnocast_device, "Bridge (topic=%s) pid mismatch. Expected %d, got %d.\n", topic_name,
+      br_info->pid, pid);
+    return -EPERM;
+  }
+
+  hash_del(&br_info->node);
+  kfree(br_info->topic_name);
+  kfree(br_info);
+
+  dev_info(agnocast_device, "Bridge (topic=%s) removed successfully.\n", topic_name);
+
+  return 0;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1637,6 +1746,28 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
+  } else if (cmd == AGNOCAST_GET_PUBLISHER_NUM_CMD) {
+    union ioctl_get_publisher_num_args get_publisher_num_args;
+    if (copy_from_user(
+          &get_publisher_num_args, (union ioctl_get_publisher_num_args __user *)arg,
+          sizeof(get_publisher_num_args)))
+      goto return_EFAULT;
+    if (get_publisher_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(get_publisher_num_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)get_publisher_num_args.topic_name.ptr,
+          get_publisher_num_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[get_publisher_num_args.topic_name.len] = '\0';
+    ret = get_publisher_num(topic_name_buf, ipc_ns, &get_publisher_num_args);
+    kfree(topic_name_buf);
+    if (copy_to_user(
+          (union ioctl_get_publisher_num_args __user *)arg, &get_publisher_num_args,
+          sizeof(get_publisher_num_args)))
+      goto return_EFAULT;
   } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
     struct ioctl_get_exit_process_args get_exit_process_args;
     ret = get_exit_process(ipc_ns, &get_exit_process_args);
@@ -1790,6 +1921,41 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
             sizeof(get_pub_qos_args)))
         goto return_EFAULT;
     }
+  } else if (cmd == AGNOCAST_ADD_BRIDGE_CMD) {
+    struct ioctl_add_bridge_args bridge_args;
+    if (copy_from_user(&bridge_args, (void __user *)arg, sizeof(bridge_args))) goto return_EFAULT;
+    if (bridge_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(bridge_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)bridge_args.topic_name.ptr, bridge_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[bridge_args.topic_name.len] = '\0';
+    ret = add_bridge(topic_name_buf, bridge_args.pid, ipc_ns, &bridge_args);
+    kfree(topic_name_buf);
+    if (ret == -EEXIST) {
+      if (copy_to_user(
+            (struct ioctl_add_bridge_args __user *)arg, &bridge_args, sizeof(bridge_args)))
+        goto return_EFAULT;
+    }
+  } else if (cmd == AGNOCAST_REMOVE_BRIDGE_CMD) {
+    struct ioctl_remove_bridge_args remove_bridge_args;
+    if (copy_from_user(&remove_bridge_args, (void __user *)arg, sizeof(remove_bridge_args)))
+      goto return_EFAULT;
+    if (remove_bridge_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(remove_bridge_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)remove_bridge_args.topic_name.ptr,
+          remove_bridge_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
+    ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, ipc_ns);
+    kfree(topic_name_buf);
   } else {
     goto return_EINVAL;
   }
@@ -1930,15 +2096,6 @@ bool is_in_subscriber_htable(
   return true;
 }
 
-int get_publisher_num(const char * topic_name, const struct ipc_namespace * ipc_ns)
-{
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
-  if (!wrapper) {
-    return 0;
-  }
-  return get_size_pub_info_htable(wrapper);
-}
-
 bool is_in_publisher_htable(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id)
 {
@@ -1970,6 +2127,21 @@ int get_topic_num(const struct ipc_namespace * ipc_ns)
 bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   return find_topic(topic_name, ipc_ns) != NULL;
+}
+
+bool is_in_bridge_htable(const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  return (br_info != NULL);
+}
+
+pid_t get_bridge_owner_pid(const char * topic_name, const struct ipc_namespace * ipc_ns)
+{
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  if (br_info) {
+    return br_info->pid;
+  }
+  return -1;
 }
 
 #endif
@@ -2141,6 +2313,18 @@ void process_exit_cleanup(const pid_t pid)
         kfree(wrapper->key);
       }
       kfree(wrapper);
+    }
+  }
+
+  struct bridge_info * br_info;
+  hash_for_each_safe(bridge_htable, bkt, tmp, br_info, node)
+  {
+    if (br_info->pid == pid) {
+      hash_del(&br_info->node);
+      if (br_info->topic_name) {
+        kfree(br_info->topic_name);
+      }
+      kfree(br_info);
     }
   }
 
@@ -2354,11 +2538,27 @@ static void remove_all_process_info(void)
   }
 }
 
+static void remove_all_bridge_info(void)
+{
+  struct bridge_info * br_info;
+  int bkt;
+  struct hlist_node * tmp;
+  hash_for_each_safe(bridge_htable, bkt, tmp, br_info, node)
+  {
+    hash_del(&br_info->node);
+    if (br_info->topic_name) {
+      kfree(br_info->topic_name);
+    }
+    kfree(br_info);
+  }
+}
+
 void agnocast_exit_free_data(void)
 {
   mutex_lock(&global_mutex);
   remove_all_topics();
   remove_all_process_info();
+  remove_all_bridge_info();
   mutex_unlock(&global_mutex);
 }
 
