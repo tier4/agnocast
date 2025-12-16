@@ -98,6 +98,9 @@ void BridgeManager::on_mq_create_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_create_request(req);
   }
 }
@@ -106,6 +109,9 @@ void BridgeManager::on_mq_delegation_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_delegate_request(req);
   }
 }
@@ -132,7 +138,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
     return;
   }
 
-  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
   struct ioctl_add_bridge_args add_bridge_args
   {
   };
@@ -142,18 +147,22 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
     auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
-    if (bridge) {
-      active_bridges_[topic_name_with_direction] = bridge;
-    } else {
+
+    if (!bridge) {
       RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-      // Rollback kernel registration.
+      shutdown_requested_ = true;
+      return;
     }
+
+    active_bridges_[topic_name_with_direction] = bridge;
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
     // Retrieve the PID of the current owner and delegate.
   } else {
-    RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
+      std::string(topic_name).c_str(), strerror(errno));
   }
 }
 
@@ -196,7 +205,12 @@ void BridgeManager::check_active_bridges()
     const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
     const int threshold = reverse_exists ? 1 : 0;
 
-    int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
+    int count = 0;
+    if (is_r2a) {
+      count = get_agnocast_subscriber_count(std::string(topic_name_view));
+    } else {
+      count = get_agnocast_publisher_count(std::string(topic_name_view));
+    }
 
     if (count <= threshold) {
       if (count < 0) {
@@ -225,17 +239,26 @@ void BridgeManager::check_should_exit()
   }
 }
 
-int BridgeManager::get_agnocast_connection_count(
-  const std::string & /*topic_name*/, bool /*is_r2a*/)
+int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
 {
-  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
-  // Expected implementation steps:
-  // 1. Prepare ioctl arguments based on the topic name.
-  // 2. If is_r2a is true, call ioctl with AGNOCAST_GET_SUBSCRIBER_NUM_CMD.
-  // 3. If is_r2a is false, call ioctl with AGNOCAST_GET_PUBLISHER_NUM_CMD.
-  // 4. Return the retrieved count on success, or -1 on failure.
-  // Return the count if ioctl succeeded (0), otherwise return -1 (error)
-  return -1;
+  union ioctl_get_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return -1;
+  }
+  return static_cast<int>(args.ret_subscriber_num);
+}
+
+int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
+{
+  union ioctl_get_publisher_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
+    return -1;
+  }
+  return static_cast<int>(args.ret_publisher_num);
 }
 
 void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)
