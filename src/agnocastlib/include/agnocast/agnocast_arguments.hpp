@@ -37,7 +37,14 @@ bool parse_param_rule(
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments);
 
-/// @param node_fqn Fully Qualified Name of the node (e.g., "/namespace/node_name")
+/// Resolve parameter overrides from multiple sources.
+/// Corresponds to rclcpp::detail::resolve_parameter_overrides.
+/// Priority (later overwrites earlier): global_args < local_args < parameter_overrides
+/// @param node_fqn Fully qualified name of the node (for future node-specific filtering:
+/// TODO(Koichi98))
+/// @param parameter_overrides Parameters from NodeOptions::parameter_overrides()
+/// @param local_args Parsed arguments from NodeOptions::arguments()
+/// @param global_args Parsed arguments from command line (via agnocast::init)
 std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides,
   const ParsedArguments & local_args, const ParsedArguments & global_args);
