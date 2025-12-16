@@ -31,24 +31,48 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)default_value;
-  (void)parameter_descriptor;
-  (void)ignore_override;
-  throw std::runtime_error("NodeParameters::declare_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(g_context_mtx);
+
+  if (parameters_.find(name) == parameters_.end()) {
+    ParameterInfo param_info;
+    param_info.descriptor = parameter_descriptor;
+
+    // Check for command-line override
+    if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
+      param_info.value = parameter_overrides_[name];
+    } else {
+      param_info.value = default_value;
+    }
+
+    parameters_[name] = param_info;
+  }
+
+  return parameters_[name].value;
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)type;
-  (void)parameter_descriptor;
-  (void)ignore_override;
-  throw std::runtime_error("NodeParameters::declare_parameter is not yet implemented in agnocast");
+  rclcpp::ParameterValue default_value;
+  switch (type) {
+    case rclcpp::ParameterType::PARAMETER_BOOL:
+      default_value = rclcpp::ParameterValue(false);
+      break;
+    case rclcpp::ParameterType::PARAMETER_INTEGER:
+      default_value = rclcpp::ParameterValue(static_cast<int64_t>(0));
+      break;
+    case rclcpp::ParameterType::PARAMETER_DOUBLE:
+      default_value = rclcpp::ParameterValue(0.0);
+      break;
+    case rclcpp::ParameterType::PARAMETER_STRING:
+      default_value = rclcpp::ParameterValue(std::string(""));
+      break;
+    default:
+      throw std::runtime_error("Unsupported parameter type in agnocast");
+  }
+
+  return declare_parameter(name, default_value, parameter_descriptor, ignore_override);
 }
 
 void NodeParameters::undeclare_parameter(const std::string & name)
