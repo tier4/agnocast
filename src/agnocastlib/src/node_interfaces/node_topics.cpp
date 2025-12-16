@@ -6,8 +6,7 @@
 namespace agnocast::node_interfaces
 {
 
-NodeTopics::NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base)
-: node_base_(std::move(node_base))
+NodeTopics::NodeTopics(NodeBase::SharedPtr node_base) : node_base_(std::move(node_base))
 {
 }
 
@@ -21,16 +20,6 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
 
   return remap_name(expanded_topic_name);
   // TODO(Koichi98): rmw_validate_full_topic_name (see node_resolve_name.c)
-}
-
-void NodeTopics::set_global_arguments(std::vector<RemapRule> rules)
-{
-  global_remap_rules_ = std::move(rules);
-}
-
-void NodeTopics::set_local_arguments(std::vector<RemapRule> rules)
-{
-  local_remap_rules_ = std::move(rules);
 }
 
 std::string NodeTopics::remap_name(const std::string & topic_name) const
@@ -61,12 +50,12 @@ std::string NodeTopics::remap_name(const std::string & topic_name) const
 
   // Look at local rules first
   // Corresponds to remap.c:194-202
-  rule = find_first_match(local_remap_rules_);
+  rule = find_first_match(node_base_->get_local_remap_rules());
 
   // Check global rules if no local rule matched
   // Corresponds to remap.c:203-211
   if (rule == nullptr) {
-    rule = find_first_match(global_remap_rules_);
+    rule = find_first_match(node_base_->get_global_remap_rules());
   }
 
   // Do the remapping
