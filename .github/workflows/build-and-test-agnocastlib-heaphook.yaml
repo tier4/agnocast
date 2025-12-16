@@ -108,8 +108,13 @@ jobs:
     - name: Run clang-tidy for agnocastlib
       if: steps.check_diff.outputs.cpp_changed == 'true'
       run: |
-        export FILES=($(find src/agnocastlib/ -name '*.cpp' -not -path '*/test/*'))
-        run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
+        CHANGED_FILES="$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
+        export FILES=($(echo "$CHANGED_FILES" | grep -E '^src/agnocastlib/.*\.(cpp|hpp)$' | grep -v '/test/' || true))
+        if [ ${#FILES[@]} -gt 0 ]; then
+          run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
+        else
+          echo "No agnocastlib C++ files changed, skipping clang-tidy"
+        fi
 
     - name: Test for agnocastlib
       if: steps.check_diff.outputs.cpp_changed == 'true'
