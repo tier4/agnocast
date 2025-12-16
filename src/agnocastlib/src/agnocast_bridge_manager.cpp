@@ -106,6 +106,9 @@ void BridgeManager::on_mq_delegation_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_delegate_request(req);
   }
 }
@@ -144,7 +147,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
     if (!bridge) {
       RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-      rollback_kernel_registration(topic_name, req.direction);
+      shutdown_requested_ = true;
       return;
     }
 
@@ -163,31 +166,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
 {
   // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
-}
-
-void BridgeManager::rollback_kernel_registration(
-  const std::string & topic_name, BridgeDirection direction)
-{
-  std::string topic_name_with_reverse = topic_name;
-  topic_name_with_reverse +=
-    ((direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_A2R : SUFFIX_R2A);
-
-  // Only rollback if no bridges remain to avoid removing an active topic.
-  if (active_bridges_.count(topic_name_with_reverse) > 0U) {
-    return;
-  }
-
-  struct ioctl_remove_bridge_args remove_bridge_args
-  {
-  };
-  remove_bridge_args.pid = getpid();
-  remove_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-  if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
-    RCLCPP_ERROR(
-      logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
-      strerror(errno));
-  }
 }
 
 void BridgeManager::check_parent_alive()

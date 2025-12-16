@@ -46,8 +46,6 @@ private:
   void handle_create_request(const MqMsgBridge & req);
   void handle_delegate_request(const MqMsgBridge & req);
 
-  void rollback_kernel_registration(const std::string & topic_name, BridgeDirection dir);
-
   void check_parent_alive();
   void check_active_bridges();
   void check_should_exit();
