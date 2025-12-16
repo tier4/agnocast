@@ -6,7 +6,7 @@ on:
       - labeled
   push:
     branches:
-      - main  # For caching
+      - main  # For caching. https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,19 +15,21 @@ env:
 
 jobs:
   build-and-test-agnocastlib-heaphook:
-    if: ${{ github.event.label.name == 'run-build-test' }}
+    if: ${{ github.event_name == 'push' || github.event.label.name == 'run-build-test' }}
     runs-on: ubuntu-22.04
 
     steps:
     - name: Set PR fetch depth
+      if: github.event_name == 'pull_request'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
 
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+        fetch-depth: ${{ github.event_name == 'pull_request' && env.PR_FETCH_DEPTH || 1 }}
 
     - name: Check for .cpp or .hpp file changes
+      if: github.event_name == 'pull_request'
       id: check_diff
       run: |
         set -euo pipefail
@@ -51,7 +53,7 @@ jobs:
         fi
 
     - name: Setup ROS 2 environment
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends software-properties-common curl gcovr ccache
@@ -62,7 +64,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends ros-${{ env.ROS_DISTRO }}-desktop python3-colcon-common-extensions ros-${{ env.ROS_DISTRO }}-ament-cmake python3-colcon-mixin
 
     - name: Cache rosdep
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       uses: actions/cache@v4
       with:
         path: |
@@ -72,7 +74,7 @@ jobs:
           ${{ runner.os }}-rosdep-${{ env.ROS_DISTRO }}-
 
     - name: Install dependencies
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         sudo apt-get install -y --no-install-recommends python3-rosdep
@@ -81,7 +83,7 @@ jobs:
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
     - name: Cache ccache
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       uses: actions/cache@v4
       with:
         path: ~/.ccache
@@ -92,7 +94,7 @@ jobs:
           ${{ runner.os }}-ccache-
 
     - name: Configure ccache
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         mkdir -p ~/.ccache
         ccache --version
@@ -100,7 +102,7 @@ jobs:
         ccache --zero-stats
 
     - name: Build src
-      if: steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
       env:
         CCACHE_COMPRESS: "true"
         CCACHE_COMPRESSLEVEL: "6"
@@ -114,7 +116,7 @@ jobs:
         ccache --show-stats
 
     - name: Run clang-tidy for agnocastlib
-      if: steps.check_diff.outputs.cpp_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
       run: |
         set -euo pipefail
         export FILES=($(echo "${{ steps.check_diff.outputs.changed_files }}" | grep -E '^src/agnocastlib/.*\.(cpp|hpp)$' | grep -v '/test/' || true))
@@ -125,14 +127,14 @@ jobs:
         fi
 
     - name: Test for agnocastlib
-      if: steps.check_diff.outputs.cpp_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
       id: test
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         colcon test --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
 
     - name: Display coverage report in PR comment
-      if: steps.check_diff.outputs.cpp_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -143,7 +145,7 @@ jobs:
     # ===== agnocast_heaphook =====
 
     - name: Cache Rust (cargo + target + rustup)
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
       uses: actions/cache@v4
       with:
         path: |
@@ -156,7 +158,7 @@ jobs:
           ${{ runner.os }}-rust-${{ env.RUST_TOOLCHAIN }}-
 
     - name: Setup Rust environment
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         rustup set profile minimal
         rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --no-self-update
@@ -164,26 +166,26 @@ jobs:
         rustup component add clippy rustfmt --toolchain ${{ env.RUST_TOOLCHAIN }}
 
     - name: Generate vendor directory
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         cd agnocast_heaphook
         mkdir -p .cargo
         cargo vendor > .cargo/config.toml
-        
+
     - name: Run rustfmt on agnocast_heaphook
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         cd agnocast_heaphook
         cargo fmt && git diff --exit-code
 
     - name: Run clippy on agnocast_heaphook
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         cd agnocast_heaphook
         cargo clippy -- --deny warnings
 
     - name: Build agnocast_heaphook
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         cd agnocast_heaphook
         cargo build --release
@@ -191,13 +193,13 @@ jobs:
         cp agnocast_heaphook/target/release/libagnocast_heaphook.so install/agnocastlib/lib
 
     - name: Unit test for agnocast_heaphook
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         cd agnocast_heaphook
         cargo test
-    
+
     - name: Test for agnocast_heaphook
-      if: steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         colcon test --event-handlers console_direct+ --ctest-args -R "test_integration_agnocast_heaphook"
