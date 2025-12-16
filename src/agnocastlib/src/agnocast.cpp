@@ -292,15 +292,22 @@ bool wait_for_mq_ready(const std::string & mq_name)
 {
   constexpr int max_retries = 10;
   constexpr auto retry_delay = std::chrono::milliseconds(100);
+  int last_errno = 0;
 
   for (int i = 0; i < max_retries; ++i) {
     mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
     if (mq != -1) {
       mq_close(mq);
       return true;
+    } else {
+      last_errno = errno;
     }
     std::this_thread::sleep_for(retry_delay);
   }
+
+  RCLCPP_ERROR(
+    logger, "Failed to open message queue '%s' after %d retries. Error: %s", mq_name.c_str(),
+    max_retries, std::strerror(last_errno));
   return false;
 }
 
