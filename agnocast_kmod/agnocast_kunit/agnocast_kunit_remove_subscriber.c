@@ -143,3 +143,62 @@ void test_case_remove_subscriber_clears_references(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, pub_id), 1);
   KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, sub_id), 0);
 }
+
+void test_case_remove_subscriber_triggers_gc(struct kunit * test)
+{
+  // Arrange
+  const pid_t pub_pid = PID_BASE;
+  const pid_t sub_pid = PID_BASE + 1;
+  const uint64_t msg_addr = setup_one_process(test, pub_pid);
+  setup_one_process(test, sub_pid);
+
+  const topic_local_id_t pub_id = setup_one_publisher(test, pub_pid);
+  const topic_local_id_t sub_id = setup_one_subscriber(test, sub_pid);
+  const uint64_t entry_id = setup_one_entry(test, pub_id, msg_addr);
+
+  int ret = increment_message_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, sub_id, entry_id);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+
+  enqueue_exit_pid(pub_pid);
+  msleep(10);  // wait exit
+
+  KUNIT_ASSERT_TRUE(test, is_proc_exited(pub_pid));
+  KUNIT_ASSERT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
+
+  // Act
+  ret = remove_subscriber(TOPIC_NAME, current->nsproxy->ipc_ns, sub_id);
+  KUNIT_ASSERT_EQ(test, ret, 0);
+
+  // Assert
+  KUNIT_EXPECT_FALSE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
+  KUNIT_EXPECT_FALSE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
+}
+
+void test_case_remove_subscriber_shared_ref_gc(struct kunit * test)
+{
+  // Arrange
+  const pid_t pub_pid = PID_BASE;
+  const pid_t sub1_pid = PID_BASE + 1;
+  const pid_t sub2_pid = PID_BASE + 2;
+  const uint64_t msg_addr = setup_one_process(test, pub_pid);
+  setup_one_process(test, sub1_pid);
+  setup_one_process(test, sub2_pid);
+
+  const topic_local_id_t pub_id = setup_one_publisher(test, pub_pid);
+  const topic_local_id_t sub1_id = setup_one_subscriber(test, sub1_pid);
+  const topic_local_id_t sub2_id = setup_one_subscriber(test, sub2_pid);
+  const uint64_t entry_id = setup_one_entry(test, pub_id, msg_addr);
+
+  increment_message_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, sub1_id, entry_id);
+  increment_message_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, sub2_id, entry_id);
+
+  enqueue_exit_pid(pub_pid);
+  msleep(10);
+
+  // Act
+  remove_subscriber(TOPIC_NAME, current->nsproxy->ipc_ns, sub1_id);
+  // Assert
+  KUNIT_EXPECT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
+  remove_subscriber(TOPIC_NAME, current->nsproxy->ipc_ns, sub2_id);
+  KUNIT_EXPECT_FALSE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
+}
