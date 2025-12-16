@@ -86,16 +86,25 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   const std::vector<std::string> & names) const
 {
-  // TODO(Koichi98)
-  (void)names;
-  throw std::runtime_error("NodeParameters::get_parameters is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(g_context_mtx);
+  std::vector<rclcpp::Parameter> result;
+  for (const auto & name : names) {
+    auto it = parameters_.find(name);
+    if (it != parameters_.end()) {
+      result.push_back(rclcpp::Parameter(name, it->second.value));
+    }
+  }
+  return result;
 }
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(g_context_mtx);
+  auto it = parameters_.find(name);
+  if (it == parameters_.end()) {
+    throw std::runtime_error("Parameter not found: " + name);
+  }
+  return rclcpp::Parameter(name, it->second.value);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
