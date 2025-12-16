@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
+#include "agnocast/agnocast_utils.hpp"
+
 #include <sys/prctl.h>
 #include <unistd.h>
 
@@ -122,8 +124,9 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   std::string topic_name(
     &req.target.topic_name[0], strnlen(&req.target.topic_name[0], sizeof(req.target.topic_name)));
-  std::string topic_name_with_direction =
-    topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_R2A" : "_A2R");
+  std::string topic_name_with_direction = topic_name;
+  topic_name_with_direction +=
+    (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_R2A : SUFFIX_A2R;
 
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
@@ -172,10 +175,6 @@ void BridgeManager::check_parent_alive()
 
 void BridgeManager::check_active_bridges()
 {
-  constexpr std::string_view SUFFIX_R2A = "_R2A";
-  constexpr std::string_view SUFFIX_A2R = "_A2R";
-  constexpr size_t SUFFIX_LEN = 4;  // "_R2A" or "_A2R" length
-
   std::vector<std::string> to_remove;
   to_remove.reserve(active_bridges_.size());
 
@@ -209,7 +208,7 @@ void BridgeManager::check_active_bridges()
   }
 
   for (const auto & key : to_remove) {
-    remove_active_bridges(key);
+    remove_active_bridge(key);
   }
 }
 
@@ -250,15 +249,37 @@ int BridgeManager::get_agnocast_connection_count(const std::string & topic_name,
   return static_cast<int>(count);
 }
 
-void BridgeManager::remove_active_bridges(const std::string & topic_name_with_dirction)
+void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)
 {
-  if (active_bridges_.count(topic_name_with_dirction) == 0) {
+  if (topic_name_with_direction.size() <= SUFFIX_LEN) {
     return;
   }
 
-  active_bridges_.erase(topic_name_with_dirction);
-  // TODO(yutarokobayashi): Unregister from the kernel only if the paired bridge in the reverse
-  // direction is also missing.
+  if (active_bridges_.count(topic_name_with_direction) == 0) {
+    return;
+  }
+
+  std::string_view key_view(topic_name_with_direction);
+  std::string_view suffix = key_view.substr(key_view.size() - SUFFIX_LEN);
+  std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
+  std::string reverse_key(topic_name_view);
+  reverse_key += (suffix == SUFFIX_R2A ? SUFFIX_A2R : SUFFIX_R2A);
+
+  if (active_bridges_.count(reverse_key) == 0) {
+    struct ioctl_remove_bridge_args remove_bridge_args
+    {
+    };
+    remove_bridge_args.pid = getpid();
+    remove_bridge_args.topic_name = {topic_name_view.data(), topic_name_view.size()};
+
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
+      RCLCPP_ERROR(
+        logger, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
+        std::string(topic_name_view).c_str(), strerror(errno));
+    }
+  }
+
+  active_bridges_.erase(topic_name_with_direction);
 }
 
 }  // namespace agnocast
