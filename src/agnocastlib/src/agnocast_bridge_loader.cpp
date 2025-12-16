@@ -7,6 +7,7 @@
 #include <cstdint>  // uintptr_t
 #include <cstring>
 #include <stdexcept>
+#include <utility>
 
 namespace agnocast
 {
@@ -20,13 +21,10 @@ BridgeLoader::~BridgeLoader()
   cached_factories_.clear();
 }
 
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 std::shared_ptr<void> BridgeLoader::create(
   const MqMsgBridge & req, const std::string & topic_name_with_direction,
   const rclcpp::Node::SharedPtr & node)
 {
-  (void)node;  // TODO(yutarokobayashi): Remove
-
   auto [entry_func, lib_handle] = resolve_factory_function(req, topic_name_with_direction);
 
   if (entry_func == nullptr) {
@@ -37,18 +35,56 @@ std::shared_ptr<void> BridgeLoader::create(
     return nullptr;
   }
 
-  return nullptr;  // TODO(yutarokobayashi): Invoke the factory function and return the instance.
+  return create_bridge_instance(entry_func, lib_handle, node, req.target);
+}
+
+std::shared_ptr<void> BridgeLoader::create_bridge_instance(
+  BridgeFn entry_func, const std::shared_ptr<void> & lib_handle,
+  const rclcpp::Node::SharedPtr & node, const BridgeTargetInfo & target)
+{
+  try {
+    auto bridge_resource = entry_func(node, target);
+    if (!bridge_resource) {
+      return nullptr;
+    }
+
+    if (lib_handle) {
+      // Prevent library unload while bridge_resource is alive (aliasing constructor)
+      using BundleType = std::pair<std::shared_ptr<void>, std::shared_ptr<void>>;
+      auto bundle = std::make_shared<BundleType>(lib_handle, bridge_resource);
+      return {bundle, bridge_resource.get()};
+    }
+
+    RCLCPP_ERROR(logger_, "Library handle is missing. Cannot ensure bridge lifetime safety.");
+    return nullptr;
+
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger_, "Exception in factory: %s", e.what());
+    return nullptr;
+  }
 }
 
 std::pair<void *, uintptr_t> BridgeLoader::load_library(
-  const char * /*lib_path*/, const char * /*symbol_name*/)
+  const char * lib_path, const char * symbol_name)
 {
-  // TODO(yutarokobayashi): Implement library loading and base address retrieval.
-  // This function should:
-  // - Open the specified library (or main executable) via dlopen.
-  // - Query the link map (dlinfo) to find the runtime load address.
-  // - Return the handle and base address, or a null pair on failure.
-  return {nullptr, 0};
+  void * handle = nullptr;
+
+  if (std::strcmp(symbol_name, MAIN_EXECUTABLE_SYMBOL) == 0) {
+    handle = dlopen(nullptr, RTLD_NOW);
+  } else {
+    handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL);
+  }
+
+  if (handle == nullptr) {
+    return {nullptr, 0};
+  }
+
+  struct link_map * map = nullptr;
+  if (dlinfo(handle, RTLD_DI_LINKMAP, &map) != 0) {
+    dlclose(handle);
+    return {nullptr, 0};
+  }
+  return {handle, map->l_addr};
 }
 
 std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_function(

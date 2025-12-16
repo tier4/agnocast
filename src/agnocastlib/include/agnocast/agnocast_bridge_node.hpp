@@ -245,7 +245,7 @@ void send_bridge_request(
     info.dli_fname);
   snprintf(
     static_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s",
-    info.dli_sname ? info.dli_sname : "__MAIN_EXECUTABLE__");
+    info.dli_sname ? info.dli_sname : MAIN_EXECUTABLE_SYMBOL);
   auto base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;

@@ -8,6 +8,8 @@
 namespace agnocast
 {
 
+constexpr const char * MAIN_EXECUTABLE_SYMBOL = "__MAIN_EXECUTABLE__";
+
 inline constexpr size_t SHARED_LIB_PATH_BUFFER_SIZE = 4096;  // Linux PATH_MAX is 4096
 inline constexpr size_t TOPIC_NAME_BUFFER_SIZE = 256;
 inline constexpr size_t SYMBOL_NAME_BUFFER_SIZE = 256;
