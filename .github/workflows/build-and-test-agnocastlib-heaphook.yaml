@@ -53,7 +53,7 @@ jobs:
         fi
 
     - name: Setup ROS 2 environment
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends software-properties-common curl gcovr ccache
@@ -64,7 +64,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends ros-${{ env.ROS_DISTRO }}-desktop python3-colcon-common-extensions ros-${{ env.ROS_DISTRO }}-ament-cmake python3-colcon-mixin
 
     - name: Cache rosdep
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       uses: actions/cache@v4
       with:
         path: |
@@ -74,7 +74,7 @@ jobs:
           ${{ runner.os }}-rosdep-${{ env.ROS_DISTRO }}-
 
     - name: Install dependencies
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         sudo apt-get install -y --no-install-recommends python3-rosdep
@@ -83,7 +83,7 @@ jobs:
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
     - name: Cache ccache
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       uses: actions/cache@v4
       with:
         path: ~/.ccache
@@ -94,7 +94,7 @@ jobs:
           ${{ runner.os }}-ccache-
 
     - name: Configure ccache
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         mkdir -p ~/.ccache
         ccache --version
@@ -102,7 +102,7 @@ jobs:
         ccache --zero-stats
 
     - name: Build src
-      if: github.event_name == 'push' || steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       env:
         CCACHE_COMPRESS: "true"
         CCACHE_COMPRESSLEVEL: "6"
@@ -145,7 +145,7 @@ jobs:
     # ===== agnocast_heaphook =====
 
     - name: Cache Rust (cargo + target + rustup)
-      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.heaphook_changed == 'true')
       uses: actions/cache@v4
       with:
         path: |
@@ -158,7 +158,7 @@ jobs:
           ${{ runner.os }}-rust-${{ env.RUST_TOOLCHAIN }}-
 
     - name: Setup Rust environment
-      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         rustup set profile minimal
         rustup toolchain install ${{ env.RUST_TOOLCHAIN }} --no-self-update
@@ -166,7 +166,7 @@ jobs:
         rustup component add clippy rustfmt --toolchain ${{ env.RUST_TOOLCHAIN }}
 
     - name: Generate vendor directory
-      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         cd agnocast_heaphook
         mkdir -p .cargo
@@ -185,7 +185,7 @@ jobs:
         cargo clippy -- --deny warnings
 
     - name: Build agnocast_heaphook
-      if: github.event_name == 'push' || steps.check_diff.outputs.heaphook_changed == 'true'
+      if: github.event_name == 'push' || (steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         cd agnocast_heaphook
         cargo build --release
