@@ -1543,6 +1543,67 @@ int remove_subscriber(
   return 0;
 }
 
+int remove_publisher(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t publisher_id)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    return -EINVAL;
+  }
+
+  struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
+  if (!pub_info) {
+    return -ENODATA;
+  }
+
+  struct rb_root * root = &wrapper->topic.entries;
+  struct rb_node * node = rb_first(root);
+  struct rb_node * next_node;
+
+  while (node) {
+    next_node = rb_next(node);
+    struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = next_node;
+
+    if (en->publisher_id != publisher_id) continue;
+
+    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+      if (en->referencing_ids[i] == publisher_id) {
+        remove_reference_by_index(en, i);
+        break;
+      }
+    }
+
+    if (!is_referenced(en)) {
+      pub_info->entries_num--;
+      remove_entry_node(wrapper, en);
+    }
+  }
+
+  hash_del(&pub_info->node);
+  kfree(pub_info->node_name);
+  kfree(pub_info);
+
+  if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
+    struct rb_node * n = rb_first(&wrapper->topic.entries);
+    while (n) {
+      struct entry_node * en = rb_entry(n, struct entry_node, node);
+      n = rb_next(n);
+      remove_entry_node(wrapper, en);
+    }
+
+    hash_del(&wrapper->node);
+    kfree(wrapper->key);
+    kfree(wrapper);
+    dev_info(agnocast_device, "Topic %s removed (empty).\n", topic_name);
+  } else {
+    dev_info(
+      agnocast_device, "Publisher (id=%d) removed from topic %s.\n", publisher_id, topic_name);
+  }
+
+  return 0;
+}
+
 static struct bridge_info * find_bridge_info(
   const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
@@ -2019,6 +2080,23 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     topic_name_buf[remove_subscriber_args.topic_name.len] = '\0';
     ret = remove_subscriber(topic_name_buf, ipc_ns, remove_subscriber_args.subscriber_id);
+    kfree(topic_name_buf);
+  } else if (cmd == AGNOCAST_REMOVE_PUBLISHER_CMD) {
+    struct ioctl_remove_publisher_args remove_publisher_args;
+    if (copy_from_user(&remove_publisher_args, (void __user *)arg, sizeof(remove_publisher_args))) {
+      goto return_EFAULT;
+    }
+    if (remove_publisher_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(remove_publisher_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)remove_publisher_args.topic_name.ptr,
+          remove_publisher_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[remove_publisher_args.topic_name.len] = '\0';
+    ret = remove_publisher(topic_name_buf, ipc_ns, remove_publisher_args.publisher_id);
     kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_ADD_BRIDGE_CMD) {
     struct ioctl_add_bridge_args bridge_args;
