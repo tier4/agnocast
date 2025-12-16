@@ -223,7 +223,12 @@ void BridgeManager::check_active_bridges()
     const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
     const int threshold = reverse_exists ? 1 : 0;
 
-    int count = get_agnocast_connection_count(std::string(topic_name_view), is_r2a);
+    int count = 0;
+    if (is_r2a) {
+      count = get_agnocast_subscriber_count(std::string(topic_name_view));
+    } else {
+      count = get_agnocast_publisher_count(std::string(topic_name_view));
+    }
 
     if (count <= threshold) {
       if (count < 0) {
@@ -252,17 +257,26 @@ void BridgeManager::check_should_exit()
   }
 }
 
-int BridgeManager::get_agnocast_connection_count(
-  const std::string & /*topic_name*/, bool /*is_r2a*/)
+int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
 {
-  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
-  // Expected implementation steps:
-  // 1. Prepare ioctl arguments based on the topic name.
-  // 2. If is_r2a is true, call ioctl with AGNOCAST_GET_SUBSCRIBER_NUM_CMD.
-  // 3. If is_r2a is false, call ioctl with AGNOCAST_GET_PUBLISHER_NUM_CMD.
-  // 4. Return the retrieved count on success, or -1 on failure.
-  // Return the count if ioctl succeeded (0), otherwise return -1 (error)
-  return -1;
+  union ioctl_get_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return -1;
+  }
+  return static_cast<int>(args.ret_subscriber_num);
+}
+
+int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
+{
+  union ioctl_get_publisher_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
+    return -1;
+  }
+  return static_cast<int>(args.ret_publisher_num);
 }
 
 void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)
