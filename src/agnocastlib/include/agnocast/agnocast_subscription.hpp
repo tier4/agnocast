@@ -81,6 +81,18 @@ protected:
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
   SubscriptionBase(agnocast::Node * node, const std::string & topic_name);
+
+  virtual ~SubscriptionBase()
+  {
+    struct ioctl_remove_subscriber_args remove_subscriber_args
+    {
+    };
+    remove_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_subscriber_args.subscriber_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_SUBSCRIBER_CMD, &remove_subscriber_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to remove subscriber (id=%d) from kernel.", id_);
+    }
+  }
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
