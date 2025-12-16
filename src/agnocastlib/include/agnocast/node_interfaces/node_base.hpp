@@ -22,7 +22,7 @@ public:
 
   NodeBase(
     std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
-    bool enable_topic_statistics_default = false);
+    bool use_intra_process_default = false, bool enable_topic_statistics_default = false);
 
   virtual ~NodeBase() = default;
 
@@ -67,6 +67,7 @@ private:
 
   std::atomic_bool associated_with_executor_{false};
 
+  bool use_intra_process_default_;
   bool enable_topic_statistics_default_;
 };
 
