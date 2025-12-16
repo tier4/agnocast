@@ -19,8 +19,65 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
     return expanded_topic_name;
   }
 
-  // TODO(Koichi98): remap_name, then rmw_validate_full_topic_name (see node_resolve_name.c:91-105)
-  return expanded_topic_name;
+  return remap_name(expanded_topic_name);
+  // TODO(Koichi98): rmw_validate_full_topic_name (see node_resolve_name.c)
+}
+
+void NodeTopics::set_global_arguments(std::vector<RemapRule> rules)
+{
+  global_remap_rules_ = std::move(rules);
+}
+
+void NodeTopics::set_local_arguments(std::vector<RemapRule> rules)
+{
+  local_remap_rules_ = std::move(rules);
+}
+
+std::string NodeTopics::remap_name(const std::string & topic_name) const
+{
+  // Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
+
+  const std::string node_name = node_base_->get_name();
+
+  // Corresponds to remap.c:191-192
+  std::string output_name;
+  const RemapRule * rule = nullptr;
+
+  // Lambda to find first matching rule (corresponds to rcl_remap_first_match)
+  auto find_first_match = [&](const std::vector<RemapRule> & rules) -> const RemapRule * {
+    for (const auto & r : rules) {
+      if (r.type != RemapType::TOPIC_OR_SERVICE) {
+        continue;
+      }
+      if (!r.node_name.empty() && r.node_name != node_name) {
+        continue;
+      }
+      if (r.match == topic_name) {
+        return &r;
+      }
+    }
+    return nullptr;
+  };
+
+  // Look at local rules first
+  // Corresponds to remap.c:194-202
+  rule = find_first_match(local_remap_rules_);
+
+  // Check global rules if no local rule matched
+  // Corresponds to remap.c:203-211
+  if (rule == nullptr) {
+    rule = find_first_match(global_remap_rules_);
+  }
+
+  // Do the remapping
+  // Corresponds to remap.c:212-229
+  if (rule != nullptr) {
+    output_name = rule->replacement;
+  } else {
+    output_name = topic_name;
+  }
+
+  return output_name;
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const

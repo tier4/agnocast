@@ -1,10 +1,13 @@
 #pragma once
 
+#include "agnocast/agnocast_arguments.hpp"
+
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_topics_interface.hpp"
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace agnocast::node_interfaces
 {
@@ -21,6 +24,9 @@ public:
 
   std::string resolve_topic_name(const std::string & name, bool only_expand = false) const override;
   rclcpp::node_interfaces::NodeBaseInterface * get_node_base_interface() const override;
+
+  void set_global_arguments(std::vector<RemapRule> rules);
+  void set_local_arguments(std::vector<RemapRule> rules);
 
   // ===== Not supported methods (throw runtime_error) =====
   rclcpp::PublisherBase::SharedPtr create_publisher(
@@ -40,6 +46,16 @@ public:
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
 
+  /// Remap a topic name using local and global remap rules.
+  /// Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
+  std::string remap_name(const std::string & topic_name) const;
+
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+
+  /// Global remap rules from command line (corresponds to rcl_context->global_arguments)
+  std::vector<RemapRule> global_remap_rules_;
+
+  /// Local remap rules from NodeOptions::arguments() (corresponds to rcl_node_options->arguments)
+  std::vector<RemapRule> local_remap_rules_;
 };
 }  // namespace agnocast::node_interfaces
