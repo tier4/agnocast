@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
+#include "agnocast/agnocast_utils.hpp"
+
 #include <sys/prctl.h>
 #include <unistd.h>
 
@@ -9,10 +11,6 @@
 
 namespace agnocast
 {
-
-static constexpr std::string_view SUFFIX_R2A = "_R2A";
-static constexpr std::string_view SUFFIX_A2R = "_A2R";
-static constexpr size_t SUFFIX_LEN = 4;  // "_R2A" or "_A2R" length
 
 BridgeManager::BridgeManager(pid_t target_pid)
 : target_pid_(target_pid),
@@ -126,8 +124,9 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   std::string topic_name(
     &req.target.topic_name[0], strnlen(&req.target.topic_name[0], sizeof(req.target.topic_name)));
-  std::string topic_name_with_direction =
-    topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_R2A" : "_A2R");
+  std::string topic_name_with_direction = topic_name;
+  topic_name_with_direction +=
+    (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_R2A : SUFFIX_A2R;
 
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
