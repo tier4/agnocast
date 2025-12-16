@@ -1462,6 +1462,8 @@ int get_publisher_qos(
   return 0;
 }
 
+static void remove_entry_node(struct topic_wrapper * wrapper, struct entry_node * en);
+
 int remove_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t subscriber_id)
 {
@@ -1480,14 +1482,43 @@ int remove_subscriber(
   kfree(sub_info);
 
   struct rb_root * root = &wrapper->topic.entries;
-  struct rb_node * node;
-  for (node = rb_first(root); node; node = rb_next(node)) {
+  struct rb_node * node = rb_first(root);
+
+  while (node) {
     struct entry_node * en = rb_entry(node, struct entry_node, node);
+    node = rb_next(node);
+
     for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
       if (en->referencing_ids[i] == subscriber_id) {
         remove_reference_by_index(en, i);
         break;
       }
+    }
+
+    if (is_referenced(en)) continue;
+
+    bool publisher_exited = false;
+    struct publisher_info * pub_info;
+    uint32_t hash_val = hash_min(en->publisher_id, PUB_INFO_HASH_BITS);
+    hash_for_each_possible(wrapper->topic.pub_info_htable, pub_info, node, hash_val)
+    {
+      if (pub_info->id == en->publisher_id) {
+        const struct process_info * proc_info = find_process_info(pub_info->pid);
+        if (!proc_info || proc_info->exited) {
+          publisher_exited = true;
+        }
+        break;
+      }
+    }
+    if (!publisher_exited) continue;
+
+    remove_entry_node(wrapper, en);
+
+    pub_info->entries_num--;
+    if (pub_info->entries_num == 0) {
+      hash_del(&pub_info->node);
+      kfree(pub_info->node_name);
+      kfree(pub_info);
     }
   }
 
