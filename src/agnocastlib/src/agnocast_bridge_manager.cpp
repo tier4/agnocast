@@ -98,6 +98,9 @@ void BridgeManager::on_mq_create_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_create_request(req);
   }
 }
