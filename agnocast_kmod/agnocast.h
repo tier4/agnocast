@@ -168,6 +168,12 @@ struct ioctl_get_publisher_qos_args
   };
 };
 
+struct ioctl_remove_subscriber_args
+{
+  struct name_info topic_name;
+  topic_local_id_t subscriber_id;
+};
+
 struct ioctl_add_bridge_args
 {
   struct
@@ -203,6 +209,7 @@ struct ioctl_remove_bridge_args
 #define AGNOCAST_ADD_BRIDGE_CMD _IOWR(0xA6, 14, struct ioctl_add_bridge_args)
 #define AGNOCAST_REMOVE_BRIDGE_CMD _IOW(0xA6, 15, struct ioctl_remove_bridge_args)
 #define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 16, union ioctl_get_publisher_num_args)
+#define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 17, struct ioctl_remove_subscriber_args)
 
 // ================================================
 // ros2cli ioctls
@@ -316,6 +323,9 @@ int get_subscriber_qos(
 int get_publisher_qos(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
   struct ioctl_get_publisher_qos_args * args);
+
+int remove_subscriber(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, topic_local_id_t subscriber_id);
 
 int add_bridge(
   const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns,
