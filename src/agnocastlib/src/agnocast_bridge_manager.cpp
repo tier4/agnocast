@@ -141,7 +141,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
     auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
-
     if (bridge) {
       active_bridges_[topic_name_with_direction] = bridge;
       return;
@@ -149,30 +148,8 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
     // User-space creation failed, so we attempt to revert the kernel registration.
     RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-    std::string topic_name_with_reverse = topic_name;
-    topic_name_with_reverse +=
-      ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_A2R : SUFFIX_R2A);
-
-    // If the reverse direction bridge is active, it shares the kernel entry.
-    // In this case, we must NOT rollback the kernel registration.
-    if (active_bridges_.count(topic_name_with_reverse) > 0U) {
-      return;
-    }
-
-    struct ioctl_remove_bridge_args remove_bridge_args
-    {
-    };
-    remove_bridge_args.pid = getpid();
-    remove_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
-      RCLCPP_ERROR(
-        logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
-        std::string(topic_name).c_str(), strerror(errno));
-    }
-
+    rollback_kernel_registration(topic_name, req.direction);
     return;
-
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
@@ -187,6 +164,30 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
 {
   // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
+}
+
+void BridgeManager::rollback_kernel_registration(
+  const std::string & topic_name, BridgeDirection direction)
+{
+  std::string topic_name_with_reverse = topic_name;
+  topic_name_with_reverse +=
+    ((direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_A2R : SUFFIX_R2A);
+
+  if (active_bridges_.count(topic_name_with_reverse) > 0U) {
+    return;
+  }
+
+  struct ioctl_remove_bridge_args remove_bridge_args
+  {
+  };
+  remove_bridge_args.pid = getpid();
+  remove_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+  if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
+    RCLCPP_ERROR(
+      logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
+      strerror(errno));
+  }
 }
 
 void BridgeManager::check_parent_alive()
