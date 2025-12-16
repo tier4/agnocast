@@ -1,5 +1,6 @@
 #include "agnocast/node_interfaces/node_parameters.hpp"
 
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
 
 #include <utility>
@@ -9,11 +10,21 @@ namespace agnocast::node_interfaces
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-  const std::vector<rclcpp::Parameter> & parameter_overrides)
+  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args)
 : node_base_(std::move(node_base))
 {
-  // TODO(Koichi98): Initialize parameter_overrides_ from parameter_overrides
-  (void)parameter_overrides;
+  // Corresponds to rclcpp node_parameters.cpp:81-99
+  ParsedArguments global_args;
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
+      global_args = g_context.get_parsed_arguments();
+    }
+  }
+
+  std::string combined_name = node_base_->get_fully_qualified_name();
+  parameter_overrides_ =
+    resolve_parameter_overrides(combined_name, parameter_overrides, local_args, global_args);
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
