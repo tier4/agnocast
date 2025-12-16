@@ -52,7 +52,7 @@ private:
 
   static int get_agnocast_subscriber_count(const std::string & topic_name);
   static int get_agnocast_publisher_count(const std::string & topic_name);
-  void remove_active_bridge(const std::string & topic_name_with_dirction);
+  void remove_active_bridge(const std::string & topic_name_with_direction);
 };
 
 }  // namespace agnocast
