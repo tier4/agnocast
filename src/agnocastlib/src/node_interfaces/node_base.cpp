@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/contexts/default_context.hpp"
+#include "rclcpp/logging.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -11,9 +12,10 @@ namespace agnocast::node_interfaces
 
 NodeBase::NodeBase(
   std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
-  bool enable_topic_statistics_default)
+  bool use_intra_process_default, bool enable_topic_statistics_default)
 : node_name_(std::move(node_name)),
   context_(std::move(context)),
+  use_intra_process_default_(use_intra_process_default),
   enable_topic_statistics_default_(enable_topic_statistics_default)
 {
   // Ensure it starts with '/' or is empty
@@ -160,8 +162,14 @@ rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 
 bool NodeBase::get_use_intra_process_default() const
 {
-  // TODO(Koichi98)
-  return false;
+  // Note: rclcpp's intra-process communication is not used in Agnocast.
+  // This value is propagated from NodeOptions but has no effect currently.
+  RCLCPP_WARN(
+    rclcpp::get_logger(node_name_),
+    "use_intra_process_comms setting has no effect when using Agnocast. "
+    "Agnocast uses its own zero-copy intra/inter-process communication mechanism instead of "
+    "rclcpp's intra-process communication.");
+  return use_intra_process_default_;
 }
 
 bool NodeBase::get_enable_topic_statistics_default() const

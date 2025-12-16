@@ -26,7 +26,7 @@ find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
 
 add_library(agnocast SHARED
-  src/agnocast.cpp src/agnocast_context.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
+  src/agnocast.cpp src/agnocast_arguments.cpp src/agnocast_context.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
   src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp src/agnocast_only_executor.cpp
