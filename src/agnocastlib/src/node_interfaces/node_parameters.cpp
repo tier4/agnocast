@@ -53,10 +53,14 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
 
 void NodeParameters::undeclare_parameter(const std::string & name)
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error(
-    "NodeParameters::undeclare_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(g_context_mtx);
+  auto it = parameters_.find(name);
+  if (it != parameters_.end()) {
+    if (it->second.descriptor.read_only) {
+      throw std::runtime_error("Cannot undeclare read-only parameter: " + name);
+    }
+    parameters_.erase(it);
+  }
 }
 
 bool NodeParameters::has_parameter(const std::string & name) const
