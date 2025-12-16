@@ -141,16 +141,34 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
     auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
     if (bridge) {
       active_bridges_[topic_name_with_direction] = bridge;
+      return;
     } else {
       RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-      // Rollback kernel registration.
+      std::string reverse_direction =
+        topic_name + ((req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A");
+      if (active_bridges_.count(reverse_direction) > 0U) {
+        return;
+      }
+      struct ioctl_remove_bridge_args remove_bridge_args
+      {
+      };
+      remove_bridge_args.pid = getpid();
+      remove_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
+      if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
+        RCLCPP_ERROR(
+          logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
+          std::string(topic_name).c_str(), strerror(errno));
+      }
+      return;
     }
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
     // Retrieve the PID of the current owner and delegate.
   } else {
-    RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
+      std::string(topic_name).c_str(), strerror(errno));
   }
 }
 
