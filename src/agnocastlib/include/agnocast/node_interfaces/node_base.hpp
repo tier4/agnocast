@@ -21,7 +21,6 @@ public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
-  /// @param local_remap_rules Remap rules from NodeOptions::arguments()
   NodeBase(
     std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
     std::vector<RemapRule> local_remap_rules, bool use_intra_process_default = false,
@@ -56,10 +55,7 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
-  /// Get local remap rules (from NodeOptions::arguments())
   const std::vector<RemapRule> & get_local_remap_rules() const;
-
-  /// Get global remap rules (from command line via agnocast::init)
   const std::vector<RemapRule> & get_global_remap_rules() const;
 
 private:
@@ -79,10 +75,7 @@ private:
   bool use_intra_process_default_;
   bool enable_topic_statistics_default_;
 
-  /// Local remap rules from NodeOptions::arguments()
   std::vector<RemapRule> local_remap_rules_;
-
-  /// Global remap rules from command line (via agnocast::init)
   std::vector<RemapRule> global_remap_rules_;
 };
 

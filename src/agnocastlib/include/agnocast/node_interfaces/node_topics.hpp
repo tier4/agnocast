@@ -41,11 +41,6 @@ public:
 
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
-
-  /// Remap a topic name using local and global remap rules.
-  /// Corresponds to rcl_remap_name in rcl/src/rcl/remap.c:167-231
-  /// Remap rules are accessed via node_base_->get_local_remap_rules() and
-  /// node_base_->get_global_remap_rules()
   std::string remap_name(const std::string & topic_name) const;
 
   NodeBase::SharedPtr node_base_;
