@@ -30,6 +30,11 @@ jobs:
         set -euo pipefail
         CHANGED_FILES="$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
 
+        # Output changed files for reuse in later steps
+        echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
         if echo "$CHANGED_FILES" | grep -qE '(agnocastlib|agnocast_ioctl_wrapper)/.*\.(cpp|hpp)$'; then
           echo "cpp_changed=true" >> "$GITHUB_OUTPUT"
         else
@@ -108,8 +113,8 @@ jobs:
     - name: Run clang-tidy for agnocastlib
       if: steps.check_diff.outputs.cpp_changed == 'true'
       run: |
-        CHANGED_FILES="$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
-        export FILES=($(echo "$CHANGED_FILES" | grep -E '^src/agnocastlib/.*\.(cpp|hpp)$' | grep -v '/test/' || true))
+        set -euo pipefail
+        export FILES=($(echo "${{ steps.check_diff.outputs.changed_files }}" | grep -E '^src/agnocastlib/.*\.(cpp|hpp)$' | grep -v '/test/' || true))
         if [ ${#FILES[@]} -gt 0 ]; then
           run-clang-tidy -j $(nproc) -p build/ "${FILES[@]}"
         else
