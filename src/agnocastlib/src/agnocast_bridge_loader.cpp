@@ -1,5 +1,7 @@
 #include "agnocast/agnocast_bridge_loader.hpp"
 
+#include "agnocast/agnocast_utils.hpp"
+
 #include <dlfcn.h>
 #include <elf.h>
 #include <link.h>
@@ -131,9 +133,10 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   }
 
   // Register Reverse Function
-  const char * suffix = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? "_A2R" : "_R2A";
-  std::string topic_name_with_reverse =
-    std::string(static_cast<const char *>(req.target.topic_name)) + suffix;
+  std::string_view suffix =
+    (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_A2R : SUFFIX_R2A;
+  std::string topic_name_with_reverse(static_cast<const char *>(req.target.topic_name));
+  topic_name_with_reverse += suffix;
 
   uintptr_t reverse_addr = base_addr + req.factory.fn_offset_reverse;
   BridgeFn reverse_func = nullptr;
