@@ -68,7 +68,7 @@ jobs:
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         sudo apt-get install -y --no-install-recommends python3-rosdep
-        sudo rosdep init || true
+        sudo rosdep init
         rosdep update
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
