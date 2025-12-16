@@ -155,7 +155,10 @@ sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
-  mq_parent_fd_ = create_and_open_mq(mq_parent_name_, "Parent");
+  mq_parent_fd_ = mq_open(mq_parent_name_.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  if (mq_parent_fd_ == -1) {
+    throw std::system_error(errno, std::generic_category(), "Parent MQ open failed");
+  }
   mq_self_name_ = create_mq_name_for_bridge_daemon(getpid());
   mq_peer_fd_ = create_and_open_mq(mq_self_name_, "Peer");
 }
