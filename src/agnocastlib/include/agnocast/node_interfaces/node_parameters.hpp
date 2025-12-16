@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_arguments.hpp"
 #include "rcl_interfaces/msg/list_parameters_result.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -23,7 +24,7 @@ public:
 
   explicit NodeParameters(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-    const std::vector<rclcpp::Parameter> & parameter_overrides);
+    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args);
 
   virtual ~NodeParameters() = default;
 
@@ -78,6 +79,7 @@ public:
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+  std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
 };
 
 }  // namespace agnocast::node_interfaces

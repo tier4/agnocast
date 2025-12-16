@@ -1,5 +1,6 @@
 #include "agnocast/agnocast_node.hpp"
 
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
 
 namespace agnocast
@@ -21,8 +22,10 @@ Node::Node(
 
   node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
 
-  node_parameters_ =
-    std::make_shared<node_interfaces::NodeParameters>(node_base_, options.parameter_overrides());
+  auto local_args = parse_arguments(options.arguments());
+
+  node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(
+    node_base_, options.parameter_overrides(), local_args);
 }
 
 }  // namespace agnocast
