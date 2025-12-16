@@ -37,6 +37,7 @@ bool parse_param_rule(
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments);
 
+/// @param node_fqn Fully Qualified Name of the node (e.g., "/namespace/node_name")
 std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides,
   const ParsedArguments & local_args, const ParsedArguments & global_args);

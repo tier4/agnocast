@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <functional>
 #include <sstream>
 
 namespace agnocast
@@ -177,10 +178,11 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   std::map<std::string, ParameterValue> result;
 
   // global before local so that local overwrites global
-  std::array<const ParsedArguments *, 2> argument_sources = {&global_args, &local_args};
+  std::array<std::reference_wrapper<const ParsedArguments>, 2> argument_sources = {
+    std::cref(global_args), std::cref(local_args)};
 
-  for (const ParsedArguments * source : argument_sources) {
-    for (const auto & [name, value] : source->parameter_overrides) {
+  for (const ParsedArguments & source : argument_sources) {
+    for (const auto & [name, value] : source.parameter_overrides) {
       result[name] = value;
     }
   }
