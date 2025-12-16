@@ -263,7 +263,9 @@ void BridgeManager::remove_active_bridge(const std::string & topic_name_with_dir
     remove_bridge_args.topic_name = {topic_name_view.data(), topic_name_view.size()};
 
     if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_REMOVE_BRIDGE_CMD failed: %s", strerror(errno));
+      RCLCPP_ERROR(
+        logger, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
+        std::string(topic_name_view).c_str(), strerror(errno));
     }
   }
 
