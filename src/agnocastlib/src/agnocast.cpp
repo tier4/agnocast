@@ -288,27 +288,22 @@ void spawn_daemon_process(Func && func)
   }
 }
 
-bool wait_for_mq_ready(const std::string & mq_name)
+bool prepare_parent_mq_for_bridge()
 {
-  constexpr int max_retries = 10;
-  constexpr auto retry_delay = std::chrono::milliseconds(100);
-  int last_errno = 0;
+  std::string mq_name = create_mq_name_for_bridge_parent(getpid());
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = sizeof(MqMsgBridge);
 
-  for (int i = 0; i < max_retries; ++i) {
-    mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
-    if (mq != -1) {
-      mq_close(mq);
-      return true;
-    } else {
-      last_errno = errno;
-    }
-    std::this_thread::sleep_for(retry_delay);
+  mqd_t parent_mq_fd =
+    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, 0600, &attr);
+  if (parent_mq_fd == -1) {
+    RCLCPP_ERROR(logger, "Failed to create parent_mq: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
   }
 
-  RCLCPP_ERROR(
-    logger, "Failed to open message queue '%s' after %d retries. Error: %s", mq_name.c_str(),
-    max_retries, std::strerror(last_errno));
-  return false;
+  mq_close(parent_mq_fd);
 }
 
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
@@ -354,25 +349,10 @@ struct initialize_agnocast_result initialize_agnocast(
     spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
-  std::string mq_name = create_mq_name_for_bridge_parent(getpid());
-
-  struct mq_attr attr = {};
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = sizeof(MqMsgBridge);
-
-  mqd_t parent_mq_fd =
-    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, 0600, &attr);
-  if (parent_mq_fd == -1) {
-    RCLCPP_ERROR(logger, "Failed to create parent_mq: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  mq_close(parent_mq_fd);
-
-  // pid_t parent_pid = getpid();
   // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
   // implementation is complete.
+  // pid_t parent_pid = getpid();
+  // prepare_parent_mq_for_bridge();
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   void * mempool_ptr =
