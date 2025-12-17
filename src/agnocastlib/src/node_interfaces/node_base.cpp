@@ -18,7 +18,8 @@ NodeBase::NodeBase(
   context_(std::move(context)),
   use_intra_process_default_(use_intra_process_default),
   enable_topic_statistics_default_(enable_topic_statistics_default),
-  local_remap_rules_(std::move(local_remap_rules))
+  local_remap_rules_(std::move(local_remap_rules)),
+  global_remap_rules_{}
 {
   // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
