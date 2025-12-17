@@ -5,6 +5,7 @@
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
+#include "rclcpp/node_interfaces/node_parameters.hpp"
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/parameter.hpp"
 
@@ -17,13 +18,7 @@
 namespace agnocast::node_interfaces
 {
 
-// Internal struct for holding useful info about parameters
-// Corresponds to rclcpp::node_interfaces::ParameterInfo
-struct ParameterInfo
-{
-  rclcpp::ParameterValue value;
-  rcl_interfaces::msg::ParameterDescriptor descriptor;
-};
+using rclcpp::node_interfaces::ParameterInfo;
 
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
@@ -89,7 +84,7 @@ public:
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
 
-  mutable std::mutex mutex_;
+  mutable std::mutex parameters_mutex_;
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
   std::map<std::string, ParameterInfo> parameters_;
 };
