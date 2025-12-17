@@ -72,8 +72,9 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args)
-: node_base_(std::move(node_base))
+  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+  bool allow_undeclared_parameters)
+: node_base_(std::move(node_base)), allow_undeclared_(allow_undeclared_parameters)
 {
   ParsedArguments global_args;
   {
@@ -92,7 +93,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -105,7 +106,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -135,7 +136,7 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   return lockless_has_parameter(parameters_, name);
 }
@@ -160,33 +161,48 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   const std::vector<std::string> & names) const
 {
-  std::lock_guard<std::mutex> lock(g_context_mtx);
-  std::vector<rclcpp::Parameter> result;
-  for (const auto & name : names) {
-    auto it = parameters_.find(name);
-    if (it != parameters_.end()) {
-      result.push_back(rclcpp::Parameter(name, it->second.value));
-    }
+  std::vector<rclcpp::Parameter> results;
+  results.reserve(names.size());
+
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  for (auto & name : names) {
+    results.emplace_back(get_parameter(name));
   }
-  return result;
+  return results;
 }
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  std::lock_guard<std::mutex> lock(g_context_mtx);
-  auto it = parameters_.find(name);
-  if (it == parameters_.end()) {
-    throw std::runtime_error("Parameter not found: " + name);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+  auto param_iter = parameters_.find(name);
+  if (parameters_.end() != param_iter) {
+    if (
+      param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET ||
+      param_iter->second.descriptor.dynamic_typing) {
+      return rclcpp::Parameter{name, param_iter->second.value};
+    }
+    throw rclcpp::exceptions::ParameterUninitializedException(name);
+  } else if (allow_undeclared_) {
+    return rclcpp::Parameter{name};
+  } else {
+    throw rclcpp::exceptions::ParameterNotDeclaredException(name);
   }
-  return rclcpp::Parameter(name, it->second.value);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)parameter;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+  auto param_iter = parameters_.find(name);
+  if (
+    parameters_.end() != param_iter &&
+    param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET) {
+    parameter = {name, param_iter->second.value};
+    return true;
+  } else {
+    return false;
+  }
 }
 
 bool NodeParameters::get_parameters_by_prefix(
