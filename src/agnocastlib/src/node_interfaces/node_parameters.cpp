@@ -29,7 +29,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
     throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
   }
 
-  // Error if this parameter has already been declared and is different
+  // Error if this parameter has already been declared
   if (lockless_has_parameter(parameters, name)) {
     throw rclcpp::exceptions::ParameterAlreadyDeclaredException(
       "parameter '" + name + "' has already been declared");
