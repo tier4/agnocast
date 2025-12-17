@@ -25,7 +25,6 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   std::map<std::string, ParameterInfo> & parameters,
   const std::map<std::string, rclcpp::ParameterValue> & overrides)
 {
-  // TODO(sloretz) parameter name validation
   if (name.empty()) {
     throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
   }
@@ -77,7 +76,6 @@ NodeParameters::NodeParameters(
   const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args)
 : node_base_(std::move(node_base))
 {
-  // Corresponds to rclcpp node_parameters.cpp:81-99
   ParsedArguments global_args;
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
