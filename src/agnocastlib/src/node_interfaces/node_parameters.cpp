@@ -8,6 +8,18 @@
 namespace agnocast::node_interfaces
 {
 
+namespace
+{
+
+// Corresponds to rclcpp __lockless_has_parameter
+bool __lockless_has_parameter(
+  const std::map<std::string, ParameterInfo> & parameters, const std::string & name)
+{
+  return parameters.find(name) != parameters.end();
+}
+
+}  // namespace
+
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
   const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args)
@@ -61,9 +73,9 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error("NodeParameters::has_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  return __lockless_has_parameter(parameters_, name);
 }
 
 std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parameters(
@@ -164,9 +176,7 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
-  // TODO(Koichi98)
-  throw std::runtime_error(
-    "NodeParameters::get_parameter_overrides is not yet implemented in agnocast");
+  return parameter_overrides_;
 }
 
 }  // namespace agnocast::node_interfaces

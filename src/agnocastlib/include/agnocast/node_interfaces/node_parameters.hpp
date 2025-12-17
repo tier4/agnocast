@@ -10,11 +10,20 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
 namespace agnocast::node_interfaces
 {
+
+// Internal struct for holding useful info about parameters
+// Corresponds to rclcpp::node_interfaces::ParameterInfo
+struct ParameterInfo
+{
+  rclcpp::ParameterValue value;
+  rcl_interfaces::msg::ParameterDescriptor descriptor;
+};
 
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
@@ -79,7 +88,10 @@ public:
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+
+  mutable std::mutex mutex_;
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
+  std::map<std::string, ParameterInfo> parameters_;
 };
 
 }  // namespace agnocast::node_interfaces
