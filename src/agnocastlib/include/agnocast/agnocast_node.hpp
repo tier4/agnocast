@@ -14,7 +14,6 @@
 namespace agnocast
 {
 
-// Use rcl_interfaces::msg::ParameterDescriptor directly for rclcpp API compatibility
 using ParameterDescriptor = rcl_interfaces::msg::ParameterDescriptor;
 
 class Node
@@ -85,7 +84,7 @@ public:
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
   {
     return declare_parameter(
-      name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
+             name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
       .get<ParameterT>();
   }
 

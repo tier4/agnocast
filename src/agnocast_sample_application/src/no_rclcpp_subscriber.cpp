@@ -9,7 +9,6 @@ class NoRclcppSubscriber : public agnocast::Node
 {
   agnocast::Subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
 
-  // Parameters
   std::string topic_name_;
   int64_t queue_size_;
 
@@ -23,19 +22,13 @@ class NoRclcppSubscriber : public agnocast::Node
 public:
   explicit NoRclcppSubscriber() : agnocast::Node("no_rclcpp_subscriber")
   {
-    // Declare parameters with default values
     declare_parameter("topic_name", rclcpp::ParameterValue(std::string("/my_topic")));
     declare_parameter("queue_size", rclcpp::ParameterValue(int64_t(1)));
 
-    // Get parameter values
     get_parameter("topic_name", topic_name_);
     get_parameter("queue_size", queue_size_);
 
-    // Log node info and parameters
     RCLCPP_INFO(get_logger(), "=== NoRclcppSubscriber Node Info ===");
-    RCLCPP_INFO(get_logger(), "Node name: %s", get_name().c_str());
-    RCLCPP_INFO(get_logger(), "Namespace: %s", get_namespace().c_str());
-    RCLCPP_INFO(get_logger(), "Fully qualified name: %s", get_fully_qualified_name().c_str());
     RCLCPP_INFO(get_logger(), "Topic name: %s", topic_name_.c_str());
     RCLCPP_INFO(get_logger(), "Queue size: %ld", queue_size_);
     RCLCPP_INFO(get_logger(), "====================================");
