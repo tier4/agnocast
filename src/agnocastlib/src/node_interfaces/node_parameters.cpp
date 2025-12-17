@@ -30,11 +30,11 @@ rclcpp::Parameter lockless_get_parameter(
       return rclcpp::Parameter{name, param_iter->second.value};
     }
     throw rclcpp::exceptions::ParameterUninitializedException(name);
-  } else if (allow_undeclared) {
-    return rclcpp::Parameter{name};
-  } else {
-    throw rclcpp::exceptions::ParameterNotDeclaredException(name);
   }
+  if (allow_undeclared) {
+    return rclcpp::Parameter{name};
+  }
+  throw rclcpp::exceptions::ParameterNotDeclaredException(name);
 }
 
 const rclcpp::ParameterValue & declare_parameter_helper(
@@ -207,9 +207,8 @@ bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter &
     param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET) {
     parameter = {name, param_iter->second.value};
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool NodeParameters::get_parameters_by_prefix(
