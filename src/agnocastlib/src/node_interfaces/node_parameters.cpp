@@ -93,7 +93,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -106,7 +106,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -136,7 +136,7 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   return lockless_has_parameter(parameters_, name);
 }
@@ -164,7 +164,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   std::vector<rclcpp::Parameter> results;
   results.reserve(names.size());
 
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
   for (auto & name : names) {
     results.emplace_back(get_parameter(name));
   }
@@ -173,7 +173,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   auto param_iter = parameters_.find(name);
   if (parameters_.end() != param_iter) {
@@ -192,7 +192,7 @@ rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   auto param_iter = parameters_.find(name);
   if (
