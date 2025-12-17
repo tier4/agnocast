@@ -134,7 +134,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
       "declare_parameter(): the provided parameter type cannot be rclcpp::PARAMETER_NOT_SET"};
   }
 
-  if (parameter_descriptor.dynamic_typing == true) {
+  if (parameter_descriptor.dynamic_typing) {
     throw std::invalid_argument{
       "declare_parameter(): cannot declare parameter of specific type and pass descriptor "
       "with `dynamic_typing=true`"};
