@@ -19,11 +19,13 @@ bool lockless_has_parameter(
 }
 
 const rclcpp::ParameterValue & declare_parameter_helper(
-  const std::string & name, const rclcpp::ParameterValue & default_value,
+  const std::string & name, rclcpp::ParameterType type,
+  const rclcpp::ParameterValue & default_value,
   rcl_interfaces::msg::ParameterDescriptor parameter_descriptor, bool ignore_override,
   std::map<std::string, ParameterInfo> & parameters,
   const std::map<std::string, rclcpp::ParameterValue> & overrides)
 {
+  // TODO(sloretz) parameter name validation
   if (name.empty()) {
     throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
   }
@@ -32,6 +34,17 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   if (lockless_has_parameter(parameters, name)) {
     throw rclcpp::exceptions::ParameterAlreadyDeclaredException(
       "parameter '" + name + "' has already been declared");
+  }
+
+  if (!parameter_descriptor.dynamic_typing) {
+    if (rclcpp::PARAMETER_NOT_SET == type) {
+      type = default_value.get_type();
+    }
+    if (rclcpp::PARAMETER_NOT_SET == type) {
+      throw rclcpp::exceptions::InvalidParameterTypeException{
+        name, "cannot declare a statically typed parameter with an uninitialized value"};
+    }
+    parameter_descriptor.type = static_cast<uint8_t>(type);
   }
 
   ParameterInfo parameter_info;
@@ -87,7 +100,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
   return declare_parameter_helper(
-    name, default_value, parameter_descriptor, ignore_override, parameters_, parameter_overrides_);
+    name, rclcpp::PARAMETER_NOT_SET, default_value, parameter_descriptor, ignore_override,
+    parameters_, parameter_overrides_);
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
@@ -109,30 +123,9 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
       "with `dynamic_typing=true`"};
   }
 
-  rclcpp::ParameterValue default_value;
-  switch (type) {
-    case rclcpp::ParameterType::PARAMETER_BOOL:
-      default_value = rclcpp::ParameterValue(false);
-      break;
-    case rclcpp::ParameterType::PARAMETER_INTEGER:
-      default_value = rclcpp::ParameterValue(static_cast<int64_t>(0));
-      break;
-    case rclcpp::ParameterType::PARAMETER_DOUBLE:
-      default_value = rclcpp::ParameterValue(0.0);
-      break;
-    case rclcpp::ParameterType::PARAMETER_STRING:
-      default_value = rclcpp::ParameterValue(std::string{});
-      break;
-    default:
-      throw rclcpp::exceptions::InvalidParameterTypeException(
-        name, "unsupported parameter type for agnocast");
-  }
-
-  rcl_interfaces::msg::ParameterDescriptor descriptor_with_type = parameter_descriptor;
-  descriptor_with_type.type = static_cast<uint8_t>(type);
-
   return declare_parameter_helper(
-    name, default_value, descriptor_with_type, ignore_override, parameters_, parameter_overrides_);
+    name, type, rclcpp::ParameterValue{}, parameter_descriptor, ignore_override, parameters_,
+    parameter_overrides_);
 }
 
 void NodeParameters::undeclare_parameter(const std::string & name)
