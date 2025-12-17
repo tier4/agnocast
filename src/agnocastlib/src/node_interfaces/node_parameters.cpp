@@ -83,6 +83,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
+  // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
+  // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
   return declare_parameter_helper(
     name, default_value, parameter_descriptor, ignore_override, parameters_, parameter_overrides_);
@@ -93,6 +95,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
+  // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
+  // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
   if (rclcpp::PARAMETER_NOT_SET == type) {
     throw std::invalid_argument{
