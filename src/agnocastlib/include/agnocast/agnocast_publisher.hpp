@@ -136,10 +136,10 @@ public:
       }
     }
 
-    // NOTE: Unmapping memory when a publisher is destroyed is not implemented. Multiple
-    // publishers
-    // may share the same mmap region, requiring reference counting in kmod. Since leaving the
-    // memory mapped should not cause any functional issues, this is left as future work.
+    // NOTE: When a publisher is destroyed, subscribers should unmap its memory, but this is not yet
+    // implemented. Since multiple publishers in the same process share a mempool, process-level
+    // reference counting in kmod is needed. Leaving memory mapped causes no functional issues, so
+    // this is left as future work.
     struct ioctl_remove_publisher_args remove_publisher_args
     {
     };
