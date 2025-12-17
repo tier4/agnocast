@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
+#include "rclcpp/exceptions/exceptions.hpp"
 
 #include <utility>
 
@@ -15,6 +16,41 @@ bool lockless_has_parameter(
   const std::map<std::string, ParameterInfo> & parameters, const std::string & name)
 {
   return parameters.find(name) != parameters.end();
+}
+
+// Corresponds to rclcpp static declare_parameter_helper
+const rclcpp::ParameterValue & declare_parameter_helper(
+  const std::string & name, const rclcpp::ParameterValue & default_value,
+  rcl_interfaces::msg::ParameterDescriptor parameter_descriptor, bool ignore_override,
+  std::map<std::string, ParameterInfo> & parameters,
+  const std::map<std::string, rclcpp::ParameterValue> & overrides)
+{
+  // TODO(sloretz) parameter name validation
+  if (name.empty()) {
+    throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
+  }
+
+  // Error if this parameter has already been declared and is different
+  if (lockless_has_parameter(parameters, name)) {
+    throw rclcpp::exceptions::ParameterAlreadyDeclaredException(
+      "parameter '" + name + "' has already been declared");
+  }
+
+  ParameterInfo parameter_info;
+  parameter_info.descriptor = parameter_descriptor;
+  parameter_info.descriptor.name = name;
+
+  // Use the value from the overrides if available, otherwise use the default.
+  auto overrides_it = overrides.find(name);
+  if (!ignore_override && overrides_it != overrides.end()) {
+    parameter_info.value = overrides_it->second;
+  } else {
+    parameter_info.value = default_value;
+  }
+
+  parameters[name] = parameter_info;
+
+  return parameters.at(name).value;
 }
 
 }  // namespace
@@ -42,29 +78,29 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::mutex> lock(g_context_mtx);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
 
-  if (parameters_.find(name) == parameters_.end()) {
-    ParameterInfo param_info;
-    param_info.descriptor = parameter_descriptor;
-
-    // Check for command-line override
-    if (!ignore_override && parameter_overrides_.find(name) != parameter_overrides_.end()) {
-      param_info.value = parameter_overrides_[name];
-    } else {
-      param_info.value = default_value;
-    }
-
-    parameters_[name] = param_info;
-  }
-
-  return parameters_[name].value;
+  return declare_parameter_helper(
+    name, default_value, parameter_descriptor, ignore_override, parameters_, parameter_overrides_);
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  if (rclcpp::PARAMETER_NOT_SET == type) {
+    throw std::invalid_argument{
+      "declare_parameter(): the provided parameter type cannot be rclcpp::PARAMETER_NOT_SET"};
+  }
+
+  if (parameter_descriptor.dynamic_typing == true) {
+    throw std::invalid_argument{
+      "declare_parameter(): cannot declare parameter of specific type and pass descriptor "
+      "with `dynamic_typing=true`"};
+  }
+
   rclcpp::ParameterValue default_value;
   switch (type) {
     case rclcpp::ParameterType::PARAMETER_BOOL:
@@ -77,13 +113,18 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
       default_value = rclcpp::ParameterValue(0.0);
       break;
     case rclcpp::ParameterType::PARAMETER_STRING:
-      default_value = rclcpp::ParameterValue(std::string(""));
+      default_value = rclcpp::ParameterValue(std::string{});
       break;
     default:
-      throw std::runtime_error("Unsupported parameter type in agnocast");
+      throw rclcpp::exceptions::InvalidParameterTypeException(
+        name, "unsupported parameter type for agnocast");
   }
 
-  return declare_parameter(name, default_value, parameter_descriptor, ignore_override);
+  rcl_interfaces::msg::ParameterDescriptor descriptor_with_type = parameter_descriptor;
+  descriptor_with_type.type = static_cast<uint8_t>(type);
+
+  return declare_parameter_helper(
+    name, default_value, descriptor_with_type, ignore_override, parameters_, parameter_overrides_);
 }
 
 void NodeParameters::undeclare_parameter(const std::string & name)
