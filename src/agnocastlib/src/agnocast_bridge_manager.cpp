@@ -178,7 +178,7 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
   // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
 }
 
-bool BridgeManager::try_send_delegation(const BridgeDelegationRequest & req, pid_t owner_pid)
+bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
 {
   std::string mq_name = create_mq_name_for_bridge_daemon(owner_pid);
 
