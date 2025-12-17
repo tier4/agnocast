@@ -175,6 +175,7 @@ void BridgeIpcEventLoop::setup_epoll()
   }
 
   add_fd_to_epoll(mq_parent_fd_, "Parent MQ");
+  add_fd_to_epoll(mq_peer_fd_, "Peer MQ");
   add_fd_to_epoll(signal_fd_, "Signal");
 }
 
