@@ -184,7 +184,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   results.reserve(names.size());
 
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  for (auto & name : names) {
+  for (const auto & name : names) {
     results.emplace_back(lockless_get_parameter(parameters_, name, allow_undeclared_));
   }
   return results;
