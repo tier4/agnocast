@@ -48,7 +48,7 @@ private:
   void handle_create_request(const MqMsgBridge & req);
   void handle_delegate_request(const MqMsgBridge & req);
 
-  bool try_send_delegation(const BridgeDelegationRequest & req, pid_t owner_pid);
+  bool try_send_delegation(const MqMsgBridge & req, pid_t owner_pid);
   void check_and_recover_bridges();
 
   void check_parent_alive();
