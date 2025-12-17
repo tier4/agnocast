@@ -18,14 +18,12 @@ bool lockless_has_parameter(
   return parameters.find(name) != parameters.end();
 }
 
-// Corresponds to rclcpp static declare_parameter_helper
 const rclcpp::ParameterValue & declare_parameter_helper(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   rcl_interfaces::msg::ParameterDescriptor parameter_descriptor, bool ignore_override,
   std::map<std::string, ParameterInfo> & parameters,
   const std::map<std::string, rclcpp::ParameterValue> & overrides)
 {
-  // TODO(sloretz) parameter name validation
   if (name.empty()) {
     throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
   }
