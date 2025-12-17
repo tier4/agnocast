@@ -244,7 +244,7 @@ int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
   union ioctl_get_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger_, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_subscriber_num);
@@ -255,7 +255,7 @@ int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
   union ioctl_get_publisher_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger_, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_publisher_num);
@@ -286,7 +286,7 @@ void BridgeManager::remove_active_bridge(const std::string & topic_name_with_dir
 
     if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
       RCLCPP_ERROR(
-        logger, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
+        logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
         std::string(topic_name_view).c_str(), strerror(errno));
     }
   }
