@@ -98,6 +98,9 @@ void BridgeManager::on_mq_create_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_create_request(req);
   }
 }
@@ -106,6 +109,9 @@ void BridgeManager::on_mq_delegation_request(mqd_t fd)
 {
   MqMsgBridge req{};
   while (mq_receive(fd, reinterpret_cast<char *>(&req), sizeof(req), nullptr) > 0) {
+    if (shutdown_requested_) {
+      break;
+    }
     handle_delegate_request(req);
   }
 }
@@ -132,7 +138,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
     return;
   }
 
-  // TODO(yutarokobayashi): The following comments are scheduled for implementation in a later PR.
   struct ioctl_add_bridge_args add_bridge_args
   {
   };
@@ -142,18 +147,22 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
     auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
-    if (bridge) {
-      active_bridges_[topic_name_with_direction] = bridge;
-    } else {
+
+    if (!bridge) {
       RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-      // Rollback kernel registration.
+      shutdown_requested_ = true;
+      return;
     }
+
+    active_bridges_[topic_name_with_direction] = bridge;
   } else if (errno == EEXIST) {
     [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
     // The bridge is already registered in the kernel (EEXIST case)
     // Retrieve the PID of the current owner and delegate.
   } else {
-    RCLCPP_ERROR(logger, "AGNOCAST_ADD_BRIDGE_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
+      std::string(topic_name).c_str(), strerror(errno));
   }
 }
 
