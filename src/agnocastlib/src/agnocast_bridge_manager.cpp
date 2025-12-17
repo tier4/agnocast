@@ -158,7 +158,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
     failed_delegations_.erase(topic_name_with_direction);
   } else if (errno == EEXIST) {
     pid_t owner_pid = add_bridge_args.ret_pid;
-    bool send_success = try_send_delegation_request_to_owner(req, owner_pid);
+    bool send_success = try_send_delegation(req, owner_pid);
 
     if (!send_success) {
       failed_delegations_[topic_name_with_direction] = req;
