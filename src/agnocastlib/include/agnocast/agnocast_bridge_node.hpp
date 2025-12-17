@@ -230,7 +230,7 @@ void send_bridge_request(
                       : &start_ros_to_agno_node<MessageT>;
 
   Dl_info info = {};
-  if (dladdr(static_cast<void *>(fn_current), &info) == 0 || !info.dli_fname) {
+  if (dladdr(reinterpret_cast<void *>(fn_current), &info) == 0 || !info.dli_fname) {
     RCLCPP_ERROR(logger, "dladdr failed or filename NULL.");
     return;
   }
@@ -251,7 +251,12 @@ void send_bridge_request(
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
   std::string mq_name = create_mq_name_for_bridge_parent(getpid());
-  mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY);
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  attr.mq_msgsize = BRIDGE_MQ_MESSAGE_SIZE;
+
+  mqd_t mq =
+    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
 
   if (mq == -1) {
     RCLCPP_ERROR(
