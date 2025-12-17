@@ -85,7 +85,7 @@ public:
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
 
-  mutable std::recursive_mutex parameters_mutex_;
+  mutable std::mutex parameters_mutex_;
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
   std::map<std::string, ParameterInfo> parameters_;
 

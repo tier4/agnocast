@@ -18,6 +18,25 @@ bool lockless_has_parameter(
   return parameters.find(name) != parameters.end();
 }
 
+rclcpp::Parameter lockless_get_parameter(
+  const std::map<std::string, ParameterInfo> & parameters, const std::string & name,
+  bool allow_undeclared)
+{
+  auto param_iter = parameters.find(name);
+  if (parameters.end() != param_iter) {
+    if (
+      param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET ||
+      param_iter->second.descriptor.dynamic_typing) {
+      return rclcpp::Parameter{name, param_iter->second.value};
+    }
+    throw rclcpp::exceptions::ParameterUninitializedException(name);
+  } else if (allow_undeclared) {
+    return rclcpp::Parameter{name};
+  } else {
+    throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+  }
+}
+
 const rclcpp::ParameterValue & declare_parameter_helper(
   const std::string & name, rclcpp::ParameterType type,
   const rclcpp::ParameterValue & default_value,
@@ -93,7 +112,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -106,7 +125,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
   // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
   // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
 
@@ -136,7 +155,7 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
 
   return lockless_has_parameter(parameters_, name);
 }
@@ -164,35 +183,23 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   std::vector<rclcpp::Parameter> results;
   results.reserve(names.size());
 
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
   for (auto & name : names) {
-    results.emplace_back(get_parameter(name));
+    results.emplace_back(lockless_get_parameter(parameters_, name, allow_undeclared_));
   }
   return results;
 }
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
 
-  auto param_iter = parameters_.find(name);
-  if (parameters_.end() != param_iter) {
-    if (
-      param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET ||
-      param_iter->second.descriptor.dynamic_typing) {
-      return rclcpp::Parameter{name, param_iter->second.value};
-    }
-    throw rclcpp::exceptions::ParameterUninitializedException(name);
-  } else if (allow_undeclared_) {
-    return rclcpp::Parameter{name};
-  } else {
-    throw rclcpp::exceptions::ParameterNotDeclaredException(name);
-  }
+  return lockless_get_parameter(parameters_, name, allow_undeclared_);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
 
   auto param_iter = parameters_.find(name);
   if (
