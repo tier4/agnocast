@@ -84,6 +84,10 @@ public:
 
   virtual ~SubscriptionBase()
   {
+    // NOTE: Unmapping memory when a subscriber is destroyed is not implemented. Multiple
+    // subscribers
+    // may share the same mmap region, requiring reference counting in kmod. Since leaving the
+    // memory mapped should not cause any functional issues, this is left as future work.
     struct ioctl_remove_subscriber_args remove_subscriber_args
     {
     };
