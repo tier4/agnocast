@@ -1,13 +1,14 @@
 <launch>
-    <arg name="use_remap" default="false" />
+    <arg name="use_param" default="false" />
 
-    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" unless="$(var use_remap)">
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" unless="$(var use_param)">
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
     </node>
 
-    <!-- check node_name remap -->
-    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(var use_remap)">
+    <!-- Parameter override test.
+    Currently, agnocast::Node does not support YAML param file parser (- -params-file), so we pass parameters directly via args. Once YAML parser is supported, replace this with <param> tags. -->
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(var use_param)"
+          args="--ros-args -p topic_name:=/custom_topic -p queue_size:=10">
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
-        <remap from="__node" to="no_rclcpp_listener_remapped" />
     </node>
 </launch>
