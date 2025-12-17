@@ -23,10 +23,6 @@
 namespace agnocast
 {
 
-constexpr int64_t MQ_MAX_MESSAGES = 10;
-constexpr int64_t MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
-constexpr mode_t MQ_PERMS = 0600;
-
 BridgeIpcEventLoop::BridgeIpcEventLoop(pid_t target_pid, const rclcpp::Logger & logger)
 : logger_(logger)
 {
@@ -155,10 +151,7 @@ sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
   mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
-  mq_parent_fd_ = mq_open(mq_parent_name_.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-  if (mq_parent_fd_ == -1) {
-    throw std::system_error(errno, std::generic_category(), "Parent MQ open failed");
-  }
+  mq_parent_fd_ = create_and_open_mq(mq_parent_name_, "Parent");
   mq_self_name_ = create_mq_name_for_bridge_daemon(getpid());
   mq_peer_fd_ = create_and_open_mq(mq_self_name_, "Peer");
 }
@@ -188,18 +181,11 @@ void BridgeIpcEventLoop::setup_epoll()
 mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name, const std::string & label)
 {
   struct mq_attr attr = {};
-  attr.mq_maxmsg = MQ_MAX_MESSAGES;
-  attr.mq_msgsize = MQ_MESSAGE_SIZE;
+  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  attr.mq_msgsize = BRIDGE_MQ_MESSAGE_SIZE;
 
-  // Cleanup any stale queue from previous runs before creating a new one.
-  if (mq_unlink(name.c_str()) == -1) {
-    if (errno != ENOENT) {
-      RCLCPP_WARN(logger_, "mq_unlink failed for %s: %s", name.c_str(), strerror(errno));
-      throw std::system_error(errno, std::generic_category(), label + " MQ unlink failed");
-    }
-  }
-
-  mqd_t fd = mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, MQ_PERMS, &attr);
+  mqd_t fd =
+    mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
 
   if (fd == -1) {
     throw std::system_error(errno, std::generic_category(), label + " MQ open failed");

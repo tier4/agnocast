@@ -288,24 +288,6 @@ void spawn_daemon_process(Func && func)
   }
 }
 
-bool prepare_parent_mq_for_bridge()
-{
-  std::string mq_name = create_mq_name_for_bridge_parent(getpid());
-  struct mq_attr attr = {};
-  attr.mq_maxmsg = 10;
-  attr.mq_msgsize = sizeof(MqMsgBridge);
-
-  mqd_t parent_mq_fd =
-    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, 0600, &attr);
-  if (parent_mq_fd == -1) {
-    RCLCPP_ERROR(logger, "Failed to create parent_mq: %s", strerror(errno));
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
-  mq_close(parent_mq_fd);
-}
-
 // NOTE: Avoid heap allocation inside initialize_agnocast. TLSF is not initialized yet.
 struct initialize_agnocast_result initialize_agnocast(
   const unsigned char * heaphook_version_ptr, const size_t heaphook_version_str_len)
@@ -352,7 +334,6 @@ struct initialize_agnocast_result initialize_agnocast(
   // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
   // implementation is complete.
   // pid_t parent_pid = getpid();
-  // prepare_parent_mq_for_bridge();
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   void * mempool_ptr =
