@@ -36,6 +36,8 @@ private:
   std::thread executor_thread_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
+  std::map<std::string, MqMsgBridge> watch_bridges_;
+  std::map<std::string, MqMsgBridge> failed_delegations_;
 
   void start_ros_execution();
 
@@ -45,6 +47,9 @@ private:
 
   void handle_create_request(const MqMsgBridge & req);
   void handle_delegate_request(const MqMsgBridge & req);
+
+  bool try_send_delegation(const BridgeDelegationRequest & req, pid_t owner_pid);
+  void check_and_recover_bridges();
 
   void check_parent_alive();
   void check_active_bridges();
