@@ -174,40 +174,44 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   return local_output;
 }
 
+const RemapRule * NodeTopics::remap_first_match(
+  const std::vector<RemapRule> & remap_rules, const std::string & name) const
+{
+  // Corresponds to rcl_remap_first_match
+
+  const std::string node_name = node_base_->get_name();
+
+  for (const auto & rule : remap_rules) {
+    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
+      // Not the type of remap rule we're looking for
+      continue;
+    }
+    if (!rule.node_name.empty() && rule.node_name != node_name) {
+      // Rule has a node name prefix and the supplied node name didn't match
+      continue;
+    }
+    // topic and service rules need the match side to be expanded to a FQN
+    std::string expanded_match = expand_topic_name(rule.match);
+    if (expanded_match == name) {
+      return &rule;
+    }
+  }
+  return nullptr;
+}
+
 std::string NodeTopics::remap_name(const std::string & topic_name) const
 {
   // Corresponds to rcl_remap_name
 
-  const std::string node_name = node_base_->get_name();
-
   std::string output_name;
   const RemapRule * rule = nullptr;
 
-  auto find_first_match = [&](const std::vector<RemapRule> & rules) -> const RemapRule * {
-    for (const auto & r : rules) {
-      if (r.type != RemapType::TOPIC_OR_SERVICE) {
-        // Not the type of remap rule we're looking for
-        continue;
-      }
-      if (!r.node_name.empty() && r.node_name != node_name) {
-        // Rule has a node name prefix and the supplied node name didn't match
-        continue;
-      }
-      // topic and service rules need the match side to be expanded to a FQN
-      std::string expanded_match = expand_topic_name(r.match);
-      if (expanded_match == topic_name) {
-        return &r;
-      }
-    }
-    return nullptr;
-  };
-
   // Look at local rules first
-  rule = find_first_match(node_base_->get_local_remap_rules());
+  rule = remap_first_match(node_base_->get_local_remap_rules(), topic_name);
 
   // Check global rules if no local rule matched
   if (rule == nullptr) {
-    rule = find_first_match(node_base_->get_global_remap_rules());
+    rule = remap_first_match(node_base_->get_global_remap_rules(), topic_name);
   }
 
   // Do the remapping
