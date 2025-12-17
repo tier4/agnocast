@@ -84,8 +84,8 @@ public:
     const std::string & name, const ParameterT & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
   {
-    return this
-      ->declare_parameter(name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
+    return declare_parameter(
+      name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
       .get<ParameterT>();
   }
 
