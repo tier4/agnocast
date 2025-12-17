@@ -18,6 +18,25 @@ bool lockless_has_parameter(
   return parameters.find(name) != parameters.end();
 }
 
+rclcpp::Parameter lockless_get_parameter(
+  const std::map<std::string, ParameterInfo> & parameters, const std::string & name,
+  bool allow_undeclared)
+{
+  auto param_iter = parameters.find(name);
+  if (parameters.end() != param_iter) {
+    if (
+      param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET ||
+      param_iter->second.descriptor.dynamic_typing) {
+      return rclcpp::Parameter{name, param_iter->second.value};
+    }
+    throw rclcpp::exceptions::ParameterUninitializedException(name);
+  }
+  if (allow_undeclared) {
+    return rclcpp::Parameter{name};
+  }
+  throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+}
+
 const rclcpp::ParameterValue & declare_parameter_helper(
   const std::string & name, rclcpp::ParameterType type,
   const rclcpp::ParameterValue & default_value,
@@ -72,8 +91,9 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args)
-: node_base_(std::move(node_base))
+  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+  bool allow_undeclared_parameters)
+: node_base_(std::move(node_base)), allow_undeclared_(allow_undeclared_parameters)
 {
   ParsedArguments global_args;
   {
@@ -160,24 +180,35 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   const std::vector<std::string> & names) const
 {
-  // TODO(Koichi98)
-  (void)names;
-  throw std::runtime_error("NodeParameters::get_parameters is not yet implemented in agnocast");
+  std::vector<rclcpp::Parameter> results;
+  results.reserve(names.size());
+
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  for (const auto & name : names) {
+    results.emplace_back(lockless_get_parameter(parameters_, name, allow_undeclared_));
+  }
+  return results;
 }
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  return lockless_get_parameter(parameters_, name, allow_undeclared_);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)parameter;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  auto param_iter = parameters_.find(name);
+  if (
+    parameters_.end() != param_iter &&
+    param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET) {
+    parameter = {name, param_iter->second.value};
+    return true;
+  }
+  return false;
 }
 
 bool NodeParameters::get_parameters_by_prefix(

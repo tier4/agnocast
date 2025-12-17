@@ -28,7 +28,8 @@ public:
 
   explicit NodeParameters(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args);
+    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+    bool allow_undeclared_parameters = false);
 
   virtual ~NodeParameters() = default;
 
@@ -87,6 +88,8 @@ private:
   mutable std::mutex parameters_mutex_;
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
   std::map<std::string, ParameterInfo> parameters_;
+
+  bool allow_undeclared_ = false;
 };
 
 }  // namespace agnocast::node_interfaces
