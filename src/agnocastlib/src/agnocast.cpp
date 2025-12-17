@@ -38,6 +38,13 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+struct AgnocastResources
+{
+  void * mempool_ptr;
+  size_t mempool_size;
+  bool unlink_daemon_exist;
+};
+
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
@@ -154,22 +161,23 @@ void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
  * to initialize the TLSF (Two-Level Segregated Fit) allocator. Accessing the custom
  * heap before this function returns will result in undefined behavior or crashes.
  */
-struct initialize_agnocast_result acquire_agnocast_resources()
+struct AgnocastResources acquire_agnocast_resources()
 {
   union ioctl_add_process_args add_process_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
-    throw std::runtime_error(
-      std::string("[Agnocast] AGNOCAST_ADD_PROCESS_CMD failed: ") + strerror(errno));
+    throw std::runtime_error(std::string("AGNOCAST_ADD_PROCESS_CMD failed: ") + strerror(errno));
   }
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
 
   if (mempool_ptr == nullptr) {
-    throw std::runtime_error("[Agnocast] map_writable_area failed.");
+    throw std::runtime_error("map_writable_area failed.");
   }
 
-  return {mempool_ptr, add_process_args.ret_shm_size};
+  return {
+    mempool_ptr, add_process_args.ret_shm_size,
+    static_cast<bool>(add_process_args.ret_unlink_daemon_exist)};
 }
 
 void poll_for_unlink()
@@ -214,12 +222,14 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    const auto [mempool_ptr, mempool_size] = acquire_agnocast_resources();
+    const auto resources = acquire_agnocast_resources();
 
-    load_and_initialize_heaphook(mempool_ptr, mempool_size);
+    load_and_initialize_heaphook(resources.mempool_ptr, resources.mempool_size);
 
-    BridgeManager manager(target_pid);
-    manager.run();
+    // BridgeManager manager(target_pid);
+    // manager.run();
+
+    RCLCPP_INFO(logger, "AGNOCAST_BRIDGE SUCSESS");
 
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
@@ -399,15 +409,18 @@ struct initialize_agnocast_result initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  union ioctl_add_process_args add_process_args = {};
-  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
+  struct AgnocastResources resources;
+
+  try {
+    resources = acquire_agnocast_resources();
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "Failed to acquire agnocast resources: %s", e.what());
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
-  if (!add_process_args.ret_unlink_daemon_exist) {
+  if (!resources.unlink_daemon_exist) {
     spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
@@ -416,16 +429,12 @@ struct initialize_agnocast_result initialize_agnocast(
   // implementation is complete.
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
-  void * mempool_ptr =
-    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
-  if (mempool_ptr == nullptr) {
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
-  }
-
   struct initialize_agnocast_result result = {};
-  result.mempool_ptr = mempool_ptr;
-  result.mempool_size = add_process_args.ret_shm_size;
+  result.mempool_ptr = resources.mempool_ptr;
+  result.mempool_size = resources.mempool_size;
+
+  RCLCPP_INFO(logger, "AGNOCAST_INIT SUCSESS");
+
   return result;
 }
 
