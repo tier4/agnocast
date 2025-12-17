@@ -80,7 +80,7 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
 
 std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
 {
-  // Corresponds to rcl_expand_topic_name in rcl/src/rcl/expand_topic_name.c:44-219
+  // Corresponds to rcl_expand_topic_name
   //
   // TODO(Koichi98): Support custom substitutions via rcutils_string_map_t
   // TODO(Koichi98): Validate input_topic_name using rcl_validate_topic_name
@@ -183,16 +183,19 @@ std::string NodeTopics::remap_name(const std::string & topic_name) const
   std::string output_name;
   const RemapRule * rule = nullptr;
 
-  // Lambda to find first matching rule
   auto find_first_match = [&](const std::vector<RemapRule> & rules) -> const RemapRule * {
     for (const auto & r : rules) {
       if (r.type != RemapType::TOPIC_OR_SERVICE) {
+        // Not the type of remap rule we're looking for
         continue;
       }
       if (!r.node_name.empty() && r.node_name != node_name) {
+        // Rule has a node name prefix and the supplied node name didn't match
         continue;
       }
-      if (r.match == topic_name) {
+      // topic and service rules need the match side to be expanded to a FQN
+      std::string expanded_match = expand_topic_name(r.match);
+      if (expanded_match == topic_name) {
         return &r;
       }
     }
@@ -209,7 +212,8 @@ std::string NodeTopics::remap_name(const std::string & topic_name) const
 
   // Do the remapping
   if (rule != nullptr) {
-    output_name = rule->replacement;
+    // topic and service rules need the replacement to be expanded to a FQN
+    output_name = expand_topic_name(rule->replacement);
   } else {
     output_name = topic_name;
   }
