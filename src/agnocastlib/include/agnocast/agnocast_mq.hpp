@@ -46,4 +46,8 @@ struct MqMsgBridge
   BridgeDirection direction;
 };
 
+constexpr int64_t BRIDGE_MQ_MAX_MESSAGES = 10;
+constexpr int64_t BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
+constexpr mode_t BRIDGE_MQ_PERMS = 0600;
+
 }  // namespace agnocast
