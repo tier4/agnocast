@@ -135,6 +135,19 @@ public:
         RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
       }
     }
+
+    // NOTE: Unmapping memory when a publisher is destroyed is not implemented. Multiple
+    // publishers
+    // may share the same mmap region, requiring reference counting in kmod. Since leaving the
+    // memory mapped should not cause any functional issues, this is left as future work.
+    struct ioctl_remove_publisher_args remove_publisher_args
+    {
+    };
+    remove_publisher_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_publisher_args.publisher_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_PUBLISHER_CMD, &remove_publisher_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to remove publisher (id=%d) from kernel.", id_);
+    }
   }
 
   void do_ros2_publish()
