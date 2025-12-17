@@ -11,7 +11,7 @@ namespace agnocast::node_interfaces
 namespace
 {
 
-bool __lockless_has_parameter(
+bool lockless_has_parameter(
   const std::map<std::string, ParameterInfo> & parameters, const std::string & name)
 {
   return parameters.find(name) != parameters.end();
@@ -74,7 +74,7 @@ bool NodeParameters::has_parameter(const std::string & name) const
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
 
-  return __lockless_has_parameter(parameters_, name);
+  return lockless_has_parameter(parameters_, name);
 }
 
 std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parameters(
