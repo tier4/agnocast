@@ -15,15 +15,6 @@ namespace agnocast
 namespace
 {
 
-// RCL argument flags (corresponds to rcl/arguments.h)
-constexpr const char * RCL_ROS_ARGS_FLAG = "--ros-args";
-constexpr const char * RCL_ROS_ARGS_EXPLICIT_END_TOKEN = "--";
-constexpr const char * RCL_PARAM_FLAG = "--param";
-constexpr const char * RCL_SHORT_PARAM_FLAG = "-p";
-constexpr const char * RCL_REMAP_FLAG = "--remap";
-constexpr const char * RCL_SHORT_REMAP_FLAG = "-r";
-constexpr const char * RCL_PARAM_FILE_FLAG = "--params-file";
-
 /// Convert rcl_variant_t to rclcpp::ParameterValue.
 /// Corresponds to rclcpp::parameter_value_from in rclcpp/parameter_map.cpp.
 ParameterValue parameter_value_from(const rcl_variant_t * c_param_value)
