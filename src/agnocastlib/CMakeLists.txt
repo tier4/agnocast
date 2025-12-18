@@ -39,9 +39,9 @@ add_library(agnocast SHARED
 ament_target_dependencies(agnocast cie_thread_configurator)
 
 target_link_libraries(agnocast
-    ${rclcpp_LIBRARIES}
-    ${tracetools_LIBRARIES}
-    ${LTTNGUST_LIBRARIES}
+  ${rclcpp_LIBRARIES}
+  ${tracetools_LIBRARIES}
+  ${LTTNGUST_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
