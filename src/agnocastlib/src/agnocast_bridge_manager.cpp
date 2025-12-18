@@ -31,8 +31,6 @@ BridgeManager::BridgeManager(pid_t target_pid)
   rclcpp::InitOptions init_options{};
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
-
-  // TODO(yutarokobayashi): heaphook init
 }
 
 BridgeManager::~BridgeManager()
