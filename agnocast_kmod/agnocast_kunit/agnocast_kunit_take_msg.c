@@ -863,17 +863,20 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   union ioctl_get_subscriber_num_args ioctl_get_subscriber_num_ret;
   int ret3 =
     get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns, &ioctl_get_subscriber_num_ret);
+  union ioctl_get_publisher_num_args get_publisher_num_args;
+  int ret4 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 2);
   KUNIT_ASSERT_TRUE(test, is_proc_exited(publisher_pid));
   KUNIT_ASSERT_FALSE(test, is_proc_exited(subscriber_pid1));
   KUNIT_ASSERT_FALSE(test, is_proc_exited(subscriber_pid2));
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
-  KUNIT_ASSERT_EQ(test, get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
+  KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
   KUNIT_ASSERT_TRUE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
   KUNIT_ASSERT_EQ(test, ioctl_get_subscriber_num_ret.ret_subscriber_num, 2);
@@ -905,11 +908,11 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   // Act
   union ioctl_take_msg_args ioctl_take_msg_ret2;
-  int ret4 = take_msg(
+  int ret5 = take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2, allow_same_message, &ioctl_take_msg_ret2);
 
   // Assert
-  KUNIT_EXPECT_EQ(test, ret4, 0);
+  KUNIT_EXPECT_EQ(test, ret5, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_entry_id, -1);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_addr, 0);
   KUNIT_EXPECT_EQ(test, ioctl_take_msg_ret2.ret_pub_shm_info.publisher_num, 0);

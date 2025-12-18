@@ -20,7 +20,9 @@ public:
   using SharedPtr = std::shared_ptr<NodeBase>;
   using WeakPtr = std::weak_ptr<NodeBase>;
 
-  NodeBase(std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context);
+  NodeBase(
+    std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
+    bool use_intra_process_default = false, bool enable_topic_statistics_default = false);
 
   virtual ~NodeBase() = default;
 
@@ -64,6 +66,9 @@ private:
   mutable std::mutex callback_groups_mutex_;
 
   std::atomic_bool associated_with_executor_{false};
+
+  bool use_intra_process_default_;
+  bool enable_topic_statistics_default_;
 };
 
 }  // namespace agnocast::node_interfaces
