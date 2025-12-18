@@ -81,6 +81,22 @@ protected:
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
   SubscriptionBase(agnocast::Node * node, const std::string & topic_name);
+
+  virtual ~SubscriptionBase()
+  {
+    // NOTE: Unmapping memory when a subscriber is destroyed is not implemented. Multiple
+    // subscribers
+    // may share the same mmap region, requiring reference counting in kmod. Since leaving the
+    // memory mapped should not cause any functional issues, this is left as future work.
+    struct ioctl_remove_subscriber_args remove_subscriber_args
+    {
+    };
+    remove_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_subscriber_args.subscriber_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_SUBSCRIBER_CMD, &remove_subscriber_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to remove subscriber (id=%d) from kernel.", id_);
+    }
+  }
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
@@ -90,7 +106,7 @@ class BasicSubscription : public SubscriptionBase
 
   template <typename NodeT, typename Func>
   uint32_t constructor_impl(
-    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    NodeT * node, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
     union ioctl_add_subscriber_args add_subscriber_args =
@@ -119,8 +135,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -141,8 +157,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }

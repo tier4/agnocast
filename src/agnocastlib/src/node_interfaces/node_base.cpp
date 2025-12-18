@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/contexts/default_context.hpp"
+#include "rclcpp/logging.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -10,8 +11,12 @@ namespace agnocast::node_interfaces
 {
 
 NodeBase::NodeBase(
-  std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context)
-: node_name_(std::move(node_name)), context_(std::move(context))
+  std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
+  bool use_intra_process_default, bool enable_topic_statistics_default)
+: node_name_(std::move(node_name)),
+  context_(std::move(context)),
+  use_intra_process_default_(use_intra_process_default),
+  enable_topic_statistics_default_(enable_topic_statistics_default)
 {
   // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
@@ -20,7 +25,31 @@ NodeBase::NodeBase(
     namespace_ = ns;
   }
 
-  // TODO(Koichi98): Apply node name and namespace remapping from agnocast::Context
+  // Apply node name and namespace remapping from agnocast::Context.
+  // Following rclcpp's "first-wins" behavior: only the first matching rule of each type is applied.
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
+      auto global_rules = g_context.get_remap_rules();
+
+      auto node_name_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
+      if (node_name_it != global_rules.end()) {
+        node_name_ = node_name_it->replacement;
+      }
+
+      auto namespace_it = std::find_if(
+        global_rules.begin(), global_rules.end(),
+        [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
+      if (namespace_it != global_rules.end()) {
+        namespace_ = namespace_it->replacement;
+        if (!namespace_.empty() && namespace_[0] != '/') {
+          namespace_ = "/" + namespace_;
+        }
+      }
+    }
+  }
 
   if (namespace_.empty() || namespace_ == "/") {
     fqn_ = "/" + node_name_;
@@ -133,14 +162,21 @@ rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 
 bool NodeBase::get_use_intra_process_default() const
 {
-  // TODO(Koichi98)
-  return false;
+  // Note: rclcpp's intra-process communication is not used in Agnocast.
+  // This value is propagated from NodeOptions but has no effect currently.
+  RCLCPP_WARN(
+    rclcpp::get_logger(node_name_),
+    "use_intra_process_comms setting has no effect when using Agnocast. "
+    "Agnocast uses its own zero-copy intra/inter-process communication mechanism instead of "
+    "rclcpp's intra-process communication.");
+  return use_intra_process_default_;
 }
 
 bool NodeBase::get_enable_topic_statistics_default() const
 {
-  // TODO(Koichi98)
-  return false;
+  // Note: Topic statistics collection/publication is not yet implemented in Agnocast.
+  // This value is propagated from NodeOptions but has no effect currently.
+  return enable_topic_statistics_default_;
 }
 
 std::string NodeBase::resolve_topic_or_service_name(
