@@ -139,7 +139,10 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
   switch (add_result) {
     case AddBridgeResult::SUCCESS:
-      activate_bridge(req, topic_name_with_direction);
+      if (try_activate_bridge(req, topic_name_with_direction)) {
+        watch_bridges_.erase(topic_name_with_direction);
+        pending_delegations_.erase(topic_name_with_direction);
+      }
       break;
 
     case AddBridgeResult::EXIST:
@@ -169,7 +172,10 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
 
   switch (add_result) {
     case AddBridgeResult::SUCCESS:
-      activate_bridge(req, topic_name_with_direction);
+      if (try_activate_bridge(req, topic_name_with_direction)) {
+        watch_bridges_.erase(topic_name_with_direction);
+        pending_delegations_.erase(topic_name_with_direction);
+      }
       break;
 
     case AddBridgeResult::EXIST:
@@ -211,7 +217,7 @@ BridgeManager::AddBridgeResult BridgeManager::try_add_bridge_to_kernel(
   return AddBridgeResult::ERROR;
 }
 
-void BridgeManager::activate_bridge(
+bool BridgeManager::try_activate_bridge(
   const MqMsgBridge & req, const std::string & topic_name_with_direction)
 {
   auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
@@ -219,12 +225,11 @@ void BridgeManager::activate_bridge(
   if (!bridge) {
     RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
     shutdown_requested_ = true;
-    return;
+    return false;
   }
 
   active_bridges_[topic_name_with_direction] = bridge;
-  watch_bridges_.erase(topic_name_with_direction);
-  pending_delegations_.erase(topic_name_with_direction);
+  return true;
 }
 
 bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
