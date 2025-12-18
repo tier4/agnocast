@@ -105,20 +105,8 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
-/**
- * @brief Bootstraps the Rust-side heap allocator by dynamically resolving and invoking the
- * initialization routine.
- *
- * This function acts as the bridge between the C++ infrastructure (which manages OS-level
- * resources) and the Rust application logic (which manages memory allocation strategy).
- *
- * Mechanism:
- * 1. Uses `dlopen(nullptr)` to perform self-introspection on the running process's symbol table.
- * 2. Resolves the `init_child_allocator` symbol, which is exposed by the linked Rust library.
- * 3. Injects the prepared shared memory pool into the Rust runtime to initialize the TLSF
- * allocator.
- *
- */
+// Note: This function must only be called in a forked child process before TLSF initialization.
+// Calling it after initialization will result in double initialization.
 void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
 {
   void * handle = dlopen(nullptr, RTLD_NOW);
@@ -145,22 +133,6 @@ void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
   }
 }
 
-/**
- * @brief Manually registers the process and maps shared memory to bootstrap the allocator.
- *
- * This function performs the low-level initialization required to set up the shared memory
- * environment for the Bridge Manager process.
- *
- * The sequence of responsibilities is:
- * 1. Negotiate with the kernel driver via `ioctl` to register this process context.
- * 2. Map the physical memory region assigned by the driver into the virtual address space.
- *
- * @note **Critical Dependency Order:**
- * This function MUST be called before `load_and_initialize_heaphook()`.
- * The returned `mempool_ptr` is passed directly to the Rust symbol `init_child_allocator`
- * to initialize the TLSF (Two-Level Segregated Fit) allocator. Accessing the custom
- * heap before this function returns will result in undefined behavior or crashes.
- */
 struct AgnocastResources acquire_agnocast_resources()
 {
   union ioctl_add_process_args add_process_args = {};
