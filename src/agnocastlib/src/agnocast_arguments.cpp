@@ -101,9 +101,6 @@ bool ParameterOverrides::parse_yaml_file(const std::string & yaml_file)
 
 bool ParameterOverrides::parse_param_rule(const std::string & arg)
 {
-  // Corresponds to _rcl_parse_param_rule in rcl/arguments.c
-  // Format: [node_name:]param_name:=yaml_value
-
   size_t pos = 0;
   std::string node_name = parse_node_name_prefix(arg, pos);
 
@@ -120,7 +117,6 @@ bool ParameterOverrides::parse_param_rule(const std::string & arg)
     return false;
   }
 
-  // Use rcl_parse_yaml_value to parse the value and add to params_
   return rcl_parse_yaml_value(node_name.c_str(), param_name.c_str(), yaml_value.c_str(), params_);
 }
 
