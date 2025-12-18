@@ -35,8 +35,6 @@ std::string parse_node_name_prefix(const std::string & arg, size_t & pos)
 
 }  // namespace
 
-// ParameterOverrides implementation
-
 ParameterOverrides::ParameterOverrides()
 {
   rcutils_allocator_t allocator = rcutils_get_default_allocator();
@@ -142,8 +140,6 @@ bool ParameterOverrides::parse_param_rule(const std::string & arg)
   // Use rcl_parse_yaml_value to parse the value and add to params_
   return rcl_parse_yaml_value(node_name.c_str(), param_name.c_str(), yaml_value.c_str(), params_);
 }
-
-// Free functions
 
 bool parse_remap_rule(const std::string & arg, RemapRule & output_rule)
 {
