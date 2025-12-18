@@ -5,16 +5,20 @@
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
+#include "rclcpp/node_interfaces/node_parameters.hpp"
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/parameter.hpp"
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
 namespace agnocast::node_interfaces
 {
+
+using rclcpp::node_interfaces::ParameterInfo;
 
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
@@ -24,7 +28,8 @@ public:
 
   explicit NodeParameters(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args);
+    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+    bool allow_undeclared_parameters = false);
 
   virtual ~NodeParameters() = default;
 
@@ -79,7 +84,12 @@ public:
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+
+  mutable std::mutex parameters_mutex_;
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
+  std::map<std::string, ParameterInfo> parameters_;
+
+  bool allow_undeclared_ = false;
 };
 
 }  // namespace agnocast::node_interfaces

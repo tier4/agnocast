@@ -36,6 +36,8 @@ private:
   std::thread executor_thread_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
+  std::map<std::string, MqMsgBridge> watch_bridges_;
+  std::map<std::string, MqMsgBridge> pending_delegations_;
 
   void start_ros_execution();
 
@@ -46,12 +48,15 @@ private:
   void handle_create_request(const MqMsgBridge & req);
   void handle_delegate_request(const MqMsgBridge & req);
 
+  bool try_send_delegation(const MqMsgBridge & req, pid_t owner_pid);
+  void check_and_recover_bridges();
+
   void check_parent_alive();
   void check_active_bridges();
   void check_should_exit();
 
-  static int get_agnocast_subscriber_count(const std::string & topic_name);
-  static int get_agnocast_publisher_count(const std::string & topic_name);
+  int get_agnocast_subscriber_count(const std::string & topic_name);
+  int get_agnocast_publisher_count(const std::string & topic_name);
   void remove_active_bridge(const std::string & topic_name_with_direction);
 };
 

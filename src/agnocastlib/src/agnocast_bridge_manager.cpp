@@ -141,7 +141,6 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   struct ioctl_add_bridge_args add_bridge_args
   {
   };
-  std::memset(&add_bridge_args, 0, sizeof(add_bridge_args));
   add_bridge_args.pid = getpid();
   add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
 
@@ -155,10 +154,10 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
     }
 
     active_bridges_[topic_name_with_direction] = bridge;
+    watch_bridges_.erase(topic_name_with_direction);
+    pending_delegations_.erase(topic_name_with_direction);
   } else if (errno == EEXIST) {
-    [[maybe_unused]] pid_t owner_pid = add_bridge_args.ret_pid;
-    // The bridge is already registered in the kernel (EEXIST case)
-    // Retrieve the PID of the current owner and delegate.
+    pending_delegations_[topic_name_with_direction] = req;
   } else {
     RCLCPP_ERROR(
       logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
@@ -171,6 +170,41 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
   // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
 }
 
+bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
+{
+  std::string mq_name = create_mq_name_for_bridge_daemon(owner_pid);
+
+  mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
+  if (mq == -1) {
+    RCLCPP_WARN(
+      logger_, "Failed to open delegation MQ '%s': %s, try again later.", mq_name.c_str(),
+      strerror(errno));
+    return false;
+  }
+
+  if (mq_send(mq, reinterpret_cast<const char *>(&req), sizeof(req), 0) < 0) {
+    RCLCPP_WARN(
+      logger_, "Failed to send delegation request to MQ '%s': %s, try again later.",
+      mq_name.c_str(), strerror(errno));
+    mq_close(mq);
+    return false;
+  }
+
+  mq_close(mq);
+  return true;
+}
+
+void BridgeManager::check_and_recover_bridges()
+{
+  // TODO(yutarokobayashi): I plan to implement the logic in a later PR.
+
+  // Phase 1: Try delegations
+  // If send succeeds, remove from pending_delegations_ and add to watch_bridges_;
+  // if it fails, leave it as is.
+  // Phase 2: Recover missing bridge owners (Watchdog)
+  // If the bridge owner has disappeared, call handle_create_request to attempt recovery.
+}
+
 void BridgeManager::check_parent_alive()
 {
   if (!is_parent_alive_) {
@@ -179,6 +213,8 @@ void BridgeManager::check_parent_alive()
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
     event_loop_.close_parent_mq();
+    watch_bridges_.clear();
+    pending_delegations_.clear();
   }
 }
 
@@ -244,7 +280,7 @@ int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
   union ioctl_get_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger_, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_subscriber_num);
@@ -255,7 +291,7 @@ int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
   union ioctl_get_publisher_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger_, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_publisher_num);
@@ -286,7 +322,7 @@ void BridgeManager::remove_active_bridge(const std::string & topic_name_with_dir
 
     if (ioctl(agnocast_fd, AGNOCAST_REMOVE_BRIDGE_CMD, &remove_bridge_args) != 0) {
       RCLCPP_ERROR(
-        logger, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
+        logger_, "AGNOCAST_REMOVE_BRIDGE_CMD failed for topic '%s': %s",
         std::string(topic_name_view).c_str(), strerror(errno));
     }
   }
