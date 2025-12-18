@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_arguments.hpp"
 
 #include <rcutils/allocator.h>
+#include <rcutils/logging_macros.h>
 
 #include <algorithm>
 #include <array>
@@ -209,8 +210,8 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
       if (arg == RCL_PARAM_FILE_FLAG && i + 1 < arguments.size()) {
         ++i;
         if (!result.parameter_overrides.parse_yaml_file(arguments[i])) {
-          // Log warning but continue parsing
-          // TODO(Koichi98): Add proper logging
+          RCUTILS_LOG_WARN_NAMED(
+            "agnocast", "Failed to parse params file: %s", arguments[i].c_str());
         }
         continue;
       }
@@ -219,8 +220,8 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
       if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < arguments.size()) {
         ++i;
         if (!result.parameter_overrides.parse_param_rule(arguments[i])) {
-          // Log warning but continue parsing
-          // TODO(Koichi98): Add proper logging
+          RCUTILS_LOG_WARN_NAMED(
+            "agnocast", "Failed to parse parameter rule: %s", arguments[i].c_str());
         }
         continue;
       }
