@@ -232,6 +232,9 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const ParsedArguments & local_args, const ParsedArguments & global_args)
 {
   // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
+  // NOTE: node_fqn, local_args, and global_args are intentionally unused for now.
+  // They will be consumed by parameter_map_from once it is implemented to resolve
+  // parameter overrides from YAML/CLI sources scoped to the given node FQN.
   (void)node_fqn;
   (void)local_args;
   (void)global_args;
