@@ -55,8 +55,8 @@ private:
   void check_active_bridges();
   void check_should_exit();
 
-  static int get_agnocast_subscriber_count(const std::string & topic_name);
-  static int get_agnocast_publisher_count(const std::string & topic_name);
+  int get_agnocast_subscriber_count(const std::string & topic_name);
+  int get_agnocast_publisher_count(const std::string & topic_name);
   void remove_active_bridge(const std::string & topic_name_with_direction);
 };
 
