@@ -224,7 +224,6 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   try {
     const auto resources = acquire_agnocast_resources();
     load_and_initialize_heaphook(resources.mempool_ptr, resources.mempool_size);
-
     // BridgeManager manager(target_pid);
     // manager.run();
   } catch (const std::exception & e) {
@@ -427,9 +426,6 @@ struct initialize_agnocast_result initialize_agnocast(
   struct initialize_agnocast_result result = {};
   result.mempool_ptr = resources.mempool_ptr;
   result.mempool_size = resources.mempool_size;
-
-  RCLCPP_INFO(logger, "AGNOCAST_INIT SUCSESS");
-
   return result;
 }
 
