@@ -105,9 +105,10 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
   }
 }
 
+// Initializes the child allocator for bridge functionality.
 // Note: This function must only be called in a forked child process before TLSF initialization.
 // Calling it after initialization will result in double initialization.
-void load_and_initialize_heaphook(void * mempool_ptr, size_t mempool_size)
+void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
 {
   void * handle = dlopen(nullptr, RTLD_NOW);
   if (!handle) {
@@ -196,7 +197,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 
   try {
     const auto resources = acquire_agnocast_resources();
-    load_and_initialize_heaphook(resources.mempool_ptr, resources.mempool_size);
+    initialize_bridge_allocator(resources.mempool_ptr, resources.mempool_size);
     // BridgeManager manager(target_pid);
     // manager.run();
   } catch (const std::exception & e) {
