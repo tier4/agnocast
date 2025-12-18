@@ -238,8 +238,10 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
 
   std::map<std::string, ParameterValue> result;
 
-  // TODO(Koichi98): Implement parameter_map_from and use it here to filter
-  // parameters by node FQN from global_args and local_args.
+  // TODO(Koichi98): Implement a helper equivalent to rclcpp::detail::parameter_map_from
+  // (see rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp in
+  // https://github.com/ros2/rclcpp/blob/rolling/rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp)
+  // and use it here to filter parameters by node FQN from global_args and local_args.
 
   // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
