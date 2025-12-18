@@ -52,13 +52,6 @@ struct ParsedArguments
 {
   std::vector<RemapRule> remap_rules;
   ParameterOverrides parameter_overrides;
-
-  ParsedArguments() = default;
-
-  ParsedArguments(const ParsedArguments &) = default;
-  ParsedArguments & operator=(const ParsedArguments &) = default;
-  ParsedArguments(ParsedArguments &&) = default;
-  ParsedArguments & operator=(ParsedArguments &&) = default;
 };
 
 bool parse_remap_rule(const std::string & arg, RemapRule & output_rule);

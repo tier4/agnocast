@@ -13,12 +13,8 @@ namespace agnocast
 namespace
 {
 
-/// Parse node name prefix from parameter rule.
-/// Returns the node name and advances pos past the colon.
-/// If no prefix found, returns "/**" (match all nodes).
 std::string parse_node_name_prefix(const std::string & arg, size_t & pos)
 {
-  // Look for pattern: token ':' (not ':=')
   size_t colon_pos = arg.find(':', pos);
   size_t separator_pos = arg.find(":=", pos);
 
@@ -54,17 +50,10 @@ ParameterOverrides::~ParameterOverrides()
 
 ParameterOverrides::ParameterOverrides(const ParameterOverrides & other) : params_(nullptr)
 {
-  // Corresponds to rcl_yaml_node_struct_copy usage in rcl
   if (other.params_) {
     params_ = rcl_yaml_node_struct_copy(other.params_);
     if (nullptr == params_) {
       throw std::runtime_error("Failed to copy rcl_params_t");
-    }
-  } else {
-    rcutils_allocator_t allocator = rcutils_get_default_allocator();
-    params_ = rcl_yaml_node_struct_init(allocator);
-    if (nullptr == params_) {
-      throw std::runtime_error("Failed to initialize rcl_params_t");
     }
   }
 }
@@ -80,12 +69,6 @@ ParameterOverrides & ParameterOverrides::operator=(const ParameterOverrides & ot
       params_ = rcl_yaml_node_struct_copy(other.params_);
       if (nullptr == params_) {
         throw std::runtime_error("Failed to copy rcl_params_t");
-      }
-    } else {
-      rcutils_allocator_t allocator = rcutils_get_default_allocator();
-      params_ = rcl_yaml_node_struct_init(allocator);
-      if (nullptr == params_) {
-        throw std::runtime_error("Failed to initialize rcl_params_t");
       }
     }
   }
