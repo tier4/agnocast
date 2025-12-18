@@ -95,7 +95,6 @@ ParameterOverrides & ParameterOverrides::operator=(ParameterOverrides && other) 
 
 bool ParameterOverrides::parse_yaml_file(const std::string & yaml_file)
 {
-  // Corresponds to rcl_parse_yaml_file
   return rcl_parse_yaml_file(yaml_file.c_str(), params_);
 }
 
@@ -233,11 +232,6 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const ParsedArguments & local_args, const ParsedArguments & global_args)
 {
   // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
-  //
-  // TODO(Koichi98): node_fqn is currently unused. In rclcpp, node_fqn is used to filter
-  // parameters by node name via parameter_map_from. This requires implementing
-  // parameter_map_from with node pattern matching (/* and /** wildcards).
-  // Currently, all parameters are applied globally to all nodes.
   (void)node_fqn;
   (void)local_args;
   (void)global_args;
@@ -247,7 +241,7 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   // TODO(Koichi98): Implement parameter_map_from and use it here to filter
   // parameters by node FQN from global_args and local_args.
 
-  // Parameter overrides passed to constructor will overwrite overrides from yaml file sources
+  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
     result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
   }
