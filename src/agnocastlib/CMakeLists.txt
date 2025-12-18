@@ -20,6 +20,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
+find_package(rcl_yaml_param_parser REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
@@ -40,6 +41,7 @@ ament_target_dependencies(agnocast cie_thread_configurator)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
+  ${rcl_yaml_param_parser_LIBRARIES}
   ${tracetools_LIBRARIES}
   ${LTTNGUST_LIBRARIES}
 )
@@ -48,6 +50,7 @@ target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   ${rclcpp_INCLUDE_DIRS}
+  ${rcl_yaml_param_parser_INCLUDE_DIRS}
   ${tracetools_INCLUDE_DIRS}
   ${LTTNGUST_INCLUDE_DIRS}
 )

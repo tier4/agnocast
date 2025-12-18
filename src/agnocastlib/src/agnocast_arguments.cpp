@@ -1,46 +1,197 @@
 #include "agnocast/agnocast_arguments.hpp"
 
+#include <rcl_yaml_param_parser/parser.h>
+#include <rcl_yaml_param_parser/types.h>
+#include <rcutils/allocator.h>
+
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <functional>
-#include <sstream>
 
 namespace agnocast
 {
 
-ParameterValue parse_parameter_value(const std::string & value_str)
+namespace
 {
-  std::string lower_value = value_str;
-  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), [](unsigned char c) {
-    return std::tolower(c);
-  });
 
-  if (lower_value == "true") {
-    return rclcpp::ParameterValue(true);
-  }
-  if (lower_value == "false") {
-    return rclcpp::ParameterValue(false);
-  }
+// RCL argument flags (corresponds to rcl/arguments.h)
+constexpr const char * RCL_ROS_ARGS_FLAG = "--ros-args";
+constexpr const char * RCL_ROS_ARGS_EXPLICIT_END_TOKEN = "--";
+constexpr const char * RCL_PARAM_FLAG = "--param";
+constexpr const char * RCL_SHORT_PARAM_FLAG = "-p";
+constexpr const char * RCL_REMAP_FLAG = "--remap";
+constexpr const char * RCL_SHORT_REMAP_FLAG = "-r";
+constexpr const char * RCL_PARAM_FILE_FLAG = "--params-file";
 
-  {
-    std::istringstream iss(value_str);
-    int64_t int_value = 0;
-    if (iss >> int_value && iss.eof()) {
-      return rclcpp::ParameterValue(int_value);
+/// Convert rcl_variant_t to rclcpp::ParameterValue.
+/// Corresponds to rclcpp::parameter_value_from in rclcpp/parameter_map.cpp.
+ParameterValue parameter_value_from(const rcl_variant_t * c_param_value)
+{
+  if (nullptr == c_param_value) {
+    throw std::invalid_argument("Passed argument is NULL");
+  }
+  if (c_param_value->bool_value) {
+    return ParameterValue(*(c_param_value->bool_value));
+  } else if (c_param_value->integer_value) {
+    return ParameterValue(*(c_param_value->integer_value));
+  } else if (c_param_value->double_value) {
+    return ParameterValue(*(c_param_value->double_value));
+  } else if (c_param_value->string_value) {
+    return ParameterValue(std::string(c_param_value->string_value));
+  } else if (c_param_value->byte_array_value) {
+    const rcl_byte_array_t * byte_array = c_param_value->byte_array_value;
+    std::vector<uint8_t> bytes;
+    bytes.reserve(byte_array->size);
+    for (size_t v = 0; v < byte_array->size; ++v) {
+      bytes.push_back(byte_array->values[v]);
     }
-  }
-
-  {
-    std::istringstream iss(value_str);
-    double double_value = 0.0;
-    if (iss >> double_value && iss.eof()) {
-      return rclcpp::ParameterValue(double_value);
+    return ParameterValue(bytes);
+  } else if (c_param_value->bool_array_value) {
+    const rcl_bool_array_t * bool_array = c_param_value->bool_array_value;
+    std::vector<bool> bools;
+    bools.reserve(bool_array->size);
+    for (size_t v = 0; v < bool_array->size; ++v) {
+      bools.push_back(bool_array->values[v]);
     }
+    return ParameterValue(bools);
+  } else if (c_param_value->integer_array_value) {
+    const rcl_int64_array_t * int_array = c_param_value->integer_array_value;
+    std::vector<int64_t> integers;
+    integers.reserve(int_array->size);
+    for (size_t v = 0; v < int_array->size; ++v) {
+      integers.push_back(int_array->values[v]);
+    }
+    return ParameterValue(integers);
+  } else if (c_param_value->double_array_value) {
+    const rcl_double_array_t * double_array = c_param_value->double_array_value;
+    std::vector<double> doubles;
+    doubles.reserve(double_array->size);
+    for (size_t v = 0; v < double_array->size; ++v) {
+      doubles.push_back(double_array->values[v]);
+    }
+    return ParameterValue(doubles);
+  } else if (c_param_value->string_array_value) {
+    const rcutils_string_array_t * string_array = c_param_value->string_array_value;
+    std::vector<std::string> strings;
+    strings.reserve(string_array->size);
+    for (size_t v = 0; v < string_array->size; ++v) {
+      strings.emplace_back(string_array->data[v]);
+    }
+    return ParameterValue(strings);
   }
 
-  return rclcpp::ParameterValue(value_str);
+  throw std::runtime_error("No parameter value set");
 }
+
+/// Parse node name prefix from parameter rule.
+/// Returns the node name and advances pos past the colon.
+/// If no prefix found, returns "/**" (match all nodes).
+std::string parse_node_name_prefix(const std::string & arg, size_t & pos)
+{
+  // Look for pattern: token ':' (not ':=')
+  size_t colon_pos = arg.find(':', pos);
+  size_t separator_pos = arg.find(":=", pos);
+
+  // If ':' exists and is before ':=', it's a node name prefix
+  if (colon_pos != std::string::npos && colon_pos < separator_pos) {
+    std::string node_name = arg.substr(pos, colon_pos - pos);
+    pos = colon_pos + 1;
+    return node_name;
+  }
+
+  // No node name prefix, match all nodes
+  return "/**";
+}
+
+/// RAII wrapper for rcl_params_t.
+/// Used internally by parse_arguments.
+class ParameterOverrides
+{
+public:
+  ParameterOverrides()
+  {
+    rcutils_allocator_t allocator = rcutils_get_default_allocator();
+    params_ = rcl_yaml_node_struct_init(allocator);
+    if (nullptr == params_) {
+      throw std::runtime_error("Failed to initialize rcl_params_t");
+    }
+  }
+
+  ~ParameterOverrides()
+  {
+    if (params_) {
+      rcl_yaml_node_struct_fini(params_);
+      params_ = nullptr;
+    }
+  }
+
+  // Non-copyable, non-movable (only used locally)
+  ParameterOverrides(const ParameterOverrides &) = delete;
+  ParameterOverrides & operator=(const ParameterOverrides &) = delete;
+  ParameterOverrides(ParameterOverrides &&) = delete;
+  ParameterOverrides & operator=(ParameterOverrides &&) = delete;
+
+  bool parse_yaml_file(const std::string & yaml_file)
+  {
+    return rcl_parse_yaml_file(yaml_file.c_str(), params_);
+  }
+
+  bool parse_param_rule(const std::string & arg)
+  {
+    // Format: [node_name:]param_name:=yaml_value
+    size_t pos = 0;
+    std::string node_name = parse_node_name_prefix(arg, pos);
+
+    size_t separator_pos = arg.find(":=", pos);
+    if (separator_pos == std::string::npos) {
+      return false;
+    }
+
+    std::string param_name = arg.substr(pos, separator_pos - pos);
+    std::string yaml_value = arg.substr(separator_pos + 2);
+
+    if (param_name.empty()) {
+      return false;
+    }
+
+    return rcl_parse_yaml_value(node_name.c_str(), param_name.c_str(), yaml_value.c_str(), params_);
+  }
+
+  /// Convert all parameters to a map (ignoring node name filtering).
+  std::map<std::string, ParameterValue> to_map() const
+  {
+    std::map<std::string, ParameterValue> result;
+
+    if (nullptr == params_ || nullptr == params_->node_names || nullptr == params_->params) {
+      return result;
+    }
+
+    for (size_t n = 0; n < params_->num_nodes; ++n) {
+      const rcl_node_params_t * c_params_node = &(params_->params[n]);
+
+      for (size_t p = 0; p < c_params_node->num_params; ++p) {
+        const char * c_param_name = c_params_node->parameter_names[p];
+        if (nullptr == c_param_name) {
+          continue;
+        }
+
+        const rcl_variant_t * c_param_value = &(c_params_node->parameter_values[p]);
+        try {
+          result[c_param_name] = parameter_value_from(c_param_value);
+        } catch (const std::exception &) {
+          // Skip parameters that can't be converted
+        }
+      }
+    }
+
+    return result;
+  }
+
+private:
+  rcl_params_t * params_;
+};
+
+}  // namespace
 
 bool parse_remap_rule(const std::string & arg, RemapRule & output_rule)
 {
@@ -82,31 +233,11 @@ bool parse_remap_rule(const std::string & arg, RemapRule & output_rule)
   return true;
 }
 
-bool parse_param_rule(
-  const std::string & arg, std::string & param_name, ParameterValue & param_value)
-{
-  // Corresponds to _rcl_parse_param_rule in rcl/src/rcl/arguments.c.
-  //
-  // Limitations compared to rcl:
-  // - No yaml parser: arrays (e.g., [1,2,3]) are not supported, only scalar values.
-  // - No node name prefix: "node_name:param_name:=value" format is not supported.
-
-  size_t delim_pos = arg.find(":=");
-
-  if (delim_pos == std::string::npos) {
-    return false;
-  }
-
-  param_name = arg.substr(0, delim_pos);
-  std::string yaml_value = arg.substr(delim_pos + 2);
-  param_value = parse_parameter_value(yaml_value);
-  return true;
-}
-
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
 {
   // Corresponds to rcl_parse_arguments in rcl/src/rcl/arguments.c
   ParsedArguments result;
+  ParameterOverrides param_overrides;
 
   bool parsing_ros_args = false;
   for (size_t i = 0; i < arguments.size(); ++i) {
@@ -124,14 +255,17 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
         continue;
       }
 
+      // Attempt to parse argument as parameter file flag
+      if (arg == RCL_PARAM_FILE_FLAG && i + 1 < arguments.size()) {
+        ++i;
+        param_overrides.parse_yaml_file(arguments[i]);
+        continue;
+      }
+
       // Attempt to parse argument as parameter override flag
       if ((arg == RCL_PARAM_FLAG || arg == RCL_SHORT_PARAM_FLAG) && i + 1 < arguments.size()) {
         ++i;
-        std::string param_name;
-        ParameterValue param_value;
-        if (parse_param_rule(arguments[i], param_name, param_value)) {
-          result.parameter_overrides[param_name] = param_value;
-        }
+        param_overrides.parse_param_rule(arguments[i]);
         continue;
       }
 
@@ -158,6 +292,9 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
       // In RCL this would be stored in unparsed_args
     }
   }
+
+  // Convert parsed parameters to map
+  result.parameter_overrides = param_overrides.to_map();
 
   return result;
 }
