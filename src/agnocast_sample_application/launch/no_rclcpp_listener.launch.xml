@@ -5,10 +5,9 @@
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
     </node>
 
-    <!-- Parameter override test.
-    Currently, agnocast::Node does not support YAML param file parser, so we pass parameters directly via args. Once YAML parser is supported, replace this with param tags. -->
-    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(var use_param)"
-          args="--ros-args -p topic_name:=/custom_topic -p queue_size:=10">
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_listener" name="no_rclcpp_listener_node" output="screen" if="$(var use_param)">
         <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+        <param name="topic_name" value="/custom_topic" />
+        <param name="queue_size" value="10" />
     </node>
 </launch>
