@@ -38,13 +38,6 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
-struct AgnocastResources
-{
-  void * mempool_ptr;
-  size_t mempool_size;
-  bool unlink_daemon_exist;
-};
-
 void * map_area(
   const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
 {
@@ -135,7 +128,7 @@ void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
   }
 }
 
-struct AgnocastResources acquire_agnocast_resources()
+initialize_agnocast_result acquire_agnocast_resources()
 {
   union ioctl_add_process_args add_process_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
@@ -150,8 +143,9 @@ struct AgnocastResources acquire_agnocast_resources()
   }
 
   return {
-    mempool_ptr, add_process_args.ret_shm_size,
-    static_cast<bool>(add_process_args.ret_unlink_daemon_exist)};
+    mempool_ptr,
+    add_process_args.ret_shm_size,
+  };
 }
 
 void poll_for_unlink()
@@ -378,20 +372,15 @@ struct initialize_agnocast_result initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  struct AgnocastResources resources
-  {
-  };
-
-  try {
-    resources = acquire_agnocast_resources();
-  } catch (const std::exception & e) {
-    RCLCPP_ERROR(logger, "Failed to acquire agnocast resources: %s", e.what());
+  union ioctl_add_process_args add_process_args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_ADD_PROCESS_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
-  if (!resources.unlink_daemon_exist) {
+  if (!add_process_args.ret_unlink_daemon_exist) {
     spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
@@ -400,9 +389,16 @@ struct initialize_agnocast_result initialize_agnocast(
   // pid_t parent_pid = getpid();
   // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
+  if (mempool_ptr == nullptr) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   struct initialize_agnocast_result result = {};
-  result.mempool_ptr = resources.mempool_ptr;
-  result.mempool_size = resources.mempool_size;
+  result.mempool_ptr = mempool_ptr;
+  result.mempool_size = add_process_args.ret_shm_size;
   return result;
 }
 
