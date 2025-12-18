@@ -179,13 +179,11 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
       break;
 
     case AddBridgeResult::EXIST:
-      // Unexpected, as we normally retain ownership while demand exists.
-      // This implies a rare race condition where a third party acquired the topic during a
-      // momentary release gap.
-      RCLCPP_WARN(
-        logger_, "Delegation received but owner changed for '%s' (Current: %d). Try again later.",
+      RCLCPP_ERROR(
+        logger_,
+        "Received delegation request for '%s', but I am not the owner (Actual Owner PID: %d). "
+        "Rejecting request.",
         topic_name.c_str(), owner_pid);
-      pending_delegations_[topic_name_with_direction] = req;
       break;
 
     case AddBridgeResult::ERROR:
