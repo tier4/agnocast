@@ -142,7 +142,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
       activate_bridge(req, topic_name_with_direction);
       break;
 
-    case AddBridgeResult::EXISTS:
+    case AddBridgeResult::EXIST:
       pending_delegations_[topic_name_with_direction] = req;
       break;
 
@@ -172,7 +172,7 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
       activate_bridge(req, topic_name_with_direction);
       break;
 
-    case AddBridgeResult::EXISTS:
+    case AddBridgeResult::EXIST:
       // Unexpected, as we normally retain ownership while demand exists.
       // This implies a rare race condition where a third party acquired the topic during a
       // momentary release gap.
@@ -191,13 +191,13 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
 }
 
 BridgeManager::AddBridgeResult BridgeManager::try_add_bridge_to_kernel(
-  const std::string & raw_topic_name, pid_t & out_owner_pid)
+  const std::string & topic_name, pid_t & out_owner_pid)
 {
   struct ioctl_add_bridge_args add_bridge_args
   {
   };
   add_bridge_args.pid = getpid();
-  add_bridge_args.topic_name = {raw_topic_name.c_str(), raw_topic_name.size()};
+  add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
     return AddBridgeResult::SUCCESS;
@@ -205,7 +205,7 @@ BridgeManager::AddBridgeResult BridgeManager::try_add_bridge_to_kernel(
 
   if (errno == EEXIST) {
     out_owner_pid = add_bridge_args.ret_pid;
-    return AddBridgeResult::EXISTS;
+    return AddBridgeResult::EXIST;
   }
 
   return AddBridgeResult::ERROR;

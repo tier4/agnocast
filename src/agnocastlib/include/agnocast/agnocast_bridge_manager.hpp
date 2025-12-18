@@ -22,7 +22,7 @@ public:
   void run();
 
 private:
-  enum class AddBridgeResult { SUCCESS, EXISTS, ERROR };
+  enum class AddBridgeResult { SUCCESS, EXIST, ERROR };
 
   const pid_t target_pid_;
   rclcpp::Logger logger_;
