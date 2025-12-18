@@ -23,66 +23,6 @@ constexpr const char * RCL_REMAP_FLAG = "--remap";
 constexpr const char * RCL_SHORT_REMAP_FLAG = "-r";
 constexpr const char * RCL_PARAM_FILE_FLAG = "--params-file";
 
-/// Convert rcl_variant_t to rclcpp::ParameterValue.
-/// Corresponds to rclcpp::parameter_value_from in rclcpp/parameter_map.cpp.
-ParameterValue parameter_value_from(const rcl_variant_t * c_param_value)
-{
-  if (nullptr == c_param_value) {
-    throw std::invalid_argument("Passed argument is NULL");
-  }
-  if (c_param_value->bool_value) {
-    return ParameterValue(*(c_param_value->bool_value));
-  } else if (c_param_value->integer_value) {
-    return ParameterValue(*(c_param_value->integer_value));
-  } else if (c_param_value->double_value) {
-    return ParameterValue(*(c_param_value->double_value));
-  } else if (c_param_value->string_value) {
-    return ParameterValue(std::string(c_param_value->string_value));
-  } else if (c_param_value->byte_array_value) {
-    const rcl_byte_array_t * byte_array = c_param_value->byte_array_value;
-    std::vector<uint8_t> bytes;
-    bytes.reserve(byte_array->size);
-    for (size_t v = 0; v < byte_array->size; ++v) {
-      bytes.push_back(byte_array->values[v]);
-    }
-    return ParameterValue(bytes);
-  } else if (c_param_value->bool_array_value) {
-    const rcl_bool_array_t * bool_array = c_param_value->bool_array_value;
-    std::vector<bool> bools;
-    bools.reserve(bool_array->size);
-    for (size_t v = 0; v < bool_array->size; ++v) {
-      bools.push_back(bool_array->values[v]);
-    }
-    return ParameterValue(bools);
-  } else if (c_param_value->integer_array_value) {
-    const rcl_int64_array_t * int_array = c_param_value->integer_array_value;
-    std::vector<int64_t> integers;
-    integers.reserve(int_array->size);
-    for (size_t v = 0; v < int_array->size; ++v) {
-      integers.push_back(int_array->values[v]);
-    }
-    return ParameterValue(integers);
-  } else if (c_param_value->double_array_value) {
-    const rcl_double_array_t * double_array = c_param_value->double_array_value;
-    std::vector<double> doubles;
-    doubles.reserve(double_array->size);
-    for (size_t v = 0; v < double_array->size; ++v) {
-      doubles.push_back(double_array->values[v]);
-    }
-    return ParameterValue(doubles);
-  } else if (c_param_value->string_array_value) {
-    const rcutils_string_array_t * string_array = c_param_value->string_array_value;
-    std::vector<std::string> strings;
-    strings.reserve(string_array->size);
-    for (size_t v = 0; v < string_array->size; ++v) {
-      strings.emplace_back(string_array->data[v]);
-    }
-    return ParameterValue(strings);
-  }
-
-  throw std::runtime_error("No parameter value set");
-}
-
 /// Parse node name prefix from parameter rule.
 /// Returns the node name and advances pos past the colon.
 /// If no prefix found, returns "/**" (match all nodes).
@@ -155,36 +95,6 @@ public:
     }
 
     return rcl_parse_yaml_value(node_name.c_str(), param_name.c_str(), yaml_value.c_str(), params_);
-  }
-
-  /// Convert all parameters to a map (ignoring node name filtering).
-  std::map<std::string, ParameterValue> to_map() const
-  {
-    std::map<std::string, ParameterValue> result;
-
-    if (nullptr == params_ || nullptr == params_->node_names || nullptr == params_->params) {
-      return result;
-    }
-
-    for (size_t n = 0; n < params_->num_nodes; ++n) {
-      const rcl_node_params_t * c_params_node = &(params_->params[n]);
-
-      for (size_t p = 0; p < c_params_node->num_params; ++p) {
-        const char * c_param_name = c_params_node->parameter_names[p];
-        if (nullptr == c_param_name) {
-          continue;
-        }
-
-        const rcl_variant_t * c_param_value = &(c_params_node->parameter_values[p]);
-        try {
-          result[c_param_name] = parameter_value_from(c_param_value);
-        } catch (const std::exception &) {
-          // Skip parameters that can't be converted
-        }
-      }
-    }
-
-    return result;
   }
 
 private:
@@ -292,9 +202,6 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
       // In RCL this would be stored in unparsed_args
     }
   }
-
-  // Convert parsed parameters to map
-  result.parameter_overrides = param_overrides.to_map();
 
   return result;
 }
