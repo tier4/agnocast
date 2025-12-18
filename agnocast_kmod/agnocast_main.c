@@ -1481,6 +1481,9 @@ int remove_subscriber(
   kfree(sub_info->node_name);
   kfree(sub_info);
 
+  dev_info(
+    agnocast_device, "Subscriber (id=%d) removed from topic %s.\n", subscriber_id, topic_name);
+
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
 
@@ -1536,8 +1539,6 @@ int remove_subscriber(
     kfree(wrapper);
     dev_info(agnocast_device, "Topic %s removed (empty).\n", topic_name);
   }
-  dev_info(
-    agnocast_device, "Subscriber (id=%d) removed from topic %s.\n", subscriber_id, topic_name);
 
   return 0;
 }
@@ -1583,6 +1584,8 @@ int remove_publisher(
     hash_del(&pub_info->node);
     kfree(pub_info->node_name);
     kfree(pub_info);
+    dev_info(
+      agnocast_device, "Publisher (id=%d) removed from topic %s.\n", publisher_id, topic_name);
   }
 
   if (get_size_pub_info_htable(wrapper) == 0 && get_size_sub_info_htable(wrapper) == 0) {
@@ -1598,7 +1601,6 @@ int remove_publisher(
     kfree(wrapper);
     dev_info(agnocast_device, "Topic %s removed (empty).\n", topic_name);
   }
-  dev_info(agnocast_device, "Publisher (id=%d) removed from topic %s.\n", publisher_id, topic_name);
 
   return 0;
 }
