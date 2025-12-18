@@ -170,21 +170,21 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
   // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
 }
 
-bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
+[[maybe_unused]] bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
 {
   std::string mq_name = create_mq_name_for_bridge_daemon(owner_pid);
 
   mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
   if (mq == -1) {
     RCLCPP_WARN(
-      logger_, "Failed to open delegation MQ '%s': %s, will retry via watchdog", mq_name.c_str(),
+      logger_, "Failed to open delegation MQ '%s': %s, try again later.", mq_name.c_str(),
       strerror(errno));
     return false;
   }
 
   if (mq_send(mq, reinterpret_cast<const char *>(&req), sizeof(req), 0) < 0) {
     RCLCPP_WARN(
-      logger_, "Failed to send delegation request to MQ '%s': %s, will retry via watchdog",
+      logger_, "Failed to send delegation request to MQ '%s': %s, try again later.",
       mq_name.c_str(), strerror(errno));
     mq_close(mq);
     return false;
