@@ -358,7 +358,16 @@ pub unsafe extern "C" fn init_child_allocator(
         return false;
     }
 
-    let _ = libc::pthread_atfork(None, None, Some(post_fork_handler_in_child));
+    let atfork_result = libc::pthread_atfork(None, None, Some(post_fork_handler_in_child));
+
+    assert_eq!(
+        atfork_result, 0,
+        "[ERROR] [Agnocast] Failed to register pthread_atfork handler."
+    );
+
+    // NOTE: This flag prevents usage of the parent's inherited TLSF.
+    // Now that the child's own allocator is initialized, we reset the flag to false
+    // to allow normal memory operations.
     IS_FORKED_CHILD.store(false, Ordering::Relaxed);
 
     let shm = AgnocastSharedMemory {
@@ -366,24 +375,21 @@ pub unsafe extern "C" fn init_child_allocator(
         end: (mempool_ptr as usize) + mempool_size,
     };
 
-    if AGNOCAST_SHARED_MEMORY.set(shm).is_err() {
-        panic!(
-            "[ERROR] [Agnocast] Shared memory has already been initialized.\n\
-             init_child_allocator must only be called once in an uninitialized child process."
-        );
-    }
+    assert!(
+        AGNOCAST_SHARED_MEMORY.set(shm).is_ok(),
+        "[ERROR] [Agnocast] Shared memory has already been initialized.\n\
+         init_child_allocator must only be called once in an uninitialized child process."
+    );
 
-    if AGNOCAST_SHARED_MEMORY_ALLOCATOR
-        .set(AgnocastSharedMemoryAllocator::new(
-            AGNOCAST_SHARED_MEMORY.get().unwrap(),
-        ))
-        .is_err()
-    {
-        panic!(
-            "[ERROR] [Agnocast] The memory allocator has already been initialized.\n\
-            init_child_allocator must only be called once in an uninitialized child process."
-        );
-    }
+    assert!(
+        AGNOCAST_SHARED_MEMORY_ALLOCATOR
+            .set(AgnocastSharedMemoryAllocator::new(
+                AGNOCAST_SHARED_MEMORY.get().unwrap(),
+            ))
+            .is_ok(),
+        "[ERROR] [Agnocast] The memory allocator has already been initialized.\n\
+         init_child_allocator must only be called once in an uninitialized child process."
+    );
 
     true
 }

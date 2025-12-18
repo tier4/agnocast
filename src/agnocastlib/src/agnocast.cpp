@@ -127,7 +127,6 @@ void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
   }
 
   bool success = init_func(mempool_ptr, mempool_size);
-  dlclose(handle);
 
   if (!success) {
     throw std::runtime_error("init_child_allocator returned false.");
@@ -198,8 +197,8 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   try {
     const auto resources = acquire_agnocast_resources();
     initialize_bridge_allocator(resources.mempool_ptr, resources.mempool_size);
-    // BridgeManager manager(target_pid);
-    // manager.run();
+    BridgeManager manager(target_pid);
+    manager.run();
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
     exit(EXIT_FAILURE);
