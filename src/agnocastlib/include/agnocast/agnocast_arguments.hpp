@@ -58,6 +58,12 @@ bool parse_remap_rule(const std::string & arg, RemapRule & output_rule);
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments);
 
+ParameterValue parameter_value_from(const rcl_variant_t * c_param_value);
+
+/// Convert rcl_params_t to a parameter map filtered by node FQN.
+std::map<std::string, ParameterValue> parameter_map_from(
+  const rcl_params_t * c_params, const std::string & node_fqn);
+
 /// Resolve parameter overrides from multiple sources.
 /// Corresponds to rclcpp::detail::resolve_parameter_overrides.
 /// Priority (later overwrites earlier): global_args < local_args < parameter_overrides

@@ -6,12 +6,27 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <regex>
+#include <stdexcept>
 
 namespace agnocast
 {
 
 namespace
 {
+
+/// Replace all occurrences of 'from' with 'to' in 'str'.
+std::string find_and_replace(
+  const std::string & str, const std::string & from, const std::string & to)
+{
+  std::string result = str;
+  size_t pos = 0;
+  while ((pos = result.find(from, pos)) != std::string::npos) {
+    result.replace(pos, from.length(), to);
+    pos += to.length();
+  }
+  return result;
+}
 
 std::string parse_node_name_prefix(const std::string & arg, size_t & pos)
 {
@@ -227,21 +242,139 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
   return result;
 }
 
+ParameterValue parameter_value_from(const rcl_variant_t * const c_param_value)
+{
+  // Corresponds to rclcpp::parameter_value_from in rclcpp/src/rclcpp/parameter_map.cpp
+  if (nullptr == c_param_value) {
+    throw std::invalid_argument("Passed argument is NULL");
+  }
+  if (c_param_value->bool_value) {
+    return ParameterValue(*(c_param_value->bool_value));
+  } else if (c_param_value->integer_value) {
+    return ParameterValue(*(c_param_value->integer_value));
+  } else if (c_param_value->double_value) {
+    return ParameterValue(*(c_param_value->double_value));
+  } else if (c_param_value->string_value) {
+    return ParameterValue(std::string(c_param_value->string_value));
+  } else if (c_param_value->byte_array_value) {
+    const rcl_byte_array_t * const byte_array = c_param_value->byte_array_value;
+    std::vector<uint8_t> bytes;
+    bytes.reserve(byte_array->size);
+    for (size_t v = 0; v < byte_array->size; ++v) {
+      bytes.push_back(byte_array->values[v]);
+    }
+    return ParameterValue(bytes);
+  } else if (c_param_value->bool_array_value) {
+    const rcl_bool_array_t * const bool_array = c_param_value->bool_array_value;
+    std::vector<bool> bools;
+    bools.reserve(bool_array->size);
+    for (size_t v = 0; v < bool_array->size; ++v) {
+      bools.push_back(bool_array->values[v]);
+    }
+    return ParameterValue(bools);
+  } else if (c_param_value->integer_array_value) {
+    const rcl_int64_array_t * const int_array = c_param_value->integer_array_value;
+    std::vector<int64_t> integers;
+    integers.reserve(int_array->size);
+    for (size_t v = 0; v < int_array->size; ++v) {
+      integers.push_back(int_array->values[v]);
+    }
+    return ParameterValue(integers);
+  } else if (c_param_value->double_array_value) {
+    const rcl_double_array_t * const double_array = c_param_value->double_array_value;
+    std::vector<double> doubles;
+    doubles.reserve(double_array->size);
+    for (size_t v = 0; v < double_array->size; ++v) {
+      doubles.push_back(double_array->values[v]);
+    }
+    return ParameterValue(doubles);
+  } else if (c_param_value->string_array_value) {
+    const rcutils_string_array_t * const string_array = c_param_value->string_array_value;
+    std::vector<std::string> strings;
+    strings.reserve(string_array->size);
+    for (size_t v = 0; v < string_array->size; ++v) {
+      strings.emplace_back(string_array->data[v]);
+    }
+    return ParameterValue(strings);
+  }
+
+  throw std::invalid_argument("No parameter value set");
+}
+
+std::map<std::string, ParameterValue> parameter_map_from(
+  const rcl_params_t * const c_params, const std::string & node_fqn)
+{
+  // Corresponds to rclcpp::parameter_map_from in rclcpp/src/rclcpp/parameter_map.cpp
+  if (nullptr == c_params) {
+    throw std::invalid_argument("parameters struct is NULL");
+  } else if (nullptr == c_params->node_names) {
+    throw std::invalid_argument("node names array is NULL");
+  } else if (nullptr == c_params->params) {
+    throw std::invalid_argument("node params array is NULL");
+  }
+
+  std::map<std::string, ParameterValue> result;
+
+  for (size_t n = 0; n < c_params->num_nodes; ++n) {
+    const char * c_node_name = c_params->node_names[n];
+    if (nullptr == c_node_name) {
+      throw std::invalid_argument("Node name at index " + std::to_string(n) + " is NULL");
+    }
+
+    // Make sure there is a leading slash on the fully qualified node name
+    std::string node_name("/");
+    if ('/' != c_node_name[0]) {
+      node_name += c_node_name;
+    } else {
+      node_name = c_node_name;
+    }
+
+    // Update the regular expression ["/*" -> "(/\\w+)" and "/**" -> "(/\\w+)*"]
+    std::string regex_pattern = find_and_replace(node_name, "/*", "(/\\w+)");
+    if (!std::regex_match(node_fqn, std::regex(regex_pattern))) {
+      // No need to parse the items because the user just cares about node_fqn
+      continue;
+    }
+
+    const rcl_node_params_t * const c_params_node = &(c_params->params[n]);
+
+    for (size_t p = 0; p < c_params_node->num_params; ++p) {
+      const char * const c_param_name = c_params_node->parameter_names[p];
+      if (nullptr == c_param_name) {
+        throw std::invalid_argument(
+          "At node " + std::to_string(n) + " parameter " + std::to_string(p) + " name is NULL");
+      }
+      const rcl_variant_t * const c_param_value = &(c_params_node->parameter_values[p]);
+      result[c_param_name] = parameter_value_from(c_param_value);
+    }
+  }
+
+  return result;
+}
+
 std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides,
   const ParsedArguments & local_args, const ParsedArguments & global_args)
 {
   // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
-  (void)node_fqn;
-  (void)local_args;
-  (void)global_args;
-
   std::map<std::string, ParameterValue> result;
 
-  // TODO(Koichi98): Implement parameter_map_from and use it here to filter
-  // parameters by node FQN from global_args and local_args.
+  // Global before local so that local overwrites global
+  std::array<const ParameterOverrides *, 2> sources = {
+    &global_args.parameter_overrides, &local_args.parameter_overrides};
 
-  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
+  for (const ParameterOverrides * source : sources) {
+    rcl_params_t * params = source->get();
+    if (params && params->num_nodes > 0) {
+      std::map<std::string, ParameterValue> params_map = parameter_map_from(params, node_fqn);
+      // Combine parameter yaml files, overwriting values in older ones
+      for (const auto & [name, value] : params_map) {
+        result[name] = value;
+      }
+    }
+  }
+
+  // Parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
     result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
   }
