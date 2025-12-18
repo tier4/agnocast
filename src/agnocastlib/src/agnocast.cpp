@@ -218,6 +218,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 {
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
 
