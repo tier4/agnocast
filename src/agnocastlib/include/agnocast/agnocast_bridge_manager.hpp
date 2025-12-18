@@ -37,7 +37,7 @@ private:
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
   std::map<std::string, MqMsgBridge> watch_bridges_;
-  std::map<std::string, MqMsgBridge> failed_delegations_;
+  std::map<std::string, MqMsgBridge> pending_delegations_;
 
   void start_ros_execution();
 

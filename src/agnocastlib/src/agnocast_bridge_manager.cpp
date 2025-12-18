@@ -155,17 +155,9 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 
     active_bridges_[topic_name_with_direction] = bridge;
     watch_bridges_.erase(topic_name_with_direction);
-    failed_delegations_.erase(topic_name_with_direction);
+    pending_delegations_.erase(topic_name_with_direction);
   } else if (errno == EEXIST) {
-    pid_t owner_pid = add_bridge_args.ret_pid;
-    bool send_success = try_send_delegation(req, owner_pid);
-
-    if (!send_success) {
-      failed_delegations_[topic_name_with_direction] = req;
-      return;
-    }
-
-    watch_bridges_[topic_name_with_direction] = req;
+    pending_delegations_[topic_name_with_direction] = req;
   } else {
     RCLCPP_ERROR(
       logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
@@ -206,8 +198,8 @@ void check_and_recover_bridges()
 {
   // TODO(yutarokobayashi): I plan to implement the logic in a later PR.
 
-  // Phase 1: Retry failed delegations
-  // If send succeeds, remove from failed_delegations_ and add to watch_bridges_;
+  // Phase 1: Try delegations
+  // If send succeeds, remove from pending_delegations_ and add to watch_bridges_;
   // if it fails, leave it as is.
   // Phase 2: Recover missing bridge owners (Watchdog)
   // If the bridge owner has disappeared, call handle_create_request to attempt recovery.
@@ -222,7 +214,7 @@ void BridgeManager::check_parent_alive()
     is_parent_alive_ = false;
     event_loop_.close_parent_mq();
     watch_bridges_.clear();
-    failed_delegations_.clear();
+    pending_delegations_.clear();
   }
 }
 
