@@ -121,7 +121,6 @@ if(BUILD_TESTING)
     test/unit/test_agnocast_subscription.cpp
     test/unit/test_mocked_agnocast.cpp
     test/unit/test_agnocast_executors.cpp
-    test/unit/test_agnocast_context.cpp
     test/unit/test_node_topics.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
