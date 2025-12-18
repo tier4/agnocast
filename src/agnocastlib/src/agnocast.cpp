@@ -111,19 +111,21 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
 {
   void * handle = dlopen(nullptr, RTLD_NOW);
-  if (!handle) {
-    throw std::runtime_error(std::string("dlopen failed: ") + (dlerror() ? dlerror() : "Unknown"));
+  if (handle == nullptr) {
+    const char * err_msg = dlerror();
+    throw std::runtime_error(
+      std::string("dlopen failed: ") + (err_msg != nullptr ? err_msg : "Unknown"));
   }
 
   using InitFunc = bool (*)(void *, size_t);
   auto init_func = reinterpret_cast<InitFunc>(dlsym(handle, "init_child_allocator"));
 
   const char * dlsym_error = dlerror();
-  if (dlsym_error || !init_func) {
+  if ((dlsym_error != nullptr) || (init_func == nullptr)) {
     dlclose(handle);
     throw std::runtime_error(
       std::string("dlsym 'init_child_allocator' failed: ") +
-      (dlsym_error ? dlsym_error : "Symbol is null"));
+      (dlsym_error != nullptr ? dlsym_error : "Symbol is null"));
   }
 
   bool success = init_func(mempool_ptr, mempool_size);
@@ -376,7 +378,9 @@ struct initialize_agnocast_result initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  struct AgnocastResources resources;
+  struct AgnocastResources resources
+  {
+  };
 
   try {
     resources = acquire_agnocast_resources();
