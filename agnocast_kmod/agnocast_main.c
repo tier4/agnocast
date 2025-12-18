@@ -1584,6 +1584,7 @@ int remove_publisher(
     hash_del(&pub_info->node);
     kfree(pub_info->node_name);
     kfree(pub_info);
+
     dev_info(
       agnocast_device, "Publisher (id=%d) removed from topic %s.\n", publisher_id, topic_name);
   }
