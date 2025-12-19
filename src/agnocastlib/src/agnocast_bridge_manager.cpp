@@ -126,16 +126,75 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
 {
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
-  std::string topic_name(
-    &req.target.topic_name[0], strnlen(&req.target.topic_name[0], sizeof(req.target.topic_name)));
-  std::string topic_name_with_direction = topic_name;
-  topic_name_with_direction +=
-    (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_R2A : SUFFIX_A2R;
+  const auto [topic_name, topic_name_with_direction] = extract_topic_info(req);
 
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
   }
 
+  pid_t owner_pid = 0;
+  auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
+
+  switch (add_result) {
+    case AddBridgeResult::SUCCESS:
+      if (try_activate_bridge(req, topic_name_with_direction)) {
+        watch_bridges_.erase(topic_name_with_direction);
+        pending_delegations_.erase(topic_name_with_direction);
+      }
+      break;
+
+    case AddBridgeResult::EXIST:
+      pending_delegations_[topic_name_with_direction] = req;
+      break;
+
+    case AddBridgeResult::ERROR:
+      RCLCPP_ERROR(
+        logger_, "AGNOCAST_ADD_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
+        strerror(errno));
+      break;
+  }
+}
+
+void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
+{
+  // Locally, unique keys include the direction. However, we register the raw topic name (without
+  // direction) to the kernel to enforce single-process ownership for the entire topic.
+  const auto [topic_name, topic_name_with_direction] = extract_topic_info(req);
+
+  if (active_bridges_.count(topic_name_with_direction) != 0U) {
+    return;
+  }
+
+  pid_t owner_pid = 0;
+  auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
+
+  switch (add_result) {
+    case AddBridgeResult::SUCCESS:
+      if (try_activate_bridge(req, topic_name_with_direction)) {
+        watch_bridges_.erase(topic_name_with_direction);
+        pending_delegations_.erase(topic_name_with_direction);
+      }
+      break;
+
+    case AddBridgeResult::EXIST:
+      RCLCPP_ERROR(
+        logger_,
+        "Received delegation request for '%s', but I am not the owner (Actual Owner PID: %d). "
+        "Rejecting request.",
+        topic_name.c_str(), owner_pid);
+      break;
+
+    case AddBridgeResult::ERROR:
+      RCLCPP_ERROR(
+        logger_, "AGNOCAST_ADD_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
+        strerror(errno));
+      break;
+  }
+}
+
+BridgeManager::AddBridgeResult BridgeManager::try_add_bridge_to_kernel(
+  const std::string & topic_name, pid_t & out_owner_pid)
+{
   struct ioctl_add_bridge_args add_bridge_args
   {
   };
@@ -143,29 +202,30 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   add_bridge_args.topic_name = {topic_name.c_str(), topic_name.size()};
 
   if (ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args) == 0) {
-    auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
-
-    if (!bridge) {
-      RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-      shutdown_requested_ = true;
-      return;
-    }
-
-    active_bridges_[topic_name_with_direction] = bridge;
-    watch_bridges_.erase(topic_name_with_direction);
-    pending_delegations_.erase(topic_name_with_direction);
-  } else if (errno == EEXIST) {
-    pending_delegations_[topic_name_with_direction] = req;
-  } else {
-    RCLCPP_ERROR(
-      logger_, "AGNOCAST_ADD_BRIDGE_CMD failed: for topic '%s': %s",
-      std::string(topic_name).c_str(), strerror(errno));
+    return AddBridgeResult::SUCCESS;
   }
+
+  if (errno == EEXIST) {
+    out_owner_pid = add_bridge_args.ret_pid;
+    return AddBridgeResult::EXIST;
+  }
+
+  return AddBridgeResult::ERROR;
 }
 
-void BridgeManager::handle_delegate_request(const MqMsgBridge & /*req*/)
+bool BridgeManager::try_activate_bridge(
+  const MqMsgBridge & req, const std::string & topic_name_with_direction)
 {
-  // TODO(yutarokobayashi): I plan to implement the logic for when delegation occurs in a later PR.
+  auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
+
+  if (!bridge) {
+    RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
+    shutdown_requested_ = true;
+    return false;
+  }
+
+  active_bridges_[topic_name_with_direction] = bridge;
+  return true;
 }
 
 bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid)
@@ -326,6 +386,17 @@ void BridgeManager::remove_active_bridge(const std::string & topic_name_with_dir
   }
 
   active_bridges_.erase(topic_name_with_direction);
+}
+
+std::pair<std::string, std::string> BridgeManager::extract_topic_info(const MqMsgBridge & req)
+{
+  std::string raw_name(
+    &req.target.topic_name[0], strnlen(&req.target.topic_name[0], sizeof(req.target.topic_name)));
+
+  std::string_view suffix =
+    (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) ? SUFFIX_R2A : SUFFIX_A2R;
+
+  return {raw_name, raw_name + std::string(suffix)};
 }
 
 }  // namespace agnocast
