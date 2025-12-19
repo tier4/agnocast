@@ -41,9 +41,7 @@ public:
 
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
-  const RemapRule * remap_first_match(
-    const std::vector<RemapRule> & remap_rules, const std::string & name) const;
-  std::string remap_name(const std::string & topic_name) const;
+  // TODO(Koichi98): Implement topic remapping using rcl_remap_topic_name
 
   NodeBase::SharedPtr node_base_;
 };

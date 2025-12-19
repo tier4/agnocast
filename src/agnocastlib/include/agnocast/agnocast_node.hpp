@@ -1,3 +1,4 @@
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
@@ -131,6 +132,7 @@ public:
 
 private:
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
+  ParsedArguments local_args_;
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
