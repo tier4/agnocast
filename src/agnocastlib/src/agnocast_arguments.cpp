@@ -1,106 +1,17 @@
 #include "agnocast/agnocast_arguments.hpp"
 
+#include <rclcpp/parameter_map.hpp>
 #include <rcutils/allocator.h>
 #include <rcutils/logging_macros.h>
 
 #include <algorithm>
 #include <array>
-#include <functional>
-#include <regex>
-#include <sstream>
 
 namespace agnocast
 {
 
 namespace
 {
-
-/// Convert rcl_variant_t to rclcpp::ParameterValue.
-ParameterValue parameter_value_from(const rcl_variant_t * c_param_value)
-{
-  if (nullptr == c_param_value) {
-    throw std::invalid_argument("Passed argument is NULL");
-  }
-  if (c_param_value->bool_value) {
-    return ParameterValue(*(c_param_value->bool_value));
-  } else if (c_param_value->integer_value) {
-    return ParameterValue(*(c_param_value->integer_value));
-  } else if (c_param_value->double_value) {
-    return ParameterValue(*(c_param_value->double_value));
-  } else if (c_param_value->string_value) {
-    return ParameterValue(std::string(c_param_value->string_value));
-  } else if (c_param_value->byte_array_value) {
-    const rcl_byte_array_t * byte_array = c_param_value->byte_array_value;
-    std::vector<uint8_t> bytes;
-    bytes.reserve(byte_array->size);
-    for (size_t v = 0; v < byte_array->size; ++v) {
-      bytes.push_back(byte_array->values[v]);
-    }
-    return ParameterValue(bytes);
-  } else if (c_param_value->bool_array_value) {
-    const rcl_bool_array_t * bool_array = c_param_value->bool_array_value;
-    std::vector<bool> bools;
-    bools.reserve(bool_array->size);
-    for (size_t v = 0; v < bool_array->size; ++v) {
-      bools.push_back(bool_array->values[v]);
-    }
-    return ParameterValue(bools);
-  } else if (c_param_value->integer_array_value) {
-    const rcl_int64_array_t * int_array = c_param_value->integer_array_value;
-    std::vector<int64_t> integers;
-    integers.reserve(int_array->size);
-    for (size_t v = 0; v < int_array->size; ++v) {
-      integers.push_back(int_array->values[v]);
-    }
-    return ParameterValue(integers);
-  } else if (c_param_value->double_array_value) {
-    const rcl_double_array_t * double_array = c_param_value->double_array_value;
-    std::vector<double> doubles;
-    doubles.reserve(double_array->size);
-    for (size_t v = 0; v < double_array->size; ++v) {
-      doubles.push_back(double_array->values[v]);
-    }
-    return ParameterValue(doubles);
-  } else if (c_param_value->string_array_value) {
-    const rcutils_string_array_t * string_array = c_param_value->string_array_value;
-    std::vector<std::string> strings;
-    strings.reserve(string_array->size);
-    for (size_t v = 0; v < string_array->size; ++v) {
-      strings.emplace_back(string_array->data[v]);
-    }
-    return ParameterValue(strings);
-  }
-
-  throw std::runtime_error("No parameter value set");
-}
-
-/// Convert node name pattern to regex.
-std::string node_pattern_to_regex(const std::string & node_name)
-{
-  std::string result;
-  result.reserve(node_name.size() * 2);
-
-  for (size_t i = 0; i < node_name.size(); ++i) {
-    if (node_name[i] == '/' && i + 1 < node_name.size() && node_name[i + 1] == '*') {
-      if (i + 2 < node_name.size() && node_name[i + 2] == '*') {
-        // "/**" -> "(/\\w+)*"
-        result += "(/\\w+)*";
-        i += 2;
-      } else {
-        // "/*" -> "(/\\w+)"
-        result += "(/\\w+)";
-        i += 1;
-      }
-    } else if (node_name[i] == '.') {
-      // Escape '.' for regex
-      result += "\\.";
-    } else {
-      result += node_name[i];
-    }
-  }
-
-  return result;
-}
 
 std::string parse_node_name_prefix(const std::string & arg, size_t & pos)
 {
@@ -316,76 +227,33 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
   return result;
 }
 
-std::map<std::string, ParameterValue> parameter_map_from(
-  const rcl_params_t * params, const std::string & node_fqn)
-{
-  // Corresponds to rclcpp::parameter_map_from in rclcpp/parameter_map.cpp
-  std::map<std::string, ParameterValue> result;
-
-  if (nullptr == params || nullptr == params->node_names || nullptr == params->params) {
-    return result;
-  }
-
-  for (size_t n = 0; n < params->num_nodes; ++n) {
-    const char * c_node_name = params->node_names[n];
-    if (nullptr == c_node_name) {
-      continue;
-    }
-
-    // Make sure there is a leading slash on the node name
-    std::string node_name("/");
-    if ('/' != c_node_name[0]) {
-      node_name += c_node_name;
-    } else {
-      node_name = c_node_name;
-    }
-
-    // Check if node name pattern matches the target node FQN
-    // Convert pattern to regex: "/*" -> "(/\\w+)" and "/**" -> "(/\\w+)*"
-    std::string regex_pattern = node_pattern_to_regex(node_name);
-    if (!std::regex_match(node_fqn, std::regex(regex_pattern))) {
-      continue;
-    }
-
-    const rcl_node_params_t * c_params_node = &(params->params[n]);
-
-    for (size_t p = 0; p < c_params_node->num_params; ++p) {
-      const char * c_param_name = c_params_node->parameter_names[p];
-      if (nullptr == c_param_name) {
-        continue;
-      }
-
-      const rcl_variant_t * c_param_value = &(c_params_node->parameter_values[p]);
-      try {
-        result[c_param_name] = parameter_value_from(c_param_value);
-      } catch (const std::exception &) {
-        // Skip parameters that can't be converted
-        // TODO(Koichi98): Add proper logging
-      }
-    }
-  }
-
-  return result;
-}
-
 std::map<std::string, ParameterValue> resolve_parameter_overrides(
   const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides,
   const ParsedArguments & local_args, const ParsedArguments & global_args)
 {
   // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
-  // NOTE: node_fqn, local_args, and global_args are intentionally unused for now.
-  // They will be consumed by parameter_map_from once it is implemented to resolve
-  // parameter overrides from YAML/CLI sources scoped to the given node FQN.
-  (void)node_fqn;
-  (void)local_args;
-  (void)global_args;
-
   std::map<std::string, ParameterValue> result;
 
-  // TODO(Koichi98): Implement a helper equivalent to rclcpp::detail::parameter_map_from
-  // (see rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp in
-  // https://github.com/ros2/rclcpp/blob/rolling/rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp)
-  // and use it here to filter parameters by node FQN from global_args and local_args.
+  // Process global before local so that local overwrites global
+  // This matches rclcpp's behavior: global_args -> local_args -> constructor overrides
+  std::array<const ParameterOverrides *, 2> sources = {
+    &global_args.parameter_overrides, &local_args.parameter_overrides};
+
+  for (const ParameterOverrides * source : sources) {
+    if (source == nullptr || source->get() == nullptr) {
+      continue;
+    }
+
+    // Use rclcpp::parameter_map_from to filter parameters by node FQN
+    rclcpp::ParameterMap param_map =
+      rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
+
+    if (param_map.count(node_fqn) > 0) {
+      for (const rclcpp::Parameter & param : param_map.at(node_fqn)) {
+        result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
+      }
+    }
+  }
 
   // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
