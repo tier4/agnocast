@@ -30,6 +30,13 @@ const MIN_ALIGN: usize = if cfg!(target_arch = "x86_64") {
     16
 };
 
+#[cfg(not(test))]
+#[repr(C)]
+struct InitializeAgnocastResult {
+    mempool_ptr: *mut c_void,
+    mempool_size: u64,
+}
+
 type LibcStartMainType = unsafe extern "C" fn(
     main: unsafe extern "C" fn(c_int, *const *const u8) -> c_int,
     argc: c_int,
@@ -146,12 +153,6 @@ impl AgnocastSharedMemory {
     /// - After this function returns, the range from `start` to `end` must be mapped and accessible.
     unsafe fn new() -> Self {
         use std::{ffi::CString, os::raw::c_char};
-
-        #[repr(C)]
-        struct InitializeAgnocastResult {
-            mempool_ptr: *mut c_void,
-            mempool_size: u64,
-        }
 
         extern "C" {
             fn initialize_agnocast(
@@ -340,6 +341,57 @@ fn should_use_heap() -> bool {
 fn should_use_heap() -> bool {
     // In tests, we use the heap only when the allocator is uninitialized.
     AGNOCAST_SHARED_MEMORY_ALLOCATOR.get().is_none()
+}
+
+/// Initializes the child allocator for bridge functionality.
+/// # Safety
+/// This function is intended to be initialized **only in an uninitialized child process**.
+/// Attempting to initialize TLSF in a process where the allocator is already set
+/// will result in a panic.
+#[cfg(not(test))]
+#[no_mangle]
+pub unsafe extern "C" fn init_child_allocator(
+    mempool_ptr: *mut c_void,
+    mempool_size: usize,
+) -> bool {
+    if mempool_ptr.is_null() || mempool_size == 0 {
+        return false;
+    }
+
+    let atfork_result = libc::pthread_atfork(None, None, Some(post_fork_handler_in_child));
+
+    assert_eq!(
+        atfork_result, 0,
+        "[ERROR] [Agnocast] Failed to register pthread_atfork handler."
+    );
+
+    // NOTE: This flag prevents usage of the parent's inherited TLSF.
+    // Now that the child's own allocator is initialized, we reset the flag to false
+    // to allow normal memory operations.
+    IS_FORKED_CHILD.store(false, Ordering::Relaxed);
+
+    let shm = AgnocastSharedMemory {
+        start: mempool_ptr as usize,
+        end: (mempool_ptr as usize) + mempool_size,
+    };
+
+    assert!(
+        AGNOCAST_SHARED_MEMORY.set(shm).is_ok(),
+        "[ERROR] [Agnocast] Shared memory has already been initialized.\n\
+         init_child_allocator must only be called once in an uninitialized child process."
+    );
+
+    assert!(
+        AGNOCAST_SHARED_MEMORY_ALLOCATOR
+            .set(AgnocastSharedMemoryAllocator::new(
+                AGNOCAST_SHARED_MEMORY.get().unwrap(),
+            ))
+            .is_ok(),
+        "[ERROR] [Agnocast] The memory allocator has already been initialized.\n\
+         init_child_allocator must only be called once in an uninitialized child process."
+    );
+
+    true
 }
 
 /// # Safety
