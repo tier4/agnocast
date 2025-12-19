@@ -236,18 +236,18 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   std::map<std::string, ParameterValue> result;
 
   // global before local so that local overwrites global
-  std::array<const ParameterOverrides *, 2> sources = {
+  std::array<const ParameterOverrides *, 2> arguments_sources = {
     &global_args.parameter_overrides, &local_args.parameter_overrides};
 
-  for (const ParameterOverrides * source : sources) {
-    if (source == nullptr || source->get() == nullptr) {
+  for (const ParameterOverrides * source : arguments_sources) {
+    if (!source || !source->get()) {
       continue;
     }
 
-    rclcpp::ParameterMap param_map = rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
+    rclcpp::ParameterMap initial_map = rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
 
-    if (param_map.count(node_fqn) > 0) {
-      for (const rclcpp::Parameter & param : param_map.at(node_fqn)) {
+    if (initial_map.count(node_fqn) > 0) {
+      for (const rclcpp::Parameter & param : initial_map.at(node_fqn)) {
         result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
       }
     }
