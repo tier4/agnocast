@@ -91,15 +91,15 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+  const std::vector<rclcpp::Parameter> & parameter_overrides, const rcl_arguments_t * local_args,
   bool allow_undeclared_parameters)
 : node_base_(std::move(node_base)), allow_undeclared_(allow_undeclared_parameters)
 {
-  ParsedArguments global_args;
+  const rcl_arguments_t * global_args = nullptr;
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
-      global_args = g_context.get_parsed_arguments();
+      global_args = g_context.get_rcl_arguments();
     }
   }
 

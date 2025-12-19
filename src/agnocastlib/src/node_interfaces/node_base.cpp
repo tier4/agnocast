@@ -4,6 +4,8 @@
 #include "rclcpp/contexts/default_context.hpp"
 #include "rclcpp/logging.hpp"
 
+#include <rcl/remap.h>
+
 #include <stdexcept>
 #include <utility>
 
@@ -12,62 +14,65 @@ namespace agnocast::node_interfaces
 
 NodeBase::NodeBase(
   std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
-  std::vector<RemapRule> local_remap_rules, bool use_intra_process_default,
+  const rcl_arguments_t * local_args, bool use_intra_process_default,
   bool enable_topic_statistics_default)
 : node_name_(std::move(node_name)),
   context_(std::move(context)),
   use_intra_process_default_(use_intra_process_default),
   enable_topic_statistics_default_(enable_topic_statistics_default),
-  local_remap_rules_(std::move(local_remap_rules))
+  local_args_(local_args)
 {
-  // Ensure it starts with '/' or is empty
+  // Ensure namespace starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
     namespace_ = "/" + ns;
   } else {
     namespace_ = ns;
   }
 
-  // Get global remap rules from context
+  // Get global arguments from context
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
-      global_remap_rules_ = g_context.get_remap_rules();
+      global_args_ = g_context.get_rcl_arguments();
     }
   }
 
-  // Apply node name remapping
-  auto local_node_name_it = std::find_if(
-    local_remap_rules_.begin(), local_remap_rules_.end(),
-    [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
-  if (local_node_name_it != local_remap_rules_.end()) {
-    node_name_ = local_node_name_it->replacement;
-  } else {
-    auto global_node_name_it = std::find_if(
-      global_remap_rules_.begin(), global_remap_rules_.end(),
-      [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
-    if (global_node_name_it != global_remap_rules_.end()) {
-      node_name_ = global_node_name_it->replacement;
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
+  // Apply node name remapping using rcl_remap_node_name
+  {
+    char * remapped_node_name = nullptr;
+    rcl_ret_t ret = rcl_remap_node_name(
+      local_args_, global_args_, node_name_.c_str(), allocator, &remapped_node_name);
+
+    if (RCL_RET_OK == ret && remapped_node_name != nullptr) {
+      node_name_ = remapped_node_name;
+      allocator.deallocate(remapped_node_name, allocator.state);
+    } else if (RCL_RET_OK != ret) {
+      RCLCPP_WARN(
+        rclcpp::get_logger("agnocast"), "Failed to remap node name: %s",
+        rcl_get_error_string().str);
+      rcl_reset_error();
     }
   }
 
-  // Apply namespace remapping
-  auto local_namespace_it = std::find_if(
-    local_remap_rules_.begin(), local_remap_rules_.end(),
-    [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
-  if (local_namespace_it != local_remap_rules_.end()) {
-    namespace_ = local_namespace_it->replacement;
-    if (!namespace_.empty() && namespace_[0] != '/') {
-      namespace_ = "/" + namespace_;
-    }
-  } else {
-    auto global_namespace_it = std::find_if(
-      global_remap_rules_.begin(), global_remap_rules_.end(),
-      [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
-    if (global_namespace_it != global_remap_rules_.end()) {
-      namespace_ = global_namespace_it->replacement;
+  // Apply namespace remapping using rcl_remap_node_namespace
+  {
+    char * remapped_namespace = nullptr;
+    rcl_ret_t ret = rcl_remap_node_namespace(
+      local_args_, global_args_, node_name_.c_str(), allocator, &remapped_namespace);
+
+    if (RCL_RET_OK == ret && remapped_namespace != nullptr) {
+      namespace_ = remapped_namespace;
       if (!namespace_.empty() && namespace_[0] != '/') {
         namespace_ = "/" + namespace_;
       }
+      allocator.deallocate(remapped_namespace, allocator.state);
+    } else if (RCL_RET_OK != ret) {
+      RCLCPP_WARN(
+        rclcpp::get_logger("agnocast"), "Failed to remap namespace: %s",
+        rcl_get_error_string().str);
+      rcl_reset_error();
     }
   }
 
@@ -202,21 +207,41 @@ bool NodeBase::get_enable_topic_statistics_default() const
 std::string NodeBase::resolve_topic_or_service_name(
   const std::string & name, bool is_service, bool only_expand) const
 {
-  (void)name;
-  (void)is_service;
-  (void)only_expand;
-  // TODO(Koichi98)
-  return "";
-}
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+  char * remapped_name = nullptr;
+  rcl_ret_t ret;
 
-const std::vector<RemapRule> & NodeBase::get_local_remap_rules() const
-{
-  return local_remap_rules_;
-}
+  if (only_expand) {
+    // TODO(Koichi98): Implement topic/service name expansion without remapping
+    // For now, just return the original name
+    return name;
+  }
 
-const std::vector<RemapRule> & NodeBase::get_global_remap_rules() const
-{
-  return global_remap_rules_;
+  if (is_service) {
+    ret = rcl_remap_service_name(
+      local_args_, global_args_, name.c_str(), node_name_.c_str(), namespace_.c_str(), allocator,
+      &remapped_name);
+  } else {
+    ret = rcl_remap_topic_name(
+      local_args_, global_args_, name.c_str(), node_name_.c_str(), namespace_.c_str(), allocator,
+      &remapped_name);
+  }
+
+  if (RCL_RET_OK != ret) {
+    RCLCPP_WARN(
+      rclcpp::get_logger(node_name_), "Failed to remap %s name '%s': %s",
+      is_service ? "service" : "topic", name.c_str(), rcl_get_error_string().str);
+    rcl_reset_error();
+    return name;
+  }
+
+  if (remapped_name != nullptr) {
+    std::string result(remapped_name);
+    allocator.deallocate(remapped_name, allocator.state);
+    return result;
+  }
+
+  return name;
 }
 
 }  // namespace agnocast::node_interfaces

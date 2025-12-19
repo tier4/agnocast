@@ -6,7 +6,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace agnocast::node_interfaces
 {
@@ -41,9 +40,6 @@ public:
 
 private:
   std::string expand_topic_name(const std::string & input_topic_name) const;
-  const RemapRule * remap_first_match(
-    const std::vector<RemapRule> & remap_rules, const std::string & name) const;
-  std::string remap_name(const std::string & topic_name) const;
 
   NodeBase::SharedPtr node_base_;
 };

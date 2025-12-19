@@ -1,5 +1,7 @@
 #include "agnocast/node_interfaces/node_topics.hpp"
 
+#include <rcl/remap.h>
+
 #include <stdexcept>
 #include <utility>
 
@@ -18,8 +20,25 @@ std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_e
     return expanded_topic_name;
   }
 
-  return remap_name(expanded_topic_name);
-  // TODO(Koichi98): rmw_validate_full_topic_name (see node_resolve_name.c)
+  // Use rcl_remap_topic_name for remapping
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+  char * remapped_name = nullptr;
+  rcl_ret_t ret = rcl_remap_topic_name(
+    node_base_->get_local_args(), node_base_->get_global_args(), expanded_topic_name.c_str(),
+    node_base_->get_name(), node_base_->get_namespace(), allocator, &remapped_name);
+
+  if (RCL_RET_OK != ret) {
+    rcl_reset_error();
+    return expanded_topic_name;
+  }
+
+  if (remapped_name != nullptr) {
+    std::string result(remapped_name);
+    allocator.deallocate(remapped_name, allocator.state);
+    return result;
+  }
+
+  return expanded_topic_name;
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
@@ -172,57 +191,6 @@ std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) 
   }
 
   return local_output;
-}
-
-const RemapRule * NodeTopics::remap_first_match(
-  const std::vector<RemapRule> & remap_rules, const std::string & name) const
-{
-  // Corresponds to rcl_remap_first_match
-
-  const std::string node_name = node_base_->get_name();
-
-  for (const auto & rule : remap_rules) {
-    if (rule.type != RemapType::TOPIC_OR_SERVICE) {
-      // Not the type of remap rule we're looking for
-      continue;
-    }
-    if (!rule.node_name.empty() && rule.node_name != node_name) {
-      // Rule has a node name prefix and the supplied node name didn't match
-      continue;
-    }
-    // topic and service rules need the match side to be expanded to a FQN
-    std::string expanded_match = expand_topic_name(rule.match);
-    if (expanded_match == name) {
-      return &rule;
-    }
-  }
-  return nullptr;
-}
-
-std::string NodeTopics::remap_name(const std::string & topic_name) const
-{
-  // Corresponds to rcl_remap_name
-
-  std::string output_name;
-  const RemapRule * rule = nullptr;
-
-  // Look at local rules first
-  rule = remap_first_match(node_base_->get_local_remap_rules(), topic_name);
-
-  // Check global rules if no local rule matched
-  if (rule == nullptr) {
-    rule = remap_first_match(node_base_->get_global_remap_rules(), topic_name);
-  }
-
-  // Do the remapping
-  if (rule != nullptr) {
-    // topic and service rules need the replacement to be expanded to a FQN
-    output_name = expand_topic_name(rule->replacement);
-  } else {
-    output_name = topic_name;
-  }
-
-  return output_name;
 }
 
 }  // namespace agnocast::node_interfaces

@@ -9,6 +9,8 @@
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/parameter.hpp"
 
+#include <rcl/arguments.h>
+
 #include <map>
 #include <memory>
 #include <mutex>
@@ -28,7 +30,7 @@ public:
 
   explicit NodeParameters(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-    const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+    const std::vector<rclcpp::Parameter> & parameter_overrides, const rcl_arguments_t * local_args,
     bool allow_undeclared_parameters = false);
 
   virtual ~NodeParameters() = default;
