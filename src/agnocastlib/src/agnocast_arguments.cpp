@@ -6,7 +6,6 @@
 #include <rcutils/logging_macros.h>
 
 #include <algorithm>
-#include <array>
 
 namespace agnocast
 {
