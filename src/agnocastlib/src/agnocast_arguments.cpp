@@ -235,8 +235,7 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
   std::map<std::string, ParameterValue> result;
 
-  // Process global before local so that local overwrites global
-  // This matches rclcpp's behavior: global_args -> local_args -> constructor overrides
+  // global before local so that local overwrites global
   std::array<const ParameterOverrides *, 2> sources = {
     &global_args.parameter_overrides, &local_args.parameter_overrides};
 
@@ -245,7 +244,6 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
       continue;
     }
 
-    // Use rclcpp::parameter_map_from to filter parameters by node FQN
     rclcpp::ParameterMap param_map = rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
 
     if (param_map.count(node_fqn) > 0) {
