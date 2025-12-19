@@ -62,6 +62,7 @@ void BridgeManager::run()
 
   while (!shutdown_requested_) {
     check_parent_alive();
+    check_and_recover_bridges();
     check_active_bridges();
     check_should_exit();
 
@@ -254,13 +255,82 @@ bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid
 
 void BridgeManager::check_and_recover_bridges()
 {
-  // TODO(yutarokobayashi): I plan to implement the logic in a later PR.
+  if (!is_parent_alive_) {
+    return;
+  }
 
-  // Phase 1: Try delegations
-  // If send succeeds, remove from pending_delegations_ and add to watch_bridges_;
-  // if it fails, leave it as is.
-  // Phase 2: Recover missing bridge owners (Watchdog)
-  // If the bridge owner has disappeared, call handle_create_request to attempt recovery.
+  for (auto it = pending_delegations_.begin(); it != pending_delegations_.end();) {
+    if (shutdown_requested_) {
+      break;
+    }
+    const auto req = it->second;
+    const auto key = it->first;
+    const auto [topic_name, _] = extract_topic_info(req);
+
+    pid_t owner_pid = 0;
+    auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
+
+    switch (add_result) {
+      case AddBridgeResult::SUCCESS:
+        if (try_activate_bridge(req, key)) {
+          it = pending_delegations_.erase(it);
+        } else {
+          ++it;
+        }
+        break;
+      case AddBridgeResult::EXIST:
+        if (try_send_delegation(req, owner_pid)) {
+          watch_bridges_[key] = req;
+          it = pending_delegations_.erase(it);
+        } else {
+          ++it;
+        }
+        break;
+      case AddBridgeResult::ERROR:
+        RCLCPP_ERROR(
+          logger_, "Failed to register bridge to kernel for '%s': %s", topic_name.c_str(),
+          strerror(errno));
+        ++it;
+        break;
+    }
+  }
+
+  for (auto it = watch_bridges_.begin(); it != watch_bridges_.end();) {
+    if (shutdown_requested_) {
+      break;
+    }
+    const auto req = it->second;
+    const auto key = it->first;
+    const auto [topic_name, _] = extract_topic_info(req);
+
+    pid_t owner_pid = 0;
+    auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
+
+    switch (add_result) {
+      case AddBridgeResult::SUCCESS:
+        RCLCPP_WARN(
+          logger_, "Owner missing for '%s'. Recovering ownership and creating bridge.",
+          topic_name.c_str());
+
+        if (try_activate_bridge(req, key)) {
+          it = watch_bridges_.erase(it);
+        } else {
+          ++it;
+        }
+        break;
+
+      case AddBridgeResult::EXIST:
+        ++it;
+        break;
+
+      case AddBridgeResult::ERROR:
+        RCLCPP_ERROR(
+          logger_, "Failed to check bridge status for '%s': %s", topic_name.c_str(),
+          strerror(errno));
+        ++it;
+        break;
+    }
+  }
 }
 
 void BridgeManager::check_parent_alive()
