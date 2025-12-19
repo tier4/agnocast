@@ -239,7 +239,7 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
     &global_args.parameter_overrides, &local_args.parameter_overrides};
 
   for (const ParameterOverrides * source : arguments_sources) {
-    if (!source || !source->get()) {
+    if (source == nullptr || source->get() == nullptr) {
       continue;
     }
 
