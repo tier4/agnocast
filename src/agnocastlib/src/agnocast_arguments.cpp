@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_arguments.hpp"
 
 #include <rclcpp/parameter_map.hpp>
+
 #include <rcutils/allocator.h>
 #include <rcutils/logging_macros.h>
 
@@ -245,8 +246,7 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
     }
 
     // Use rclcpp::parameter_map_from to filter parameters by node FQN
-    rclcpp::ParameterMap param_map =
-      rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
+    rclcpp::ParameterMap param_map = rclcpp::parameter_map_from(source->get(), node_fqn.c_str());
 
     if (param_map.count(node_fqn) > 0) {
       for (const rclcpp::Parameter & param : param_map.at(node_fqn)) {
