@@ -255,6 +255,9 @@ bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid
 
 void BridgeManager::check_and_recover_bridges()
 {
+  // Although check_parent_alive() clears the pending lists if the parent is dead,
+  // this check serves as a semantic guard to explicitly enforce that no recovery
+  // logic is processed when the parent process is absent.
   if (!is_parent_alive_) {
     return;
   }
