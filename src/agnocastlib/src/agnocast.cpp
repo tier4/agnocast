@@ -128,7 +128,7 @@ void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
   }
 }
 
-initialize_agnocast_result acquire_agnocast_resources()
+initialize_agnocast_result acquire_agnocast_resources_for_bridge()
 {
   union ioctl_add_process_args add_process_args = {};
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
@@ -191,7 +191,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   }
 
   try {
-    const auto resources = acquire_agnocast_resources();
+    const auto resources = acquire_agnocast_resources_for_bridge();
     initialize_bridge_allocator(resources.mempool_ptr, resources.mempool_size);
     BridgeManager manager(target_pid);
     manager.run();
