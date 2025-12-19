@@ -22,14 +22,14 @@ NodeBase::NodeBase(
   enable_topic_statistics_default_(enable_topic_statistics_default),
   local_args_(local_args)
 {
-  // Ensure namespace starts with '/' or is empty
+  // Ensure it starts with '/' or is empty
   if (!ns.empty() && ns[0] != '/') {
     namespace_ = "/" + ns;
   } else {
     namespace_ = ns;
   }
 
-  // Get global arguments from context
+  // Get global remap rules from context
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
@@ -39,7 +39,7 @@ NodeBase::NodeBase(
 
   rcl_allocator_t allocator = rcl_get_default_allocator();
 
-  // Apply node name remapping using rcl_remap_node_name
+  // Apply node name remapping
   {
     char * remapped_node_name = nullptr;
     rcl_ret_t ret = rcl_remap_node_name(
@@ -56,7 +56,7 @@ NodeBase::NodeBase(
     }
   }
 
-  // Apply namespace remapping using rcl_remap_node_namespace
+  // Apply namespace remapping
   {
     char * remapped_namespace = nullptr;
     rcl_ret_t ret = rcl_remap_node_namespace(
@@ -207,41 +207,11 @@ bool NodeBase::get_enable_topic_statistics_default() const
 std::string NodeBase::resolve_topic_or_service_name(
   const std::string & name, bool is_service, bool only_expand) const
 {
-  rcl_allocator_t allocator = rcl_get_default_allocator();
-  char * remapped_name = nullptr;
-  rcl_ret_t ret;
-
-  if (only_expand) {
-    // TODO(Koichi98): Implement topic/service name expansion without remapping
-    // For now, just return the original name
-    return name;
-  }
-
-  if (is_service) {
-    ret = rcl_remap_service_name(
-      local_args_, global_args_, name.c_str(), node_name_.c_str(), namespace_.c_str(), allocator,
-      &remapped_name);
-  } else {
-    ret = rcl_remap_topic_name(
-      local_args_, global_args_, name.c_str(), node_name_.c_str(), namespace_.c_str(), allocator,
-      &remapped_name);
-  }
-
-  if (RCL_RET_OK != ret) {
-    RCLCPP_WARN(
-      rclcpp::get_logger(node_name_), "Failed to remap %s name '%s': %s",
-      is_service ? "service" : "topic", name.c_str(), rcl_get_error_string().str);
-    rcl_reset_error();
-    return name;
-  }
-
-  if (remapped_name != nullptr) {
-    std::string result(remapped_name);
-    allocator.deallocate(remapped_name, allocator.state);
-    return result;
-  }
-
-  return name;
+  (void)name;
+  (void)is_service;
+  (void)only_expand;
+  // TODO(Koichi98)
+  return "";
 }
 
 }  // namespace agnocast::node_interfaces

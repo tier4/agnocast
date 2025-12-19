@@ -1,6 +1,8 @@
 #include "agnocast/node_interfaces/node_topics.hpp"
 
+#include <rcl/expand_topic_name.h>
 #include <rcl/remap.h>
+#include <rcutils/types/string_map.h>
 
 #include <stdexcept>
 #include <utility>
@@ -12,33 +14,70 @@ NodeTopics::NodeTopics(NodeBase::SharedPtr node_base) : node_base_(std::move(nod
 {
 }
 
-std::string NodeTopics::resolve_topic_name(const std::string & name, bool only_expand) const
+std::string NodeTopics::resolve_topic_name(const std::string & input_name, bool only_expand) const
 {
-  // Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c:134-162
-  std::string expanded_topic_name = expand_topic_name(name);
-  if (only_expand) {
-    return expanded_topic_name;
+  // Corresponds to rcl_node_resolve_name in rcl/src/rcl/node_resolve_name.c
+  if (input_name.empty()) {
+    throw std::invalid_argument("topic name must not be empty");
   }
 
-  // Use rcl_remap_topic_name for remapping
   rcl_allocator_t allocator = rcl_get_default_allocator();
-  char * remapped_name = nullptr;
-  rcl_ret_t ret = rcl_remap_topic_name(
-    node_base_->get_local_args(), node_base_->get_global_args(), expanded_topic_name.c_str(),
-    node_base_->get_name(), node_base_->get_namespace(), allocator, &remapped_name);
+  rcutils_allocator_t rcutils_allocator = rcutils_get_default_allocator();
 
-  if (RCL_RET_OK != ret) {
-    rcl_reset_error();
-    return expanded_topic_name;
+  // Initialize substitutions map
+  rcutils_string_map_t substitutions = rcutils_get_zero_initialized_string_map();
+  rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions, 0, rcutils_allocator);
+  if (rcutils_ret != RCUTILS_RET_OK) {
+    throw std::runtime_error("Failed to initialize substitutions map");
   }
 
-  if (remapped_name != nullptr) {
-    std::string result(remapped_name);
-    allocator.deallocate(remapped_name, allocator.state);
+  rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions);
+  if (ret != RCL_RET_OK) {
+    rcutils_ret = rcutils_string_map_fini(&substitutions);
+    (void)rcutils_ret;
+    throw std::runtime_error(
+      "Failed to get default topic name substitutions: " + std::string(rcl_get_error_string().str));
+  }
+
+  // Expand the topic name using rcl_expand_topic_name
+  char * expanded_name = nullptr;
+  ret = rcl_expand_topic_name(
+    input_name.c_str(), node_base_->get_name(), node_base_->get_namespace(), &substitutions,
+    allocator, &expanded_name);
+
+  rcutils_ret = rcutils_string_map_fini(&substitutions);
+  (void)rcutils_ret;
+
+  if (ret != RCL_RET_OK) {
+    std::string error_msg = rcl_get_error_string().str;
+    rcl_reset_error();
+    throw std::runtime_error("Failed to expand topic name: " + error_msg);
+  }
+
+  std::string result(expanded_name);
+  allocator.deallocate(expanded_name, allocator.state);
+
+  if (only_expand) {
     return result;
   }
 
-  return expanded_topic_name;
+  // Remap the topic name using rcl_remap_topic_name
+  char * remapped_name = nullptr;
+  ret = rcl_remap_topic_name(
+    node_base_->get_local_args(), node_base_->get_global_args(), result.c_str(),
+    node_base_->get_name(), node_base_->get_namespace(), allocator, &remapped_name);
+
+  if (ret != RCL_RET_OK) {
+    rcl_reset_error();
+    return result;
+  }
+
+  if (remapped_name != nullptr) {
+    result = remapped_name;
+    allocator.deallocate(remapped_name, allocator.state);
+  }
+
+  return result;
 }
 
 rclcpp::node_interfaces::NodeBaseInterface * NodeTopics::get_node_base_interface() const
@@ -95,102 +134,6 @@ rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_inter
   throw std::runtime_error(
     "NodeTopics::get_node_timers_interface is not supported in agnocast. "
     "Timers interface is not available.");
-}
-
-std::string NodeTopics::expand_topic_name(const std::string & input_topic_name) const
-{
-  // Corresponds to rcl_expand_topic_name
-  //
-  // TODO(Koichi98): Support custom substitutions via rcutils_string_map_t
-  // TODO(Koichi98): Validate input_topic_name using rcl_validate_topic_name
-  // TODO(Koichi98): Validate node_name using rmw_validate_node_name
-  // TODO(Koichi98): Validate node_namespace using rmw_validate_namespace
-
-  if (input_topic_name.empty()) {
-    throw std::invalid_argument("topic name must not be empty");
-  }
-
-  const std::string node_name = node_base_->get_name();
-  const std::string node_namespace = node_base_->get_namespace();
-
-  // Check if the topic has substitutions to be made
-  bool has_a_substitution = input_topic_name.find('{') != std::string::npos;
-  bool has_a_namespace_tilde = input_topic_name[0] == '~';
-  bool is_absolute = input_topic_name[0] == '/';
-
-  // If absolute and doesn't have any substitution, nothing to do
-  if (is_absolute && !has_a_substitution) {
-    return input_topic_name;
-  }
-
-  std::string local_output;
-
-  // If has_a_namespace_tilde, replace that first
-  if (has_a_namespace_tilde) {
-    // Special case where node_namespace is just '/'
-    // then no additional separating '/' is needed
-    if (node_namespace == "/") {
-      local_output = node_namespace + node_name + input_topic_name.substr(1);
-    } else {
-      local_output = node_namespace + "/" + node_name + input_topic_name.substr(1);
-    }
-  }
-
-  // If it has any substitutions, replace those
-  if (has_a_substitution) {
-    // Assumptions entering this scope about the topic string:
-    // - All {} are matched and balanced
-    // - There is no nesting, i.e. {{}}
-    // - There are no empty substitution substr, i.e. '{}' versus '{something}'
-    const std::string & current_output = local_output.empty() ? input_topic_name : local_output;
-    std::string result = current_output;
-    size_t search_pos = 0;
-
-    while (true) {
-      size_t next_opening_brace = result.find('{', search_pos);
-      if (next_opening_brace == std::string::npos) {
-        break;
-      }
-      size_t next_closing_brace = result.find('}', next_opening_brace);
-      if (next_closing_brace == std::string::npos) {
-        break;
-      }
-
-      // conclusion based on above assumptions: next_closing_brace - next_opening_brace > 1
-      size_t substitution_substr_len = next_closing_brace - next_opening_brace + 1;
-      std::string substitution = result.substr(next_opening_brace, substitution_substr_len);
-
-      // Figure out what the replacement is for this substitution
-      std::string replacement;
-      if (substitution == "{node}") {
-        replacement = node_name;
-      } else if (substitution == "{ns}" || substitution == "{namespace}") {
-        replacement = node_namespace;
-      } else {
-        // TODO(Koichi98): Check custom substitutions map before throwing
-        throw std::invalid_argument("unknown substitution: " + substitution);
-      }
-
-      // Do the replacement
-      result.replace(next_opening_brace, substitution_substr_len, replacement);
-      search_pos = next_opening_brace + replacement.length();
-    }
-    local_output = result;
-  }
-
-  // Finally make the name absolute if it isn't already
-  const std::string & name_to_check = local_output.empty() ? input_topic_name : local_output;
-  if (name_to_check[0] != '/') {
-    // Special case where node_namespace is just '/'
-    // then no additional separating '/' is needed
-    if (node_namespace == "/") {
-      local_output = node_namespace + name_to_check;
-    } else {
-      local_output = node_namespace + "/" + name_to_check;
-    }
-  }
-
-  return local_output;
 }
 
 }  // namespace agnocast::node_interfaces

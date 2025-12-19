@@ -39,8 +39,6 @@ public:
   rclcpp::node_interfaces::NodeTimersInterface * get_node_timers_interface() const override;
 
 private:
-  std::string expand_topic_name(const std::string & input_topic_name) const;
-
   NodeBase::SharedPtr node_base_;
 };
 }  // namespace agnocast::node_interfaces

@@ -168,7 +168,7 @@ TEST_F(NodeTopicsExpandTest, empty_topic_name_throws)
 TEST_F(NodeTopicsExpandTest, unknown_substitution_throws)
 {
   auto node_topics = create_node_topics("my_node", "/my_ns");
-  EXPECT_THROW(node_topics->resolve_topic_name("{unknown}", true), std::invalid_argument);
+  EXPECT_THROW(node_topics->resolve_topic_name("{unknown}", true), std::runtime_error);
 }
 
 // =========================================

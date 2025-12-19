@@ -19,22 +19,17 @@ public:
   ParsedArguments();
   ~ParsedArguments();
 
-  // Move semantics
   ParsedArguments(ParsedArguments && other) noexcept;
   ParsedArguments & operator=(ParsedArguments && other) noexcept;
 
-  // Copy semantics
   ParsedArguments(const ParsedArguments & other);
   ParsedArguments & operator=(const ParsedArguments & other);
 
-  /// Parse arguments from string vector using rcl_parse_arguments
   void parse(const std::vector<std::string> & arguments);
 
-  /// Get the underlying rcl_arguments_t pointer
   rcl_arguments_t * get() { return &args_; }
   const rcl_arguments_t * get() const { return &args_; }
 
-  /// Check if arguments have been parsed successfully
   bool is_valid() const { return initialized_; }
 
 private:
@@ -44,7 +39,6 @@ private:
   void fini();
 };
 
-/// Parse command line arguments using rcl_parse_arguments
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments);
 
 /// Resolve parameter overrides from multiple sources.

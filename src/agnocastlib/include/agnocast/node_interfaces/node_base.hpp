@@ -57,10 +57,7 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
-  /// Get the local arguments (from NodeOptions::arguments())
   const rcl_arguments_t * get_local_args() const { return local_args_; }
-
-  /// Get the global arguments (from agnocast::init)
   const rcl_arguments_t * get_global_args() const { return global_args_; }
 
 private:
@@ -80,7 +77,6 @@ private:
   bool use_intra_process_default_;
   bool enable_topic_statistics_default_;
 
-  // Pointers to rcl_arguments_t (owned by ParsedArguments objects elsewhere)
   const rcl_arguments_t * local_args_ = nullptr;
   const rcl_arguments_t * global_args_ = nullptr;
 };
