@@ -61,18 +61,14 @@ void BridgeManager::run()
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
+    if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
+      break;
+    }
+
     check_parent_alive();
     check_and_recover_bridges();
     check_active_bridges();
     check_should_exit();
-
-    if (shutdown_requested_) {
-      break;
-    }
-
-    if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
-      break;
-    }
   }
 }
 
@@ -88,6 +84,7 @@ void BridgeManager::start_ros_execution()
     try {
       this->executor_->spin();
     } catch (const std::exception & e) {
+      shutdown_requested_ = true;
       RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
     }
   });
@@ -217,13 +214,6 @@ bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid
 
 void BridgeManager::check_and_recover_bridges()
 {
-  // Although check_parent_alive() clears the pending lists if the parent is dead,
-  // this check serves as a semantic guard to explicitly enforce that no recovery
-  // logic is processed when the parent process is absent.
-  if (!is_parent_alive_) {
-    return;
-  }
-
   for (auto it = managed_bridges_.begin(); it != managed_bridges_.end();) {
     if (shutdown_requested_) {
       break;
