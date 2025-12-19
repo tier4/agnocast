@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 
 namespace agnocast
 {
@@ -48,15 +49,16 @@ public:
 
   ipc_shared_ptr() = default;
 
-  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id)
+  template <typename S>
+  explicit ipc_shared_ptr(T * ptr, S && topic_name, const topic_local_id_t pubsub_id)
+  : ptr_(ptr), topic_name_(std::forward<S>(topic_name)), pubsub_id_(pubsub_id)
   {
   }
 
+  template <typename S>
   explicit ipc_shared_ptr(
-    T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
-    const int64_t entry_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id), entry_id_(entry_id)
+    T * ptr, S && topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
+  : ptr_(ptr), topic_name_(std::forward<S>(topic_name)), pubsub_id_(pubsub_id), entry_id_(entry_id)
   {
   }
 
