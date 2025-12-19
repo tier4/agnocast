@@ -42,6 +42,10 @@ BridgeManager::~BridgeManager()
     executor_thread_.join();
   }
 
+  active_bridges_.clear();
+  container_node_.reset();
+  executor_.reset();
+
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
@@ -66,7 +70,7 @@ void BridgeManager::run()
     }
 
     check_parent_alive();
-    check_and_recover_bridges();
+    process_managed_bridges();
     check_active_bridges();
     check_should_exit();
   }
@@ -97,7 +101,7 @@ void BridgeManager::on_mq_create_request(mqd_t fd)
     if (shutdown_requested_) {
       break;
     }
-    handle_create_request(req);
+    register_create_request(req);
   }
 }
 
@@ -108,7 +112,7 @@ void BridgeManager::on_mq_delegation_request(mqd_t fd)
     if (shutdown_requested_) {
       break;
     }
-    handle_delegate_request(req);
+    register_delegate_request(req);
   }
 }
 
@@ -120,7 +124,7 @@ void BridgeManager::on_signal()
   }
 }
 
-void BridgeManager::handle_create_request(const MqMsgBridge & req)
+void BridgeManager::register_create_request(const MqMsgBridge & req)
 {
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
@@ -136,7 +140,7 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   info.need_delegate = true;
 }
 
-void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
+void BridgeManager::register_delegate_request(const MqMsgBridge & req)
 {
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
@@ -212,7 +216,7 @@ bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid
   return true;
 }
 
-void BridgeManager::check_and_recover_bridges()
+void BridgeManager::process_managed_bridges()
 {
   for (auto it = managed_bridges_.begin(); it != managed_bridges_.end();) {
     if (shutdown_requested_) {
