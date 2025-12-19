@@ -24,6 +24,15 @@ public:
 private:
   enum class AddBridgeResult { SUCCESS, EXIST, ERROR };
 
+  struct BridgeInfo
+  {
+    MqMsgBridge req_r2a{};
+    MqMsgBridge req_a2r{};
+    bool has_r2a = false;
+    bool has_a2r = false;
+    bool need_delegate = false;
+  };
+
   const pid_t target_pid_;
   rclcpp::Logger logger_;
 
@@ -38,8 +47,7 @@ private:
   std::thread executor_thread_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
-  std::map<std::string, MqMsgBridge> watch_bridges_;
-  std::map<std::string, MqMsgBridge> pending_delegations_;
+  std::map<std::string, BridgeInfo> managed_bridges_;
 
   void start_ros_execution();
 

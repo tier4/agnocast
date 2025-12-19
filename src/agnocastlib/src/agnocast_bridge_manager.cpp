@@ -128,32 +128,15 @@ void BridgeManager::handle_create_request(const MqMsgBridge & req)
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   const auto [topic_name, topic_name_with_direction] = extract_topic_info(req);
-
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
   }
 
-  pid_t owner_pid = 0;
-  auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
-
-  switch (add_result) {
-    case AddBridgeResult::SUCCESS:
-      if (try_activate_bridge(req, topic_name_with_direction)) {
-        watch_bridges_.erase(topic_name_with_direction);
-        pending_delegations_.erase(topic_name_with_direction);
-      }
-      break;
-
-    case AddBridgeResult::EXIST:
-      pending_delegations_[topic_name_with_direction] = req;
-      break;
-
-    case AddBridgeResult::ERROR:
-      RCLCPP_ERROR(
-        logger_, "AGNOCAST_ADD_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
-        strerror(errno));
-      break;
-  }
+  auto & info = managed_bridges_[topic_name];
+  bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
+  (is_r2a ? info.req_r2a : info.req_a2r) = req;
+  (is_r2a ? info.has_r2a : info.has_a2r) = true;
+  info.need_delegate = true;
 }
 
 void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
@@ -161,36 +144,15 @@ void BridgeManager::handle_delegate_request(const MqMsgBridge & req)
   // Locally, unique keys include the direction. However, we register the raw topic name (without
   // direction) to the kernel to enforce single-process ownership for the entire topic.
   const auto [topic_name, topic_name_with_direction] = extract_topic_info(req);
-
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
   }
 
-  pid_t owner_pid = 0;
-  auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
-
-  switch (add_result) {
-    case AddBridgeResult::SUCCESS:
-      if (try_activate_bridge(req, topic_name_with_direction)) {
-        watch_bridges_.erase(topic_name_with_direction);
-        pending_delegations_.erase(topic_name_with_direction);
-      }
-      break;
-
-    case AddBridgeResult::EXIST:
-      RCLCPP_ERROR(
-        logger_,
-        "Received delegation request for '%s', but I am not the owner (Actual Owner PID: %d). "
-        "Rejecting request.",
-        topic_name.c_str(), owner_pid);
-      break;
-
-    case AddBridgeResult::ERROR:
-      RCLCPP_ERROR(
-        logger_, "AGNOCAST_ADD_BRIDGE_CMD failed for topic '%s': %s", topic_name.c_str(),
-        strerror(errno));
-      break;
-  }
+  auto & info = managed_bridges_[topic_name];
+  bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
+  (is_r2a ? info.req_r2a : info.req_a2r) = req;
+  (is_r2a ? info.has_r2a : info.has_a2r) = true;
+  info.need_delegate = true;
 }
 
 BridgeManager::AddBridgeResult BridgeManager::try_add_bridge_to_kernel(
@@ -262,72 +224,47 @@ void BridgeManager::check_and_recover_bridges()
     return;
   }
 
-  for (auto it = pending_delegations_.begin(); it != pending_delegations_.end();) {
+  for (auto it = managed_bridges_.begin(); it != managed_bridges_.end();) {
     if (shutdown_requested_) {
       break;
     }
-    const auto req = it->second;
-    const auto key = it->first;
-    const auto [topic_name, _] = extract_topic_info(req);
+
+    const auto & topic_name = it->first;
+    auto & info = it->second;
 
     pid_t owner_pid = 0;
     auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
 
     switch (add_result) {
-      case AddBridgeResult::SUCCESS:
-        if (try_activate_bridge(req, key)) {
-          it = pending_delegations_.erase(it);
+      case AddBridgeResult::SUCCESS: {
+        bool r2a_ok =
+          info.has_r2a && try_activate_bridge(info.req_r2a, topic_name + std::string(SUFFIX_R2A));
+        bool a2r_ok =
+          info.has_a2r && try_activate_bridge(info.req_a2r, topic_name + std::string(SUFFIX_A2R));
+        if (r2a_ok || a2r_ok) {
+          it = managed_bridges_.erase(it);
         } else {
           ++it;
         }
         break;
-      case AddBridgeResult::EXIST:
-        if (try_send_delegation(req, owner_pid)) {
-          watch_bridges_[key] = req;
-          it = pending_delegations_.erase(it);
-        } else {
-          ++it;
+      }
+
+      case AddBridgeResult::EXIST: {
+        if (info.need_delegate) {
+          bool r2a_done = !info.has_r2a || try_send_delegation(info.req_r2a, owner_pid);
+          bool a2r_done = !info.has_a2r || try_send_delegation(info.req_a2r, owner_pid);
+
+          if (r2a_done && a2r_done) {
+            info.need_delegate = false;
+          }
         }
-        break;
-      case AddBridgeResult::ERROR:
-        RCLCPP_ERROR(
-          logger_, "Failed to register bridge to kernel for '%s': %s", topic_name.c_str(),
-          strerror(errno));
         ++it;
         break;
-    }
-  }
-
-  for (auto it = watch_bridges_.begin(); it != watch_bridges_.end();) {
-    if (shutdown_requested_) {
-      break;
-    }
-    const auto req = it->second;
-    const auto key = it->first;
-    const auto [topic_name, _] = extract_topic_info(req);
-
-    pid_t owner_pid = 0;
-    auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
-
-    switch (add_result) {
-      case AddBridgeResult::SUCCESS:
-        RCLCPP_WARN(
-          logger_, "Owner missing for '%s'. Recovering ownership and creating bridge.",
-          topic_name.c_str());
-        if (try_activate_bridge(req, key)) {
-          it = watch_bridges_.erase(it);
-        } else {
-          ++it;
-        }
-        break;
-
-      case AddBridgeResult::EXIST:
-        ++it;
-        break;
+      }
 
       case AddBridgeResult::ERROR:
         RCLCPP_ERROR(
-          logger_, "Failed to check bridge status for '%s': %s", topic_name.c_str(),
+          logger_, "Failed to check/register bridge for '%s': %s", topic_name.c_str(),
           strerror(errno));
         ++it;
         break;
@@ -343,8 +280,7 @@ void BridgeManager::check_parent_alive()
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
     event_loop_.close_parent_mq();
-    watch_bridges_.clear();
-    pending_delegations_.clear();
+    managed_bridges_.clear();
   }
 }
 
