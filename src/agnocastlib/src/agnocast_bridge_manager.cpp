@@ -311,7 +311,6 @@ void BridgeManager::check_and_recover_bridges()
         RCLCPP_WARN(
           logger_, "Owner missing for '%s'. Recovering ownership and creating bridge.",
           topic_name.c_str());
-
         if (try_activate_bridge(req, key)) {
           it = watch_bridges_.erase(it);
         } else {
