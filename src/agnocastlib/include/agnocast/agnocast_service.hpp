@@ -23,11 +23,11 @@ public:
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
   struct ResponseT : public ServiceT::Response
   {
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
 
 private:
