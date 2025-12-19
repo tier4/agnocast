@@ -35,10 +35,6 @@ NodeBase::NodeBase(
     }
   }
 
-  // Apply node name and namespace remapping.
-  // Following rclcpp's behavior: local rules (NodeOptions::arguments()) take priority over
-  // global rules (agnocast::init() arguments).
-
   // Apply node name remapping
   auto local_node_name_it = std::find_if(
     local_remap_rules_.begin(), local_remap_rules_.end(),
