@@ -27,35 +27,21 @@ struct RemapRule
 
 using ParameterValue = rclcpp::ParameterValue;
 
-/// RAII wrapper for rcl_params_t.
-/// Corresponds to rcl_params_t usage in rclcpp/rcl.
 class ParameterOverrides
 {
 public:
   ParameterOverrides();
   ~ParameterOverrides();
 
-  // Copy semantics (using rcl_yaml_node_struct_copy)
   ParameterOverrides(const ParameterOverrides & other);
   ParameterOverrides & operator=(const ParameterOverrides & other);
 
-  // Move semantics
   ParameterOverrides(ParameterOverrides && other) noexcept;
   ParameterOverrides & operator=(ParameterOverrides && other) noexcept;
 
-  /// Get the underlying rcl_params_t pointer.
   rcl_params_t * get() const { return params_; }
 
-  /// Parse a YAML parameter file and add parameters to the structure.
-  /// Corresponds to rcl_parse_yaml_file.
-  /// @param yaml_file Path to the YAML file
-  /// @return true if successful, false otherwise
   bool parse_yaml_file(const std::string & yaml_file);
-
-  /// Parse a parameter rule (e.g., "param_name:=value" or "node_name:param_name:=value").
-  /// Corresponds to rcl_parse_yaml_value with node name prefix support.
-  /// @param arg The argument string to parse
-  /// @return true if successful, false otherwise
   bool parse_param_rule(const std::string & arg);
 
 private:
@@ -66,15 +52,6 @@ struct ParsedArguments
 {
   std::vector<RemapRule> remap_rules;
   ParameterOverrides parameter_overrides;
-
-  // Default constructor
-  ParsedArguments() = default;
-
-  // Copy and move semantics (ParameterOverrides supports both)
-  ParsedArguments(const ParsedArguments &) = default;
-  ParsedArguments & operator=(const ParsedArguments &) = default;
-  ParsedArguments(ParsedArguments &&) = default;
-  ParsedArguments & operator=(ParsedArguments &&) = default;
 };
 
 bool parse_remap_rule(const std::string & arg, RemapRule & output_rule);
