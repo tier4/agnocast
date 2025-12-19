@@ -39,32 +39,34 @@ NodeBase::NodeBase(
   // Following rclcpp's behavior: local rules (NodeOptions::arguments()) take priority over
   // global rules (agnocast::init() arguments).
 
-  // Helper lambda to find first matching rule of a given type
-  auto find_remap_rule = [](const std::vector<RemapRule> & rules, RemapType type) {
-    return std::find_if(
-      rules.begin(), rules.end(), [type](const auto & rule) { return rule.type == type; });
-  };
-
   // Apply node name remapping
-  auto local_node_name_it = find_remap_rule(local_remap_rules_, RemapType::NODE_NAME);
+  auto local_node_name_it = std::find_if(
+    local_remap_rules_.begin(), local_remap_rules_.end(),
+    [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
   if (local_node_name_it != local_remap_rules_.end()) {
     node_name_ = local_node_name_it->replacement;
   } else {
-    auto global_node_name_it = find_remap_rule(global_remap_rules_, RemapType::NODE_NAME);
+    auto global_node_name_it = std::find_if(
+      global_remap_rules_.begin(), global_remap_rules_.end(),
+      [](const auto & rule) { return rule.type == RemapType::NODE_NAME; });
     if (global_node_name_it != global_remap_rules_.end()) {
       node_name_ = global_node_name_it->replacement;
     }
   }
 
   // Apply namespace remapping
-  auto local_namespace_it = find_remap_rule(local_remap_rules_, RemapType::NAMESPACE);
+  auto local_namespace_it = std::find_if(
+    local_remap_rules_.begin(), local_remap_rules_.end(),
+    [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
   if (local_namespace_it != local_remap_rules_.end()) {
     namespace_ = local_namespace_it->replacement;
     if (!namespace_.empty() && namespace_[0] != '/') {
       namespace_ = "/" + namespace_;
     }
   } else {
-    auto global_namespace_it = find_remap_rule(global_remap_rules_, RemapType::NAMESPACE);
+    auto global_namespace_it = std::find_if(
+      global_remap_rules_.begin(), global_remap_rules_.end(),
+      [](const auto & rule) { return rule.type == RemapType::NAMESPACE; });
     if (global_namespace_it != global_remap_rules_.end()) {
       namespace_ = global_namespace_it->replacement;
       if (!namespace_.empty() && namespace_[0] != '/') {
