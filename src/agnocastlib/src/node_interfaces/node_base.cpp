@@ -29,7 +29,7 @@ NodeBase::NodeBase(
     namespace_ = ns;
   }
 
-  // Get global remap rules from context
+  // Get global arguments from context
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {

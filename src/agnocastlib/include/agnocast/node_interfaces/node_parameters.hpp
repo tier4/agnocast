@@ -1,6 +1,5 @@
 #pragma once
 
-#include "agnocast/agnocast_arguments.hpp"
 #include "rcl_interfaces/msg/list_parameters_result.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
