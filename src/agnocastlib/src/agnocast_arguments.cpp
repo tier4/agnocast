@@ -208,8 +208,6 @@ bool ParameterOverrides::parse_param_rule(const std::string & arg)
   return rcl_parse_yaml_value(node_name.c_str(), param_name.c_str(), yaml_value.c_str(), params_);
 }
 
-// Free functions
-
 bool parse_remap_rule(const std::string & arg, RemapRule & output_rule)
 {
   // Corresponds to _rcl_parse_remap_rule in rcl/src/rcl/arguments.c.
@@ -389,7 +387,7 @@ std::map<std::string, ParameterValue> resolve_parameter_overrides(
   // https://github.com/ros2/rclcpp/blob/rolling/rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp)
   // and use it here to filter parameters by node FQN from global_args and local_args.
 
-  // Parameter overrides passed to constructor will overwrite overrides from yaml file sources
+  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
   for (const auto & param : parameter_overrides) {
     result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
   }
