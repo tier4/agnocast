@@ -42,7 +42,7 @@ ParameterOverrides::ParameterOverrides()
 
 ParameterOverrides::~ParameterOverrides()
 {
-  if (params_) {
+  if (params_ != nullptr) {
     rcl_yaml_node_struct_fini(params_);
     params_ = nullptr;
   }
@@ -50,7 +50,7 @@ ParameterOverrides::~ParameterOverrides()
 
 ParameterOverrides::ParameterOverrides(const ParameterOverrides & other) : params_(nullptr)
 {
-  if (other.params_) {
+  if (other.params_ != nullptr) {
     params_ = rcl_yaml_node_struct_copy(other.params_);
     if (nullptr == params_) {
       throw std::runtime_error("Failed to copy rcl_params_t");
@@ -61,11 +61,11 @@ ParameterOverrides::ParameterOverrides(const ParameterOverrides & other) : param
 ParameterOverrides & ParameterOverrides::operator=(const ParameterOverrides & other)
 {
   if (this != &other) {
-    if (params_) {
+    if (params_ != nullptr) {
       rcl_yaml_node_struct_fini(params_);
       params_ = nullptr;
     }
-    if (other.params_) {
+    if (other.params_ != nullptr) {
       params_ = rcl_yaml_node_struct_copy(other.params_);
       if (nullptr == params_) {
         throw std::runtime_error("Failed to copy rcl_params_t");
@@ -84,7 +84,7 @@ ParameterOverrides::ParameterOverrides(ParameterOverrides && other) noexcept
 ParameterOverrides & ParameterOverrides::operator=(ParameterOverrides && other) noexcept
 {
   if (this != &other) {
-    if (params_) {
+    if (params_ != nullptr) {
       rcl_yaml_node_struct_fini(params_);
     }
     params_ = other.params_;
