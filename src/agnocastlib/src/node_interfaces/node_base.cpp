@@ -37,8 +37,7 @@ NodeBase::NodeBase(
 
   // Apply node name and namespace remapping.
   // Following rclcpp's behavior: local rules (NodeOptions::arguments()) take priority over
-  // global rules (agnocast::init() arguments). Only the first matching rule of each type is
-  // applied.
+  // global rules (agnocast::init() arguments).
 
   // Helper lambda to find first matching rule of a given type
   auto find_remap_rule = [](const std::vector<RemapRule> & rules, RemapType type) {
@@ -46,7 +45,7 @@ NodeBase::NodeBase(
       rules.begin(), rules.end(), [type](const auto & rule) { return rule.type == type; });
   };
 
-  // Apply node name remapping (local > global priority)
+  // Apply node name remapping
   auto local_node_name_it = find_remap_rule(local_remap_rules_, RemapType::NODE_NAME);
   if (local_node_name_it != local_remap_rules_.end()) {
     node_name_ = local_node_name_it->replacement;
@@ -57,7 +56,7 @@ NodeBase::NodeBase(
     }
   }
 
-  // Apply namespace remapping (local > global priority)
+  // Apply namespace remapping
   auto local_namespace_it = find_remap_rule(local_remap_rules_, RemapType::NAMESPACE);
   if (local_namespace_it != local_remap_rules_.end()) {
     namespace_ = local_namespace_it->replacement;
