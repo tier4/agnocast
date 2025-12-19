@@ -1,43 +1,148 @@
 #include "agnocast/node_interfaces/node_parameters.hpp"
 
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
+#include "rclcpp/exceptions/exceptions.hpp"
 
 #include <utility>
 
 namespace agnocast::node_interfaces
 {
 
+namespace
+{
+
+bool lockless_has_parameter(
+  const std::map<std::string, ParameterInfo> & parameters, const std::string & name)
+{
+  return parameters.find(name) != parameters.end();
+}
+
+rclcpp::Parameter lockless_get_parameter(
+  const std::map<std::string, ParameterInfo> & parameters, const std::string & name,
+  bool allow_undeclared)
+{
+  auto param_iter = parameters.find(name);
+  if (parameters.end() != param_iter) {
+    if (
+      param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET ||
+      param_iter->second.descriptor.dynamic_typing) {
+      return rclcpp::Parameter{name, param_iter->second.value};
+    }
+    throw rclcpp::exceptions::ParameterUninitializedException(name);
+  }
+  if (allow_undeclared) {
+    return rclcpp::Parameter{name};
+  }
+  throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+}
+
+const rclcpp::ParameterValue & declare_parameter_helper(
+  const std::string & name, rclcpp::ParameterType type,
+  const rclcpp::ParameterValue & default_value,
+  rcl_interfaces::msg::ParameterDescriptor parameter_descriptor, bool ignore_override,
+  std::map<std::string, ParameterInfo> & parameters,
+  const std::map<std::string, rclcpp::ParameterValue> & overrides)
+{
+  if (name.empty()) {
+    throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
+  }
+
+  // Error if this parameter has already been declared
+  if (lockless_has_parameter(parameters, name)) {
+    throw rclcpp::exceptions::ParameterAlreadyDeclaredException(
+      "parameter '" + name + "' has already been declared");
+  }
+
+  if (!parameter_descriptor.dynamic_typing) {
+    if (rclcpp::PARAMETER_NOT_SET == type) {
+      type = default_value.get_type();
+    }
+    if (rclcpp::PARAMETER_NOT_SET == type) {
+      throw rclcpp::exceptions::InvalidParameterTypeException{
+        name, "cannot declare a statically typed parameter with an uninitialized value"};
+    }
+    parameter_descriptor.type = static_cast<uint8_t>(type);
+  }
+
+  ParameterInfo parameter_info;
+  parameter_info.descriptor = parameter_descriptor;
+  parameter_info.descriptor.name = name;
+
+  // Use the value from the overrides if available, otherwise use the default.
+  auto overrides_it = overrides.find(name);
+  if (!ignore_override && overrides_it != overrides.end()) {
+    parameter_info.value = overrides_it->second;
+  } else {
+    parameter_info.value = default_value;
+  }
+
+  parameters[name] = parameter_info;
+
+  // Note: rclcpp has __declare_parameter_common which is not currently needed in Agnocast because:
+  // - override handling: done directly in this function
+  // - on_parameters_set callbacks: not implemented
+  // - parameter events publishing: not implemented
+
+  return parameters.at(name).value;
+}
+
+}  // namespace
+
 NodeParameters::NodeParameters(
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
-  const std::vector<rclcpp::Parameter> & parameter_overrides)
-: node_base_(std::move(node_base))
+  const std::vector<rclcpp::Parameter> & parameter_overrides, const ParsedArguments & local_args,
+  bool allow_undeclared_parameters)
+: node_base_(std::move(node_base)), allow_undeclared_(allow_undeclared_parameters)
 {
-  // TODO(Koichi98): Initialize parameter_overrides_ from parameter_overrides
-  (void)parameter_overrides;
+  ParsedArguments global_args;
+  {
+    std::lock_guard<std::mutex> lock(g_context_mtx);
+    if (g_context.is_initialized()) {
+      global_args = g_context.get_parsed_arguments();
+    }
+  }
+
+  std::string combined_name = node_base_->get_fully_qualified_name();
+  parameter_overrides_ =
+    resolve_parameter_overrides(combined_name, parameter_overrides, local_args, global_args);
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)default_value;
-  (void)parameter_descriptor;
-  (void)ignore_override;
-  throw std::runtime_error("NodeParameters::declare_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
+  // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
+
+  return declare_parameter_helper(
+    name, rclcpp::PARAMETER_NOT_SET, default_value, parameter_descriptor, ignore_override,
+    parameters_, parameter_overrides_);
 }
 
 const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)type;
-  (void)parameter_descriptor;
-  (void)ignore_override;
-  throw std::runtime_error("NodeParameters::declare_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  // Note: rclcpp uses ParameterMutationRecursionGuard here to prevent parameter modification
+  // from within callbacks. Not needed in Agnocast since callbacks are not implemented.
+
+  if (rclcpp::PARAMETER_NOT_SET == type) {
+    throw std::invalid_argument{
+      "declare_parameter(): the provided parameter type cannot be rclcpp::PARAMETER_NOT_SET"};
+  }
+
+  if (parameter_descriptor.dynamic_typing) {
+    throw std::invalid_argument{
+      "declare_parameter(): cannot declare parameter of specific type and pass descriptor "
+      "with `dynamic_typing=true`"};
+  }
+
+  return declare_parameter_helper(
+    name, type, rclcpp::ParameterValue{}, parameter_descriptor, ignore_override, parameters_,
+    parameter_overrides_);
 }
 
 void NodeParameters::undeclare_parameter(const std::string & name)
@@ -50,9 +155,9 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error("NodeParameters::has_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  return lockless_has_parameter(parameters_, name);
 }
 
 std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parameters(
@@ -75,24 +180,35 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   const std::vector<std::string> & names) const
 {
-  // TODO(Koichi98)
-  (void)names;
-  throw std::runtime_error("NodeParameters::get_parameters is not yet implemented in agnocast");
+  std::vector<rclcpp::Parameter> results;
+  results.reserve(names.size());
+
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  for (const auto & name : names) {
+    results.emplace_back(lockless_get_parameter(parameters_, name, allow_undeclared_));
+  }
+  return results;
 }
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  return lockless_get_parameter(parameters_, name, allow_undeclared_);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  // TODO(Koichi98)
-  (void)name;
-  (void)parameter;
-  throw std::runtime_error("NodeParameters::get_parameter is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  auto param_iter = parameters_.find(name);
+  if (
+    parameters_.end() != param_iter &&
+    param_iter->second.value.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET) {
+    parameter = {name, param_iter->second.value};
+    return true;
+  }
+  return false;
 }
 
 bool NodeParameters::get_parameters_by_prefix(
@@ -153,9 +269,7 @@ void NodeParameters::remove_on_set_parameters_callback(
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
   const
 {
-  // TODO(Koichi98)
-  throw std::runtime_error(
-    "NodeParameters::get_parameter_overrides is not yet implemented in agnocast");
+  return parameter_overrides_;
 }
 
 }  // namespace agnocast::node_interfaces

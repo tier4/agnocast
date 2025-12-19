@@ -1,7 +1,9 @@
 #include "agnocast/agnocast_arguments.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <functional>
 #include <sstream>
 
 namespace agnocast
@@ -155,6 +157,39 @@ ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
       // Argument is not a ROS specific argument
       // In RCL this would be stored in unparsed_args
     }
+  }
+
+  return result;
+}
+
+std::map<std::string, ParameterValue> resolve_parameter_overrides(
+  const std::string & node_fqn, const std::vector<rclcpp::Parameter> & parameter_overrides,
+  const ParsedArguments & local_args, const ParsedArguments & global_args)
+{
+  // Corresponds to rclcpp/src/rclcpp/detail/resolve_parameter_overrides.cpp
+  //
+  // TODO(Koichi98): node_fqn is currently unused. In rclcpp, node_fqn is used to filter
+  // parameters by node name. This requires:
+  // - YAML parser support (--params-file)
+  // - Node name prefix support ("node_name:param_name:=value" format)
+  // Currently, all parameters are applied globally to all nodes.
+  (void)node_fqn;
+
+  std::map<std::string, ParameterValue> result;
+
+  // global before local so that local overwrites global
+  std::array<std::reference_wrapper<const ParsedArguments>, 2> argument_sources = {
+    std::cref(global_args), std::cref(local_args)};
+
+  for (const ParsedArguments & source : argument_sources) {
+    for (const auto & [name, value] : source.parameter_overrides) {
+      result[name] = value;
+    }
+  }
+
+  // parameter overrides passed to constructor will overwrite overrides from yaml file sources
+  for (const auto & param : parameter_overrides) {
+    result[param.get_name()] = rclcpp::ParameterValue(param.get_value_message());
   }
 
   return result;
