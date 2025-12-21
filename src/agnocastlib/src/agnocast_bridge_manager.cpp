@@ -232,9 +232,10 @@ void BridgeManager::process_managed_bridges()
     switch (add_result) {
       case AddBridgeResult::SUCCESS: {
         bool r2a_ok =
-          info.has_r2a && try_activate_bridge(info.req_r2a, topic_name + std::string(SUFFIX_R2A));
+          info.req_r2a && try_activate_bridge(*info.req_r2a, topic_name + std::string(SUFFIX_R2A));
         bool a2r_ok =
-          info.has_a2r && try_activate_bridge(info.req_a2r, topic_name + std::string(SUFFIX_A2R));
+          info.req_a2r && try_activate_bridge(*info.req_a2r, topic_name + std::string(SUFFIX_A2R));
+
         if (r2a_ok || a2r_ok) {
           it = managed_bridges_.erase(it);
         } else {
@@ -245,8 +246,8 @@ void BridgeManager::process_managed_bridges()
 
       case AddBridgeResult::EXIST: {
         if (info.need_delegate) {
-          bool r2a_done = !info.has_r2a || try_send_delegation(info.req_r2a, owner_pid);
-          bool a2r_done = !info.has_a2r || try_send_delegation(info.req_a2r, owner_pid);
+          bool r2a_done = !info.req_r2a || try_send_delegation(*info.req_r2a, owner_pid);
+          bool a2r_done = !info.req_a2r || try_send_delegation(*info.req_a2r, owner_pid);
 
           if (r2a_done && a2r_done) {
             info.need_delegate = false;

@@ -6,6 +6,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
+#include <optional>
 
 namespace agnocast
 {
@@ -26,10 +27,8 @@ private:
 
   struct BridgeInfo
   {
-    MqMsgBridge req_r2a{};
-    MqMsgBridge req_a2r{};
-    bool has_r2a = false;
-    bool has_a2r = false;
+    std::optional<MqMsgBridge> req_r2a;
+    std::optional<MqMsgBridge> req_a2r;
     bool need_delegate = false;
   };
 
