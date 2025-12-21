@@ -136,7 +136,6 @@ void BridgeManager::register_create_request(const MqMsgBridge & req)
   auto & info = managed_bridges_[topic_name];
   bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
   (is_r2a ? info.req_r2a : info.req_a2r) = req;
-  (is_r2a ? info.has_r2a : info.has_a2r) = true;
   info.need_delegate = true;
 }
 
@@ -152,7 +151,6 @@ void BridgeManager::register_delegate_request(const MqMsgBridge & req)
   auto & info = managed_bridges_[topic_name];
   bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
   (is_r2a ? info.req_r2a : info.req_a2r) = req;
-  (is_r2a ? info.has_r2a : info.has_a2r) = true;
   info.need_delegate = true;
 }
 
