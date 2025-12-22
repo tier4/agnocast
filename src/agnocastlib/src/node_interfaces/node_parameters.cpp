@@ -99,7 +99,7 @@ NodeParameters::NodeParameters(
   {
     std::lock_guard<std::mutex> lock(g_context_mtx);
     if (g_context.is_initialized()) {
-      global_args = g_context.get_rcl_arguments();
+      global_args = g_context.get_parsed_arguments();
     }
   }
 

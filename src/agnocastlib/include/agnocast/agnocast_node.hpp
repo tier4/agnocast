@@ -134,11 +134,9 @@ public:
 
 private:
   // ParsedArguments must be stored to keep rcl_arguments_t alive
-  // (node_base_ holds a pointer to local_args_.get())
   ParsedArguments local_args_;
 
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
-  ParsedArguments local_args_;
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;

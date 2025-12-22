@@ -21,9 +21,7 @@ public:
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
 
-  const ParsedArguments & get_parsed_arguments() const { return parsed_arguments_; }
-
-  const rcl_arguments_t * get_rcl_arguments() const
+  const rcl_arguments_t * get_parsed_arguments() const
   {
     return parsed_arguments_.is_valid() ? parsed_arguments_.get() : nullptr;
   }
