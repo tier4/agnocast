@@ -76,9 +76,9 @@ ParsedArguments & ParsedArguments::operator=(const ParsedArguments & other)
   return *this;
 }
 
-void ParsedArguments::parse(const std::vector<std::string> & arguments)
+void ParsedArguments::parse(const std::vector<std::string> & /*arguments*/)
 {
-    // TODO(Koichi98)
+  // TODO(Koichi98)
 }
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
