@@ -46,7 +46,7 @@ NodeBase::NodeBase(
     rcl_ret_t ret = rcl_remap_node_name(
       local_args_, global_args_, node_name_.c_str(), allocator, &remapped_node_name);
 
-    if (RCL_RET_OK != ret) {
+    if (ret != RCL_RET_OK) {
       std::string error_msg =
         std::string("Failed to remap node name: ") + rcl_get_error_string().str;
       rcl_reset_error();
@@ -64,7 +64,7 @@ NodeBase::NodeBase(
     rcl_ret_t ret = rcl_remap_node_namespace(
       local_args_, global_args_, node_name_.c_str(), allocator, &remapped_namespace);
 
-    if (RCL_RET_OK != ret) {
+    if (ret != RCL_RET_OK) {
       std::string error_msg =
         std::string("Failed to remap namespace: ") + rcl_get_error_string().str;
       rcl_reset_error();
