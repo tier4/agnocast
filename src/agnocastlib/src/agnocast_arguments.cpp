@@ -12,8 +12,7 @@
 namespace agnocast
 {
 
-ParsedArguments::ParsedArguments()
-: args_(rcl_get_zero_initialized_arguments()), initialized_(false)
+ParsedArguments::ParsedArguments() : args_(rcl_get_zero_initialized_arguments())
 {
 }
 
@@ -24,22 +23,19 @@ ParsedArguments::~ParsedArguments()
 
 void ParsedArguments::fini()
 {
-  if (initialized_) {
+  if (args_.impl != nullptr) {
     rcl_ret_t ret = rcl_arguments_fini(&args_);
     if (RCL_RET_OK != ret) {
       RCUTILS_LOG_ERROR_NAMED(
         "agnocast", "Failed to finalize rcl_arguments_t: %s", rcl_get_error_string().str);
       rcl_reset_error();
     }
-    initialized_ = false;
   }
 }
 
-ParsedArguments::ParsedArguments(ParsedArguments && other) noexcept
-: args_(other.args_), initialized_(other.initialized_)
+ParsedArguments::ParsedArguments(ParsedArguments && other) noexcept : args_(other.args_)
 {
   other.args_ = rcl_get_zero_initialized_arguments();
-  other.initialized_ = false;
 }
 
 ParsedArguments & ParsedArguments::operator=(ParsedArguments && other) noexcept
@@ -47,23 +43,20 @@ ParsedArguments & ParsedArguments::operator=(ParsedArguments && other) noexcept
   if (this != &other) {
     fini();
     args_ = other.args_;
-    initialized_ = other.initialized_;
     other.args_ = rcl_get_zero_initialized_arguments();
-    other.initialized_ = false;
   }
   return *this;
 }
 
 ParsedArguments::ParsedArguments(const ParsedArguments & other)
-: args_(rcl_get_zero_initialized_arguments()), initialized_(false)
+: args_(rcl_get_zero_initialized_arguments())
 {
-  if (other.initialized_) {
+  if (other.args_.impl != nullptr) {
     rcl_ret_t ret = rcl_arguments_copy(&other.args_, &args_);
     if (RCL_RET_OK != ret) {
       throw std::runtime_error(
         "Failed to copy rcl_arguments_t: " + std::string(rcl_get_error_string().str));
     }
-    initialized_ = true;
   }
 }
 
@@ -71,14 +64,13 @@ ParsedArguments & ParsedArguments::operator=(const ParsedArguments & other)
 {
   if (this != &other) {
     fini();
-    if (other.initialized_) {
+    if (other.args_.impl != nullptr) {
       args_ = rcl_get_zero_initialized_arguments();
       rcl_ret_t ret = rcl_arguments_copy(&other.args_, &args_);
       if (RCL_RET_OK != ret) {
         throw std::runtime_error(
           "Failed to copy rcl_arguments_t: " + std::string(rcl_get_error_string().str));
       }
-      initialized_ = true;
     }
   }
   return *this;
@@ -90,7 +82,7 @@ void ParsedArguments::parse(const std::vector<std::string> & arguments)
   args_ = rcl_get_zero_initialized_arguments();
 
   if (arguments.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
-    throw std::runtime_error("Too many arguments");
+    throw std::runtime_error("Too many args");
   }
 
   int argc = static_cast<int>(arguments.size());
@@ -100,15 +92,13 @@ void ParsedArguments::parse(const std::vector<std::string> & arguments)
     argv.push_back(arg.c_str());
   }
 
+  // Parse the ROS specific arguments.
   rcl_allocator_t allocator = rcl_get_default_allocator();
-  rcl_ret_t ret = rcl_parse_arguments(argc, argc > 0 ? argv.data() : nullptr, allocator, &args_);
-
+  rcl_ret_t ret = rcl_parse_arguments(argc, argv.data(), allocator, &args_);
   if (RCL_RET_OK != ret) {
     throw std::runtime_error(
-      "Failed to parse arguments: " + std::string(rcl_get_error_string().str));
+      "Failed to parse global arguments: " + std::string(rcl_get_error_string().str));
   }
-
-  initialized_ = true;
 }
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments)

@@ -12,7 +12,6 @@
 namespace agnocast
 {
 
-/// RAII wrapper for rcl_arguments_t
 class ParsedArguments
 {
 public:
@@ -30,11 +29,10 @@ public:
   rcl_arguments_t * get() { return &args_; }
   const rcl_arguments_t * get() const { return &args_; }
 
-  bool is_valid() const { return initialized_; }
+  bool is_valid() const { return args_.impl != nullptr; }
 
 private:
   rcl_arguments_t args_;
-  bool initialized_ = false;
 
   void fini();
 };
