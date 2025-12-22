@@ -139,7 +139,7 @@ BridgeManager::BridgeKernelResult BridgeManager::try_add_bridge_to_kernel(
 
   int ret = ioctl(agnocast_fd, AGNOCAST_ADD_BRIDGE_CMD, &add_bridge_args);
 
-  if (ret == 0 || (ret != 0 && errno == EEXIST)) {
+  if (ret == 0 || errno == EEXIST) {
     return BridgeKernelResult{
       (ret == 0) ? AddBridgeResult::SUCCESS : AddBridgeResult::EXIST, add_bridge_args.ret_pid,
       add_bridge_args.ret_has_r2a, add_bridge_args.ret_has_a2r};
