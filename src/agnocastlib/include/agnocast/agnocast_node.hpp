@@ -1,3 +1,6 @@
+#pragma once
+
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/node_interfaces/node_base.hpp"
@@ -93,6 +96,11 @@ public:
     return node_parameters_->has_parameter(name);
   }
 
+  void undeclare_parameter(const std::string & name)
+  {
+    node_parameters_->undeclare_parameter(name);
+  }
+
   rclcpp::Parameter get_parameter(const std::string & name) const
   {
     return node_parameters_->get_parameter(name);
@@ -130,6 +138,9 @@ public:
   }
 
 private:
+  // ParsedArguments must be stored to keep rcl_arguments_t alive
+  ParsedArguments local_args_;
+
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
