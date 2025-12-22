@@ -70,7 +70,7 @@ void BridgeManager::run()
     }
 
     check_parent_alive();
-    process_managed_bridges();
+    check_requested_bridges();
     check_active_bridges();
     check_should_exit();
   }
@@ -133,7 +133,7 @@ void BridgeManager::register_create_request(const MqMsgBridge & req)
     return;
   }
 
-  auto & info = managed_bridges_[topic_name];
+  auto & info = requested_bridges_[topic_name];
   bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
   (is_r2a ? info.req_r2a : info.req_a2r) = req;
   info.need_delegate = true;
@@ -148,7 +148,7 @@ void BridgeManager::register_delegate_request(const MqMsgBridge & req)
     return;
   }
 
-  auto & info = managed_bridges_[topic_name];
+  auto & info = requested_bridges_[topic_name];
   bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
   (is_r2a ? info.req_r2a : info.req_a2r) = req;
   info.need_delegate = true;
@@ -214,63 +214,6 @@ bool BridgeManager::try_send_delegation(const MqMsgBridge & req, pid_t owner_pid
   return true;
 }
 
-void BridgeManager::process_managed_bridges()
-{
-  for (auto it = managed_bridges_.begin(); it != managed_bridges_.end();) {
-    if (shutdown_requested_) {
-      break;
-    }
-
-    const auto & topic_name = it->first;
-    auto & info = it->second;
-
-    pid_t owner_pid = 0;
-    auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
-
-    switch (add_result) {
-      case AddBridgeResult::SUCCESS: {
-        bool r2a_ok =
-          info.req_r2a && try_activate_bridge(*info.req_r2a, topic_name + std::string(SUFFIX_R2A));
-        bool a2r_ok =
-          info.req_a2r && try_activate_bridge(*info.req_a2r, topic_name + std::string(SUFFIX_A2R));
-
-        if (r2a_ok || a2r_ok) {
-          it = managed_bridges_.erase(it);
-        } else {
-          ++it;
-        }
-        break;
-      }
-
-      case AddBridgeResult::EXIST: {
-        if (info.delegated_owner_pid != owner_pid) {
-          info.need_delegate = true;
-          info.delegated_owner_pid = 0;
-        }
-
-        if (info.need_delegate) {
-          bool r2a_done = !info.req_r2a || try_send_delegation(*info.req_r2a, owner_pid);
-          bool a2r_done = !info.req_a2r || try_send_delegation(*info.req_a2r, owner_pid);
-
-          if (r2a_done && a2r_done) {
-            info.need_delegate = false;
-            info.delegated_owner_pid = owner_pid;
-          }
-        }
-        ++it;
-        break;
-      }
-
-      case AddBridgeResult::ERROR:
-        RCLCPP_ERROR(
-          logger_, "Failed to check/register bridge for '%s': %s", topic_name.c_str(),
-          strerror(errno));
-        ++it;
-        break;
-    }
-  }
-}
-
 void BridgeManager::check_parent_alive()
 {
   if (!is_parent_alive_) {
@@ -279,7 +222,7 @@ void BridgeManager::check_parent_alive()
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
     event_loop_.close_parent_mq();
-    managed_bridges_.clear();
+    requested_bridges_.clear();
   }
 }
 
@@ -324,6 +267,63 @@ void BridgeManager::check_active_bridges()
 
   for (const auto & key : to_remove) {
     remove_active_bridge(key);
+  }
+}
+
+void BridgeManager::check_requested_bridges()
+{
+  for (auto it = requested_bridges_.begin(); it != requested_bridges_.end();) {
+    if (shutdown_requested_) {
+      break;
+    }
+
+    const auto & topic_name = it->first;
+    auto & info = it->second;
+
+    pid_t owner_pid = 0;
+    auto add_result = try_add_bridge_to_kernel(topic_name, owner_pid);
+
+    switch (add_result) {
+      case AddBridgeResult::SUCCESS: {
+        bool r2a_ok =
+          info.req_r2a && try_activate_bridge(*info.req_r2a, topic_name + std::string(SUFFIX_R2A));
+        bool a2r_ok =
+          info.req_a2r && try_activate_bridge(*info.req_a2r, topic_name + std::string(SUFFIX_A2R));
+
+        if (r2a_ok || a2r_ok) {
+          it = requested_bridges_.erase(it);
+        } else {
+          ++it;
+        }
+        break;
+      }
+
+      case AddBridgeResult::EXIST: {
+        if (info.delegated_owner_pid != owner_pid) {
+          info.need_delegate = true;
+          info.delegated_owner_pid = 0;
+        }
+
+        if (info.need_delegate) {
+          bool r2a_done = !info.req_r2a || try_send_delegation(*info.req_r2a, owner_pid);
+          bool a2r_done = !info.req_a2r || try_send_delegation(*info.req_a2r, owner_pid);
+
+          if (r2a_done && a2r_done) {
+            info.need_delegate = false;
+            info.delegated_owner_pid = owner_pid;
+          }
+        }
+        ++it;
+        break;
+      }
+
+      case AddBridgeResult::ERROR:
+        RCLCPP_ERROR(
+          logger_, "Failed to check/register bridge for '%s': %s", topic_name.c_str(),
+          strerror(errno));
+        ++it;
+        break;
+    }
   }
 }
 
