@@ -46,6 +46,9 @@ std::string NodeTopics::resolve_topic_name(const std::string & input_name, bool 
   }
 
   if (rcutils_ret != RCUTILS_RET_OK) {
+    if (expanded_name != nullptr) {
+      allocator.deallocate(expanded_name, allocator.state);
+    }
     throw std::runtime_error(
       "Failed to fini substitutions map: " + std::string(rcutils_get_error_string().str));
   }
