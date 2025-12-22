@@ -30,6 +30,7 @@ private:
     std::optional<MqMsgBridge> req_r2a;
     std::optional<MqMsgBridge> req_a2r;
     bool need_delegate = false;
+    pid_t delegated_owner_pid = 0;
   };
 
   const pid_t target_pid_;

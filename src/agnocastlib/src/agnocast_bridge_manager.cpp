@@ -243,12 +243,18 @@ void BridgeManager::process_managed_bridges()
       }
 
       case AddBridgeResult::EXIST: {
+        if (info.delegated_owner_pid != owner_pid) {
+          info.need_delegate = true;
+          info.delegated_owner_pid = 0;
+        }
+
         if (info.need_delegate) {
           bool r2a_done = !info.req_r2a || try_send_delegation(*info.req_r2a, owner_pid);
           bool a2r_done = !info.req_a2r || try_send_delegation(*info.req_a2r, owner_pid);
 
           if (r2a_done && a2r_done) {
             info.need_delegate = false;
+            info.delegated_owner_pid = owner_pid;
           }
         }
         ++it;
