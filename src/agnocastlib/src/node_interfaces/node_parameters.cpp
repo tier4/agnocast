@@ -92,8 +92,8 @@ std::string format_type_reason(
   const std::string & name, const std::string & old_type, const std::string & new_type)
 {
   std::ostringstream ss;
-  ss << "Wrong parameter type, parameter {" << name << "} is of type {" << old_type <<
-    "}, setting it to {" << new_type << "} is not allowed.";
+  ss << "Wrong parameter type, parameter {" << name << "} is of type {" << old_type
+     << "}, setting it to {" << new_type << "} is not allowed.";
   return ss.str();
 }
 
@@ -108,18 +108,18 @@ rcl_interfaces::msg::SetParametersResult __check_parameters(
     const std::string & name = parameter.get_name();
     auto it = parameter_infos.find(name);
     if (it == parameter_infos.cend()) {
-      continue;  // 未宣言チェックは呼び出し元で行う
+      continue;  // Undeclared parameter check is done by the caller
     }
     const rcl_interfaces::msg::ParameterDescriptor & descriptor = it->second.descriptor;
     const auto new_type = parameter.get_type();
     const auto specified_type = static_cast<rclcpp::ParameterType>(descriptor.type);
     result.successful = descriptor.dynamic_typing || specified_type == new_type;
     if (!result.successful) {
-      result.reason = format_type_reason(
-        name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
+      result.reason =
+        format_type_reason(name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
       return result;
     }
-    // TODO: integer_range, floating_point_range のチェックは未実装
+    // TODO: integer_range, floating_point_range checks
   }
   return result;
 }
