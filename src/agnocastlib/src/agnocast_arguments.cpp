@@ -78,27 +78,7 @@ ParsedArguments & ParsedArguments::operator=(const ParsedArguments & other)
 
 void ParsedArguments::parse(const std::vector<std::string> & arguments)
 {
-  fini();
-  args_ = rcl_get_zero_initialized_arguments();
-
-  if (arguments.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
-    throw std::runtime_error("Too many args");
-  }
-
-  int argc = static_cast<int>(arguments.size());
-  std::vector<const char *> argv;
-  argv.reserve(arguments.size());
-  for (const auto & arg : arguments) {
-    argv.push_back(arg.c_str());
-  }
-
-  // Parse the ROS specific arguments.
-  rcl_allocator_t allocator = rcl_get_default_allocator();
-  rcl_ret_t ret = rcl_parse_arguments(argc, argv.data(), allocator, &args_);
-  if (RCL_RET_OK != ret) {
-    throw std::runtime_error(
-      "Failed to parse global arguments: " + std::string(rcl_get_error_string().str));
-  }
+    // TODO(Koichi98)
 }
 
 ParsedArguments parse_arguments(const std::vector<std::string> & arguments)
