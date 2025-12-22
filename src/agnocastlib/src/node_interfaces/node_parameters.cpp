@@ -4,6 +4,7 @@
 #include "agnocast/agnocast_context.hpp"
 #include "rclcpp/exceptions/exceptions.hpp"
 
+#include <sstream>
 #include <utility>
 
 namespace agnocast::node_interfaces
@@ -85,6 +86,42 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   // - parameter events publishing: not implemented
 
   return parameters.at(name).value;
+}
+
+std::string format_type_reason(
+  const std::string & name, const std::string & old_type, const std::string & new_type)
+{
+  std::ostringstream ss;
+  ss << "Wrong parameter type, parameter {" << name << "} is of type {" << old_type <<
+    "}, setting it to {" << new_type << "} is not allowed.";
+  return ss.str();
+}
+
+// Return true if parameter values comply with the descriptors in parameter_infos.
+rcl_interfaces::msg::SetParametersResult __check_parameters(
+  const std::map<std::string, ParameterInfo> & parameter_infos,
+  const std::vector<rclcpp::Parameter> & parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  for (const rclcpp::Parameter & parameter : parameters) {
+    const std::string & name = parameter.get_name();
+    auto it = parameter_infos.find(name);
+    if (it == parameter_infos.cend()) {
+      continue;  // 未宣言チェックは呼び出し元で行う
+    }
+    const rcl_interfaces::msg::ParameterDescriptor & descriptor = it->second.descriptor;
+    const auto new_type = parameter.get_type();
+    const auto specified_type = static_cast<rclcpp::ParameterType>(descriptor.type);
+    result.successful = descriptor.dynamic_typing || specified_type == new_type;
+    if (!result.successful) {
+      result.reason = format_type_reason(
+        name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
+      return result;
+    }
+    // TODO: integer_range, floating_point_range のチェックは未実装
+  }
+  return result;
 }
 
 }  // namespace
@@ -179,18 +216,65 @@ bool NodeParameters::has_parameter(const std::string & name) const
 std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parameters(
   const std::vector<rclcpp::Parameter> & parameters)
 {
-  // TODO(Koichi98)
-  (void)parameters;
-  throw std::runtime_error("NodeParameters::set_parameters is not yet implemented in agnocast");
+  std::vector<rcl_interfaces::msg::SetParametersResult> results;
+  results.reserve(parameters.size());
+
+  for (const auto & p : parameters) {
+    auto result = set_parameters_atomically({{p}});
+    results.push_back(result);
+  }
+
+  return results;
 }
 
 rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomically(
   const std::vector<rclcpp::Parameter> & parameters)
 {
-  // TODO(Koichi98)
-  (void)parameters;
-  throw std::runtime_error(
-    "NodeParameters::set_parameters_atomically is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  rcl_interfaces::msg::SetParametersResult result;
+
+  // Check if any of the parameters are read-only, or if any parameters are not
+  // declared.
+  for (const auto & parameter : parameters) {
+    const std::string & name = parameter.get_name();
+
+    // Check to make sure the parameter name is valid.
+    if (name.empty()) {
+      throw rclcpp::exceptions::InvalidParametersException("parameter name must not be empty");
+    }
+
+    // Check to see if it is declared.
+    auto parameter_info = parameters_.find(name);
+    if (parameter_info == parameters_.end()) {
+      // If not, then throw the exception as documented.
+      throw rclcpp::exceptions::ParameterNotDeclaredException(
+        "parameter '" + name + "' cannot be set because it was not declared");
+    }
+
+    // Check to see if it is read-only.
+    if (parameter_info->second.descriptor.read_only) {
+      result.successful = false;
+      result.reason = "parameter '" + name + "' cannot be set because it is read-only";
+      return result;
+    }
+  }
+
+  // Check if the value being set complies with the descriptor.
+  result = __check_parameters(parameters_, parameters);
+  if (!result.successful) {
+    return result;
+  }
+
+  // If accepted, actually set the values.
+  for (size_t i = 0; i < parameters.size(); ++i) {
+    const std::string & name = parameters[i].get_name();
+    parameters_[name].descriptor.name = parameters[i].get_name();
+    parameters_[name].descriptor.type = parameters[i].get_type();
+    parameters_[name].value = parameters[i].get_parameter_value();
+  }
+
+  return result;
 }
 
 std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
