@@ -31,6 +31,8 @@ BridgeManager::BridgeManager(pid_t target_pid)
   rclcpp::InitOptions init_options{};
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
+
+  RCLCPP_INFO(logger_, "Bridge Manager initialized (PID: %d).", getpid());
 }
 
 BridgeManager::~BridgeManager()

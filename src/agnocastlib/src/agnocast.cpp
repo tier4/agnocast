@@ -1,6 +1,7 @@
 #include "agnocast/agnocast.hpp"
 
 #include "agnocast/agnocast_bridge_manager.hpp"
+#include "agnocast/agnocast_bridge_manager_p.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
@@ -193,8 +194,17 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
   try {
     const auto resources = acquire_agnocast_resources_for_bridge();
     initialize_bridge_allocator(resources.mempool_ptr, resources.mempool_size);
-    BridgeManager manager(target_pid);
-    manager.run();
+
+    auto bridge_mode = get_bridge_mode();
+    if (bridge_mode == BridgeMode::Standard) {
+      BridgeManager manager(target_pid);
+      manager.run();
+    } else if (bridge_mode == BridgeMode::Performance) {
+      {
+        PerformanceBridgeManager manager;
+        manager.run();
+      }
+    }
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
     exit(EXIT_FAILURE);
@@ -379,15 +389,28 @@ struct initialize_agnocast_result initialize_agnocast(
     exit(EXIT_FAILURE);
   }
 
-  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
     spawn_daemon_process([]() { poll_for_unlink(); });
   }
 
-  // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
-  // implementation is complete.
-  // pid_t parent_pid = getpid();
-  // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
+  pid_t target_pid = 0;
+  bool should_spawn_bridge = false;
+  auto bridge_mode = get_bridge_mode();
+
+  // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
+  if (bridge_mode == BridgeMode::Performance) {
+    if (!add_process_args.ret_unlink_daemon_exist) {
+      target_pid = 0;
+      should_spawn_bridge = true;
+    }
+  } else if (bridge_mode == BridgeMode::Standard) {
+    target_pid = getpid();
+    should_spawn_bridge = true;
+  }
+
+  if (should_spawn_bridge) {
+    spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
+  }
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
