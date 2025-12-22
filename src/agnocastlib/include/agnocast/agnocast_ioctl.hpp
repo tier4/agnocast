@@ -248,10 +248,13 @@ struct ioctl_add_bridge_args
   {
     pid_t pid;
     struct name_info topic_name;
+    bool is_r2a;
   };
   struct
   {
     pid_t ret_pid;
+    bool ret_has_r2a;
+    bool ret_has_a2r;
   };
 };
 #pragma GCC diagnostic pop

@@ -12,7 +12,7 @@ void test_case_remove_bridge_normal(struct kunit * test)
 {
   // Arrange
   struct ioctl_add_bridge_args args = {0};
-  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, true, current->nsproxy->ipc_ns, &args);
   KUNIT_ASSERT_EQ(test, ret_setup, 0);
 
   // Act
@@ -39,7 +39,7 @@ void test_case_remove_bridge_pid_mismatch(struct kunit * test)
 {
   // Arrange
   struct ioctl_add_bridge_args args = {0};
-  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, current->nsproxy->ipc_ns, &args);
+  int ret_setup = add_bridge(TOPIC_NAME, BRIDGE_OWNER_PID, true, current->nsproxy->ipc_ns, &args);
   KUNIT_ASSERT_EQ(test, ret_setup, 0);
 
   // Act
