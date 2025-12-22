@@ -49,14 +49,14 @@ struct MqMsgBridge
 
 struct MqMsgPerformanceBridge
 {
-  char topic_name[TOPIC_NAME_BUFFER_SIZE];
   char message_type[MESSAGE_NAME_BUFFER_SIZE];
+  BridgeTargetInfo target;
   BridgeDirection direction;
 };
 
 constexpr int64_t BRIDGE_MQ_MAX_MESSAGES = 10;
 constexpr int64_t BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
-constexpr int64_t PREFORMANCE_BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgPerformanceBridge);
+constexpr int64_t PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgPerformanceBridge);
 constexpr mode_t BRIDGE_MQ_PERMS = 0600;
 
 }  // namespace agnocast

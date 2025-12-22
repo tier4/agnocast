@@ -346,6 +346,7 @@ void spawn_daemon_process(Func && func)
     exit(EXIT_FAILURE);
   }
   if (pid == 0) {
+    RCLCPP_INFO(logger, "[DEAMON PID]: %d.", getpid());
     func();
     exit(0);
   }

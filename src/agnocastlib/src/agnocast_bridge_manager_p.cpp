@@ -1,8 +1,14 @@
 #include "agnocast/agnocast_bridge_manager_p.hpp"
 
+#include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
+#include <mqueue.h>
+#include <sys/prctl.h>
 #include <unistd.h>
+
+#include <vector>
 
 namespace agnocast
 {
@@ -13,17 +19,26 @@ PerformanceBridgeManager::PerformanceBridgeManager()
   loader_(logger_),
   config_(logger_)
 {
-  if (!rclcpp::ok()) {
-    rclcpp::InitOptions init_options{};
-    init_options.shutdown_on_signal = false;
-    rclcpp::init(0, nullptr, init_options);
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
   }
 
-  RCLCPP_INFO(logger_, "Performance Bridge Manager initialized (PID: %d).", getpid());
+  rclcpp::InitOptions init_options{};
+  init_options.shutdown_on_signal = false;
+  rclcpp::init(0, nullptr, init_options);
+
+  RCLCPP_INFO(logger_, "Bridge Manager initialized (PID: %d).", getpid());
 }
 
 PerformanceBridgeManager::~PerformanceBridgeManager()
 {
+  if (executor_) {
+    executor_->cancel();
+  }
+  if (executor_thread_.joinable()) {
+    executor_thread_.join();
+  }
+
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
@@ -31,7 +46,72 @@ PerformanceBridgeManager::~PerformanceBridgeManager()
 
 void PerformanceBridgeManager::run()
 {
-  RCLCPP_INFO(logger_, "Performance Bridge Manager started.");
+  constexpr int EVENT_LOOP_TIMEOUT_MS = 1000;
+
+  std::string proc_name = "agno_br_" + std::to_string(getpid());
+  prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
+
+  start_ros_execution();
+
+  event_loop_.set_peer_mq_handler([this](int fd) { this->on_mq_request(fd); });
+  event_loop_.set_signal_handler([this]() { this->on_signal(); });
+  event_loop_.set_reload_handler([this]() { this->on_reload(); });
+
+  RCLCPP_INFO(logger_, "Performance Bridge Manager loop started.");
+
+  while (!shutdown_requested_) {
+    if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
+      RCLCPP_ERROR(logger_, "Event loop spin failed.");
+      break;
+    }
+  }
+}
+
+void PerformanceBridgeManager::start_ros_execution()
+{
+  std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
+  container_node_ = std::make_shared<rclcpp::Node>(node_name);
+
+  executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
+  executor_->add_node(container_node_);
+
+  executor_thread_ = std::thread([this]() {
+    try {
+      this->executor_->spin();
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
+    }
+  });
+}
+
+void PerformanceBridgeManager::on_mq_request(int fd)
+{
+  std::vector<char> buffer(PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE);
+
+  ssize_t bytes_read = mq_receive((mqd_t)fd, buffer.data(), buffer.size(), nullptr);
+
+  if (bytes_read < 0) {
+    if (errno != EAGAIN) {
+      RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
+    }
+    return;
+  }
+
+  RCLCPP_INFO(logger_, "Received MQ message (%zd bytes)", bytes_read);
+}
+
+void PerformanceBridgeManager::on_signal()
+{
+  RCLCPP_INFO(logger_, "Shutdown signal received.");
+  shutdown_requested_ = true;
+  if (executor_) {
+    executor_->cancel();
+  }
+}
+
+void PerformanceBridgeManager::on_reload()
+{
+  RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
 }
 
 }  // namespace agnocast
