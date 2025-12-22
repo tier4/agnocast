@@ -107,6 +107,11 @@ std::string create_mq_name_for_bridge_daemon(const pid_t pid)
   return "/agnocast_bridge_manager_daemon@" + std::to_string(pid);
 }
 
+std::string create_mq_name_for_bridge()
+{
+  return "/agnocast_bridge_manager";
+}
+
 std::string create_shm_name(const pid_t pid)
 {
   return "/agnocast@" + std::to_string(pid);
