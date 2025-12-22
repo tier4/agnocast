@@ -263,6 +263,7 @@ struct ioctl_remove_bridge_args
 {
   pid_t pid;
   struct name_info topic_name;
+  bool is_r2a;
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)

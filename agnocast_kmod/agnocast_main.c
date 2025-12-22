@@ -1696,12 +1696,13 @@ int add_bridge(
   return 0;
 }
 
-int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns)
+int remove_bridge(
+  const char * topic_name, const pid_t pid, const bool is_r2a, const struct ipc_namespace * ipc_ns)
 {
   struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
 
   if (!br_info) {
-    dev_warn(agnocast_device, "Bridge (topic=%s) not found.\n", topic_name);
+    dev_warn(agnocast_device, "Bridge (topic=%s) not found. (remove_bridge)\n", topic_name);
     return -ENOENT;
   }
 
@@ -1712,11 +1713,29 @@ int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_nam
     return -EPERM;
   }
 
-  hash_del(&br_info->node);
-  kfree(br_info->topic_name);
-  kfree(br_info);
+  if (is_r2a) {
+    if (!br_info->has_r2a) {
+      dev_warn(agnocast_device, "Bridge (topic=%s) r2a flag was already false.\n", topic_name);
+    }
+    br_info->has_r2a = false;
+  } else {
+    if (!br_info->has_a2r) {
+      dev_warn(agnocast_device, "Bridge (topic=%s) a2r flag was already false.\n", topic_name);
+    }
+    br_info->has_a2r = false;
+  }
 
-  dev_info(agnocast_device, "Bridge (topic=%s) removed successfully.\n", topic_name);
+  if (!br_info->has_r2a && !br_info->has_a2r) {
+    hash_del(&br_info->node);
+    kfree(br_info->topic_name);
+    kfree(br_info);
+
+    dev_info(agnocast_device, "Bridge (topic=%s) removed completely.\n", topic_name);
+  } else {
+    dev_info(
+      agnocast_device, "Bridge (topic=%s) direction removed. Remaining: r2a=%d, a2r=%d.\n",
+      topic_name, br_info->has_r2a, br_info->has_a2r);
+  }
 
   return 0;
 }
@@ -2163,7 +2182,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
-    ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, ipc_ns);
+    ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, remove_bridge_args.is_r2a, ipc_ns);
     kfree(topic_name_buf);
   } else {
     goto return_EINVAL;

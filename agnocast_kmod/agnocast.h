@@ -200,6 +200,7 @@ struct ioctl_remove_bridge_args
 {
   pid_t pid;
   struct name_info topic_name;
+  bool is_r2a;
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
@@ -344,7 +345,8 @@ int add_bridge(
   const char * topic_name, const pid_t pid, bool is_r2a, const struct ipc_namespace * ipc_ns,
   struct ioctl_add_bridge_args * ioctl_ret);
 
-int remove_bridge(const char * topic_name, const pid_t pid, const struct ipc_namespace * ipc_ns);
+int remove_bridge(
+  const char * topic_name, const pid_t pid, bool is_r2a, const struct ipc_namespace * ipc_ns);
 
 void process_exit_cleanup(const pid_t pid);
 
