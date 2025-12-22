@@ -37,11 +37,44 @@ NodeBase::NodeBase(
     }
   }
 
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
   // Apply node name remapping
-  // TODO(Koichi98)
+  {
+    char * remapped_node_name = nullptr;
+    rcl_ret_t ret = rcl_remap_node_name(
+      local_args_, global_args_, node_name_.c_str(), allocator, &remapped_node_name);
+
+    if (RCL_RET_OK == ret && remapped_node_name != nullptr) {
+      node_name_ = remapped_node_name;
+      allocator.deallocate(remapped_node_name, allocator.state);
+    } else if (RCL_RET_OK != ret) {
+      RCLCPP_WARN(
+        rclcpp::get_logger("agnocast"), "Failed to remap node name: %s",
+        rcl_get_error_string().str);
+      rcl_reset_error();
+    }
+  }
 
   // Apply namespace remapping
-  // TODO(Koichi98)
+  {
+    char * remapped_namespace = nullptr;
+    rcl_ret_t ret = rcl_remap_node_namespace(
+      local_args_, global_args_, node_name_.c_str(), allocator, &remapped_namespace);
+
+    if (RCL_RET_OK == ret && remapped_namespace != nullptr) {
+      namespace_ = remapped_namespace;
+      if (!namespace_.empty() && namespace_[0] != '/') {
+        namespace_ = "/" + namespace_;
+      }
+      allocator.deallocate(remapped_namespace, allocator.state);
+    } else if (RCL_RET_OK != ret) {
+      RCLCPP_WARN(
+        rclcpp::get_logger("agnocast"), "Failed to remap namespace: %s",
+        rcl_get_error_string().str);
+      rcl_reset_error();
+    }
+  }
 
   if (namespace_.empty() || namespace_ == "/") {
     fqn_ = "/" + node_name_;
