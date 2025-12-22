@@ -163,7 +163,7 @@ void NodeParameters::undeclare_parameter(const std::string & name)
   }
   if (!parameter_info->second.descriptor.dynamic_typing) {
     throw rclcpp::exceptions::InvalidParameterTypeException{
-      name, "cannot undeclare an statically typed parameter"};
+      name, "cannot undeclare a statically typed parameter"};
   }
 
   parameters_.erase(parameter_info);
