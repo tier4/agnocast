@@ -97,7 +97,12 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     return;
   }
 
-  RCLCPP_INFO(logger_, "Received MQ message (%zd bytes)", bytes_read);
+  auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
+
+  RCLCPP_INFO(logger_, "Received Request:");
+  RCLCPP_INFO(logger_, "  Topic: %s", msg->target.topic_name);
+  RCLCPP_INFO(logger_, "  Type : %s", msg->message_type);
+  RCLCPP_INFO(logger_, "  Dir  : %d", (int)msg->direction);
 }
 
 void PerformanceBridgeManager::on_signal()
