@@ -92,7 +92,7 @@ void ParsedArguments::parse(const std::vector<std::string> & arguments)
   rcl_ret_t ret = rcl_parse_arguments(argc, argv.data(), allocator, &args_);
   if (RCL_RET_OK != ret) {
     throw std::runtime_error(
-      "Failed to parse global arguments: " + std::string(rcl_get_error_string().str));
+      "Failed to parse arguments: " + std::string(rcl_get_error_string().str));
   }
 }
 
