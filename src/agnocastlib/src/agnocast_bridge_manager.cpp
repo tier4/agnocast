@@ -151,7 +151,7 @@ BridgeManager::BridgeKernelResult BridgeManager::try_add_bridge_to_kernel(
 void BridgeManager::activate_bridge(
   const MqMsgBridge & req, const std::string & topic_name_with_direction)
 {
-  if (active_bridges_.count(topic_name_with_direction) > 0) {
+  if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
   }
 
@@ -201,17 +201,15 @@ void BridgeManager::process_bridge_request(
 
   auto [status, owner_pid, kernel_has_r2a, kernel_has_a2r] =
     try_add_bridge_to_kernel(topic_name, is_r2a);
-  bool is_active_in_kernel = is_r2a ? kernel_has_r2a : kernel_has_a2r;
+  bool is_active_in_owner = is_r2a ? kernel_has_r2a : kernel_has_a2r;
 
   switch (status) {
     case AddBridgeResult::SUCCESS:
-      if (!is_active_in_kernel) {
-        activate_bridge(*req, topic_name + std::string(suffix));
-      }
+      activate_bridge(*req, topic_name + std::string(suffix));
       break;
 
     case AddBridgeResult::EXIST:
-      if (!is_active_in_kernel) {
+      if (!is_active_in_owner) {
         send_delegation(*req, owner_pid);
       }
       break;
