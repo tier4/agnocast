@@ -278,13 +278,13 @@ void BridgeManager::check_active_bridges()
 
 void BridgeManager::check_managed_bridges()
 {
-  for (auto it = managed_bridges_.begin(); it != managed_bridges_.end(); ++it) {
+  for (auto & managed_bridge : managed_bridges_) {
     if (shutdown_requested_) {
       break;
     }
 
-    const auto & topic_name = it->first;
-    auto & info = it->second;
+    const auto & topic_name = managed_bridge.first;
+    auto & info = managed_bridge.second;
 
     process_bridge_request(topic_name, info.req_r2a);
     process_bridge_request(topic_name, info.req_a2r);
