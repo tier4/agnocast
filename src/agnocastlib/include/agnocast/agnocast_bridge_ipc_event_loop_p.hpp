@@ -45,7 +45,6 @@ private:
 
   int epoll_fd_ = -1;
   int signal_fd_ = -1;
-  int reload_fd_ = -1;
 
   mqd_t mq_peer_fd_ = -1;
   std::string mq_self_name_;
