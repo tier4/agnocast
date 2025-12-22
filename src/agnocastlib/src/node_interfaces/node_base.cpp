@@ -4,6 +4,7 @@
 #include "rclcpp/contexts/default_context.hpp"
 #include "rclcpp/logging.hpp"
 
+#include <rcl/error_handling.h>
 #include <rcl/remap.h>
 
 #include <stdexcept>
@@ -45,14 +46,15 @@ NodeBase::NodeBase(
     rcl_ret_t ret = rcl_remap_node_name(
       local_args_, global_args_, node_name_.c_str(), allocator, &remapped_node_name);
 
-    if (RCL_RET_OK == ret && remapped_node_name != nullptr) {
+    if (RCL_RET_OK != ret) {
+      std::string error_msg =
+        std::string("Failed to remap node name: ") + rcl_get_error_string().str;
+      rcl_reset_error();
+      throw std::runtime_error(error_msg);
+    }
+    if (remapped_node_name != nullptr) {
       node_name_ = remapped_node_name;
       allocator.deallocate(remapped_node_name, allocator.state);
-    } else if (RCL_RET_OK != ret) {
-      RCLCPP_WARN(
-        rclcpp::get_logger("agnocast"), "Failed to remap node name: %s",
-        rcl_get_error_string().str);
-      rcl_reset_error();
     }
   }
 
@@ -62,17 +64,15 @@ NodeBase::NodeBase(
     rcl_ret_t ret = rcl_remap_node_namespace(
       local_args_, global_args_, node_name_.c_str(), allocator, &remapped_namespace);
 
-    if (RCL_RET_OK == ret && remapped_namespace != nullptr) {
-      namespace_ = remapped_namespace;
-      if (!namespace_.empty() && namespace_[0] != '/') {
-        namespace_ = "/" + namespace_;
-      }
-      allocator.deallocate(remapped_namespace, allocator.state);
-    } else if (RCL_RET_OK != ret) {
-      RCLCPP_WARN(
-        rclcpp::get_logger("agnocast"), "Failed to remap namespace: %s",
-        rcl_get_error_string().str);
+    if (RCL_RET_OK != ret) {
+      std::string error_msg =
+        std::string("Failed to remap namespace: ") + rcl_get_error_string().str;
       rcl_reset_error();
+      throw std::runtime_error(error_msg);
+    }
+    if (remapped_namespace != nullptr) {
+      namespace_ = remapped_namespace;
+      allocator.deallocate(remapped_namespace, allocator.state);
     }
   }
 
