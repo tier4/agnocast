@@ -1629,26 +1629,27 @@ int add_bridge(
   struct bridge_info * existing = find_bridge_info(topic_name, ipc_ns);
 
   if (existing) {
-    ioctl_ret->ret_pid = existing->pid;
-    ioctl_ret->ret_has_r2a = existing->has_r2a;
-    ioctl_ret->ret_has_a2r = existing->has_a2r;
-
-    if (existing->pid == pid) {
-      if (is_r2a) {
-        existing->has_r2a = true;
-      } else {
-        existing->has_a2r = true;
-      }
-
+    if (existing->pid != pid) {
+      ioctl_ret->ret_pid = existing->pid;
       ioctl_ret->ret_has_r2a = existing->has_r2a;
       ioctl_ret->ret_has_a2r = existing->has_a2r;
-      dev_info(agnocast_device, "Bridge (topic=%s) updated flags for pid %d.\n", topic_name, pid);
-      return 0;
-    } else {
       dev_info(
         agnocast_device, "Bridge (topic=%s) already exists with different pid.\n", topic_name);
       return -EEXIST;
     }
+
+    // pid matches
+    if (is_r2a) {
+      existing->has_r2a = true;
+    } else {
+      existing->has_a2r = true;
+    }
+
+    ioctl_ret->ret_pid = existing->pid;
+    ioctl_ret->ret_has_r2a = existing->has_r2a;
+    ioctl_ret->ret_has_a2r = existing->has_a2r;
+    dev_info(agnocast_device, "Bridge (topic=%s) updated flags for pid %d.\n", topic_name, pid);
+    return 0;
   }
 
   struct bridge_info * br_info = kmalloc(sizeof(*br_info), GFP_KERNEL);
