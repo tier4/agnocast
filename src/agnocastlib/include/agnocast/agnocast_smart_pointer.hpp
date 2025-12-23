@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 
 namespace agnocast
 {
@@ -38,6 +39,9 @@ class ipc_shared_ptr
   bool operator==(const ipc_shared_ptr & r) const = delete;
   bool operator!=(const ipc_shared_ptr & r) const = delete;
 
+  template <typename U, typename V>
+  friend ipc_shared_ptr<U> static_ipc_shared_ptr_cast(ipc_shared_ptr<V> && r);
+
 public:
   using element_type = T;
 
@@ -48,15 +52,16 @@ public:
 
   ipc_shared_ptr() = default;
 
-  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id)
+  template <typename S>
+  explicit ipc_shared_ptr(T * ptr, S && topic_name, const topic_local_id_t pubsub_id)
+  : ptr_(ptr), topic_name_(std::forward<S>(topic_name)), pubsub_id_(pubsub_id)
   {
   }
 
+  template <typename S>
   explicit ipc_shared_ptr(
-    T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
-    const int64_t entry_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id), entry_id_(entry_id)
+    T * ptr, S && topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id)
+  : ptr_(ptr), topic_name_(std::forward<S>(topic_name)), pubsub_id_(pubsub_id), entry_id_(entry_id)
   {
   }
 
@@ -127,5 +132,19 @@ public:
     ptr_ = nullptr;
   }
 };
+
+template <typename T, typename U>
+ipc_shared_ptr<T> static_ipc_shared_ptr_cast(ipc_shared_ptr<U> && r)
+{
+  T * ptr = static_cast<T *>(r.get());
+  topic_local_id_t pubsub_id = r.get_pubsub_id();
+  int64_t entry_id = r.get_entry_id();
+  std::string topic_name = std::move(r.topic_name_);
+
+  // Prevent decrement_rc() from being called.
+  r.ptr_ = nullptr;
+
+  return ipc_shared_ptr<T>{ptr, std::move(topic_name), pubsub_id, entry_id};
+}
 
 }  // namespace agnocast
