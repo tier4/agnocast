@@ -35,6 +35,7 @@ void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t
 struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+  bool ignore_local_publications{false};
 };
 
 // These are cut out of the class for information hiding.
@@ -74,11 +75,28 @@ protected:
   topic_local_id_t id_;
   const std::string topic_name_;
   union ioctl_add_subscriber_args initialize(
-    const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name);
+    const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
+    const std::string & node_name);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
   SubscriptionBase(agnocast::Node * node, const std::string & topic_name);
+
+  virtual ~SubscriptionBase()
+  {
+    // NOTE: Unmapping memory when a subscriber is destroyed is not implemented. Multiple
+    // subscribers
+    // may share the same mmap region, requiring reference counting in kmod. Since leaving the
+    // memory mapped should not cause any functional issues, this is left as future work.
+    struct ioctl_remove_subscriber_args remove_subscriber_args
+    {
+    };
+    remove_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
+    remove_subscriber_args.subscriber_id = id_;
+    if (ioctl(agnocast_fd, AGNOCAST_REMOVE_SUBSCRIBER_CMD, &remove_subscriber_args) < 0) {
+      RCLCPP_WARN(logger, "Failed to remove subscriber (id=%d) from kernel.", id_);
+    }
+  }
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
@@ -88,11 +106,11 @@ class BasicSubscription : public SubscriptionBase
 
   template <typename NodeT, typename Func>
   uint32_t constructor_impl(
-    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    NodeT * node, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
   {
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, false, node->get_fully_qualified_name());
+      initialize(qos, false, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
@@ -117,8 +135,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -139,8 +157,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] uint32_t callback_info_id = constructor_impl(
-      node, topic_name, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
@@ -148,18 +166,15 @@ public:
   ~BasicSubscription() { remove_mq(mq_subscription_); }
 };
 
-struct RosToAgnocastRequestPolicy;
-
-template <typename MessageT>
-using Subscription = agnocast::BasicSubscription<MessageT, agnocast::RosToAgnocastRequestPolicy>;
-
-template <typename MessageT>
-class TakeSubscription : public SubscriptionBase
+template <typename MessageT, typename BridgeRequestPolicy>
+class BasicTakeSubscription : public SubscriptionBase
 {
 public:
-  using SharedPtr = std::shared_ptr<TakeSubscription<MessageT>>;
+  using SharedPtr = std::shared_ptr<BasicTakeSubscription<MessageT, BridgeRequestPolicy>>;
 
-  TakeSubscription(rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  BasicTakeSubscription(
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   : SubscriptionBase(node, topic_name)
   {
     {
@@ -176,9 +191,11 @@ public:
     }
 
     union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, node->get_fully_qualified_name());
+      initialize(qos, true, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
+
+    BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
   }
 
   agnocast::ipc_shared_ptr<const MessageT> take(bool allow_same_message = false)
@@ -219,24 +236,39 @@ public:
   }
 };
 
-// Wrapper of TakeSubscription for Autoware
-template <typename MessageT>
-class PollingSubscriber
+// Wrapper of BasicTakeSubscription for Autoware
+template <typename MessageT, typename BridgeRequestPolicy>
+class BasicPollingSubscriber
 {
-  typename TakeSubscription<MessageT>::SharedPtr subscriber_;
+  typename BasicTakeSubscription<MessageT, BridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
-  using SharedPtr = std::shared_ptr<PollingSubscriber<MessageT>>;
+  using SharedPtr = std::shared_ptr<BasicPollingSubscriber<MessageT, BridgeRequestPolicy>>;
 
-  explicit PollingSubscriber(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1})
+  explicit BasicPollingSubscriber(
+    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos = rclcpp::QoS{1},
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   {
-    subscriber_ = std::make_shared<TakeSubscription<MessageT>>(node, topic_name, qos);
+    subscriber_ = std::make_shared<BasicTakeSubscription<MessageT, BridgeRequestPolicy>>(
+      node, topic_name, qos, options);
   };
 
   // `takeData()` is remaining for backward compatibility.
   const agnocast::ipc_shared_ptr<const MessageT> takeData() { return subscriber_->take(true); };
   const agnocast::ipc_shared_ptr<const MessageT> take_data() { return subscriber_->take(true); };
 };
+
+struct RosToAgnocastRequestPolicy;
+
+template <typename MessageT>
+using Subscription = agnocast::BasicSubscription<MessageT, agnocast::RosToAgnocastRequestPolicy>;
+
+template <typename MessageT>
+using TakeSubscription =
+  agnocast::BasicTakeSubscription<MessageT, agnocast::RosToAgnocastRequestPolicy>;
+
+template <typename MessageT>
+using PollingSubscriber =
+  agnocast::BasicPollingSubscriber<MessageT, agnocast::RosToAgnocastRequestPolicy>;
 
 }  // namespace agnocast

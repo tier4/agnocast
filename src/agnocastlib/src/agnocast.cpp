@@ -1,9 +1,11 @@
 #include "agnocast/agnocast.hpp"
 
+#include "agnocast/agnocast_bridge_manager.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
 
+#include <dlfcn.h>
 #include <sys/types.h>
 
 #include <atomic>
@@ -36,6 +38,116 @@ std::mutex mmap_mtx;
 // This mutex ensures atomicity for T1's critical section: from ioctl fetching publisher
 // info through to completing shared memory setup.
 
+void * map_area(
+  const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
+{
+  const std::string shm_name = create_shm_name(pid);
+
+  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
+  const int shm_mode = 0666;
+  int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
+  if (shm_fd == -1) {
+    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
+    close(agnocast_fd);
+    return nullptr;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(shm_fds_mtx);
+    shm_fds.push_back(shm_fd);
+  }
+
+  if (writable) {
+    if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
+      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
+
+    const int new_shm_mode = 0444;
+    if (fchmod(shm_fd, new_shm_mode) == -1) {
+      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
+      close(agnocast_fd);
+      return nullptr;
+    }
+  }
+
+  int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
+  void * ret = mmap(
+    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
+    0);
+
+  if (ret == MAP_FAILED) {
+    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
+    close(agnocast_fd);
+    return nullptr;
+  }
+
+  return ret;
+}
+
+void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+{
+  return map_area(pid, shm_addr, shm_size, true);
+}
+
+void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
+{
+  if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
+    exit(EXIT_FAILURE);
+  }
+}
+
+// Initializes the child allocator for bridge functionality.
+// Note: This function must only be called in a forked child process before TLSF initialization.
+// Calling it after initialization will result in double initialization.
+void initialize_bridge_allocator(void * mempool_ptr, size_t mempool_size)
+{
+  void * handle = dlopen(nullptr, RTLD_NOW);
+  if (handle == nullptr) {
+    const char * err_msg = dlerror();
+    throw std::runtime_error(
+      std::string("dlopen failed: ") + (err_msg != nullptr ? err_msg : "Unknown"));
+  }
+
+  using InitFunc = bool (*)(void *, size_t);
+  auto init_func = reinterpret_cast<InitFunc>(dlsym(handle, "init_child_allocator"));
+
+  const char * dlsym_error = dlerror();
+  if ((dlsym_error != nullptr) || (init_func == nullptr)) {
+    dlclose(handle);
+    throw std::runtime_error(
+      std::string("dlsym 'init_child_allocator' failed: ") +
+      (dlsym_error != nullptr ? dlsym_error : "Symbol is null"));
+  }
+
+  bool success = init_func(mempool_ptr, mempool_size);
+
+  if (!success) {
+    throw std::runtime_error("init_child_allocator returned false.");
+  }
+}
+
+initialize_agnocast_result acquire_agnocast_resources_for_bridge()
+{
+  union ioctl_add_process_args add_process_args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_ADD_PROCESS_CMD, &add_process_args) < 0) {
+    throw std::runtime_error(std::string("AGNOCAST_ADD_PROCESS_CMD failed: ") + strerror(errno));
+  }
+
+  void * mempool_ptr =
+    map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
+
+  if (mempool_ptr == nullptr) {
+    throw std::runtime_error("map_writable_area failed.");
+  }
+
+  return {
+    mempool_ptr,
+    add_process_args.ret_shm_size,
+  };
+}
+
 void poll_for_unlink()
 {
   if (setsid() == -1) {
@@ -67,6 +179,26 @@ void poll_for_unlink()
     }
   }
 
+  exit(0);
+}
+
+void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
+{
+  if (setsid() == -1) {
+    RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  try {
+    const auto resources = acquire_agnocast_resources_for_bridge();
+    initialize_bridge_allocator(resources.mempool_ptr, resources.mempool_size);
+    BridgeManager manager(target_pid);
+    manager.run();
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger, "BridgeManager crashed: %s", e.what());
+    exit(EXIT_FAILURE);
+  }
   exit(0);
 }
 
@@ -194,63 +326,18 @@ bool is_version_consistent(
   return true;
 }
 
-void * map_area(
-  const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size, const bool writable)
+template <typename Func>
+void spawn_daemon_process(Func && func)
 {
-  const std::string shm_name = create_shm_name(pid);
-
-  int oflag = writable ? O_CREAT | O_EXCL | O_RDWR : O_RDONLY;
-  const int shm_mode = 0666;
-  int shm_fd = shm_open(shm_name.c_str(), oflag, shm_mode);
-  if (shm_fd == -1) {
-    RCLCPP_ERROR(logger, "shm_open failed: %s", strerror(errno));
+  pid_t pid = fork();
+  if (pid < 0) {
+    RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
     close(agnocast_fd);
-    return nullptr;
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(shm_fds_mtx);
-    shm_fds.push_back(shm_fd);
-  }
-
-  if (writable) {
-    if (ftruncate(shm_fd, static_cast<off_t>(shm_size)) == -1) {
-      RCLCPP_ERROR(logger, "ftruncate failed: %s", strerror(errno));
-      close(agnocast_fd);
-      return nullptr;
-    }
-
-    const int new_shm_mode = 0444;
-    if (fchmod(shm_fd, new_shm_mode) == -1) {
-      RCLCPP_ERROR(logger, "fchmod failed: %s", strerror(errno));
-      close(agnocast_fd);
-      return nullptr;
-    }
-  }
-
-  int prot = writable ? PROT_READ | PROT_WRITE : PROT_READ;
-  void * ret = mmap(
-    reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, shm_fd,
-    0);
-
-  if (ret == MAP_FAILED) {
-    RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
-    close(agnocast_fd);
-    return nullptr;
-  }
-
-  return ret;
-}
-
-void * map_writable_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
-{
-  return map_area(pid, shm_addr, shm_size, true);
-}
-
-void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size)
-{
-  if (map_area(pid, shm_addr, shm_size, false) == nullptr) {
     exit(EXIT_FAILURE);
+  }
+  if (pid == 0) {
+    func();
+    exit(0);
   }
 }
 
@@ -294,18 +381,13 @@ struct initialize_agnocast_result initialize_agnocast(
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
-    pid_t pid = fork();
-
-    if (pid < 0) {
-      RCLCPP_ERROR(logger, "fork failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (pid == 0) {
-      poll_for_unlink();
-    }
+    spawn_daemon_process([]() { poll_for_unlink(); });
   }
+
+  // TODO(yutarokobayashi): Temporarily commented out to prevent premature startup until
+  // implementation is complete.
+  // pid_t parent_pid = getpid();
+  // spawn_daemon_process([parent_pid]() { poll_for_bridge_manager(parent_pid); });
 
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);

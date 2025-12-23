@@ -1,18 +1,12 @@
 #pragma once
 
+#include "agnocast/agnocast_arguments.hpp"
+
 #include <mutex>
 #include <string>
-#include <vector>
 
 namespace agnocast
 {
-
-// Command-line argument flags (corresponds to rcl/include/rcl/arguments.h)
-/// The command-line flag that delineates the start of ROS arguments.
-#define AGNOCAST_ROS_ARGS_FLAG "--ros-args"
-
-/// The token that delineates the explicit end of ROS arguments.
-#define AGNOCAST_ROS_ARGS_EXPLICIT_END_TOKEN "--"
 
 class Context
 {
@@ -27,8 +21,14 @@ public:
   void init(int argc, char const * const * argv);
   bool is_initialized() const { return initialized_; }
 
+  const rcl_arguments_t * get_parsed_arguments() const
+  {
+    return parsed_arguments_.is_valid() ? parsed_arguments_.get() : nullptr;
+  }
+
 private:
   bool initialized_ = false;
+  ParsedArguments parsed_arguments_;
 };
 
 extern Context g_context;

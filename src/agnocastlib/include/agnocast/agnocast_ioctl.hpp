@@ -63,7 +63,9 @@ union ioctl_add_subscriber_args {
     struct name_info node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
+    bool qos_is_reliable;
     bool is_take_sub;
+    bool ignore_local_publications;
   };
   struct
   {
@@ -160,6 +162,11 @@ union ioctl_get_subscriber_num_args {
   uint32_t ret_subscriber_num;
 };
 
+union ioctl_get_publisher_num_args {
+  struct name_info topic_name;
+  uint32_t ret_publisher_num;
+};
+
 struct ioctl_get_exit_process_args
 {
   bool ret_daemon_should_exit;
@@ -171,6 +178,7 @@ struct topic_info_ret
   char node_name[NODE_NAME_BUFFER_SIZE];
   uint32_t qos_depth;
   bool qos_is_transient_local;
+  bool qos_is_reliable;
 };
 
 #pragma GCC diagnostic push
@@ -185,6 +193,75 @@ union ioctl_topic_info_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+struct ioctl_get_subscriber_qos_args
+{
+  struct
+  {
+    struct name_info topic_name;
+    topic_local_id_t subscriber_id;
+  };
+  struct
+  {
+    uint32_t ret_depth;
+    bool ret_is_transient_local;
+    bool ret_is_reliable;
+  };
+};
+#pragma GCC diagnostic pop
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+struct ioctl_get_publisher_qos_args
+{
+  struct
+  {
+    struct name_info topic_name;
+    topic_local_id_t publisher_id;
+  };
+  struct
+  {
+    uint32_t ret_depth;
+    bool ret_is_transient_local;
+  };
+};
+#pragma GCC diagnostic pop
+
+struct ioctl_remove_subscriber_args
+{
+  struct name_info topic_name;
+  topic_local_id_t subscriber_id;
+};
+
+struct ioctl_remove_publisher_args
+{
+  struct name_info topic_name;
+  topic_local_id_t publisher_id;
+};
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+struct ioctl_add_bridge_args
+{
+  struct
+  {
+    pid_t pid;
+    struct name_info topic_name;
+  };
+  struct
+  {
+    pid_t ret_pid;
+  };
+};
+#pragma GCC diagnostic pop
+
+struct ioctl_remove_bridge_args
+{
+  pid_t pid;
+  struct name_info topic_name;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -196,6 +273,13 @@ union ioctl_topic_info_args {
 #define AGNOCAST_TAKE_MSG_CMD _IOWR(0xA6, 9, union ioctl_take_msg_args)
 #define AGNOCAST_GET_SUBSCRIBER_NUM_CMD _IOWR(0xA6, 10, union ioctl_get_subscriber_num_args)
 #define AGNOCAST_GET_EXIT_PROCESS_CMD _IOR(0xA6, 11, struct ioctl_get_exit_process_args)
+#define AGNOCAST_GET_SUBSCRIBER_QOS_CMD _IOWR(0xA6, 12, struct ioctl_get_subscriber_qos_args)
+#define AGNOCAST_GET_PUBLISHER_QOS_CMD _IOWR(0xA6, 13, struct ioctl_get_publisher_qos_args)
+#define AGNOCAST_ADD_BRIDGE_CMD _IOWR(0xA6, 14, struct ioctl_add_bridge_args)
+#define AGNOCAST_REMOVE_BRIDGE_CMD _IOW(0xA6, 15, struct ioctl_remove_bridge_args)
+#define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 16, union ioctl_get_publisher_num_args)
+#define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 17, struct ioctl_remove_subscriber_args)
+#define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 18, struct ioctl_remove_publisher_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
 
 }  // namespace agnocast

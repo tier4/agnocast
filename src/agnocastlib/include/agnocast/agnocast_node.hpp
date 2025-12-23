@@ -1,57 +1,136 @@
+#pragma once
+
+#include "agnocast/agnocast_arguments.hpp"
 #include "agnocast/agnocast_context.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/node_interfaces/node_base.hpp"
+#include "agnocast/node_interfaces/node_parameters.hpp"
+#include "agnocast/node_interfaces/node_topics.hpp"
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
 
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace agnocast
 {
 
-inline std::string query_node_name()
-{
-  std::string node_name;
-  {
-    std::lock_guard<std::mutex> lock(g_context_mtx);
-    node_name = g_context.command_line_params.node_name;
-  }
-  return node_name;
-}
+using ParameterDescriptor = rcl_interfaces::msg::ParameterDescriptor;
 
 class Node
 {
-  std::string node_name_;
-  rclcpp::Logger logger_;
-  rclcpp::CallbackGroup::SharedPtr default_callback_group_;
-
 public:
   using SharedPtr = std::shared_ptr<Node>;
+  using ParameterValue = rclcpp::ParameterValue;
 
-  Node() : node_name_(query_node_name()), logger_(rclcpp::get_logger(node_name_))
-  {
-    default_callback_group_ =
-      std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
-  }
+  explicit Node(
+    const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
+  explicit Node(
+    const std::string & node_name, const std::string & namespace_,
+    const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+
+  std::string get_name() const { return node_base_->get_name(); }
   rclcpp::Logger get_logger() const { return logger_; }
+  std::string get_namespace() const { return node_base_->get_namespace(); }
+  std::string get_fully_qualified_name() const { return node_base_->get_fully_qualified_name(); }
 
-  std::string get_name() const { return node_name_; }
-
-  // TODO(sykwer): Implement get_fully_qualified_name with valid logic, similar to rclcpp::Node.
-  const char * get_fully_qualified_name() const { return node_name_.c_str(); }
-
-  rclcpp::CallbackGroup::SharedPtr get_default_callback_group() const
+  rclcpp::CallbackGroup::SharedPtr get_default_callback_group()
   {
-    return default_callback_group_;
+    return node_base_->get_default_callback_group();
   }
 
-  // cppcheck-suppress functionStatic
-  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group) const
+  rclcpp::CallbackGroup::SharedPtr create_callback_group(
+    rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
   {
-    (void)callback_group;
-    // TODO(sykwer): implement proper logic after create_callback_group() method is implemented.
-    return true;
+    return node_base_->create_callback_group(group_type, automatically_add_to_executor_with_node);
+  }
+
+  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group)
+  {
+    return node_base_->callback_group_in_node(callback_group);
+  }
+
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr get_node_base_interface()
+  {
+    return node_base_;
+  }
+
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr get_node_topics_interface()
+  {
+    return node_topics_;
+  }
+
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
+  {
+    return node_parameters_;
+  }
+
+  const ParameterValue & declare_parameter(
+    const std::string & name, const ParameterValue & default_value,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
+  {
+    return node_parameters_->declare_parameter(name, default_value, descriptor, ignore_override);
+  }
+
+  template <typename ParameterT>
+  ParameterT declare_parameter(
+    const std::string & name, const ParameterT & default_value,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
+  {
+    return declare_parameter(
+             name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
+      .get<ParameterT>();
+  }
+
+  bool has_parameter(const std::string & name) const
+  {
+    return node_parameters_->has_parameter(name);
+  }
+
+  void undeclare_parameter(const std::string & name)
+  {
+    node_parameters_->undeclare_parameter(name);
+  }
+
+  rclcpp::Parameter get_parameter(const std::string & name) const
+  {
+    return node_parameters_->get_parameter(name);
+  }
+
+  bool get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
+  {
+    return node_parameters_->get_parameter(name, parameter);
+  }
+
+  template <typename ParameterT>
+  bool get_parameter(const std::string & name, ParameterT & parameter) const
+  {
+    rclcpp::Parameter param;
+    bool result = node_parameters_->get_parameter(name, param);
+    if (result) {
+      parameter = param.get_value<ParameterT>();
+    }
+    return result;
+  }
+
+  std::vector<rclcpp::Parameter> get_parameters(const std::vector<std::string> & names) const
+  {
+    return node_parameters_->get_parameters(names);
+  }
+
+  std::string resolve_topic_name(const std::string & topic_name, bool only_expand = false) const
+  {
+    return node_topics_->resolve_topic_name(topic_name, only_expand);
   }
 
   template <typename MessageT, typename Func>
@@ -71,6 +150,15 @@ public:
     return std::make_shared<Publisher<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
   }
+
+private:
+  // ParsedArguments must be stored to keep rcl_arguments_t alive
+  ParsedArguments local_args_;
+
+  rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
+  node_interfaces::NodeBase::SharedPtr node_base_;
+  node_interfaces::NodeParameters::SharedPtr node_parameters_;
+  node_interfaces::NodeTopics::SharedPtr node_topics_;
 };
 
 }  // namespace agnocast

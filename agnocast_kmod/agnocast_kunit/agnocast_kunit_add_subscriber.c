@@ -8,7 +8,9 @@
 static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const bool QOS_IS_TRANSIENT_LOCAL = false;
+static const bool QOS_IS_RELIABLE = true;
 static const bool IS_TAKE_SUB = false;
+static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 
 static void setup_process(struct kunit * test, const pid_t pid)
 {
@@ -30,7 +32,8 @@ void test_case_add_subscriber_normal(struct kunit * test)
   // Act
   int ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -56,7 +59,8 @@ void test_case_add_subscriber_invalid_qos(struct kunit * test)
   // Act
   int ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, invalid_qos_depth,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -73,13 +77,15 @@ void test_case_add_subscriber_too_many_subscribers(struct kunit * test)
     union ioctl_add_subscriber_args add_subscriber_args;
     add_subscriber(
       TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
-      QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+      QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+      &add_subscriber_args);
   }
 
   // Act
   int ret = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, qos_depth,
-    QOS_IS_TRANSIENT_LOCAL, IS_TAKE_SUB, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
