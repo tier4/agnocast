@@ -189,7 +189,7 @@ void BridgeManager::send_delegation(const MqMsgBridge & req, pid_t owner_pid)
   mq_close(mq);
 }
 
-void BridgeManager::process_bridge_request(
+void BridgeManager::process_managed_bridge(
   const std::string & topic_name, const std::optional<MqMsgBridge> & req)
 {
   if (!req) {
@@ -286,8 +286,8 @@ void BridgeManager::check_managed_bridges()
     const auto & topic_name = managed_bridge.first;
     auto & info = managed_bridge.second;
 
-    process_bridge_request(topic_name, info.req_r2a);
-    process_bridge_request(topic_name, info.req_a2r);
+    process_managed_bridge(topic_name, info.req_r2a);
+    process_managed_bridge(topic_name, info.req_a2r);
   }
 }
 

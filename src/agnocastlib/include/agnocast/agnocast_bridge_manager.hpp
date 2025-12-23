@@ -65,7 +65,7 @@ private:
   static BridgeKernelResult try_add_bridge_to_kernel(const std::string & topic_name, bool is_r2a);
   void activate_bridge(const MqMsgBridge & req, const std::string & topic_name_with_direction);
   void send_delegation(const MqMsgBridge & req, pid_t owner_pid);
-  void process_bridge_request(
+  void process_managed_bridge(
     const std::string & topic_name, const std::optional<MqMsgBridge> & req);
 
   void check_parent_alive();
