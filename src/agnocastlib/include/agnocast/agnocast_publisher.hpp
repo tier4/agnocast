@@ -155,9 +155,9 @@ public:
   }
 
   BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-  : topic_name_(topic_name)  // TODO: resolve topic name similar to rclcpp::Node
+  : topic_name_(node->resolve_topic_name(topic_name))
   {
-    constructor_impl(node, topic_name, qos);
+    constructor_impl(node, topic_name_, qos);
 
     // TODO: CARET tracepoint for agnocast::Node
   }
