@@ -39,7 +39,13 @@ BridgeManager::~BridgeManager()
     executor_->cancel();
   }
   if (executor_thread_.joinable()) {
-    executor_thread_.join();
+    try {
+      executor_thread_.join();
+    } catch (const std::exception & e) {
+      RCLCPP_ERROR(rclcpp::get_logger("BridgeManager"), "Failed to join thread: %s", e.what());
+    } catch (...) {
+      RCLCPP_ERROR(rclcpp::get_logger("BridgeManager"), "Failed to join thread: unknown error");
+    }
   }
 
   active_bridges_.clear();
