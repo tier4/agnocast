@@ -40,7 +40,8 @@ std::string NodeTopics::resolve_topic_name(const std::string & input_name, bool 
   rcutils_ret = rcutils_string_map_fini(&substitutions);
 
   if (ret != RCL_RET_OK) {
-    std::string error_msg = rcl_get_error_string().str;
+    auto error_state = rcl_get_error_string();
+    std::string error_msg = &error_state.str[0];
     rcl_reset_error();
     throw std::runtime_error("Failed to expand topic name: " + error_msg);
   }
@@ -49,8 +50,9 @@ std::string NodeTopics::resolve_topic_name(const std::string & input_name, bool 
     if (expanded_name != nullptr) {
       allocator.deallocate(expanded_name, allocator.state);
     }
+    auto error_state = rcutils_get_error_string();
     throw std::runtime_error(
-      "Failed to fini substitutions map: " + std::string(rcutils_get_error_string().str));
+      "Failed to fini substitutions map: " + std::string(&error_state.str[0]));
   }
 
   std::string result(expanded_name);
