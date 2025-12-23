@@ -22,7 +22,7 @@ class NoRclcppPubSub : public agnocast::Node
   }
 
 public:
-  explicit NoRclcppPubSub()
+  explicit NoRclcppPubSub() : Node("no_rclcpp_pubsub")
   {
     RCLCPP_INFO(get_logger(), "NoRclcppPubSub node (name=%s) started.", get_name().c_str());
 
