@@ -62,7 +62,7 @@ struct AgnocastToRosRequestPolicy
 struct NoBridgeRequestPolicy
 {
   template <typename MessageT>
-  static void request_bridge(const std::string & /*unused*/, const rclcpp::QoS & /*unused*/)
+  static void request_bridge(const std::string & /*unused*/, topic_local_id_t /*unused*/)
   {
     // Do nothing
   }
