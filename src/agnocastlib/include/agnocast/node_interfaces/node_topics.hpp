@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/node_interfaces/node_base.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_topics_interface.hpp"
 
@@ -15,7 +16,7 @@ public:
   using SharedPtr = std::shared_ptr<NodeTopics>;
   using WeakPtr = std::weak_ptr<NodeTopics>;
 
-  explicit NodeTopics(rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base);
+  explicit NodeTopics(NodeBase::SharedPtr node_base);
 
   virtual ~NodeTopics() = default;
 
@@ -38,8 +39,6 @@ public:
   rclcpp::node_interfaces::NodeTimersInterface * get_node_timers_interface() const override;
 
 private:
-  std::string expand_topic_name(const std::string & input_topic_name) const;
-
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+  NodeBase::SharedPtr node_base_;
 };
 }  // namespace agnocast::node_interfaces

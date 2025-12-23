@@ -1,9 +1,12 @@
 #pragma once
 
+#include "agnocast/agnocast_arguments.hpp"
 #include "rclcpp/callback_group.hpp"
 #include "rclcpp/context.hpp"
 #include "rclcpp/guard_condition.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
+
+#include <rcl/arguments.h>
 
 #include <atomic>
 #include <memory>
@@ -22,7 +25,8 @@ public:
 
   NodeBase(
     std::string node_name, const std::string & ns, rclcpp::Context::SharedPtr context,
-    bool use_intra_process_default = false, bool enable_topic_statistics_default = false);
+    const rcl_arguments_t * local_args, bool use_intra_process_default = false,
+    bool enable_topic_statistics_default = false);
 
   virtual ~NodeBase() = default;
 
@@ -53,6 +57,9 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
+  const rcl_arguments_t * get_local_args() const { return local_args_; }
+  const rcl_arguments_t * get_global_args() const { return global_args_; }
+
 private:
   std::string node_name_;
   std::string namespace_;
@@ -69,6 +76,9 @@ private:
 
   bool use_intra_process_default_;
   bool enable_topic_statistics_default_;
+
+  const rcl_arguments_t * local_args_ = nullptr;
+  const rcl_arguments_t * global_args_ = nullptr;
 };
 
 }  // namespace agnocast::node_interfaces
