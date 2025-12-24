@@ -128,15 +128,6 @@ public:
     return node_parameters_->get_parameters(names);
   }
 
-  template <typename MessageT, typename Func>
-  typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
-    const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
-    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
-  {
-    return std::make_shared<Subscription<MessageT>>(
-      this, topic_name, qos, std::forward<Func>(callback), options);
-  }
-
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
     const std::string & topic_name, const rclcpp::QoS & qos)
