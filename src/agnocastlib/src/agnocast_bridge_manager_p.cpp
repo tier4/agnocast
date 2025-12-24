@@ -39,6 +39,9 @@ PerformanceBridgeManager::~PerformanceBridgeManager()
     executor_thread_.join();
   }
 
+  executor_.reset();
+  container_node_.reset();
+
   if (rclcpp::ok()) {
     rclcpp::shutdown();
   }
@@ -64,6 +67,8 @@ void PerformanceBridgeManager::run()
       RCLCPP_ERROR(logger_, "Event loop spin failed.");
       break;
     }
+
+    check_and_request_shutdown();
   }
 }
 
@@ -117,6 +122,19 @@ void PerformanceBridgeManager::on_signal()
 void PerformanceBridgeManager::on_reload()
 {
   RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
+}
+
+void PerformanceBridgeManager::check_and_request_shutdown()
+{
+  struct ioctl_get_active_process_num_args args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger_, "Failed to get active process count from kernel module.");
+    return;
+  }
+
+  if (args.ret_active_process_num <= 1) {
+    shutdown_requested_ = true;
+  }
 }
 
 }  // namespace agnocast

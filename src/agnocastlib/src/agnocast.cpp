@@ -403,10 +403,12 @@ struct initialize_agnocast_result initialize_agnocast(
     if (!add_process_args.ret_unlink_daemon_exist) {
       target_pid = 0;
       should_spawn_bridge = true;
+      RCLCPP_INFO(logger, "Spawning Performance Bridge Manager with unlink daemon.");
     }
   } else if (bridge_mode == BridgeMode::Standard) {
     target_pid = getpid();
     should_spawn_bridge = true;
+    RCLCPP_INFO(logger, "Spawning Standard Bridge Manager.");
   }
 
   if (should_spawn_bridge) {
