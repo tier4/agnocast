@@ -54,8 +54,9 @@ class BasicPublisher
   PublisherOptions options_;
 
   template <typename NodeT>
-  void constructor_impl(NodeT * node, const rclcpp::QoS & qos)
+  void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
   {
+    topic_name_ = node->get_node_topics_interface()->resolve_topic_name(topic_name);
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
   }
@@ -66,21 +67,19 @@ public:
   BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & /*options*/)
-  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
   {
+    constructor_impl(node, topic_name, qos);
+
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
       topic_name_.c_str(), qos.depth());
-
-    constructor_impl(node, qos);
   }
 
   BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-  : topic_name_(topic_name)  // TODO: resolve topic name similar to rclcpp::Node
   {
-    constructor_impl(node, qos);
+    constructor_impl(node, topic_name, qos);
 
     // TODO: CARET tracepoint for agnocast::Node
   }
