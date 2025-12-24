@@ -29,13 +29,8 @@ public:
   {
     RCLCPP_INFO(get_logger(), "NoRclcppPubSub node (name=%s) started.", get_name().c_str());
 
-    auto group =
-      std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
-    agnocast::SubscriptionOptions agnocast_options;
-    agnocast_options.callback_group = group;
-
     sub_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-      "/my_topic", 1, std::bind(&NoRclcppPubSub::callback, this, _1), agnocast_options);
+      "/my_topic", 1, std::bind(&NoRclcppPubSub::callback, this, _1));
 
     pub_ = this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       "/my_topic_republished", 1);
