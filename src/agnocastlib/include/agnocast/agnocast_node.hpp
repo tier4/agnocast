@@ -149,17 +149,8 @@ public:
 
   template <typename MessageT, typename Func>
   typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
-    const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
-    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
-  {
-    return std::make_shared<Subscription<MessageT>>(
-      this, topic_name, qos, std::forward<Func>(callback), options);
-  }
-
-  template <typename MessageT, typename Func>
-  typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
     const std::string & topic_name, size_t queue_size, Func && callback,
-    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
+    agnocast::SubscriptionOptions options)
   {
     return std::make_shared<Subscription<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), std::forward<Func>(callback),
