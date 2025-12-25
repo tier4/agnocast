@@ -161,14 +161,6 @@ public:
       options);
   }
 
-  template <typename MessageT>
-  typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
-    const std::string & topic_name, size_t queue_size)
-  {
-    return std::make_shared<Publisher<MessageT>>(
-      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
-  }
-
 private:
   // ParsedArguments must be stored to keep rcl_arguments_t alive
   ParsedArguments local_args_;
