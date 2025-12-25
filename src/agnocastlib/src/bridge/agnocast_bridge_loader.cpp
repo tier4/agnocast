@@ -1,4 +1,4 @@
-#include "agnocast/agnocast_bridge_loader.hpp"
+#include "agnocast/bridge/agnocast_bridge_loader.hpp"
 
 #include "agnocast/agnocast_utils.hpp"
 
@@ -6,7 +6,7 @@
 #include <elf.h>
 #include <link.h>
 
-#include <cstdint>  // uintptr_t
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <utility>
