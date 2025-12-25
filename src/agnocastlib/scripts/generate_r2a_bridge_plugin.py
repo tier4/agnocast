@@ -27,23 +27,18 @@ def main():
     package_names = set()
 
     for msg_type in message_types:
-        # 依存関係用パッケージ名
         pkg_name = msg_type.split('/')[0]
         package_names.add(pkg_name)
 
-        # ファイル名はユニークにする必要があります
         flat_type = msg_type.replace('/', '_')
         safe_filename = "register_r2a_" + flat_type + ".cpp"
         output_cpp_path = os.path.join(output_dir, safe_filename)
 
-        # C++の型情報
         cpp_type = msg_type.replace('/', '::')
         parts = msg_type.split('/')
         parts[-1] = camel_to_snake(parts[-1])
         header_path = "/".join(parts) + ".hpp"
         
-        # 【変更点】関数名は「固定」にします。
-        # ライブラリ(.so)が分かれているので、同じ名前でも問題ありません。
         function_name = "create_r2a_bridge"
 
         with open(output_cpp_path, 'w') as f:

@@ -69,7 +69,6 @@ if(NOT ros2_list_res EQUAL 0)
   message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
 endif()
 
-# テスト用固定リスト（必要ならコメントアウト解除）
 # set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/bridge_messages.txt")
 
 set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")

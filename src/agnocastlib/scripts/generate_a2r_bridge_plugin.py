@@ -34,7 +34,6 @@ def main():
         safe_filename = "register_a2r_" + flat_type + ".cpp"
         output_cpp_path = os.path.join(output_dir, safe_filename)
         
-        # 【変更点】関数名は「固定」にします。
         function_name = "create_a2r_bridge"
 
         cpp_type = msg_type.replace('/', '::')
