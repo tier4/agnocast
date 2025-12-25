@@ -17,18 +17,6 @@
 namespace agnocast
 {
 
-struct ActiveBridgeR2A
-{
-  std::string topic_name;
-  rclcpp::SubscriptionBase::SharedPtr ptr;
-};
-
-struct ActiveBridgeA2R
-{
-  std::string topic_name;
-  std::shared_ptr<agnocast::SubscriptionBase> ptr;
-};
-
 class PerformanceBridgeManager
 {
 public:
@@ -51,8 +39,8 @@ private:
   // State
   bool shutdown_requested_ = false;
 
-  std::vector<ActiveBridgeR2A> active_r2a_bridges_;
-  std::vector<ActiveBridgeA2R> active_a2r_bridges_;
+  std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> active_r2a_bridges_;
+  std::unordered_map<std::string, std::shared_ptr<agnocast::SubscriptionBase>> active_a2r_bridges_;
 
   // Initialization
   void start_ros_execution();
@@ -64,6 +52,7 @@ private:
 
   // Periodic Checks
   void check_and_request_shutdown();
+  void check_and_remove_bridges();
 };
 
 }  // namespace agnocast

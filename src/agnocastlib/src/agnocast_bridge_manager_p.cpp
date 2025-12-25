@@ -1,5 +1,6 @@
 #include "agnocast/agnocast_bridge_manager_p.hpp"
 
+#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_utils.hpp"
@@ -69,6 +70,7 @@ void PerformanceBridgeManager::run()
       break;
     }
 
+    check_and_remove_bridges();
     check_and_request_shutdown();
   }
 }
@@ -106,49 +108,41 @@ void PerformanceBridgeManager::on_mq_request(int fd)
   auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
 
   std::string topic_name = msg->target.topic_name;
+  topic_local_id_t target_id = msg->target.target_id;
   std::string message_type = msg->message_type;
-
-  rclcpp::QoS default_qos(10);
 
   RCLCPP_INFO(
     logger_, "Received Request: %s [%s] (Dir: %d)", topic_name.c_str(), message_type.c_str(),
     (int)msg->direction);
 
-  // ---------------------------------------------------------
-  // R2A: ROS 2 -> Agnocast
-  // ---------------------------------------------------------
   if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    for (const auto & bridge_entry : active_r2a_bridges_) {
-      if (bridge_entry.topic_name == topic_name) {
-        RCLCPP_DEBUG(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
-        return;
-      }
+    if (active_r2a_bridges_.count(topic_name) > 0) {
+      RCLCPP_INFO(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
     }
 
-    auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, default_qos);
+    rclcpp::QoS qos = get_subscriber_qos(topic_name, target_id);
+    auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, qos);
 
     if (bridge) {
-      active_r2a_bridges_.push_back({topic_name, bridge});
+      active_r2a_bridges_[topic_name] = bridge;
       RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
     } else {
       RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
     }
   }
-  // ---------------------------------------------------------
-  // A2R: Agnocast -> ROS 2
-  // ---------------------------------------------------------
+
   else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-    for (const auto & bridge_entry : active_a2r_bridges_) {
-      if (bridge_entry.topic_name == topic_name) {
-        RCLCPP_DEBUG(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
-        return;
-      }
+    if (active_a2r_bridges_.count(topic_name) > 0) {
+      RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
     }
 
-    auto bridge = loader_.create_a2r_bridge(container_node_, topic_name, message_type, default_qos);
+    rclcpp::QoS qos = get_publisher_qos(topic_name, target_id);
+    auto bridge = loader_.create_a2r_bridge(container_node_, topic_name, message_type, qos);
 
     if (bridge) {
-      active_a2r_bridges_.push_back({topic_name, bridge});
+      active_a2r_bridges_[topic_name] = bridge;
       RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
     } else {
       RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
@@ -180,6 +174,43 @@ void PerformanceBridgeManager::check_and_request_shutdown()
 
   if (args.ret_active_process_num <= 1) {
     shutdown_requested_ = true;
+  }
+}
+
+void PerformanceBridgeManager::check_and_remove_bridges()
+{
+  auto r2a_it = active_r2a_bridges_.begin();
+  while (r2a_it != active_r2a_bridges_.end()) {
+    const std::string & topic_name = r2a_it->first;
+
+    bool reverse_exists = (active_a2r_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_subscriber_count(topic_name);
+
+    if (count != -1 && count <= threshold) {
+      RCLCPP_INFO(logger_, "Removing R2A Bridge: %s", topic_name.c_str());
+      r2a_it = active_r2a_bridges_.erase(r2a_it);
+    } else {
+      ++r2a_it;
+    }
+  }
+
+  auto a2r_it = active_a2r_bridges_.begin();
+  while (a2r_it != active_a2r_bridges_.end()) {
+    const std::string & topic_name = a2r_it->first;
+
+    bool reverse_exists = (active_r2a_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_publisher_count(topic_name);
+
+    if (count != -1 && count <= threshold) {
+      RCLCPP_INFO(logger_, "Removing A2R Bridge: %s", topic_name.c_str());
+      a2r_it = active_a2r_bridges_.erase(a2r_it);
+    } else {
+      ++a2r_it;
+    }
   }
 }
 
