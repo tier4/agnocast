@@ -1,5 +1,6 @@
 #include "agnocast/agnocast_bridge_manager.hpp"
 
+#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
 #include <sys/prctl.h>

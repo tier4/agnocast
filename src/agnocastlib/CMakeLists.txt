@@ -35,7 +35,7 @@ add_library(agnocast SHARED
   src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
   src/agnocast_node.cpp src/node_interfaces/node_base.cpp
   src/node_interfaces/node_parameters.cpp src/node_interfaces/node_topics.cpp
-  src/agnocast_bridge_ipc_event_loop.cpp src/agnocast_bridge_loader.cpp src/agnocast_bridge_manager.cpp
+  src/agnocast_bridge_ipc_event_loop.cpp src/agnocast_bridge_loader.cpp src/agnocast_bridge_manager.cpp src/agnocast_bridge_utils.cpp
   src/agnocast_bridge_ipc_event_loop_p.cpp src/agnocast_bridge_loader_p.cpp src/agnocast_bridge_manager_p.cpp src/agnocast_bridge_config_p.cpp)
 
 ament_target_dependencies(agnocast cie_thread_configurator)
@@ -69,7 +69,7 @@ if(NOT ros2_list_res EQUAL 0)
   message(FATAL_ERROR "Failed to execute 'ros2 interface list -m'.")
 endif()
 
-# set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/bridge_messages.txt")
+set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/bridge_messages.txt")
 
 set(GENERATED_PLUGINS_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_bridge_plugins")
 set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")

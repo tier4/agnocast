@@ -9,8 +9,6 @@
 
 // API定義をインクルード (これで BridgeEntryR2A などが使えるようになります)
 #include "agnocast/agnocast_bridge_plugin_api.hpp"
-
-// BridgeDirection などの定義用 (Utilsにあると想定)
 #include "agnocast/agnocast_utils.hpp"
 
 namespace agnocast

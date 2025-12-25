@@ -8,15 +8,7 @@
 namespace agnocast
 {
 
-inline constexpr std::string_view SUFFIX_R2A = "_R2A";
-inline constexpr std::string_view SUFFIX_A2R = "_A2R";
-inline constexpr size_t SUFFIX_LEN = SUFFIX_R2A.length();
-
 extern rclcpp::Logger logger;
-
-enum class BridgeMode : int { Off = 0, Standard = 1, Performance = 2 };
-
-BridgeMode get_bridge_mode();
 
 void validate_ld_preload();
 std::string create_mq_name_for_agnocast_publish(

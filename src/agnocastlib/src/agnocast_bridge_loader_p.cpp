@@ -30,7 +30,6 @@ std::string BridgeLoaderP::convert_type_to_snake_case(const std::string & messag
   return result;
 }
 
-// 元の load_and_launch_plugin 内のロジックを移植
 std::string BridgeLoaderP::generate_library_path(
   const std::string & snake_type, const std::string & plugin_suffix) const
 {
@@ -77,13 +76,11 @@ rclcpp::SubscriptionBase::SharedPtr BridgeLoaderP::create_r2a_bridge(
   const rclcpp::QoS & qos)
 {
   std::string snake_type = convert_type_to_snake_case(message_type);
-  // suffix "r2a" を指定
   std::string lib_path = generate_library_path(snake_type, "r2a");
 
   void * handle = load_library(lib_path);
   if (!handle) return nullptr;
 
-  // シンボル名 "create_r2a_bridge"
   auto factory = reinterpret_cast<BridgeEntryR2A>(dlsym(handle, "create_r2a_bridge"));
 
   const char * dlsym_error = dlerror();
@@ -106,13 +103,11 @@ std::shared_ptr<agnocast::SubscriptionBase> BridgeLoaderP::create_a2r_bridge(
   const rclcpp::QoS & qos)
 {
   std::string snake_type = convert_type_to_snake_case(message_type);
-  // suffix "a2r" を指定
   std::string lib_path = generate_library_path(snake_type, "a2r");
 
   void * handle = load_library(lib_path);
   if (!handle) return nullptr;
 
-  // シンボル名 "create_a2r_bridge"
   auto factory = reinterpret_cast<BridgeEntryA2R>(dlsym(handle, "create_a2r_bridge"));
 
   const char * dlsym_error = dlerror();
