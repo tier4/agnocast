@@ -31,12 +31,14 @@ public:
   };
 
 private:
+  using ServiceResponsePublisher =
+    agnocast::BasicPublisher<ResponseT, agnocast::NoBridgeRequestPolicy>;
+
   rclcpp::Node * node_;
   const std::string service_name_;
   const rclcpp::QoS qos_;
   std::mutex publishers_mtx_;
-  // AgnocastOnlyPublisher is used since ResponseT is not a compatible ROS message type.
-  std::unordered_map<std::string, typename AgnocastOnlyPublisher<ResponseT>::SharedPtr> publishers_;
+  std::unordered_map<std::string, typename ServiceResponsePublisher::SharedPtr> publishers_;
   typename BasicSubscription<RequestT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
@@ -58,7 +60,7 @@ public:
 
     auto subscriber_callback =
       [this, callback = std::forward<Func>(callback)](const ipc_shared_ptr<RequestT> & request) {
-        typename AgnocastOnlyPublisher<ResponseT>::SharedPtr publisher;
+        typename ServiceResponsePublisher::SharedPtr publisher;
 
         {
           std::lock_guard<std::mutex> lock(publishers_mtx_);
@@ -66,7 +68,9 @@ public:
           if (it == publishers_.end()) {
             std::string topic_name =
               create_service_response_topic_name(service_name_, request->_node_name);
-            publisher = std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node_, topic_name, qos_);
+            agnocast::PublisherOptions pub_options;
+            publisher =
+              std::make_shared<ServiceResponsePublisher>(node_, topic_name, qos_, pub_options);
             publishers_[request->_node_name] = publisher;
           } else {
             publisher = it->second;

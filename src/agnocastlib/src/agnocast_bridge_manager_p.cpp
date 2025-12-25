@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_utils.hpp"
 
 #include <mqueue.h>
+#include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
 
@@ -104,10 +105,60 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
   auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
 
-  RCLCPP_INFO(logger_, "Received Request:");
-  RCLCPP_INFO(logger_, "  Topic: %s", msg->target.topic_name);
-  RCLCPP_INFO(logger_, "  Type : %s", msg->message_type);
-  RCLCPP_INFO(logger_, "  Dir  : %d", (int)msg->direction);
+  std::string topic_name = msg->target.topic_name;
+  std::string message_type = msg->message_type;
+
+  // デフォルトQoS設定（Standard版と同じくDepth 10など）
+  rclcpp::QoS default_qos(10);
+
+  RCLCPP_INFO(
+    logger_, "Received Request: %s [%s] (Dir: %d)", topic_name.c_str(), message_type.c_str(),
+    (int)msg->direction);
+
+  // ---------------------------------------------------------
+  // R2A: ROS 2 -> Agnocast
+  // ---------------------------------------------------------
+  if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    // ★修正: 構造体のメンバ変数 topic_name を参照
+    for (const auto & bridge_entry : active_r2a_bridges_) {
+      if (bridge_entry.topic_name == topic_name) {
+        RCLCPP_DEBUG(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+        return;
+      }
+    }
+
+    auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, default_qos);
+
+    if (bridge) {
+      // ★修正: 構造体を作って保存 {トピック名, ポインタ}
+      active_r2a_bridges_.push_back({topic_name, bridge});
+      RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
+    }
+  }
+  // ---------------------------------------------------------
+  // A2R: Agnocast -> ROS 2
+  // ---------------------------------------------------------
+  else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+    // ★修正: 構造体のメンバ変数 topic_name を参照
+    for (const auto & bridge_entry : active_a2r_bridges_) {
+      if (bridge_entry.topic_name == topic_name) {
+        RCLCPP_DEBUG(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+        return;
+      }
+    }
+
+    auto bridge = loader_.create_a2r_bridge(container_node_, topic_name, message_type, default_qos);
+
+    if (bridge) {
+      // ★修正: 構造体を作って保存 {トピック名, ポインタ}
+      active_a2r_bridges_.push_back({topic_name, bridge});
+      RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
+    }
+  }
 }
 
 void PerformanceBridgeManager::on_signal()
