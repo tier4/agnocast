@@ -55,15 +55,6 @@ class BasicPublisher
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> opened_mqs_;
   PublisherOptions options_;
 
-<<<<<<< HEAD
-  // ROS2 publish related variables (only used when constructed with rclcpp::Node)
-  typename rclcpp::Publisher<MessageT>::SharedPtr ros2_publisher_;
-  mqd_t ros2_publish_mq_ = -1;
-  std::string ros2_publish_mq_name_;
-  std::queue<ipc_shared_ptr<MessageT>> ros2_message_queue_;
-  std::thread ros2_publish_thread_;
-  std::mutex ros2_publish_mtx_;
-=======
   template <typename NodeT>
   void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
   {
@@ -71,7 +62,6 @@ class BasicPublisher
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
   }
->>>>>>> main
 
   template <typename NodeT>
   void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
@@ -147,27 +137,6 @@ public:
 
   ~BasicPublisher()
   {
-<<<<<<< HEAD
-    if (ros2_publisher_) {
-      MqMsgROS2Publish mq_msg = {};
-      mq_msg.should_terminate = true;
-      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
-        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
-      }
-
-      ros2_publish_thread_.join();
-
-      if (mq_close(ros2_publish_mq_) == -1) {
-        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
-      }
-
-      if (mq_unlink(ros2_publish_mq_name_.c_str()) == -1) {
-        RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
-      }
-    }
-
-=======
->>>>>>> main
     for (auto & [_, t] : opened_mqs_) {
       mqd_t mq = std::get<0>(t);
       if (mq_close(mq) == -1) {
@@ -189,116 +158,6 @@ public:
     }
   }
 
-<<<<<<< HEAD
-  void do_ros2_publish()
-  {
-    mqd_t mq = mq_open(ros2_publish_mq_name_.c_str(), O_RDONLY);
-    if (mq == -1) {
-      RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    while (true) {
-      MqMsgROS2Publish mq_msg = {};
-      auto ret = mq_receive(mq, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
-      if (ret == -1) {
-        RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      if (mq_msg.should_terminate) {
-        break;
-      }
-
-      while (true) {
-        ipc_shared_ptr<MessageT> message;
-
-        {
-          std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
-          if (ros2_message_queue_.empty()) {
-            break;
-          }
-
-          message = std::move(ros2_message_queue_.front());
-          ros2_message_queue_.pop();
-        }
-
-        ros2_publisher_->publish(*message.get());
-      }
-    }
-
-    if (mq_close(mq) == -1) {
-      RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
-    }
-  }
-
-  ipc_shared_ptr<MessageT> borrow_loaned_message()
-  {
-    increment_borrowed_publisher_num();
-    MessageT * ptr = new MessageT();
-    return ipc_shared_ptr<MessageT>(ptr, topic_name_.c_str(), id_);
-  }
-
-  void publish(ipc_shared_ptr<MessageT> && message)
-  {
-    if (!message || topic_name_ != message.get_topic_name()) {
-      RCLCPP_ERROR(logger, "Invalid message to publish.");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    decrement_borrowed_publisher_num();
-
-    publish_impl(std::move(message));
-  }
-
-  uint32_t get_subscription_count() const
-  {
-    uint32_t count = get_subscription_count_core(topic_name_);
-    if (ros2_publisher_) {
-      count += ros2_publisher_->get_subscription_count();
-    }
-    return count;
-  }
-};
-
-struct AgnocastToRosRequestPolicy;
-
-template <typename MessageT>
-using Publisher = agnocast::BasicPublisher<MessageT, agnocast::AgnocastToRosRequestPolicy>;
-
-// The Publisher that does not instantiate a ros2 publisher
-template <typename MessageT>
-class AgnocastOnlyPublisher
-{
-  const std::string topic_name_;
-  const topic_local_id_t id_;
-  std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> opened_mqs_;
-
-public:
-  using SharedPtr = std::shared_ptr<AgnocastOnlyPublisher<MessageT>>;
-
-  AgnocastOnlyPublisher(
-    rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
-  : topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name)),
-    id_(initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos))
-  {
-  }
-
-  ~AgnocastOnlyPublisher()
-  {
-    for (auto & [_, t] : opened_mqs_) {
-      mqd_t mq = std::get<0>(t);
-      if (mq_close(mq) == -1) {
-        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
-      }
-    }
-  }
-
-=======
->>>>>>> main
   ipc_shared_ptr<MessageT> borrow_loaned_message()
   {
     increment_borrowed_publisher_num();

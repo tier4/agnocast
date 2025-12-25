@@ -1,9 +1,6 @@
-<<<<<<< HEAD
-=======
 // To test this node, change the subscription topic of no_rclcpp_subscriber to
 // /my_topic_republished.
 
->>>>>>> main
 #include "agnocast/agnocast.hpp"
 #include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 
@@ -32,18 +29,8 @@ public:
   {
     RCLCPP_INFO(get_logger(), "NoRclcppPubSub node (name=%s) started.", get_name().c_str());
 
-<<<<<<< HEAD
-    auto group =
-      std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
-    agnocast::SubscriptionOptions agnocast_options;
-    agnocast_options.callback_group = group;
-
-    sub_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
-      "/my_topic", 1, std::bind(&NoRclcppPubSub::callback, this, _1), agnocast_options);
-=======
     sub_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       "/my_topic", 1, std::bind(&NoRclcppPubSub::callback, this, _1));
->>>>>>> main
 
     pub_ = this->create_publisher<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       "/my_topic_republished", 1);
