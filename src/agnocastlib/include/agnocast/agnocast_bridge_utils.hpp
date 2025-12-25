@@ -13,7 +13,22 @@ inline constexpr std::string_view SUFFIX_R2A = "_R2A";
 inline constexpr std::string_view SUFFIX_A2R = "_A2R";
 inline constexpr size_t SUFFIX_LEN = SUFFIX_R2A.length();
 
-enum class BridgeMode : int { Off = 0, Standard = 1, Performance = 2 };
+enum class BridgeMode { Off, Standard, Performance };
+enum class FilterMode { ALLOW_ALL, BLACKLIST, WHITELIST };
+enum class BridgeDirection { ROS2_TO_AGNOCAST, AGNOCAST_TO_ROS2, BIDIRECTIONAL };
+
+struct BridgeConfigEntry
+{
+  std::string topic_name;
+  std::string message_type;
+  BridgeDirection direction;
+};
+
+struct BridgeConfig
+{
+  std::vector<BridgeConfigEntry> rules;
+  FilterMode mode = FilterMode::ALLOW_ALL;
+};
 
 BridgeMode get_bridge_mode();
 rclcpp::QoS get_subscriber_qos(const std::string & topic_name, topic_local_id_t subscriber_id);

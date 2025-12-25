@@ -18,8 +18,7 @@ namespace agnocast
 PerformanceBridgeManager::PerformanceBridgeManager()
 : logger_(rclcpp::get_logger("agnocast_performance_bridge_manager")),
   event_loop_(logger_),
-  loader_(logger_),
-  config_(logger_)
+  loader_(logger_)
 {
   if (rclcpp::ok()) {
     rclcpp::shutdown();
@@ -29,6 +28,7 @@ PerformanceBridgeManager::PerformanceBridgeManager()
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
 
+  config_handler_ = std::make_unique<BridgeConfigP>(logger_);
   RCLCPP_INFO(logger_, "Bridge Manager initialized (PID: %d).", getpid());
 }
 
@@ -115,6 +115,11 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     logger_, "Received Request: %s [%s] (Dir: %d)", topic_name.c_str(), message_type.c_str(),
     (int)msg->direction);
 
+  if (!config_handler_->is_topic_allowed(topic_name, msg->direction)) {
+    RCLCPP_WARN(logger_, "Request for '%s' denied by filter.", topic_name.c_str());
+    return;
+  }
+
   if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     if (active_r2a_bridges_.count(topic_name) > 0) {
       RCLCPP_INFO(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
@@ -147,6 +152,10 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     } else {
       RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
     }
+  }
+
+  else {
+    RCLCPP_ERROR(logger_, "Invalid bridge direction received: %d", (int)msg->direction);
   }
 }
 

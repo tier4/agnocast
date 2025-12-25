@@ -29,7 +29,6 @@ private:
   rclcpp::Logger logger_;
   BridgeIpcEventLoopP event_loop_;
   BridgeLoaderP loader_;
-  BridgeConfigP config_;
 
   // ROS Execution
   std::shared_ptr<rclcpp::Node> container_node_;
@@ -41,6 +40,8 @@ private:
 
   std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> active_r2a_bridges_;
   std::unordered_map<std::string, std::shared_ptr<agnocast::SubscriptionBase>> active_a2r_bridges_;
+
+  std::unique_ptr<BridgeConfigP> config_handler_;
 
   // Initialization
   void start_ros_execution();

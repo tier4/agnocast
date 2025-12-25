@@ -1,5 +1,6 @@
 #pragma once
 
+#include "agnocast/agnocast_bridge_utils.hpp"
 #include "agnocast/agnocast_ioctl.hpp"
 
 #include <cstddef>
@@ -23,8 +24,6 @@ struct MqMsgROS2Publish
 {
   bool should_terminate;
 };
-
-enum class BridgeDirection : uint32_t { ROS2_TO_AGNOCAST = 0, AGNOCAST_TO_ROS2 = 1 };
 
 struct BridgeFactoryInfo
 {

@@ -30,6 +30,7 @@
 
   <depend>cie_config_msgs</depend>
   <depend>cie_thread_configurator</depend>
+  <depend>yaml-cpp</depend>
 
   <!-- Add your custom message here if you have one.-->
   <depend>agnocast_sample_interfaces</depend>
