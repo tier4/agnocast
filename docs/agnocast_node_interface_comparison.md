@@ -2,7 +2,12 @@
 
 ## Executive Summary
 
-This document provides a comprehensive comparison between `agnocast::Node` and `rclcpp::Node`, detailing the features that are fully supported, partially supported, and unsupported in the Agnocast implementation.
+While Agnocast can be applied incrementally on a per-topic basis to nodes that inherit from `rclcpp::Node`, we also provide `agnocast::Node` for users who seek further performance improvements.
+
+`agnocast::Node` offers an API that is largely compatible with `rclcpp::Node`, allowing existing nodes to be migrated by simply replacing `rclcpp::Node` with `agnocast::Node`.
+However, some APIs are not yet supported, and others are intentionally not planned to be supported.
+This document summarizes those limitations.
+Since `rclcpp::Node` is composed of ten modular node interfaces, this document organizes the API compatibility of agnocast::Node accordingly, one section per interface.
 
 **Key Characteristics**:
 
