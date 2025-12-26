@@ -210,7 +210,7 @@ The following tables compare methods that are **directly defined** in each class
 
 | API | rclcpp::Node | agnocast::Node | Notes |
 |-----|:------------:|:--------------:|-------|
-| `get_default_callback_group()` | ✗ | ✓ | **Not directly defined in rclcpp::Node** (via NodeBaseInterface) |
+| `get_default_callback_group()` | ✗ | ✗ | Not directly defined (via NodeBaseInterface) |
 | `create_callback_group()` | ✓ | ✓ | |
 | `callback_group_in_node()` | ✗ | ✗ | Not directly defined (via NodeBaseInterface) |
 | `for_each_callback_group()` | ✓ | ✓ | |

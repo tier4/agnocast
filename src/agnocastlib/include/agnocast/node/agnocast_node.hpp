@@ -38,11 +38,6 @@ public:
   std::string get_namespace() const { return node_base_->get_namespace(); }
   std::string get_fully_qualified_name() const { return node_base_->get_fully_qualified_name(); }
 
-  rclcpp::CallbackGroup::SharedPtr get_default_callback_group()
-  {
-    return node_base_->get_default_callback_group();
-  }
-
   rclcpp::CallbackGroup::SharedPtr create_callback_group(
     rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
   {
