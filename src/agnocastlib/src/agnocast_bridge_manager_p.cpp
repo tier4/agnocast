@@ -56,6 +56,7 @@ PerformanceBridgeManager::~PerformanceBridgeManager()
 void PerformanceBridgeManager::run()
 {
   constexpr int EVENT_LOOP_TIMEOUT_MS = 1000;
+  int maintenance_counter = 0;
 
   std::string proc_name = "agno_br_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
@@ -72,6 +73,11 @@ void PerformanceBridgeManager::run()
     if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
       RCLCPP_ERROR(logger_, "Event loop spin failed.");
       break;
+    }
+
+    if (++maintenance_counter >= 10) {
+      cleanup_request_cache();
+      maintenance_counter = 0;
     }
 
     check_and_remove_bridges();
@@ -449,6 +455,52 @@ void PerformanceBridgeManager::check_and_cleanup_bridges()
         topic.c_str());
 
       it = active_a2r_bridges_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+// agnocast_bridge_manager_p.cpp
+
+void PerformanceBridgeManager::cleanup_request_cache()
+{
+  // キャッシュされているトピックごとにループ
+  for (auto it = request_cache_.begin(); it != request_cache_.end();) {
+    const std::string & topic = it->first;
+    auto & id_map = it->second;
+
+    // IDマップ内の各プロセスIDについて生存確認
+    for (auto id_it = id_map.begin(); id_it != id_map.end();) {
+      topic_local_id_t target_id = id_it->first;
+      const auto & req = id_it->second;
+      bool is_alive = false;
+
+      try {
+        // Agnocast側のIDが生きていれば QoS取得に成功するはず
+        if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+          (void)get_subscriber_qos(topic, target_id);
+        } else {
+          (void)get_publisher_qos(topic, target_id);
+        }
+        is_alive = true;
+      } catch (...) {
+        // 例外発生 ＝ プロセス終了 or ID無効
+        is_alive = false;
+      }
+
+      if (!is_alive) {
+        RCLCPP_INFO(
+          logger_, "Removed dead ID %d from cache for topic %s", target_id, topic.c_str());
+        id_it = id_map.erase(id_it);
+      } else {
+        ++id_it;
+      }
+    }
+
+    // IDが空になったトピックはキャッシュ自体から消す
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
     } else {
       ++it;
     }

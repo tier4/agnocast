@@ -59,6 +59,8 @@ private:
   void check_and_remove_bridges();
   void check_demand_and_recover_bridges();
   void check_and_cleanup_bridges();
+
+  void cleanup_request_cache();
 };
 
 }  // namespace agnocast
