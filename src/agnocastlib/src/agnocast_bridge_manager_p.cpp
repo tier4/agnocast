@@ -305,7 +305,6 @@ void PerformanceBridgeManager::check_demand_and_recover_bridges()
 {
   auto config = config_handler_->get_current_config();
 
-  // キャッシュされているトピックごとにループ
   for (auto it = request_cache_.begin(); it != request_cache_.end();) {
     const std::string & topic = it->first;
     auto & id_map = it->second;
@@ -315,36 +314,25 @@ void PerformanceBridgeManager::check_demand_and_recover_bridges()
       continue;
     }
 
-    // メッセージ型はトピックで共通のはずなので、代表して1つ取得しておく
-    // (もし型すら違うなら、それはシステム設計として異常だが、ここでは先頭を使う)
     std::string message_type = id_map.begin()->second.message_type;
-
-    // ========================================================================
-    // 1. R2A (ROS2 -> Agnocast) の復旧試行
-    // ========================================================================
-    // 条件: 設定で許可されている AND まだブリッジがない
     if (
       config_handler_->is_topic_allowed(topic, BridgeDirection::ROS2_TO_AGNOCAST) &&
       active_r2a_bridges_.count(topic) == 0) {
-      // 全体的な需要確認 (Thresholdチェック)
       bool reverse_exists = (active_a2r_bridges_.count(topic) > 0);
       int threshold = reverse_exists ? 1 : 0;
       int count = get_agnocast_subscriber_count(topic);
 
       if (count != -1 && count > threshold) {
-        // IDマップから「R2Aを要求したID」を探して QoS取得を試みる
         for (auto id_it = id_map.begin(); id_it != id_map.end();) {
           topic_local_id_t target_id = id_it->first;
           const auto & req = id_it->second;
 
-          // 方向違いは無視 (A2RのIDを使って SubscriberQoS を取ろうとしない)
           if (req.direction != BridgeDirection::ROS2_TO_AGNOCAST) {
             ++id_it;
             continue;
           }
 
           try {
-            // ★生存確認 & QoS取得 (Subscriber用)
             rclcpp::QoS qos = get_subscriber_qos(topic, target_id);
 
             RCLCPP_INFO(
@@ -357,22 +345,17 @@ void PerformanceBridgeManager::check_demand_and_recover_bridges()
               RCLCPP_INFO(logger_, "Activated R2A Bridge (Recovery).");
             }
 
-            // 1つ成功すればこの方向は完了
             break;
 
           } catch (const std::exception &) {
-            // IDが無効なら削除
             id_it = id_map.erase(id_it);
-            continue;  // iteratorが進むのでインクリメント不要
+            continue;
           }
           ++id_it;
         }
       }
     }
 
-    // ========================================================================
-    // 2. A2R (Agnocast -> ROS2) の復旧試行
-    // ========================================================================
     if (
       config_handler_->is_topic_allowed(topic, BridgeDirection::AGNOCAST_TO_ROS2) &&
       active_a2r_bridges_.count(topic) == 0) {
@@ -381,19 +364,16 @@ void PerformanceBridgeManager::check_demand_and_recover_bridges()
       int count = get_agnocast_publisher_count(topic);
 
       if (count != -1 && count > threshold) {
-        // IDマップから「A2Rを要求したID」を探して QoS取得を試みる
         for (auto id_it = id_map.begin(); id_it != id_map.end();) {
           topic_local_id_t target_id = id_it->first;
           const auto & req = id_it->second;
 
-          // 方向違いは無視
           if (req.direction != BridgeDirection::AGNOCAST_TO_ROS2) {
             ++id_it;
             continue;
           }
 
           try {
-            // ★生存確認 & QoS取得 (Publisher用)
             rclcpp::QoS qos = get_publisher_qos(topic, target_id);
 
             RCLCPP_INFO(
@@ -415,11 +395,6 @@ void PerformanceBridgeManager::check_demand_and_recover_bridges()
         }
       }
     }
-
-    // ========================================================================
-    // 終了処理
-    // ========================================================================
-    // R2AとA2Rの処理で無効なIDが消された結果、マップが空になった場合のケア
     if (id_map.empty()) {
       it = request_cache_.erase(it);
     } else {
@@ -461,23 +436,18 @@ void PerformanceBridgeManager::check_and_cleanup_bridges()
   }
 }
 
-// agnocast_bridge_manager_p.cpp
-
 void PerformanceBridgeManager::cleanup_request_cache()
 {
-  // キャッシュされているトピックごとにループ
   for (auto it = request_cache_.begin(); it != request_cache_.end();) {
     const std::string & topic = it->first;
     auto & id_map = it->second;
 
-    // IDマップ内の各プロセスIDについて生存確認
     for (auto id_it = id_map.begin(); id_it != id_map.end();) {
       topic_local_id_t target_id = id_it->first;
       const auto & req = id_it->second;
       bool is_alive = false;
 
       try {
-        // Agnocast側のIDが生きていれば QoS取得に成功するはず
         if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
           (void)get_subscriber_qos(topic, target_id);
         } else {
@@ -485,7 +455,6 @@ void PerformanceBridgeManager::cleanup_request_cache()
         }
         is_alive = true;
       } catch (...) {
-        // 例外発生 ＝ プロセス終了 or ID無効
         is_alive = false;
       }
 
@@ -498,7 +467,6 @@ void PerformanceBridgeManager::cleanup_request_cache()
       }
     }
 
-    // IDが空になったトピックはキャッシュ自体から消す
     if (id_map.empty()) {
       it = request_cache_.erase(it);
     } else {
