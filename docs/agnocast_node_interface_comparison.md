@@ -55,7 +55,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `get_notify_guard_condition()` | ✗ | **Throws Exception** | Yes | Not needed as agnocast uses epoll instead of condition variables, but planned for loading into Component Container |
 | `get_associated_with_executor_atomic()` | ✓ | **Full Support** | - | |
 | `resolve_topic_or_service_name()` | ✗ | **Not Implemented** | Yes | **Still TODO**, returns empty string. Use NodeTopics' `resolve_topic_name()` instead |
-| `get_use_intra_process_default()` | ⚠ | **API Only** | No | Returns value while logging a warning. agnocast uses its own shared memory IPC, so rclcpp's intra_process_communication is not used |
+| `get_use_intra_process_default()` | ⚠ | **API Only** | No | Returns value while logging a warning. agnocast uses its own shared memory IPC, so rclcpp's intra_process_communication is not used. |
 | `get_enable_topic_statistics_default()` | ⚠ | **API Only** | Yes | Returns value passed from NodeOptions. |
 
 ---
@@ -155,9 +155,9 @@ agnocast resolves parameter overrides with `resolve_parameter_overrides()`.
 This provides equivalent functionality to rclcpp's `rclcpp::detail::resolve_parameter_overrides()`.
 
 **Priority Order** (highest priority first):
-1. `parameter_overrides` (from NodeOptions::parameter_overrides()) - Highest priority
+1. `parameter_overrides` (from NodeOptions::parameter_overrides())
 2. `local_args` (from NodeOptions::arguments())
-3. `global_args` (from command line) - Lowest priority
+3. `global_args` (from command line)
 
 ### 3.3 Topic Name Resolution
 
