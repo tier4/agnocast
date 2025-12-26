@@ -9,7 +9,7 @@ However, some APIs are not yet supported, and others are intentionally not plann
 This document summarizes those limitations.
 Since `rclcpp::Node` is composed of ten modular node interfaces, this document organizes the API compatibility of agnocast::Node accordingly, one section per interface.
 
-**Key Characteristics**:
+**Key Characteristics of agnocast::Node**:
 
 - `rclcpp::Node` has a modular architecture with 10 different node interfaces
 - `agnocast::Node` is a node implementation that bypasses the RMW layer entirely (e.g., it does not create a DDS participant)
