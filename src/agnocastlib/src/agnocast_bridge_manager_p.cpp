@@ -39,16 +39,17 @@ PerformanceBridgeManager::~PerformanceBridgeManager()
   if (executor_) {
     executor_->cancel();
   }
+
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
+
   if (executor_thread_.joinable()) {
     executor_thread_.join();
   }
 
   executor_.reset();
   container_node_.reset();
-
-  if (rclcpp::ok()) {
-    rclcpp::shutdown();
-  }
 }
 
 void PerformanceBridgeManager::run()
