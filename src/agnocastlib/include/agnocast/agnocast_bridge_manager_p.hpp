@@ -40,6 +40,8 @@ private:
 
   std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> active_r2a_bridges_;
   std::unordered_map<std::string, std::shared_ptr<agnocast::SubscriptionBase>> active_a2r_bridges_;
+  std::unordered_map<std::string, std::unordered_map<topic_local_id_t, MqMsgPerformanceBridge>>
+    request_cache_;
 
   std::unique_ptr<BridgeConfigP> config_handler_;
 
@@ -55,6 +57,7 @@ private:
   // Periodic Checks
   void check_and_request_shutdown();
   void check_and_remove_bridges();
+  void check_demand_and_recover_bridges();
   void check_and_cleanup_bridges();
 };
 
