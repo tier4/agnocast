@@ -1,8 +1,10 @@
 #include "agnocast/agnocast_bridge_manager_p.hpp"
 
 #include "agnocast/agnocast_bridge_utils.hpp"
+#include "agnocast/agnocast_callback_isolated_executor.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
+#include "agnocast/agnocast_single_threaded_executor.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
 #include <mqueue.h>
@@ -80,7 +82,7 @@ void PerformanceBridgeManager::start_ros_execution()
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
 
-  executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
+  executor_ = select_executor();
   executor_->add_node(container_node_);
 
   executor_thread_ = std::thread([this]() {
@@ -90,6 +92,51 @@ void PerformanceBridgeManager::start_ros_execution()
       RCLCPP_ERROR(logger_, "Executor Thread CRASHED: %s", e.what());
     }
   });
+}
+
+std::shared_ptr<rclcpp::Executor> PerformanceBridgeManager::select_executor()
+{
+  const char * executor_type_env = std::getenv("AGNOCAST_EXECUTOR_TYPE");
+  std::string executor_type = executor_type_env ? executor_type_env : "single";
+
+  // 1. Multi Threaded
+  if (executor_type == "multi") {
+    size_t num_threads = 0;
+    const char * thread_num_env = std::getenv("AGNOCAST_MULTI_THREAD_NUM");
+
+    if (thread_num_env) {
+      try {
+        num_threads = std::stoul(thread_num_env);
+      } catch (const std::exception & e) {
+        RCLCPP_WARN(
+          logger_,
+          "Invalid AGNOCAST_MULTI_THREAD_NUM ('%s'). Using hardware concurrency. Error: %s",
+          thread_num_env, e.what());
+      }
+    }
+
+    if (num_threads == 0) {
+      num_threads = std::thread::hardware_concurrency();
+      if (num_threads == 0) {
+        RCLCPP_WARN(logger_, "Could not detect hardware concurrency. Defaulting to 4 threads.");
+        num_threads = 4;
+      }
+    }
+
+    RCLCPP_INFO(logger_, "Using MultiThreadedAgnocastExecutor with %zu threads.", num_threads);
+    rclcpp::ExecutorOptions options;
+    return std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(options, num_threads);
+  }
+
+  // 2. Callback Isolated
+  else if (executor_type == "isolated") {
+    RCLCPP_INFO(logger_, "Using CallbackIsolatedAgnocastExecutor.");
+    return std::make_shared<agnocast::CallbackIsolatedAgnocastExecutor>();
+  }
+
+  // 3. Single Threaded (Default)
+  RCLCPP_INFO(logger_, "Using SingleThreadedAgnocastExecutor.");
+  return std::make_shared<agnocast::SingleThreadedAgnocastExecutor>();
 }
 
 void PerformanceBridgeManager::on_mq_request(int fd)
@@ -170,7 +217,17 @@ void PerformanceBridgeManager::on_signal()
 
 void PerformanceBridgeManager::on_reload()
 {
-  RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
+  RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received. Reloading config...");
+
+  auto new_config = std::make_unique<BridgeConfigP>(logger_);
+  config_handler_ = std::move(new_config);
+
+  auto cfg = config_handler_->get_current_config();
+  RCLCPP_INFO(logger_, "Config reloaded. Mode: %d, Rules: %zu", (int)cfg.mode, cfg.rules.size());
+
+  check_and_cleanup_bridges();
+
+  RCLCPP_INFO(logger_, "Configuration updated successfully.");
 }
 
 void PerformanceBridgeManager::check_and_request_shutdown()
@@ -219,6 +276,39 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       a2r_it = active_a2r_bridges_.erase(a2r_it);
     } else {
       ++a2r_it;
+    }
+  }
+}
+
+void PerformanceBridgeManager::check_and_cleanup_bridges()
+{
+  RCLCPP_INFO(logger_, "Validating active bridges against new rules...");
+
+  for (auto it = active_r2a_bridges_.begin(); it != active_r2a_bridges_.end();) {
+    const std::string & topic = it->first;
+
+    if (!config_handler_->is_topic_allowed(topic, BridgeDirection::ROS2_TO_AGNOCAST)) {
+      RCLCPP_WARN(
+        logger_, "[Config Change] R2A Bridge for '%s' is no longer allowed. Removing.",
+        topic.c_str());
+
+      it = active_r2a_bridges_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  for (auto it = active_a2r_bridges_.begin(); it != active_a2r_bridges_.end();) {
+    const std::string & topic = it->first;
+
+    if (!config_handler_->is_topic_allowed(topic, BridgeDirection::AGNOCAST_TO_ROS2)) {
+      RCLCPP_WARN(
+        logger_, "[Config Change] A2R Bridge for '%s' is no longer allowed. Removing.",
+        topic.c_str());
+
+      it = active_a2r_bridges_.erase(it);
+    } else {
+      ++it;
     }
   }
 }
