@@ -2,13 +2,17 @@
 
 ## Executive Summary
 
-This document provides a comprehensive comparison between `agnocast::Node` and `rclcpp::Node`, detailing the features that are fully supported, partially supported, and unsupported in the Agnocast implementation.
+While Agnocast can be applied incrementally on a per-topic basis to nodes that inherit from `rclcpp::Node`, we also provide `agnocast::Node` for users who seek further performance improvements.
 
-**Key Characteristics**:
+`agnocast::Node` offers an API that is largely compatible with `rclcpp::Node`, allowing existing nodes to be migrated by simply replacing `rclcpp::Node` with `agnocast::Node`.
+However, some APIs are not yet supported, and others are intentionally not planned to be supported.
+This document summarizes those limitations.
+Since `rclcpp::Node` is composed of ten modular node interfaces, this document organizes the API compatibility of `agnocast::Node` accordingly, one section per interface.
 
-- `rclcpp::Node` has a modular architecture with 10 different node interfaces
-- `agnocast::Node` is a node implementation that **does not create a DDS participant**
-- Nodes inheriting from agnocast::Node **require AgnocastOnly executors** (AgnocastOnlySingleThreadedExecutor, AgnocastOnlyMultiThreadedExecutor) when used standalone. However, when loaded into a Component Container, the container's Agnocast-compatible executors (SingleThreadedAgnocastExecutor, MultiThreadedAgnocastExecutor, CallbackIsolatedAgnocastExecutor) can also be used.
+**Key Characteristics of agnocast::Node**:
+
+- `agnocast::Node` is a node implementation that bypasses the RMW layer entirely (e.g., it does not create a DDS participant)
+- When run as a standalone node (i.e., not loaded into a Component Container), nodes inheriting from `agnocast::Node` must be executed with Agnocast-only executors (i.e., `AgnocastOnlySingleThreadedExecutor`, `AgnocastOnlyMultiThreadedExecutor` or `AgnocastOnlyCallbackIsolatedExecutor`). In contrast, when such nodes are loaded into a Component Container, the container’s Agnocast-compatible executors—`SingleThreadedAgnocastExecutor`, `MultiThreadedAgnocastExecutor`, and `CallbackIsolatedAgnocastExecutor`—can also be used.
 
 ---
 
