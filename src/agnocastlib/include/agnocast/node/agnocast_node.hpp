@@ -49,9 +49,10 @@ public:
     return node_base_->create_callback_group(group_type, automatically_add_to_executor_with_node);
   }
 
-  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group)
+  void for_each_callback_group(
+    const rclcpp::node_interfaces::NodeBaseInterface::CallbackGroupFunction & func)
   {
-    return node_base_->callback_group_in_node(callback_group);
+    node_base_->for_each_callback_group(func);
   }
 
   // Non-const to align with rclcpp::Node API

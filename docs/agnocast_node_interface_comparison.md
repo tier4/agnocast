@@ -212,8 +212,8 @@ The following tables compare methods that are **directly defined** in each class
 |-----|:------------:|:--------------:|-------|
 | `get_default_callback_group()` | ✗ | ✓ | **Not directly defined in rclcpp::Node** (via NodeBaseInterface) |
 | `create_callback_group()` | ✓ | ✓ | |
-| `callback_group_in_node()` | ✗ | ✓ | **Not directly defined in rclcpp::Node** (via NodeBaseInterface) |
-| `for_each_callback_group()` | ✓ | ✗ | Not directly defined in agnocast::Node |
+| `callback_group_in_node()` | ✗ | ✗ | Not directly defined (via NodeBaseInterface) |
+| `for_each_callback_group()` | ✓ | ✓ | |
 
 #### Publisher/Subscription
 
