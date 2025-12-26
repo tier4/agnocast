@@ -12,7 +12,7 @@ Since `rclcpp::Node` is composed of ten modular node interfaces, this document o
 **Key Characteristics of agnocast::Node**:
 
 - `agnocast::Node` is a node implementation that bypasses the RMW layer entirely (e.g., it does not create a DDS participant)
-- Nodes inheriting from agnocast::Node **require AgnocastOnly executors** (AgnocastOnlySingleThreadedExecutor, AgnocastOnlyMultiThreadedExecutor) when used standalone. However, when loaded into a Component Container, the container's Agnocast-compatible executors (SingleThreadedAgnocastExecutor, MultiThreadedAgnocastExecutor, CallbackIsolatedAgnocastExecutor) can also be used.
+- When run as a standalone node (i.e., not loaded into a Component Container), nodes inheriting from `agnocast::Node` must be executed with Agnocast-only executors (i.e., `AgnocastOnlySingleThreadedExecutor`, `AgnocastOnlyMultiThreadedExecutor` or `AgnocastOnlyCallbackIsolatedExecutor`). In contrast, when such nodes are loaded into a Component Container, the container’s Agnocast-compatible executors—`SingleThreadedAgnocastExecutor`, `MultiThreadedAgnocastExecutor`, and `CallbackIsolatedAgnocastExecutor`—can also be used.
 
 ---
 
