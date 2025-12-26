@@ -228,11 +228,19 @@ void PerformanceBridgeManager::on_reload()
   auto new_config = std::make_unique<BridgeConfigP>(logger_);
   config_handler_ = std::move(new_config);
 
+  if (executor_) {
+    executor_->remove_node(container_node_);
+  }
+
   auto cfg = config_handler_->get_current_config();
   RCLCPP_INFO(logger_, "Config reloaded. Mode: %d, Rules: %zu", (int)cfg.mode, cfg.rules.size());
 
   check_demand_and_recover_bridges();
   check_and_cleanup_bridges();
+
+  if (executor_) {
+    executor_->add_node(container_node_);
+  }
 
   RCLCPP_INFO(logger_, "Configuration updated successfully.");
 }
