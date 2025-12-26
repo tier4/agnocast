@@ -54,6 +54,11 @@ private:
   void on_signal();
   void on_reload();
 
+  bool has_external_ros2_publisher(const std::string & topic_name) const;
+  bool has_external_ros2_subscriber(const std::string & topic_name) const;
+
+  void poll_ros2_demand_and_create_bridges();
+
   // Periodic Checks
   void check_and_request_shutdown();
   void check_and_remove_bridges();

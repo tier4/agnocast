@@ -75,6 +75,10 @@ void PerformanceBridgeManager::run()
       break;
     }
 
+    if (config_handler_->get_current_config().mode == FilterMode::ALLOW_ALL) {
+      poll_ros2_demand_and_create_bridges();
+    }
+
     if (++maintenance_counter >= 10) {
       cleanup_request_cache();
       maintenance_counter = 0;
@@ -249,6 +253,116 @@ void PerformanceBridgeManager::on_reload()
   }
 
   RCLCPP_INFO(logger_, "Configuration updated successfully.");
+}
+
+bool PerformanceBridgeManager::has_external_ros2_publisher(const std::string & topic_name) const
+{
+  std::string self_name = container_node_->get_name();
+
+  auto publishers = container_node_->get_publishers_info_by_topic(topic_name);
+  for (const auto & info : publishers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool PerformanceBridgeManager::has_external_ros2_subscriber(const std::string & topic_name) const
+{
+  std::string self_name = container_node_->get_name();
+
+  auto subscribers = container_node_->get_subscriptions_info_by_topic(topic_name);
+  for (const auto & info : subscribers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void PerformanceBridgeManager::poll_ros2_demand_and_create_bridges()
+{
+  for (auto it = request_cache_.begin(); it != request_cache_.end();) {
+    const std::string & topic = it->first;
+    auto & id_map = it->second;
+
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
+      continue;
+    }
+
+    std::string message_type = id_map.begin()->second.message_type;
+
+    if (active_r2a_bridges_.count(topic) == 0 && has_external_ros2_publisher(topic)) {
+      bool reverse_exists = (active_a2r_bridges_.count(topic) > 0);
+      int threshold = reverse_exists ? 1 : 0;
+      int count = get_agnocast_subscriber_count(topic);
+
+      if (count != -1 && count > threshold) {
+        topic_local_id_t max_id = -1;
+        bool found_candidate = false;
+        for (const auto & [id, req] : id_map) {
+          if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+            if (!found_candidate || id > (topic_local_id_t)max_id) {
+              max_id = id;
+              found_candidate = true;
+            }
+          }
+        }
+
+        if (found_candidate) {
+          try {
+            rclcpp::QoS qos = get_subscriber_qos(topic, max_id);
+            RCLCPP_INFO(logger_, "[Poll] Creating R2A '%s' (ROS2 Pub Detected).", topic.c_str());
+
+            auto bridge = loader_.create_r2a_bridge(container_node_, topic, message_type, qos);
+            if (bridge) active_r2a_bridges_[topic] = bridge;
+          } catch (...) {
+            id_map.erase(max_id);
+          }
+        }
+      }
+    }
+
+    if (active_a2r_bridges_.count(topic) == 0 && has_external_ros2_subscriber(topic)) {
+      // Agnocast側の需要チェック
+      bool reverse_exists = (active_r2a_bridges_.count(topic) > 0);
+      int threshold = reverse_exists ? 1 : 0;
+      int count = get_agnocast_publisher_count(topic);
+
+      if (count != -1 && count > threshold) {
+        topic_local_id_t max_id = -1;
+        bool found_candidate = false;
+        for (const auto & [id, req] : id_map) {
+          if (req.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+            if (!found_candidate || id > (topic_local_id_t)max_id) {
+              max_id = id;
+              found_candidate = true;
+            }
+          }
+        }
+
+        if (found_candidate) {
+          try {
+            rclcpp::QoS qos = get_publisher_qos(topic, max_id);
+            RCLCPP_INFO(logger_, "[Poll] Creating A2R '%s' (ROS2 Sub Detected).", topic.c_str());
+
+            auto bridge = loader_.create_a2r_bridge(container_node_, topic, message_type, qos);
+            if (bridge) active_a2r_bridges_[topic] = bridge;
+          } catch (...) {
+            id_map.erase(max_id);
+          }
+        }
+      }
+    }
+
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void PerformanceBridgeManager::check_and_request_shutdown()
