@@ -39,7 +39,6 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 
 **Important**: `agnocast::node_interfaces::NodeBase` **inherits from** `rclcpp::node_interfaces::NodeBaseInterface`.
 
-
 | Feature | agnocast::Node | Support Level | Planned | Notes |
 |---------|----------------|---------------|---------|-------|
 | `get_name()` | ✓ | **Full Support** | - | |
@@ -155,6 +154,7 @@ agnocast resolves parameter overrides with `resolve_parameter_overrides()`.
 This provides equivalent functionality to rclcpp's `rclcpp::detail::resolve_parameter_overrides()`.
 
 **Priority Order** (highest priority first):
+
 1. `parameter_overrides` (from NodeOptions::parameter_overrides())
 2. `local_args` (from NodeOptions::arguments())
 3. `global_args` (from command line)
@@ -324,6 +324,7 @@ The following tables compare methods that are **directly defined** in each class
 agnocast::Node uses the following rcl/rclcpp functions, data structures, and classes:
 
 **rcl Functions**:
+
 - `rcl_parse_arguments()` - Command line argument parsing
 - `rcl_arguments_copy()` - Argument copying
 - `rcl_expand_topic_name()` - Topic name expansion
@@ -335,9 +336,11 @@ agnocast::Node uses the following rcl/rclcpp functions, data structures, and cla
 - `rcl_get_default_allocator()` - Get default allocator
 
 **rcl Data Structures**:
+
 - `rcl_arguments_t` - Parsed arguments
 
 **rclcpp Classes/Interfaces**:
+
 - `rclcpp::Context` - Context management
 - `rclcpp::CallbackGroup` - Callback group management
 - `rclcpp::Logger` - Logging
