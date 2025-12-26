@@ -72,7 +72,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `add_publisher()` | ✗ | **Throws Exception** | No | Uses agnocast's own Publisher management |
 | `create_subscription()` | ✗ | **Throws Exception** | No | Use `agnocast::create_subscription()` or `agnocast::Node::create_subscription()` |
 | `add_subscription()` | ✗ | **Throws Exception** | No | Uses agnocast's own Subscription management |
-| `get_node_timers_interface()` | ✗ | **Throws Exception** | No | Timer interface is not supported |
+| `get_node_timers_interface()` | ✗ | **Throws Exception** | TBD | Timer interface is not supported |
 
 ---
 
