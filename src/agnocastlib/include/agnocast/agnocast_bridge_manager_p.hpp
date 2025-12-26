@@ -32,7 +32,7 @@ private:
 
   // ROS Execution
   std::shared_ptr<rclcpp::Node> container_node_;
-  std::shared_ptr<rclcpp::Executor> executor_;
+  std::unique_ptr<rclcpp::Executor> executor_;
   std::thread executor_thread_;
 
   // State
@@ -45,7 +45,7 @@ private:
 
   // Initialization
   void start_ros_execution();
-  std::shared_ptr<rclcpp::Executor> select_executor();
+  std::unique_ptr<rclcpp::Executor> select_executor();
 
   // Event Callbacks
   void on_mq_request(int fd);

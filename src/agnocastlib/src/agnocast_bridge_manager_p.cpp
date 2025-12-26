@@ -94,7 +94,7 @@ void PerformanceBridgeManager::start_ros_execution()
   });
 }
 
-std::shared_ptr<rclcpp::Executor> PerformanceBridgeManager::select_executor()
+std::unique_ptr<rclcpp::Executor> PerformanceBridgeManager::select_executor()
 {
   const char * executor_type_env = std::getenv("AGNOCAST_EXECUTOR_TYPE");
   std::string executor_type = executor_type_env ? executor_type_env : "single";
@@ -125,18 +125,18 @@ std::shared_ptr<rclcpp::Executor> PerformanceBridgeManager::select_executor()
 
     RCLCPP_INFO(logger_, "Using MultiThreadedAgnocastExecutor with %zu threads.", num_threads);
     rclcpp::ExecutorOptions options;
-    return std::make_shared<agnocast::MultiThreadedAgnocastExecutor>(options, num_threads);
+    return std::make_unique<agnocast::MultiThreadedAgnocastExecutor>(options, num_threads);
   }
 
   // 2. Callback Isolated
   else if (executor_type == "isolated") {
     RCLCPP_INFO(logger_, "Using CallbackIsolatedAgnocastExecutor.");
-    return std::make_shared<agnocast::CallbackIsolatedAgnocastExecutor>();
+    return std::make_unique<agnocast::CallbackIsolatedAgnocastExecutor>();
   }
 
   // 3. Single Threaded (Default)
   RCLCPP_INFO(logger_, "Using SingleThreadedAgnocastExecutor.");
-  return std::make_shared<agnocast::SingleThreadedAgnocastExecutor>();
+  return std::make_unique<agnocast::SingleThreadedAgnocastExecutor>();
 }
 
 void PerformanceBridgeManager::on_mq_request(int fd)
