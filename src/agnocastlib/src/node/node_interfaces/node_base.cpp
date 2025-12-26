@@ -5,7 +5,10 @@
 #include "rclcpp/logging.hpp"
 
 #include <rcl/error_handling.h>
+#include <rcl/expand_topic_name.h>
 #include <rcl/remap.h>
+#include <rcutils/strdup.h>
+#include <rmw/validate_full_topic_name.h>
 
 #include <stdexcept>
 #include <utility>
@@ -208,11 +211,81 @@ bool NodeBase::get_enable_topic_statistics_default() const
 std::string NodeBase::resolve_topic_or_service_name(
   const std::string & name, bool is_service, bool only_expand) const
 {
-  (void)name;
-  (void)is_service;
-  (void)only_expand;
-  // TODO(Koichi98)
-  return "";
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
+  // Initialize and get default substitutions
+  rcutils_string_map_t substitutions = rcutils_get_zero_initialized_string_map();
+  rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions, 0, allocator);
+  if (rcutils_ret != RCUTILS_RET_OK) {
+    std::string error_msg =
+      std::string("Failed to initialize substitutions map: ") + rcutils_get_error_string().str;
+    rcutils_reset_error();
+    throw std::runtime_error(error_msg);
+  }
+
+  rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions);
+  if (ret != RCL_RET_OK) {
+    rcutils_ret = rcutils_string_map_fini(&substitutions);
+    (void)rcutils_ret;
+    std::string error_msg =
+      std::string("Failed to get default substitutions: ") + rcl_get_error_string().str;
+    rcl_reset_error();
+    throw std::runtime_error(error_msg);
+  }
+
+  // Expand the topic/service name
+  char * expanded_name = nullptr;
+  ret = rcl_expand_topic_name(
+    name.c_str(), node_name_.c_str(), namespace_.c_str(), &substitutions, allocator,
+    &expanded_name);
+
+  rcutils_ret = rcutils_string_map_fini(&substitutions);
+  (void)rcutils_ret;
+
+  if (ret != RCL_RET_OK) {
+    std::string error_msg =
+      std::string("Failed to expand topic name: ") + rcl_get_error_string().str;
+    rcl_reset_error();
+    if (
+      ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_UNKNOWN_SUBSTITUTION ||
+      ret == RCL_RET_INVALID_ARGUMENT) {
+      throw std::invalid_argument(error_msg);
+    }
+    throw std::runtime_error(error_msg);
+  }
+
+  std::string result = expanded_name;
+
+  if (!only_expand) {
+    // Apply remapping
+    char * remapped_name = nullptr;
+    if (is_service) {
+      ret = rcl_remap_service_name(
+        local_args_, global_args_, expanded_name, node_name_.c_str(), namespace_.c_str(), allocator,
+        &remapped_name);
+    } else {
+      ret = rcl_remap_topic_name(
+        local_args_, global_args_, expanded_name, node_name_.c_str(), namespace_.c_str(), allocator,
+        &remapped_name);
+    }
+
+    allocator.deallocate(expanded_name, allocator.state);
+
+    if (ret != RCL_RET_OK) {
+      std::string error_msg = std::string("Failed to remap name: ") + rcl_get_error_string().str;
+      rcl_reset_error();
+      throw std::runtime_error(error_msg);
+    }
+
+    if (remapped_name != nullptr) {
+      result = remapped_name;
+      allocator.deallocate(remapped_name, allocator.state);
+    }
+  } else {
+    allocator.deallocate(expanded_name, allocator.state);
+  }
+
+  return result;
 }
 
 }  // namespace agnocast::node_interfaces

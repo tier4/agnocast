@@ -6,7 +6,7 @@
 class NodeTopicsExpandTest : public ::testing::Test
 {
 protected:
-  void SetUp() override { GTEST_SKIP() << "Skipped until resolve_topic_name() is implemented"; }
+  void SetUp() override {}
 
   void TearDown() override {}
 
