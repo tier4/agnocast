@@ -23,61 +23,9 @@ AgnocastExecutor::~AgnocastExecutor()
   close(epoll_fd_);
 }
 
-void AgnocastExecutor::receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  const CallbackInfo & callback_info)
-{
-  union ioctl_receive_msg_args receive_args = {};
-  receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
-  receive_args.subscriber_id = callback_info.subscriber_id;
-
-  {
-    std::lock_guard<std::mutex> lock(mmap_mtx);
-
-    if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
-      RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    // Map the shared memory region with read permissions whenever a new publisher is discovered.
-    for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
-      const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
-      const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
-      const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
-      map_read_only_area(pid, addr, size);
-    }
-  }
-
-  // older messages first
-  for (int32_t i = static_cast<int32_t>(receive_args.ret_entry_num) - 1; i >= 0; i--) {
-    const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([callback_info, receive_args, i]() {
-        auto typed_msg = callback_info.message_creator(
-          reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.topic_name,
-          callback_info.subscriber_id, receive_args.ret_entry_ids[i]);
-        callback_info.callback(std::move(*typed_msg));
-      });
-
-    {
-      constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_callback_info_id =
-        (static_cast<uint64_t>(my_pid_) << PID_SHIFT_BITS) | callback_info_id;
-      TRACEPOINT(
-        agnocast_create_callable, static_cast<const void *>(callable.get()),
-        receive_args.ret_entry_ids[i], pid_callback_info_id);
-    }
-
-    {
-      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex_};
-      ready_agnocast_executables_.emplace_back(
-        AgnocastExecutable{callable, callback_info.callback_group});
-    }
-  }
-}
-
 void AgnocastExecutor::prepare_epoll()
 {
+<<<<<<< HEAD
   {
     std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
@@ -143,21 +91,28 @@ void AgnocastExecutor::prepare_epoll()
 
   const bool all_callbacks_updated = [&]() {
     std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    return std::none_of(
-      id2_callback_info.begin(), id2_callback_info.end(),
-      [](const auto & it) { return it.second.need_epoll_update; });
+    return std::none_of(id2_callback_info.begin(), id2_callback_info.end(), [](const auto & it) {
+      return it.second.need_epoll_update;
+    });
   }();
 
   const bool all_timers_updated = [&]() {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    return std::none_of(
-      id2_timer_info.begin(), id2_timer_info.end(),
-      [](const auto & it) { return it.second.need_epoll_update; });
+    return std::none_of(id2_timer_info.begin(), id2_timer_info.end(), [](const auto & it) {
+      return it.second.need_epoll_update;
+    });
   }();
 
   if (all_callbacks_updated && all_timers_updated) {
     need_epoll_updates.store(false);
   }
+=======
+  agnocast::prepare_epoll_impl(
+    epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
+    [this](const rclcpp::CallbackGroup::SharedPtr & group) {
+      return validate_callback_group(group);
+    });
+>>>>>>> main
 }
 
 bool AgnocastExecutor::get_next_agnocast_executable(
@@ -167,12 +122,14 @@ bool AgnocastExecutor::get_next_agnocast_executable(
     return true;
   }
 
-  wait_and_handle_epoll_event(timeout_ms);
+  agnocast::wait_and_handle_epoll_event(
+    epoll_fd_, my_pid_, timeout_ms, ready_agnocast_executables_mutex_, ready_agnocast_executables_);
 
   // Try again
   return get_next_ready_agnocast_executable(agnocast_executable);
 }
 
+<<<<<<< HEAD
 void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 {
   struct epoll_event event = {};
@@ -217,14 +174,11 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 
     // Create a callable that handles the timer event
     const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([timer]() {
-        timer->handle_event();
-      });
+      std::make_shared<std::function<void()>>([timer]() { timer->handle_event(); });
 
     {
       std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex_};
-      ready_agnocast_executables_.emplace_back(
-        AgnocastExecutable{callable, callback_group});
+      ready_agnocast_executables_.emplace_back(AgnocastExecutable{callable, callback_group});
     }
   } else {
     // Handle subscription callback
@@ -236,7 +190,8 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
 
       const auto it = id2_callback_info.find(callback_info_id);
       if (it == id2_callback_info.end()) {
-        RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
+        RCLCPP_ERROR(
+          logger, "Agnocast internal implementation error: callback info cannot be found");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
@@ -263,6 +218,8 @@ void AgnocastExecutor::wait_and_handle_epoll_event(const int timeout_ms)
   }
 }
 
+=======
+>>>>>>> main
 bool AgnocastExecutor::get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable)
 {
   std::lock_guard<std::mutex> ready_wait_lock{ready_agnocast_executables_mutex_};

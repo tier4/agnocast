@@ -9,8 +9,16 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
   validate_ld_preload();
 }
 
+SubscriptionBase::SubscriptionBase(
+  agnocast::Node * node, const std::string & topic_name)  // NOLINT(modernize-pass-by-value)
+: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
+{
+  validate_ld_preload();
+}
+
 union ioctl_add_subscriber_args SubscriptionBase::initialize(
-  const rclcpp::QoS & qos, const bool is_take_sub, const std::string & node_name)
+  const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
+  const std::string & node_name)
 {
   union ioctl_add_subscriber_args add_subscriber_args = {};
   add_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
@@ -18,7 +26,9 @@ union ioctl_add_subscriber_args SubscriptionBase::initialize(
   add_subscriber_args.qos_depth = static_cast<uint32_t>(qos.depth());
   add_subscriber_args.qos_is_transient_local =
     qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+  add_subscriber_args.qos_is_reliable = qos.reliability() == rclcpp::ReliabilityPolicy::Reliable;
   add_subscriber_args.is_take_sub = is_take_sub;
+  add_subscriber_args.ignore_local_publications = ignore_local_publications;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_SUBSCRIBER_CMD, &add_subscriber_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_SUBSCRIBER_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -60,25 +70,6 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
   if (mq_unlink(mq_subscription.second.c_str()) == -1) {
     RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
   }
-}
-
-rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr & node,
-  const SubscriptionOptions & options)
-{
-  rclcpp::CallbackGroup::SharedPtr callback_group = options.callback_group;
-
-  if (callback_group) {
-    if (!node->callback_group_in_node(callback_group)) {
-      RCLCPP_ERROR(logger, "Cannot create agnocast subscription, callback group not in node.");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-  } else {
-    callback_group = node->get_default_callback_group();
-  }
-
-  return callback_group;
 }
 
 }  // namespace agnocast

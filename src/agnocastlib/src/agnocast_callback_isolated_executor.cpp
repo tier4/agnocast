@@ -17,7 +17,9 @@ void CallbackIsolatedAgnocastExecutor::spin()
 {
   if (spinning.exchange(true)) {
     RCLCPP_ERROR(logger, "spin() called while already spinning");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 
@@ -62,25 +64,38 @@ void CallbackIsolatedAgnocastExecutor::spin()
 
   std::mutex client_publisher_mutex;
   auto client_publisher = cie_thread_configurator::create_client_publisher();
+  threads.reserve(groups_and_nodes.size());
 
-  for (auto [group, node] : groups_and_nodes) {
-    auto executor = std::make_shared<SingleThreadedAgnocastExecutor>(
-      rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
-    executor->dedicate_to_callback_group(group, node);
-    auto callback_group_id = cie_thread_configurator::create_callback_group_id(group, node);
+  for (auto & [group, node] : groups_and_nodes) {
+    std::shared_ptr<rclcpp::Executor> executor;
+    auto agnocast_topics = agnocast::get_agnocast_topics_by_group(group);
+    auto callback_group_id =
+      cie_thread_configurator::create_callback_group_id(group, node, agnocast_topics);
 
-    threads.emplace_back(
-      [executor, callback_group_id, &client_publisher, &client_publisher_mutex]() {
-        auto tid = static_cast<pid_t>(syscall(SYS_gettid));
+    if (agnocast_topics.empty()) {
+      auto rclcpp_executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+      rclcpp_executor->add_callback_group(group, node);
+      executor = std::move(rclcpp_executor);
+    } else {
+      auto agnocast_executor = std::make_shared<SingleThreadedAgnocastExecutor>(
+        rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
+      agnocast_executor->dedicate_to_callback_group(group, node);
+      executor = std::move(agnocast_executor);
+    }
 
-        {
-          std::lock_guard<std::mutex> lock{client_publisher_mutex};
-          cie_thread_configurator::publish_callback_group_info(
-            client_publisher, tid, callback_group_id);
-        }
+    threads.emplace_back([executor = std::move(executor),
+                          callback_group_id = std::move(callback_group_id), &client_publisher,
+                          &client_publisher_mutex]() {
+      auto tid = static_cast<pid_t>(syscall(SYS_gettid));
 
-        executor->spin();
-      });
+      {
+        std::lock_guard<std::mutex> lock{client_publisher_mutex};
+        cie_thread_configurator::publish_callback_group_info(
+          client_publisher, tid, callback_group_id);
+      }
+
+      executor->spin();
+    });
   }
 
   for (auto & thread : threads) {
@@ -113,7 +128,9 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
     if (n->callback_group_in_node(group_ptr)) {
       RCLCPP_ERROR(
         logger, "Callback group already exists in node: %s", n->get_fully_qualified_name());
-      close(agnocast_fd);
+      if (agnocast_fd != -1) {
+        close(agnocast_fd);
+      }
       exit(EXIT_FAILURE);
     }
   }
@@ -122,7 +139,9 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 
   if (!insert_info.second) {
     RCLCPP_ERROR(logger, "Callback group already exists in the executor");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -208,7 +227,9 @@ void CallbackIsolatedAgnocastExecutor::remove_callback_group(
     weak_groups_to_nodes_.erase(it);
   } else {
     RCLCPP_ERROR(logger, "Callback group not found in the executor");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -244,7 +265,9 @@ void CallbackIsolatedAgnocastExecutor::add_node(
   if (!insert_info.second) {
     RCLCPP_ERROR(
       logger, "Node already exists in the executor: %s", node_ptr->get_fully_qualified_name());
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -270,7 +293,9 @@ void CallbackIsolatedAgnocastExecutor::remove_node(
   } else {
     RCLCPP_ERROR(
       logger, "Node not found in the executor: %s", node_ptr->get_fully_qualified_name());
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }

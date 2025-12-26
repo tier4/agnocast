@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <atomic>
@@ -36,44 +37,64 @@ public:
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
   struct ResponseT : public ServiceT::Response
   {
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
 
   using SharedPtr = std::shared_ptr<Client<ServiceT>>;
+
+  using Future = std::future<ipc_shared_ptr<ResponseT>>;
   using SharedFuture = std::shared_future<ipc_shared_ptr<ResponseT>>;
+
+  struct FutureAndRequestId : rclcpp::detail::FutureAndRequestId<Future>
+  {
+    using rclcpp::detail::FutureAndRequestId<Future>::FutureAndRequestId;
+    SharedFuture share() noexcept { return this->future.share(); }
+  };
+  struct SharedFutureAndRequestId : rclcpp::detail::FutureAndRequestId<SharedFuture>
+  {
+    using rclcpp::detail::FutureAndRequestId<SharedFuture>::FutureAndRequestId;
+  };
 
 private:
   struct ResponseCallInfo
   {
     std::promise<ipc_shared_ptr<ResponseT>> promise;
+    std::optional<SharedFuture> shared_future;
     std::optional<std::function<void(SharedFuture)>> callback;
 
     ResponseCallInfo() = default;
-    explicit ResponseCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb)) {}
+
+    explicit ResponseCallInfo(std::function<void(SharedFuture)> && cb) : callback(std::move(cb))
+    {
+      shared_future = promise.get_future().share();
+    }
   };
 
-  std::atomic<uint64_t> next_sequence_number_;
+  using ServiceRequestPublisher = BasicPublisher<RequestT, NoBridgeRequestPolicy>;
+
+  std::atomic<int64_t> next_sequence_number_;
   std::mutex seqno2_response_call_info_mtx_;
-  std::unordered_map<uint64_t, ResponseCallInfo> seqno2_response_call_info_;
+  std::unordered_map<int64_t, ResponseCallInfo> seqno2_response_call_info_;
   rclcpp::Node * node_;
   const std::string service_name_;
-  // AgnocastOnlyPublisher is used since RequestT is not a compatible ROS message type.
-  typename AgnocastOnlyPublisher<RequestT>::SharedPtr publisher_;
-  typename Subscription<ResponseT>::SharedPtr subscriber_;
+  typename ServiceRequestPublisher::SharedPtr publisher_;
+  typename BasicSubscription<ResponseT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
   Client(
     rclcpp::Node * node, const std::string & service_name, const rclcpp::QoS & qos,
     rclcpp::CallbackGroup::SharedPtr group)
   : node_(node),
-    service_name_(node_->get_node_services_interface()->resolve_service_name(service_name)),
-    publisher_(std::make_shared<AgnocastOnlyPublisher<RequestT>>(
-      node, create_service_request_topic_name(service_name_), qos))
+    service_name_(node_->get_node_services_interface()->resolve_service_name(service_name))
   {
+    agnocast::PublisherOptions pub_options;
+    publisher_ = std::make_shared<ServiceRequestPublisher>(
+      node, create_service_request_topic_name(service_name_), qos, pub_options);
+
     auto subscriber_callback = [this](ipc_shared_ptr<ResponseT> && response) {
       std::unique_lock<std::mutex> lock(seqno2_response_call_info_mtx_);
       /* --- critical section begin --- */
@@ -91,14 +112,14 @@ public:
 
       info.promise.set_value(std::move(response));
       if (info.callback.has_value()) {
-        (info.callback.value())(info.promise.get_future().share());
+        (info.callback.value())(info.shared_future.value());
       }
     };
 
     SubscriptionOptions options{group};
     std::string topic_name =
       create_service_response_topic_name(service_name_, node->get_fully_qualified_name());
-    subscriber_ = std::make_shared<Subscription<ResponseT>>(
+    subscriber_ = std::make_shared<BasicSubscription<ResponseT, NoBridgeRequestPolicy>>(
       node_, topic_name, qos, std::move(subscriber_callback), options);
   }
 
@@ -123,25 +144,35 @@ public:
       std::chrono::duration_cast<std::chrono::nanoseconds>(timeout));
   }
 
-  void async_send_request(
+  SharedFutureAndRequestId async_send_request(
     ipc_shared_ptr<RequestT> && request, std::function<void(SharedFuture)> callback)
   {
+    SharedFuture shared_future;
+    int64_t seqno = request->_sequence_number;
+
     {
       std::lock_guard<std::mutex> lock(seqno2_response_call_info_mtx_);
-      seqno2_response_call_info_.try_emplace(request->_sequence_number, std::move(callback));
+      auto it = seqno2_response_call_info_.try_emplace(seqno, std::move(callback)).first;
+      shared_future = it->second.shared_future.value();
     }
+
     publisher_->publish(std::move(request));
+    return SharedFutureAndRequestId(std::move(shared_future), seqno);
   }
 
-  SharedFuture async_send_request(ipc_shared_ptr<RequestT> && request)
+  FutureAndRequestId async_send_request(ipc_shared_ptr<RequestT> && request)
   {
-    std::unique_lock<std::mutex> lock(seqno2_response_call_info_mtx_);
-    auto it = seqno2_response_call_info_.try_emplace(request->_sequence_number).first;
-    SharedFuture ret = it->second.promise.get_future().share();
-    lock.unlock();
+    Future future;
+    int64_t seqno = request->_sequence_number;
+
+    {
+      std::lock_guard<std::mutex> lock(seqno2_response_call_info_mtx_);
+      auto it = seqno2_response_call_info_.try_emplace(seqno).first;
+      future = it->second.promise.get_future();
+    }
 
     publisher_->publish(std::move(request));
-    return ret;
+    return FutureAndRequestId(std::move(future), seqno);
   }
 };
 

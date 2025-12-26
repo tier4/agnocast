@@ -5,21 +5,24 @@
 char * node_name = "/kunit_test_node";
 uint32_t qos_depth = 10;
 bool qos_is_transient_local = false;
+bool qos_is_reliable = true;
 pid_t subscriber_pid = 1000;
 pid_t publisher_pid = 2000;
 bool is_take_sub = false;
+bool ignore_local_publications = false;
 
 static void setup_one_subscriber(struct kunit * test, char * topic_name)
 {
   subscriber_pid++;
 
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
 
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret2 = add_subscriber(
     topic_name, current->nsproxy->ipc_ns, node_name, subscriber_pid, qos_depth,
-    qos_is_transient_local, is_take_sub, &add_subscriber_args);
+    qos_is_transient_local, qos_is_reliable, is_take_sub, ignore_local_publications,
+    &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
@@ -30,7 +33,7 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
   publisher_pid++;
 
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(publisher_pid, current->nsproxy->ipc_ns, &add_process_args);
 
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = add_publisher(

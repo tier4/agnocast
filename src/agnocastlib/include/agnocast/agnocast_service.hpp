@@ -4,6 +4,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
@@ -22,21 +23,23 @@ public:
   struct RequestT : public ServiceT::Request
   {
     std::string _node_name;
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
   struct ResponseT : public ServiceT::Response
   {
-    uint64_t _sequence_number;
+    int64_t _sequence_number;
   };
 
 private:
+  using ServiceResponsePublisher =
+    agnocast::BasicPublisher<ResponseT, agnocast::NoBridgeRequestPolicy>;
+
   rclcpp::Node * node_;
   const std::string service_name_;
   const rclcpp::QoS qos_;
   std::mutex publishers_mtx_;
-  // AgnocastOnlyPublisher is used since ResponseT is not a compatible ROS message type.
-  std::unordered_map<std::string, typename AgnocastOnlyPublisher<ResponseT>::SharedPtr> publishers_;
-  typename Subscription<RequestT>::SharedPtr subscriber_;
+  std::unordered_map<std::string, typename ServiceResponsePublisher::SharedPtr> publishers_;
+  typename BasicSubscription<RequestT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
   using SharedPtr = std::shared_ptr<Service<ServiceT>>;
@@ -57,7 +60,7 @@ public:
 
     auto subscriber_callback =
       [this, callback = std::forward<Func>(callback)](const ipc_shared_ptr<RequestT> & request) {
-        typename AgnocastOnlyPublisher<ResponseT>::SharedPtr publisher;
+        typename ServiceResponsePublisher::SharedPtr publisher;
 
         {
           std::lock_guard<std::mutex> lock(publishers_mtx_);
@@ -65,7 +68,9 @@ public:
           if (it == publishers_.end()) {
             std::string topic_name =
               create_service_response_topic_name(service_name_, request->_node_name);
-            publisher = std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node_, topic_name, qos_);
+            agnocast::PublisherOptions pub_options;
+            publisher =
+              std::make_shared<ServiceResponsePublisher>(node_, topic_name, qos_, pub_options);
             publishers_[request->_node_name] = publisher;
           } else {
             publisher = it->second;
@@ -82,7 +87,7 @@ public:
 
     SubscriptionOptions options{group};
     std::string topic_name = create_service_request_topic_name(service_name_);
-    subscriber_ = std::make_shared<Subscription<RequestT>>(
+    subscriber_ = std::make_shared<BasicSubscription<RequestT, NoBridgeRequestPolicy>>(
       node, topic_name, qos, std::move(subscriber_callback), options);
   }
 };

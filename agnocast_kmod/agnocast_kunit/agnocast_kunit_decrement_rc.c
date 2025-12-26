@@ -7,6 +7,8 @@
 static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";
 static const bool QOS_IS_TRANSIENT_LOCAL = true;
+static const bool QOS_IS_RELIABLE = true;
+static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 static const uint32_t QOS_DEPTH = 1;
 
 static void setup_one_publisher(
@@ -15,7 +17,7 @@ static void setup_one_publisher(
   const pid_t PUBLISHER_PID = 2000;
 
   union ioctl_add_process_args add_process_args;
-  int ret1 = add_process(PUBLISHER_PID, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret1 = add_process(PUBLISHER_PID, current->nsproxy->ipc_ns, &add_process_args);
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, PUBLISHER_PID, QOS_DEPTH,
@@ -119,13 +121,14 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
 
   const pid_t subscriber_pid = 1000;
   union ioctl_add_process_args add_process_args;
-  int ret2 = add_process(subscriber_pid, current->nsproxy->ipc_ns, PAGE_SIZE, &add_process_args);
+  int ret2 = add_process(subscriber_pid, current->nsproxy->ipc_ns, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_add_subscriber_args add_subscriber_args;
   int ret3 = add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, false, &add_subscriber_args);
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, false, IGNORE_LOCAL_PUBLICATIONS,
+    &add_subscriber_args);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   int ret4 = increment_message_entry_rc(
