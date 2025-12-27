@@ -16,7 +16,7 @@ class NoRclcppPublisher : public agnocast::Node
   }
 
 public:
-  explicit NoRclcppPublisher()
+  explicit NoRclcppPublisher() : Node("no_rclcpp_publisher")
   {
     RCLCPP_INFO(get_logger(), "NoRclcppPublisher node (name=%s) started.", get_name().c_str());
 
