@@ -111,29 +111,26 @@ typename Service<ServiceT>::SharedPtr create_service(
     node, service_name, std::forward<Func>(callback), qos, group);
 }
 
-/**
- * @brief Create an Agnocast timer
- *
- * Creates a timer that uses timerfd_create for efficient event-based timing.
- * The timer is integrated with the Agnocast executor's epoll event loop.
- *
- * @tparam Func Callback function type
- * @param node The node to attach the timer to
- * @param period Timer period
- * @param callback Function to call when timer expires
- * @param group Callback group for thread safety (uses node's default if nullptr)
- * @return Timer ID that can be used to manage the timer
- */
 template <typename Func>
 uint32_t create_timer(
-  rclcpp::Node * node, std::chrono::nanoseconds period, Func && callback,
+  agnocast::Node * node, std::chrono::nanoseconds period, Func && callback,
   rclcpp::CallbackGroup::SharedPtr group = nullptr)
 {
   if (!group) {
-    group = node->get_node_base_interface()->get_default_callback_group();
+    group = node->get_default_callback_group();
   }
 
-  return register_timer(std::forward<Func>(callback), period, group);
+  // Check if callback accepts TimerCallbackInfo&
+  if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
+    return register_timer(std::forward<Func>(callback), period, group);
+  } else {
+    // Wrap void() callback to match TimerCallbackInfo& signature
+    static_assert(
+      std::is_invocable_v<Func>,
+      "Callback must be callable with void() or void(TimerCallbackInfo&)");
+    auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
+    return register_timer(std::move(wrapped), period, group);
+  }
 }
 
 }  // namespace agnocast

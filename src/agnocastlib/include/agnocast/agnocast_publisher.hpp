@@ -26,6 +26,8 @@ namespace agnocast
 {
 class Node;
 
+class Node;
+
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
@@ -61,6 +63,41 @@ class BasicPublisher
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
   }
 
+  void publish_impl(ipc_shared_ptr<MessageT> && message)
+  {
+    const union ioctl_publish_msg_args publish_msg_args =
+      publish_core(this, topic_name_, id_, reinterpret_cast<uint64_t>(message.get()), opened_mqs_);
+
+    message.set_entry_id(publish_msg_args.ret_entry_id);
+
+    for (uint32_t i = 0; i < publish_msg_args.ret_released_num; i++) {
+      MessageT * release_ptr = reinterpret_cast<MessageT *>(publish_msg_args.ret_released_addrs[i]);
+      delete release_ptr;
+    }
+
+    if (
+      ros2_publisher_ &&
+      (options_.do_always_ros2_publish || ros2_publisher_->get_subscription_count() > 0)) {
+      {
+        std::lock_guard<std::mutex> lock(ros2_publish_mtx_);
+        ros2_message_queue_.push(std::move(message));
+      }
+
+      MqMsgROS2Publish mq_msg = {};
+      mq_msg.should_terminate = false;
+      if (mq_send(ros2_publish_mq_, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), 0) == -1) {
+        // If it returns EAGAIN, it means mq_send has already been executed, but the ros2 publish
+        // thread hasn't received it yet. Thus, there's no need to send it again since the
+        // notification has already been sent.
+        if (errno != EAGAIN) {
+          RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+        }
+      }
+    } else {
+      message.reset();
+    }
+  }
+
 public:
   using SharedPtr = std::shared_ptr<BasicPublisher<MessageT, BridgeRequestPolicy>>;
 
@@ -78,6 +115,14 @@ public:
   }
 
   BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    constructor_impl(node, topic_name, qos);
+
+    // TODO: CARET tracepoint for agnocast::Node
+  }
+
+  BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  : topic_name_(topic_name)  // TODO: resolve topic name similar to rclcpp::Node
   {
     constructor_impl(node, topic_name, qos);
 
