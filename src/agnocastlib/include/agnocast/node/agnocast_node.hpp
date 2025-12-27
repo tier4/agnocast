@@ -159,11 +159,6 @@ public:
       options);
   }
 
-  rclcpp::CallbackGroup::SharedPtr get_default_callback_group() const
-  {
-    return node_base_->get_default_callback_group();
-  }
-
   template <typename Func>
   uint32_t create_wall_timer(
     std::chrono::nanoseconds period, Func && callback,
