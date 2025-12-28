@@ -1,11 +1,12 @@
 #pragma once
 
-#include "agnocast/agnocast_arguments.hpp"
-#include "agnocast/agnocast_context.hpp"
+#include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
-#include "agnocast/node_interfaces/node_base.hpp"
-#include "agnocast/node_interfaces/node_parameters.hpp"
-#include "agnocast/node_interfaces/node_topics.hpp"
+#include "agnocast/node/agnocast_arguments.hpp"
+#include "agnocast/node/agnocast_context.hpp"
+#include "agnocast/node/node_interfaces/node_base.hpp"
+#include "agnocast/node/node_interfaces/node_parameters.hpp"
+#include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 
@@ -37,20 +38,16 @@ public:
   std::string get_namespace() const { return node_base_->get_namespace(); }
   std::string get_fully_qualified_name() const { return node_base_->get_fully_qualified_name(); }
 
-  rclcpp::CallbackGroup::SharedPtr get_default_callback_group()
-  {
-    return node_base_->get_default_callback_group();
-  }
-
   rclcpp::CallbackGroup::SharedPtr create_callback_group(
     rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
   {
     return node_base_->create_callback_group(group_type, automatically_add_to_executor_with_node);
   }
 
-  bool callback_group_in_node(const rclcpp::CallbackGroup::SharedPtr & callback_group)
+  void for_each_callback_group(
+    const rclcpp::node_interfaces::NodeBaseInterface::CallbackGroupFunction & func)
   {
-    return node_base_->callback_group_in_node(callback_group);
+    node_base_->for_each_callback_group(func);
   }
 
   // Non-const to align with rclcpp::Node API
@@ -127,15 +124,33 @@ public:
     return node_parameters_->get_parameters(names);
   }
 
-  std::string resolve_topic_name(const std::string & topic_name, bool only_expand = false) const
+  template <typename MessageT>
+  typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
+    const std::string & topic_name, const rclcpp::QoS & qos)
   {
-    return node_topics_->resolve_topic_name(topic_name, only_expand);
+    return std::make_shared<Publisher<MessageT>>(this, topic_name, qos);
+  }
+
+  template <typename MessageT>
+  typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
+    const std::string & topic_name, size_t queue_size)
+  {
+    return create_publisher<MessageT>(topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+  }
+
+  template <typename MessageT, typename Func>
+  typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
+  {
+    return std::make_shared<Subscription<MessageT>>(
+      this, topic_name, qos, std::forward<Func>(callback), options);
   }
 
   template <typename MessageT, typename Func>
   typename agnocast::Subscription<MessageT>::SharedPtr create_subscription(
     const std::string & topic_name, size_t queue_size, Func && callback,
-    agnocast::SubscriptionOptions options)
+    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
   {
     return std::make_shared<Subscription<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), std::forward<Func>(callback),

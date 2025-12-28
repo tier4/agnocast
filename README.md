@@ -269,7 +269,8 @@ Additionally, if you encounter the error `mq_open failed: No space left on devic
 
 ```bash
 rm /dev/mqueue/agnocast@*
-rm /dev/mqueue/agnocast_to_ros2@*
+rm /dev/mqueue/agnocast_bridge_manager_parent@*
+rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 ```
 
 ## Documents
@@ -281,3 +282,4 @@ rm /dev/mqueue/agnocast_to_ros2@*
 - [Clang-tidy Suppressions](./docs/clang_tidy_suppression.md)
 - [How to set environment variables](./docs/how_to_set_environment_variables.md)
 - [ros2 command extension](./docs/ros2_command_extension.md)
+- [agnocast::Node and rclcpp::Node interface comparison](./docs/agnocast_node_interface_comparison.md)
