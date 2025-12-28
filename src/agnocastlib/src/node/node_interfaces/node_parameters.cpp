@@ -104,7 +104,7 @@ std::string format_range_reason(const std::string & name, const char * range_typ
   return ss.str();
 }
 
-rcl_interfaces::msg::SetParametersResult __check_parameter_value_in_range(
+[[maybe_unused]] rcl_interfaces::msg::SetParametersResult __check_parameter_value_in_range(
   const rcl_interfaces::msg::ParameterDescriptor & descriptor, const rclcpp::ParameterValue & value)
 {
   rcl_interfaces::msg::SetParametersResult result;
@@ -156,7 +156,7 @@ rcl_interfaces::msg::SetParametersResult __check_parameter_value_in_range(
   return result;
 }
 
-std::string format_type_reason(
+[[maybe_unused]] std::string format_type_reason(
   const std::string & name, const std::string & old_type, const std::string & new_type)
 {
   std::ostringstream ss;
@@ -167,8 +167,49 @@ std::string format_type_reason(
   return ss.str();
 }
 
+// Return true if parameter values comply with the descriptors in parameter_infos.
+[[maybe_unused]] rcl_interfaces::msg::SetParametersResult __check_parameters(
+  std::map<std::string, ParameterInfo> & parameter_infos,
+  const std::vector<rclcpp::Parameter> & parameters, bool allow_undeclared)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  for (const rclcpp::Parameter & parameter : parameters) {
+    std::string name = parameter.get_name();
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    if (allow_undeclared) {
+      auto it = parameter_infos.find(name);
+      if (it != parameter_infos.cend()) {
+        descriptor = it->second.descriptor;
+      } else {
+        // implicitly declared parameters are dinamically typed!
+        descriptor.dynamic_typing = true;
+      }
+    } else {
+      descriptor = parameter_infos[name].descriptor;
+    }
+    if (descriptor.name.empty()) {
+      descriptor.name = name;
+    }
+    const auto new_type = parameter.get_type();
+    const auto specified_type = static_cast<rclcpp::ParameterType>(descriptor.type);
+    result.successful = descriptor.dynamic_typing || specified_type == new_type;
+    if (!result.successful) {
+      result.reason =
+        format_type_reason(name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
+      return result;
+    }
+    result = __check_parameter_value_in_range(descriptor, parameter.get_parameter_value());
+    if (!result.successful) {
+      return result;
+    }
+  }
+  return result;
+}
+
 template <typename ParameterVectorType>
-auto __find_parameter_by_name(ParameterVectorType & parameters, const std::string & name)
+[[maybe_unused]] auto __find_parameter_by_name(
+  ParameterVectorType & parameters, const std::string & name)
 {
   return std::find_if(parameters.begin(), parameters.end(), [&](auto parameter) {
     return parameter.get_name() == name;
