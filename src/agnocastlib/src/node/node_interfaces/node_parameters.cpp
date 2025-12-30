@@ -84,10 +84,10 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
   parameters[name] = parameter_info;
 
-  // Note: rclcpp has __declare_parameter_common here which does:
+  // Note: rclcpp has __declare_parameter_common which is not currently needed in Agnocast because:
   // - override handling: done directly in this function
-  // TODO: on_parameters_set callbacks: not implemented
-  // TODO: parameter events publishing: not implemented
+  // - on_parameters_set callbacks: not implemented
+  // - parameter events publishing: not implemented
 
   return parameters.at(name).value;
 }
