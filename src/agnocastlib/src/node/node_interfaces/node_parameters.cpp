@@ -107,7 +107,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
   for (const rclcpp::Parameter & parameter : parameters) {
-    std::string name = parameter.get_name();
+    const std::string & name = parameter.get_name();
     rcl_interfaces::msg::ParameterDescriptor descriptor;
     if (allow_undeclared) {
       auto it = parameter_infos.find(name);
