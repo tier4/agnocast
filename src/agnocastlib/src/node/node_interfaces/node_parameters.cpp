@@ -84,10 +84,10 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
   parameters[name] = parameter_info;
 
-  // Note: rclcpp has __declare_parameter_common which is not currently needed in Agnocast because:
+  // Note: rclcpp has __declare_parameter_common here which does:
   // - override handling: done directly in this function
-  // - on_parameters_set callbacks: not implemented
-  // - parameter events publishing: not implemented
+  // TODO: on_parameters_set callbacks: not implemented
+  // TODO: parameter events publishing: not implemented
 
   return parameters.at(name).value;
 }
@@ -218,7 +218,7 @@ rcl_interfaces::msg::SetParametersResult set_parameters_atomically_common(
   if (!result.successful) {
     return result;
   }
-  // Note: rclcpp calls on_parameters_set callbacks here. Not implemented in Agnocast.
+  // TODO: rclcpp calls on_parameters_set callbacks here.
 
   // If accepted, actually set the values.
   for (size_t i = 0; i < parameters.size(); ++i) {
@@ -274,7 +274,7 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
   // Add declared parameters to storage.
   parameters_out[name] = parameter_infos.at(name);
 
-  // Note: rclcpp extends the given parameter event here. Not implemented in Agnocast.
+  // TODO: rclcpp extends the given parameter event here.
 
   return result;
 }
@@ -529,15 +529,14 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
     // assumption: the parameter to be undeclared should be in the parameter infos map
     assert(it != parameters_.end());
     if (it != parameters_.end()) {
-      // Note: rclcpp updates the parameter event message here. Not implemented in Agnocast.
+      // TODO: rclcpp updates the parameter event message here.
       parameters_.erase(it);
     }
   }
 
-  // Note: rclcpp updates the parameter event message for parameters which were only set here.
-  // Not implemented in Agnocast.
+  // TODO: rclcpp updates the parameter event message for parameters which were only set here.
 
-  // Note: rclcpp publishes the parameter event here. Not implemented in Agnocast.
+  // TODO: rclcpp publishes the parameter event here.
 
   return result;
 }
