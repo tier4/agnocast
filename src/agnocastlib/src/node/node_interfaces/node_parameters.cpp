@@ -131,7 +131,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
         format_type_reason(name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
       return result;
     }
-    // TODO: result = check_parameter_value_in_range(
+    // TODO(Koichi98): result = check_parameter_value_in_range(
     //   descriptor,
     //   parameter.get_parameter_value());
     // if (!result.successful) {
