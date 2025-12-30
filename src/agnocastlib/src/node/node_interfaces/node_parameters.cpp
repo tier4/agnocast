@@ -4,6 +4,7 @@
 #include "agnocast/node/agnocast_context.hpp"
 #include "rclcpp/exceptions/exceptions.hpp"
 
+#include <sstream>
 #include <utility>
 
 namespace agnocast::node_interfaces
@@ -85,6 +86,59 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   // - parameter events publishing: not implemented
 
   return parameters.at(name).value;
+}
+
+[[maybe_unused]] std::string format_type_reason(
+  const std::string & name, const std::string & old_type, const std::string & new_type)
+{
+  std::ostringstream ss;
+  // WARN: A condition later depends on this message starting with "Wrong parameter type",
+  // check `declare_parameter` if you modify this!
+  ss << "Wrong parameter type, parameter {" << name << "} is of type {" << old_type
+     << "}, setting it to {" << new_type << "} is not allowed.";
+  return ss.str();
+}
+
+// Return true if parameter values comply with the descriptors in parameter_infos.
+[[maybe_unused]] rcl_interfaces::msg::SetParametersResult __check_parameters(
+  std::map<std::string, ParameterInfo> & parameter_infos,
+  const std::vector<rclcpp::Parameter> & parameters, bool allow_undeclared)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  for (const rclcpp::Parameter & parameter : parameters) {
+    std::string name = parameter.get_name();
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    if (allow_undeclared) {
+      auto it = parameter_infos.find(name);
+      if (it != parameter_infos.cend()) {
+        descriptor = it->second.descriptor;
+      } else {
+        // implicitly declared parameters are dinamically typed!
+        descriptor.dynamic_typing = true;
+      }
+    } else {
+      descriptor = parameter_infos[name].descriptor;
+    }
+    if (descriptor.name.empty()) {
+      descriptor.name = name;
+    }
+    const auto new_type = parameter.get_type();
+    const auto specified_type = static_cast<rclcpp::ParameterType>(descriptor.type);
+    result.successful = descriptor.dynamic_typing || specified_type == new_type;
+    if (!result.successful) {
+      result.reason =
+        format_type_reason(name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
+      return result;
+    }
+    // TODO: result = __check_parameter_value_in_range(
+    //   descriptor,
+    //   parameter.get_parameter_value());
+    // if (!result.successful) {
+    //   return result;
+    // }
+  }
+  return result;
 }
 
 }  // namespace
