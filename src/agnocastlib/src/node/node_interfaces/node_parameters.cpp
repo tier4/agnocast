@@ -114,7 +114,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
       if (it != parameter_infos.cend()) {
         descriptor = it->second.descriptor;
       } else {
-        // implicitly declared parameters are dinamically typed!
+        // implicitly declared parameters are dynamically typed!
         descriptor.dynamic_typing = true;
       }
     } else {
