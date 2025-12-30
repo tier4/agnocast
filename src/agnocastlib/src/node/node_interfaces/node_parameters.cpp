@@ -100,7 +100,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 }
 
 // Return true if parameter values comply with the descriptors in parameter_infos.
-[[maybe_unused]] rcl_interfaces::msg::SetParametersResult __check_parameters(
+[[maybe_unused]] rcl_interfaces::msg::SetParametersResult check_parameters(
   std::map<std::string, ParameterInfo> & parameter_infos,
   const std::vector<rclcpp::Parameter> & parameters, bool allow_undeclared)
 {
@@ -131,7 +131,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
         format_type_reason(name, rclcpp::to_string(specified_type), rclcpp::to_string(new_type));
       return result;
     }
-    // TODO: result = __check_parameter_value_in_range(
+    // TODO: result = check_parameter_value_in_range(
     //   descriptor,
     //   parameter.get_parameter_value());
     // if (!result.successful) {
