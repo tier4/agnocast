@@ -1,3 +1,17 @@
+// Copyright 2024 The Agnocast Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -21,7 +35,9 @@ std::string create_callback_group_id(
   std::stringstream ss;
 
   std::string ns = std::string(node->get_namespace());
-  if (ns != "/") ns = ns + "/";
+  if (ns != "/") {
+    ns = ns + "/";
+  }
 
   ss << ns << node->get_name() << "@";
 
@@ -121,7 +137,9 @@ std::map<std::string, std::string> get_hardware_info()
 
   while (std::getline(iss, line)) {
     size_t colon_pos = line.find(':');
-    if (colon_pos == std::string::npos) continue;
+    if (colon_pos == std::string::npos) {
+      continue;
+    }
 
     std::string key = line.substr(0, colon_pos);
     std::string value = line.substr(colon_pos + 1);

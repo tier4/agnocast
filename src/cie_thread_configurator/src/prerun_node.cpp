@@ -1,3 +1,17 @@
+// Copyright 2024 The Agnocast Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "cie_thread_configurator/prerun_node.hpp"
 
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
@@ -20,7 +34,9 @@ PrerunNode::PrerunNode() : Node("prerun_node")
 
 void PrerunNode::topic_callback(const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
 {
-  if (callback_group_ids_.find(msg->callback_group_id) != callback_group_ids_.end()) return;
+  if (callback_group_ids_.find(msg->callback_group_id) != callback_group_ids_.end()) {
+    return;
+  }
 
   RCLCPP_INFO(
     this->get_logger(), "Received CallbackGroupInfo: tid=%ld | %s", msg->thread_id,

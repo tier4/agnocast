@@ -1,3 +1,17 @@
+// Copyright 2024 The Agnocast Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "cie_thread_configurator/thread_configurator_node.hpp"
 
 #include "cie_thread_configurator/sched_deadline.hpp"
@@ -44,7 +58,9 @@ ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
     auto & config = callback_group_configs_[i];
 
     config.callback_group_id = remove_trailing_waitable(callback_group["id"].as<std::string>());
-    for (auto & cpu : callback_group["affinity"]) config.affinity.push_back(cpu.as<int>());
+    for (auto & cpu : callback_group["affinity"]) {
+      config.affinity.push_back(cpu.as<int>());
+    }
     config.policy = callback_group["policy"].as<std::string>();
 
     if (config.policy == "SCHED_DEADLINE") {
@@ -94,11 +110,15 @@ bool ThreadConfiguratorNode::set_affinity_by_cgroup(
   int64_t thread_id, const std::vector<int> & cpus)
 {
   std::string cgroup_path = "/sys/fs/cgroup/cpuset/" + std::to_string(cgroup_num_++);
-  if (!std::filesystem::create_directory(cgroup_path)) return false;
+  if (!std::filesystem::create_directory(cgroup_path)) {
+    return false;
+  }
 
   std::string cpus_path = cgroup_path + "/cpuset.cpus";
   if (std::ofstream cpus_file{cpus_path}) {
-    for (int cpu : cpus) cpus_file << cpu << ",";
+    for (int cpu : cpus) {
+      cpus_file << cpu << ",";
+    }
   } else {
     return false;
   }
@@ -199,7 +219,9 @@ bool ThreadConfiguratorNode::issue_syscalls(const CallbackGroupConfig & config)
     } else {
       cpu_set_t set;
       CPU_ZERO(&set);
-      for (int cpu : config.affinity) CPU_SET(cpu, &set);
+      for (int cpu : config.affinity) {
+        CPU_SET(cpu, &set);
+      }
       if (sched_setaffinity(config.thread_id, sizeof(set), &set) == -1) {
         RCLCPP_ERROR(
           this->get_logger(), "Failed to configure affinity (id=%s, tid=%ld): %s",
@@ -243,7 +265,9 @@ void ThreadConfiguratorNode::topic_callback(
     deadline_configs_.push_back(config);
   } else {
     bool success = issue_syscalls(*config);
-    if (!success) return;
+    if (!success) {
+      return;
+    }
   }
 
   config->applied = true;
@@ -253,7 +277,9 @@ void ThreadConfiguratorNode::topic_callback(
 bool ThreadConfiguratorNode::apply_deadline_configs()
 {
   for (auto config : deadline_configs_) {
-    if (!issue_syscalls(*config)) return false;
+    if (!issue_syscalls(*config)) {
+      return false;
+    }
   }
 
   return true;

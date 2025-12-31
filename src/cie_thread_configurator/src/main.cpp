@@ -1,3 +1,17 @@
+// Copyright 2024 The Agnocast Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 #include "cie_thread_configurator/prerun_node.hpp"
 #include "cie_thread_configurator/thread_configurator_node.hpp"
@@ -120,10 +134,11 @@ int main(int argc, char * argv[])
   std::vector<std::string> args = rclcpp::remove_ros_arguments(argc, argv);
 
   bool prerun_mode = false;
-  for (const auto & arg : args)
+  for (const auto & arg : args) {
     if (arg == "--prerun") {
       prerun_mode = true;
     }
+  }
 
   if (prerun_mode) {
     spin_prerun_node();
@@ -137,7 +152,9 @@ int main(int argc, char * argv[])
         break;
       }
 
-      if (arg == std::string("--config-file")) next = true;
+      if (arg == std::string("--config-file")) {
+        next = true;
+      }
     }
 
     spin_thread_configurator_node(filename);
