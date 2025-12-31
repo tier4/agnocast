@@ -8,6 +8,7 @@
 #include <rcl/expand_topic_name.h>
 #include <rcl/remap.h>
 #include <rcutils/strdup.h>
+#include <rmw/error_handling.h>
 #include <rmw/validate_full_topic_name.h>
 
 #include <stdexcept>
@@ -244,7 +245,8 @@ std::string NodeBase::resolve_topic_or_service_name(
 
   if (ret != RCL_RET_OK) {
     std::string error_msg =
-      std::string("Failed to expand topic name: ") + rcl_get_error_string().str;
+      is_service ? std::string("Failed to expand service name: ") + rcl_get_error_string().str
+                 : std::string("Failed to expand topic name: ") + rcl_get_error_string().str;
     rcl_reset_error();
     if (
       ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_UNKNOWN_SUBSTITUTION ||
@@ -272,7 +274,9 @@ std::string NodeBase::resolve_topic_or_service_name(
     allocator.deallocate(expanded_name, allocator.state);
 
     if (ret != RCL_RET_OK) {
-      std::string error_msg = std::string("Failed to remap name: ") + rcl_get_error_string().str;
+      std::string error_msg =
+        is_service ? std::string("Failed to remap service name: ") + rcl_get_error_string().str
+                   : std::string("Failed to remap topic name: ") + rcl_get_error_string().str;
       rcl_reset_error();
       throw std::runtime_error(error_msg);
     }
@@ -283,6 +287,24 @@ std::string NodeBase::resolve_topic_or_service_name(
     }
   } else {
     allocator.deallocate(expanded_name, allocator.state);
+  }
+
+  // Validate the resolved name (matching rcl_node_resolve_name behavior)
+  int validation_result;
+  rmw_ret_t rmw_ret = rmw_validate_full_topic_name(result.c_str(), &validation_result, nullptr);
+  if (rmw_ret != RMW_RET_OK) {
+    std::string error_msg = std::string("Failed to validate name: ") + rmw_get_error_string().str;
+    rmw_reset_error();
+    throw std::runtime_error(error_msg);
+  }
+
+  if (validation_result != RMW_TOPIC_VALID) {
+    std::string error_msg = is_service
+                              ? std::string("Service name is invalid: ") +
+                                  rmw_full_topic_name_validation_result_string(validation_result)
+                              : std::string("Topic name is invalid: ") +
+                                  rmw_full_topic_name_validation_result_string(validation_result);
+    throw std::invalid_argument(error_msg);
   }
 
   return result;
