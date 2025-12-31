@@ -209,105 +209,111 @@ bool NodeBase::get_enable_topic_statistics_default() const
   return enable_topic_statistics_default_;
 }
 
+// This implementation aligns with rcl_resolve_name() in rcl/src/rcl/node_resolve_name.c
 std::string NodeBase::resolve_topic_or_service_name(
   const std::string & name, bool is_service, bool only_expand) const
 {
   rcl_allocator_t allocator = rcl_get_default_allocator();
 
-  // Initialize and get default substitutions
-  rcutils_string_map_t substitutions = rcutils_get_zero_initialized_string_map();
-  rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions, 0, allocator);
+  // Create default topic name substitutions map
+  rcutils_string_map_t substitutions_map = rcutils_get_zero_initialized_string_map();
+  rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions_map, 0, allocator);
   if (rcutils_ret != RCUTILS_RET_OK) {
     std::string error_msg =
-      std::string("Failed to initialize substitutions map: ") + rcutils_get_error_string().str;
+      std::string("failed to initialize substitutions map: ") + rcutils_get_error_string().str;
     rcutils_reset_error();
     throw std::runtime_error(error_msg);
   }
 
-  rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions);
+  char * expanded_topic_name = nullptr;
+  char * remapped_topic_name = nullptr;
+  rcl_ret_t ret = RCL_RET_OK;
+  std::string error_msg;
+
+  ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
   if (ret != RCL_RET_OK) {
-    rcutils_ret = rcutils_string_map_fini(&substitutions);
-    (void)rcutils_ret;
-    std::string error_msg =
-      std::string("Failed to get default substitutions: ") + rcl_get_error_string().str;
+    error_msg = std::string("failed to get default substitutions: ") + rcl_get_error_string().str;
     rcl_reset_error();
-    throw std::runtime_error(error_msg);
+    goto cleanup;
   }
 
-  // Expand the topic/service name
-  char * expanded_name = nullptr;
+  // expand topic name
   ret = rcl_expand_topic_name(
-    name.c_str(), node_name_.c_str(), namespace_.c_str(), &substitutions, allocator,
-    &expanded_name);
+    name.c_str(), node_name_.c_str(), namespace_.c_str(), &substitutions_map, allocator,
+    &expanded_topic_name);
+  if (ret != RCL_RET_OK) {
+    error_msg = std::string("failed to expand ") + (is_service ? "service" : "topic") + " name '" +
+                name + "': " + rcl_get_error_string().str;
+    rcl_reset_error();
+    goto cleanup;
+  }
 
-  rcutils_ret = rcutils_string_map_fini(&substitutions);
-  (void)rcutils_ret;
+  // remap topic name
+  if (!only_expand) {
+    if (is_service) {
+      ret = rcl_remap_service_name(
+        local_args_, global_args_, expanded_topic_name, node_name_.c_str(), namespace_.c_str(),
+        allocator, &remapped_topic_name);
+    } else {
+      ret = rcl_remap_topic_name(
+        local_args_, global_args_, expanded_topic_name, node_name_.c_str(), namespace_.c_str(),
+        allocator, &remapped_topic_name);
+    }
+    if (ret != RCL_RET_OK) {
+      error_msg = std::string("failed to remap ") + (is_service ? "service" : "topic") + " name '" +
+                  expanded_topic_name + "': " + rcl_get_error_string().str;
+      rcl_reset_error();
+      goto cleanup;
+    }
+  }
+
+  if (remapped_topic_name == nullptr) {
+    remapped_topic_name = expanded_topic_name;
+    expanded_topic_name = nullptr;
+  }
+
+  // validate the result
+  {
+    int validation_result;
+    rmw_ret_t rmw_ret =
+      rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
+    if (rmw_ret != RMW_RET_OK) {
+      error_msg = std::string("failed to validate ") + (is_service ? "service" : "topic") +
+                  " name: " + rmw_get_error_string().str;
+      rmw_reset_error();
+      ret = RCL_RET_ERROR;
+      goto cleanup;
+    }
+    if (validation_result != RMW_TOPIC_VALID) {
+      error_msg = std::string(rmw_full_topic_name_validation_result_string(validation_result));
+      ret = is_service ? RCL_RET_SERVICE_NAME_INVALID : RCL_RET_TOPIC_NAME_INVALID;
+      goto cleanup;
+    }
+  }
+
+cleanup:
+  rcutils_ret = rcutils_string_map_fini(&substitutions_map);
+  if (rcutils_ret != RCUTILS_RET_OK) {
+    RCLCPP_ERROR(
+      rclcpp::get_logger(node_name_), "failed to fini substitutions_map (%d) during error handling",
+      rcutils_ret);
+    rcutils_reset_error();
+  }
+  allocator.deallocate(expanded_topic_name, allocator.state);
 
   if (ret != RCL_RET_OK) {
-    std::string error_msg =
-      is_service ? std::string("Failed to expand service name: ") + rcl_get_error_string().str
-                 : std::string("Failed to expand topic name: ") + rcl_get_error_string().str;
-    rcl_reset_error();
+    allocator.deallocate(remapped_topic_name, allocator.state);
     if (
-      ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_UNKNOWN_SUBSTITUTION ||
-      ret == RCL_RET_INVALID_ARGUMENT) {
+      ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_SERVICE_NAME_INVALID ||
+      ret == RCL_RET_UNKNOWN_SUBSTITUTION || ret == RCL_RET_INVALID_ARGUMENT) {
       throw std::invalid_argument(error_msg);
     }
     throw std::runtime_error(error_msg);
   }
 
-  std::string result = expanded_name;
-
-  if (!only_expand) {
-    // Apply remapping
-    char * remapped_name = nullptr;
-    if (is_service) {
-      ret = rcl_remap_service_name(
-        local_args_, global_args_, expanded_name, node_name_.c_str(), namespace_.c_str(), allocator,
-        &remapped_name);
-    } else {
-      ret = rcl_remap_topic_name(
-        local_args_, global_args_, expanded_name, node_name_.c_str(), namespace_.c_str(), allocator,
-        &remapped_name);
-    }
-
-    allocator.deallocate(expanded_name, allocator.state);
-
-    if (ret != RCL_RET_OK) {
-      std::string error_msg =
-        is_service ? std::string("Failed to remap service name: ") + rcl_get_error_string().str
-                   : std::string("Failed to remap topic name: ") + rcl_get_error_string().str;
-      rcl_reset_error();
-      throw std::runtime_error(error_msg);
-    }
-
-    if (remapped_name != nullptr) {
-      result = remapped_name;
-      allocator.deallocate(remapped_name, allocator.state);
-    }
-  } else {
-    allocator.deallocate(expanded_name, allocator.state);
-  }
-
-  // Validate the resolved name (matching rcl_node_resolve_name behavior)
-  int validation_result;
-  rmw_ret_t rmw_ret = rmw_validate_full_topic_name(result.c_str(), &validation_result, nullptr);
-  if (rmw_ret != RMW_RET_OK) {
-    std::string error_msg = std::string("Failed to validate name: ") + rmw_get_error_string().str;
-    rmw_reset_error();
-    throw std::runtime_error(error_msg);
-  }
-
-  if (validation_result != RMW_TOPIC_VALID) {
-    std::string error_msg = is_service
-                              ? std::string("Service name is invalid: ") +
-                                  rmw_full_topic_name_validation_result_string(validation_result)
-                              : std::string("Topic name is invalid: ") +
-                                  rmw_full_topic_name_validation_result_string(validation_result);
-    throw std::invalid_argument(error_msg);
-  }
-
-  return result;
+  std::string output_topic_name = remapped_topic_name;
+  allocator.deallocate(remapped_topic_name, allocator.state);
+  return output_topic_name;
 }
 
 }  // namespace agnocast::node_interfaces
