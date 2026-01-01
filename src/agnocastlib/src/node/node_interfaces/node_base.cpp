@@ -215,7 +215,6 @@ std::string NodeBase::resolve_topic_or_service_name(
 {
   rcl_allocator_t allocator = rcl_get_default_allocator();
 
-  // This variable is specific to agnocast: rcl uses output parameter, agnocast returns std::string
   std::string output_topic_name;
 
   // Create default topic name substitutions map
@@ -232,8 +231,6 @@ std::string NodeBase::resolve_topic_or_service_name(
 
   char * expanded_topic_name = nullptr;
   char * remapped_topic_name = nullptr;
-  int validation_result;
-  rmw_ret_t rmw_ret;
   rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
   if (ret != RCL_RET_OK) {
     if (RCL_RET_BAD_ALLOC != ret) {
@@ -272,7 +269,9 @@ std::string NodeBase::resolve_topic_or_service_name(
   }
 
   // validate the result
-  rmw_ret = rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
+  int validation_result;
+  rmw_ret_t rmw_ret =
+    rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
   if (rmw_ret != RMW_RET_OK) {
     rcutils_error_string_t error = rmw_get_error_string();
     rmw_reset_error();
@@ -309,7 +308,6 @@ cleanup:
     ret = RCL_RET_SERVICE_NAME_INVALID;
   }
 
-  // agnocast-specific: throw exception instead of returning error code
   if (ret != RCL_RET_OK) {
     throw std::runtime_error(rcl_get_error_string().str);
   }
