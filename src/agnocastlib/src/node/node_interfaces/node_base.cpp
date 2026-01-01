@@ -215,28 +215,27 @@ std::string NodeBase::resolve_topic_or_service_name(
 {
   rcl_allocator_t allocator = rcl_get_default_allocator();
 
+  // This variable is specific to agnocast: rcl uses output parameter, agnocast returns std::string
   std::string output_topic_name;
-  std::string error_msg;
 
   // Create default topic name substitutions map
   rcutils_string_map_t substitutions_map = rcutils_get_zero_initialized_string_map();
   rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions_map, 0, allocator);
   if (rcutils_ret != RCUTILS_RET_OK) {
-    error_msg =
-      std::string("failed to initialize substitutions map: ") + rcutils_get_error_string().str;
+    rcutils_error_string_t error = rcutils_get_error_string();
     rcutils_reset_error();
     if (RCUTILS_RET_BAD_ALLOC == rcutils_ret) {
       throw std::bad_alloc();
     }
-    throw std::runtime_error(error_msg);
+    throw std::runtime_error(error.str);
   }
 
   char * expanded_topic_name = nullptr;
   char * remapped_topic_name = nullptr;
+  int validation_result;
+  rmw_ret_t rmw_ret;
   rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
   if (ret != RCL_RET_OK) {
-    error_msg = std::string("failed to get default substitutions: ") + rcl_get_error_string().str;
-    rcl_reset_error();
     if (RCL_RET_BAD_ALLOC != ret) {
       ret = RCL_RET_ERROR;
     }
@@ -247,10 +246,7 @@ std::string NodeBase::resolve_topic_or_service_name(
   ret = rcl_expand_topic_name(
     name.c_str(), node_name_.c_str(), namespace_.c_str(), &substitutions_map, allocator,
     &expanded_topic_name);
-  if (ret != RCL_RET_OK) {
-    error_msg = std::string("failed to expand ") + (is_service ? "service" : "topic") + " name '" +
-                name + "': " + rcl_get_error_string().str;
-    rcl_reset_error();
+  if (RCL_RET_OK != ret) {
     goto cleanup;
   }
 
@@ -265,32 +261,27 @@ std::string NodeBase::resolve_topic_or_service_name(
         local_args_, global_args_, expanded_topic_name, node_name_.c_str(), namespace_.c_str(),
         allocator, &remapped_topic_name);
     }
-    if (ret != RCL_RET_OK) {
-      error_msg = std::string("failed to remap ") + (is_service ? "service" : "topic") + " name '" +
-                  expanded_topic_name + "': " + rcl_get_error_string().str;
-      rcl_reset_error();
+    if (RCL_RET_OK != ret) {
       goto cleanup;
     }
   }
 
-  if (remapped_topic_name == nullptr) {
+  if (nullptr == remapped_topic_name) {
     remapped_topic_name = expanded_topic_name;
     expanded_topic_name = nullptr;
   }
 
   // validate the result
-  int validation_result;
-  rmw_ret_t rmw_ret =
-    rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
+  rmw_ret = rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
   if (rmw_ret != RMW_RET_OK) {
-    error_msg = std::string("failed to validate ") + (is_service ? "service" : "topic") +
-                " name: " + rmw_get_error_string().str;
+    rcutils_error_string_t error = rmw_get_error_string();
     rmw_reset_error();
+    RCL_SET_ERROR_MSG(error.str);
     ret = RCL_RET_ERROR;
     goto cleanup;
   }
   if (validation_result != RMW_TOPIC_VALID) {
-    error_msg = std::string(rmw_full_topic_name_validation_result_string(validation_result));
+    RCL_SET_ERROR_MSG(rmw_full_topic_name_validation_result_string(validation_result));
     ret = RCL_RET_TOPIC_NAME_INVALID;
     goto cleanup;
   }
@@ -301,32 +292,26 @@ std::string NodeBase::resolve_topic_or_service_name(
 cleanup:
   rcutils_ret = rcutils_string_map_fini(&substitutions_map);
   if (rcutils_ret != RCUTILS_RET_OK) {
+    rcutils_error_string_t error = rcutils_get_error_string();
+    rcutils_reset_error();
     if (RCL_RET_OK == ret) {
-      error_msg =
-        std::string("failed to fini substitutions_map: ") + rcutils_get_error_string().str;
+      RCL_SET_ERROR_MSG(error.str);
       ret = RCL_RET_ERROR;
     } else {
       RCLCPP_ERROR(
-        rclcpp::get_logger(node_name_),
-        "failed to fini substitutions_map (%d) during error handling: %s", rcutils_ret,
-        rcutils_get_error_string().str);
+        rclcpp::get_logger(node_name_), "failed to fini string_map (%d) during error handling: %s",
+        rcutils_ret, error.str);
     }
-    rcutils_reset_error();
   }
   allocator.deallocate(expanded_topic_name, allocator.state);
   allocator.deallocate(remapped_topic_name, allocator.state);
+  if (is_service && RCL_RET_TOPIC_NAME_INVALID == ret) {
+    ret = RCL_RET_SERVICE_NAME_INVALID;
+  }
 
+  // agnocast-specific: throw exception instead of returning error code
   if (ret != RCL_RET_OK) {
-    // Convert error code for service (matching rcl behavior)
-    if (is_service && ret == RCL_RET_TOPIC_NAME_INVALID) {
-      ret = RCL_RET_SERVICE_NAME_INVALID;
-    }
-    if (
-      ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_SERVICE_NAME_INVALID ||
-      ret == RCL_RET_UNKNOWN_SUBSTITUTION || ret == RCL_RET_INVALID_ARGUMENT) {
-      throw std::invalid_argument(error_msg);
-    }
-    throw std::runtime_error(error_msg);
+    throw std::runtime_error(rcl_get_error_string().str);
   }
 
   return output_topic_name;
