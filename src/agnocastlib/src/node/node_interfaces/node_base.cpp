@@ -215,23 +215,25 @@ std::string NodeBase::resolve_topic_or_service_name(
 {
   rcl_allocator_t allocator = rcl_get_default_allocator();
 
+  std::string output_topic_name;
+  std::string error_msg;
+
   // Create default topic name substitutions map
   rcutils_string_map_t substitutions_map = rcutils_get_zero_initialized_string_map();
   rcutils_ret_t rcutils_ret = rcutils_string_map_init(&substitutions_map, 0, allocator);
   if (rcutils_ret != RCUTILS_RET_OK) {
-    std::string error_msg =
+    error_msg =
       std::string("failed to initialize substitutions map: ") + rcutils_get_error_string().str;
     rcutils_reset_error();
+    if (RCUTILS_RET_BAD_ALLOC == rcutils_ret) {
+      throw std::bad_alloc();
+    }
     throw std::runtime_error(error_msg);
   }
 
   char * expanded_topic_name = nullptr;
   char * remapped_topic_name = nullptr;
-  std::string output_topic_name;
-  rcl_ret_t ret = RCL_RET_OK;
-  std::string error_msg;
-
-  ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
+  rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
   if (ret != RCL_RET_OK) {
     error_msg = std::string("failed to get default substitutions: ") + rcl_get_error_string().str;
     rcl_reset_error();
@@ -277,25 +279,22 @@ std::string NodeBase::resolve_topic_or_service_name(
   }
 
   // validate the result
-  {
-    int validation_result;
-    rmw_ret_t rmw_ret =
-      rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
-    if (rmw_ret != RMW_RET_OK) {
-      error_msg = std::string("failed to validate ") + (is_service ? "service" : "topic") +
-                  " name: " + rmw_get_error_string().str;
-      rmw_reset_error();
-      ret = RCL_RET_ERROR;
-      goto cleanup;
-    }
-    if (validation_result != RMW_TOPIC_VALID) {
-      error_msg = std::string(rmw_full_topic_name_validation_result_string(validation_result));
-      ret = RCL_RET_TOPIC_NAME_INVALID;
-      goto cleanup;
-    }
+  int validation_result;
+  rmw_ret_t rmw_ret =
+    rmw_validate_full_topic_name(remapped_topic_name, &validation_result, nullptr);
+  if (rmw_ret != RMW_RET_OK) {
+    error_msg = std::string("failed to validate ") + (is_service ? "service" : "topic") +
+                " name: " + rmw_get_error_string().str;
+    rmw_reset_error();
+    ret = RCL_RET_ERROR;
+    goto cleanup;
+  }
+  if (validation_result != RMW_TOPIC_VALID) {
+    error_msg = std::string(rmw_full_topic_name_validation_result_string(validation_result));
+    ret = RCL_RET_TOPIC_NAME_INVALID;
+    goto cleanup;
   }
 
-  // Success: copy result and set pointer to null (so cleanup won't deallocate it twice)
   output_topic_name = remapped_topic_name;
   remapped_topic_name = nullptr;
 
