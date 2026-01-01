@@ -227,6 +227,7 @@ std::string NodeBase::resolve_topic_or_service_name(
 
   char * expanded_topic_name = nullptr;
   char * remapped_topic_name = nullptr;
+  std::string output_topic_name;
   rcl_ret_t ret = RCL_RET_OK;
   std::string error_msg;
 
@@ -234,6 +235,9 @@ std::string NodeBase::resolve_topic_or_service_name(
   if (ret != RCL_RET_OK) {
     error_msg = std::string("failed to get default substitutions: ") + rcl_get_error_string().str;
     rcl_reset_error();
+    if (RCL_RET_BAD_ALLOC != ret) {
+      ret = RCL_RET_ERROR;
+    }
     goto cleanup;
   }
 
@@ -286,23 +290,38 @@ std::string NodeBase::resolve_topic_or_service_name(
     }
     if (validation_result != RMW_TOPIC_VALID) {
       error_msg = std::string(rmw_full_topic_name_validation_result_string(validation_result));
-      ret = is_service ? RCL_RET_SERVICE_NAME_INVALID : RCL_RET_TOPIC_NAME_INVALID;
+      ret = RCL_RET_TOPIC_NAME_INVALID;
       goto cleanup;
     }
   }
 
+  // Success: copy result and set pointer to null (so cleanup won't deallocate it twice)
+  output_topic_name = remapped_topic_name;
+  remapped_topic_name = nullptr;
+
 cleanup:
   rcutils_ret = rcutils_string_map_fini(&substitutions_map);
   if (rcutils_ret != RCUTILS_RET_OK) {
-    RCLCPP_ERROR(
-      rclcpp::get_logger(node_name_), "failed to fini substitutions_map (%d) during error handling",
-      rcutils_ret);
+    if (RCL_RET_OK == ret) {
+      error_msg =
+        std::string("failed to fini substitutions_map: ") + rcutils_get_error_string().str;
+      ret = RCL_RET_ERROR;
+    } else {
+      RCLCPP_ERROR(
+        rclcpp::get_logger(node_name_),
+        "failed to fini substitutions_map (%d) during error handling: %s", rcutils_ret,
+        rcutils_get_error_string().str);
+    }
     rcutils_reset_error();
   }
   allocator.deallocate(expanded_topic_name, allocator.state);
+  allocator.deallocate(remapped_topic_name, allocator.state);
 
   if (ret != RCL_RET_OK) {
-    allocator.deallocate(remapped_topic_name, allocator.state);
+    // Convert error code for service (matching rcl behavior)
+    if (is_service && ret == RCL_RET_TOPIC_NAME_INVALID) {
+      ret = RCL_RET_SERVICE_NAME_INVALID;
+    }
     if (
       ret == RCL_RET_TOPIC_NAME_INVALID || ret == RCL_RET_SERVICE_NAME_INVALID ||
       ret == RCL_RET_UNKNOWN_SUBSTITUTION || ret == RCL_RET_INVALID_ARGUMENT) {
@@ -311,8 +330,6 @@ cleanup:
     throw std::runtime_error(error_msg);
   }
 
-  std::string output_topic_name = remapped_topic_name;
-  allocator.deallocate(remapped_topic_name, allocator.state);
   return output_topic_name;
 }
 
