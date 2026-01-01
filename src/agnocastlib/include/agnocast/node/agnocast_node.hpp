@@ -1,8 +1,8 @@
 #pragma once
 
+#include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
-#include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/node/agnocast_arguments.hpp"
 #include "agnocast/node/agnocast_context.hpp"
 #include "agnocast/node/node_interfaces/node_base.hpp"

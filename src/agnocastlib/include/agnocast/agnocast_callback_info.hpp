@@ -1,9 +1,9 @@
 #pragma once
 
 #include "agnocast/agnocast_smart_pointer.hpp"
-#include "agnocast/agnocast_timer_info.hpp"
 #include "sys/epoll.h"
 
+#include <chrono>
 #include <mutex>
 #include <type_traits>
 
@@ -37,26 +37,44 @@ public:
 // Type for type-erased callback function
 using TypeErasedCallback = std::function<void(AnyObject &&)>;
 
-struct CallbackInfo
+// Timer callback info passed to timer callbacks
+struct TimerCallbackInfo
 {
+  std::chrono::steady_clock::time_point expected_call_time;
+  std::chrono::steady_clock::time_point actual_call_time;
+};
+
+// Unified executable info for both subscriptions and timers
+struct ExecutableInfo
+{
+  enum class Type { Subscription, Timer };
+
+  Type type;
+  rclcpp::CallbackGroup::SharedPtr callback_group;
+  bool need_epoll_update = true;
+  int fd;  // mqdes for subscription, timer_fd for timer
+
+  // Subscription specific (only valid when type == Subscription)
   std::string topic_name;
   topic_local_id_t subscriber_id;
   bool is_transient_local;
-  mqd_t mqdes;
-  rclcpp::CallbackGroup::SharedPtr callback_group;
-  TypeErasedCallback callback;
+  TypeErasedCallback subscription_callback;
   std::function<std::unique_ptr<AnyObject>(
     const void *, const std::string &, const topic_local_id_t, const uint64_t)>
     message_creator;
-  bool need_epoll_update = true;
+
+  // Timer specific (only valid when type == Timer)
+  std::function<void(TimerCallbackInfo &)> timer_callback;
+  std::chrono::steady_clock::time_point next_call_time;
+  std::chrono::nanoseconds period;
 };
 
 std::vector<std::string> get_agnocast_topics_by_group(
   const rclcpp::CallbackGroup::SharedPtr & group);
 
-extern std::mutex id2_callback_info_mtx;
-extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
-extern std::atomic<uint32_t> next_callback_info_id;
+extern std::mutex id2_executable_info_mtx;
+extern std::unordered_map<uint32_t, ExecutableInfo> id2_executable_info;
+extern std::atomic<uint32_t> next_executable_id;
 extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
@@ -96,24 +114,42 @@ uint32_t register_callback(
       entry_id));
   };
 
-  uint32_t callback_info_id = next_callback_info_id.fetch_add(1);
+  uint32_t executable_id = next_executable_id.fetch_add(1);
 
   {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    id2_callback_info[callback_info_id] =
-      CallbackInfo{topic_name,     subscriber_id,   is_transient_local, mqdes,
-                   callback_group, erased_callback, message_creator};
+    std::lock_guard<std::mutex> lock(id2_executable_info_mtx);
+    id2_executable_info[executable_id] = ExecutableInfo{
+      ExecutableInfo::Type::Subscription,
+      callback_group,
+      true,  // need_epoll_update
+      mqdes,
+      topic_name,
+      subscriber_id,
+      is_transient_local,
+      erased_callback,
+      message_creator,
+      {},   // timer_callback (unused)
+      {},   // next_call_time (unused)
+      {}};  // period (unused)
   }
 
   need_epoll_updates.store(true);
 
-  return callback_info_id;
+  return executable_id;
 }
 
+int create_timer_fd(std::chrono::nanoseconds period);
+
+void handle_timer_event(ExecutableInfo & executable_info);
+
+uint32_t register_timer(
+  std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
+  const rclcpp::CallbackGroup::SharedPtr callback_group);
+
 void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
-  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+  [[maybe_unused]] const uint32_t executable_id,  // for CARET
+  [[maybe_unused]] const pid_t my_pid,            // for CARET
+  const ExecutableInfo & executable_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
 void wait_and_handle_epoll_event(
@@ -121,97 +157,52 @@ void wait_and_handle_epoll_event(
   std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
-// Bit flag to distinguish timer events from callback events in epoll
-constexpr uint32_t TIMER_EVENT_FLAG = 0x80000000;
-
 template <class ValidateFn>
 void prepare_epoll_impl(
   const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables,
   ValidateFn && validate_callback_group)
 {
-  // Register subscription callbacks to epoll
-  {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+  std::lock_guard<std::mutex> lock(id2_executable_info_mtx);
 
-    for (auto & it : id2_callback_info) {
-      const uint32_t callback_info_id = it.first;
-      CallbackInfo & callback_info = it.second;
+  for (auto & it : id2_executable_info) {
+    const uint32_t executable_id = it.first;
+    ExecutableInfo & executable_info = it.second;
 
-      if (!callback_info.need_epoll_update) {
-        continue;
-      }
-
-      if (!validate_callback_group(callback_info.callback_group)) {
-        continue;
-      }
-
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      ev.data.u32 = callback_info_id;
-
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      if (callback_info.is_transient_local) {
-        agnocast::receive_message(
-          callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
-          ready_agnocast_executables);
-      }
-
-      callback_info.need_epoll_update = false;
+    if (!executable_info.need_epoll_update) {
+      continue;
     }
+
+    if (!validate_callback_group(executable_info.callback_group)) {
+      continue;
+    }
+
+    struct epoll_event ev = {};
+    ev.events = EPOLLIN;
+    ev.data.u32 = executable_id;
+
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, executable_info.fd, &ev) == -1) {
+      RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    if (
+      executable_info.type == ExecutableInfo::Type::Subscription &&
+      executable_info.is_transient_local) {
+      agnocast::receive_message(
+        executable_id, my_pid, executable_info, ready_agnocast_executables_mutex,
+        ready_agnocast_executables);
+    }
+
+    executable_info.need_epoll_update = false;
   }
 
-  // Register timers to epoll
-  {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  const bool all_updated = std::none_of(
+    id2_executable_info.begin(), id2_executable_info.end(),
+    [](const auto & it) { return it.second.need_epoll_update; });
 
-    for (auto & it : id2_timer_info) {
-      const uint32_t timer_id = it.first;
-      TimerInfo & timer_info = it.second;
-
-      if (!timer_info.need_epoll_update) {
-        continue;
-      }
-
-      if (!validate_callback_group(timer_info.callback_group)) {
-        continue;
-      }
-
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      ev.data.u32 = timer_id | TIMER_EVENT_FLAG;
-
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      timer_info.need_epoll_update = false;
-    }
-  }
-
-  // Check if all updates are done
-  const bool all_callbacks_updated = [&]() {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-    return std::none_of(id2_callback_info.begin(), id2_callback_info.end(), [](const auto & it) {
-      return it.second.need_epoll_update;
-    });
-  }();
-
-  const bool all_timers_updated = [&]() {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    return std::none_of(id2_timer_info.begin(), id2_timer_info.end(), [](const auto & it) {
-      return it.second.need_epoll_update;
-    });
-  }();
-
-  if (all_callbacks_updated && all_timers_updated) {
+  if (all_updated) {
     need_epoll_updates.store(false);
   }
 }
