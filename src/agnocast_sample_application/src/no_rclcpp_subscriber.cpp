@@ -37,6 +37,16 @@ public:
     RCLCPP_INFO(get_logger(), "Queue size: %ld", queue_size_);
     RCLCPP_INFO(get_logger(), "====================================");
 
+    // Test set_parameter and set_parameters_atomically
+    set_parameter(rclcpp::Parameter("queue_size", int64_t(5)));
+    RCLCPP_INFO(
+      get_logger(), "After set_parameter: queue_size=%ld", get_parameter("queue_size").as_int());
+
+    set_parameters_atomically({rclcpp::Parameter("queue_size", int64_t(10))});
+    RCLCPP_INFO(
+      get_logger(), "After set_parameters_atomically: queue_size=%ld",
+      get_parameter("queue_size").as_int());
+
     auto group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions agnocast_options;
     agnocast_options.callback_group = group;
