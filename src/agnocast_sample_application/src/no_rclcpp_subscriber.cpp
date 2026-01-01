@@ -25,6 +25,8 @@ public:
     declare_parameter("topic_name", rclcpp::ParameterValue(std::string("my_topic")));
     declare_parameter("queue_size", rclcpp::ParameterValue(int64_t(1)));
 
+    set_parameter(rclcpp::Parameter("queue_size", int64_t(5)));
+
     get_parameter("topic_name", topic_name_);
     get_parameter("queue_size", queue_size_);
 
@@ -36,16 +38,6 @@ public:
     RCLCPP_INFO(get_logger(), "Topic name (resolved): %s", resolved_topic.c_str());
     RCLCPP_INFO(get_logger(), "Queue size: %ld", queue_size_);
     RCLCPP_INFO(get_logger(), "====================================");
-
-    // Test set_parameter and set_parameters_atomically
-    set_parameter(rclcpp::Parameter("queue_size", int64_t(5)));
-    RCLCPP_INFO(
-      get_logger(), "After set_parameter: queue_size=%ld", get_parameter("queue_size").as_int());
-
-    set_parameters_atomically({rclcpp::Parameter("queue_size", int64_t(10))});
-    RCLCPP_INFO(
-      get_logger(), "After set_parameters_atomically: queue_size=%ld",
-      get_parameter("queue_size").as_int());
 
     auto group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions agnocast_options;
