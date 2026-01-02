@@ -282,7 +282,7 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
 template <typename ParameterVectorType>
 auto find_parameter_by_name(ParameterVectorType & parameters, const std::string & name)
 {
-  return std::find_if(parameters.begin(), parameters.end(), [&](auto parameter) {
+  return std::find_if(parameters.begin(), parameters.end(), [&](const auto & parameter) {
     return parameter.get_name() == name;
   });
 }
@@ -461,7 +461,7 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   // This code path is likely never executed, but is kept to align with rclcpp.
   const std::vector<rclcpp::Parameter> * parameters_to_be_set = &parameters;
   std::vector<rclcpp::Parameter> parameters_copy;
-  if (0 != staged_parameter_changes.size()) {  // If there were any implicitly declared parameters.
+  if (!staged_parameter_changes.empty()) {  // If there were any implicitly declared parameters.
     bool any_initial_values_used = false;
     for (const auto & staged_parameter_change : staged_parameter_changes) {
       auto it = find_parameter_by_name(parameters, staged_parameter_change.first);
