@@ -282,7 +282,7 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
 template <typename ParameterVectorType>
 auto find_parameter_by_name(ParameterVectorType & parameters, const std::string & name)
 {
-  return std::find_if(parameters.begin(), parameters.end(), [&](auto parameter) {
+  return std::find_if(parameters.begin(), parameters.end(), [&](const auto & parameter) {
     return parameter.get_name() == name;
   });
 }
