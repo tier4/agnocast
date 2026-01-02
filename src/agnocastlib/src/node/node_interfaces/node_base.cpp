@@ -226,19 +226,19 @@ std::string NodeBase::resolve_topic_or_service_name(
     if (RCUTILS_RET_BAD_ALLOC == rcutils_ret) {
       throw std::bad_alloc();
     }
-    throw std::runtime_error(error.str);
+    throw std::runtime_error(std::string(error.str));
   }
 
   char * expanded_topic_name = nullptr;
   char * remapped_topic_name = nullptr;
-  int validation_result;
-  rmw_ret_t rmw_ret;
+  int validation_result = 0;
+  rmw_ret_t rmw_ret = RMW_RET_OK;
   rcl_ret_t ret = rcl_get_default_topic_name_substitutions(&substitutions_map);
   if (ret != RCL_RET_OK) {
     if (RCL_RET_BAD_ALLOC != ret) {
       ret = RCL_RET_ERROR;
     }
-    goto cleanup;
+    goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
   }
 
   // expand topic name
@@ -246,7 +246,7 @@ std::string NodeBase::resolve_topic_or_service_name(
     name.c_str(), node_name_.c_str(), namespace_.c_str(), &substitutions_map, allocator,
     &expanded_topic_name);
   if (RCL_RET_OK != ret) {
-    goto cleanup;
+    goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
   }
 
   // remap topic name
@@ -261,7 +261,7 @@ std::string NodeBase::resolve_topic_or_service_name(
         allocator, &remapped_topic_name);
     }
     if (RCL_RET_OK != ret) {
-      goto cleanup;
+      goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
     }
   }
 
@@ -275,14 +275,14 @@ std::string NodeBase::resolve_topic_or_service_name(
   if (rmw_ret != RMW_RET_OK) {
     rcutils_error_string_t error = rmw_get_error_string();
     rmw_reset_error();
-    RCL_SET_ERROR_MSG(error.str);
+    RCL_SET_ERROR_MSG(std::string(error.str).c_str());
     ret = RCL_RET_ERROR;
-    goto cleanup;
+    goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
   }
   if (validation_result != RMW_TOPIC_VALID) {
     RCL_SET_ERROR_MSG(rmw_full_topic_name_validation_result_string(validation_result));
     ret = RCL_RET_TOPIC_NAME_INVALID;
-    goto cleanup;
+    goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
   }
 
   output_topic_name = remapped_topic_name;
@@ -294,12 +294,12 @@ cleanup:
     rcutils_error_string_t error = rcutils_get_error_string();
     rcutils_reset_error();
     if (RCL_RET_OK == ret) {
-      RCL_SET_ERROR_MSG(error.str);
+      RCL_SET_ERROR_MSG(std::string(error.str).c_str());
       ret = RCL_RET_ERROR;
     } else {
       RCLCPP_ERROR(
         rclcpp::get_logger(node_name_), "failed to fini string_map (%d) during error handling: %s",
-        rcutils_ret, error.str);
+        rcutils_ret, std::string(error.str).c_str());
     }
   }
   allocator.deallocate(expanded_topic_name, allocator.state);
@@ -311,7 +311,7 @@ cleanup:
   if (ret != RCL_RET_OK) {
     rcl_error_string_t error = rcl_get_error_string();
     rcl_reset_error();
-    throw std::runtime_error(error.str);
+    throw std::runtime_error(std::string(error.str));
   }
 
   return output_topic_name;
