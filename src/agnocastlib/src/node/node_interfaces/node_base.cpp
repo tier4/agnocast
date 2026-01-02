@@ -309,7 +309,9 @@ cleanup:
   }
 
   if (ret != RCL_RET_OK) {
-    throw std::runtime_error(rcl_get_error_string().str);
+    rcl_error_string_t error = rcl_get_error_string();
+    rcl_reset_error();
+    throw std::runtime_error(error.str);
   }
 
   return output_topic_name;
