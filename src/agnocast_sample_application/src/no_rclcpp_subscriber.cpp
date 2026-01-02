@@ -41,7 +41,6 @@ public:
     declare_parameter("topic_name", rclcpp::ParameterValue(std::string("my_topic")));
     declare_parameter("queue_size", rclcpp::ParameterValue(int64_t(1)));
 
-    // Register parameter callback
     param_callback_handle_ = add_on_set_parameters_callback(
       std::bind(&NoRclcppSubscriber::on_parameter_change, this, std::placeholders::_1));
 
