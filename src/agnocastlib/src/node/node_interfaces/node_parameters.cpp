@@ -17,6 +17,29 @@ namespace agnocast::node_interfaces
 namespace
 {
 
+using CallbacksContainerType = NodeParameters::CallbacksContainerType;
+
+rcl_interfaces::msg::SetParametersResult call_on_parameters_set_callbacks(
+  const std::vector<rclcpp::Parameter> & parameters, CallbacksContainerType & callback_container)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+  auto it = callback_container.begin();
+  while (it != callback_container.end()) {
+    auto shared_handle = it->lock();
+    if (nullptr != shared_handle) {
+      result = shared_handle->callback(parameters);
+      if (!result.successful) {
+        return result;
+      }
+      it++;
+    } else {
+      it = callback_container.erase(it);
+    }
+  }
+  return result;
+}
+
 bool lockless_has_parameter(
   const std::map<std::string, ParameterInfo> & parameters, const std::string & name)
 {
@@ -210,7 +233,8 @@ rcl_interfaces::msg::SetParametersResult check_parameters(
 
 rcl_interfaces::msg::SetParametersResult set_parameters_atomically_common(
   const std::vector<rclcpp::Parameter> & parameters,
-  std::map<std::string, ParameterInfo> & parameter_infos, bool allow_undeclared = false)
+  std::map<std::string, ParameterInfo> & parameter_infos,
+  CallbacksContainerType & callback_container, bool allow_undeclared = false)
 {
   // Check if the value being set complies with the descriptor.
   rcl_interfaces::msg::SetParametersResult result =
@@ -218,7 +242,12 @@ rcl_interfaces::msg::SetParametersResult set_parameters_atomically_common(
   if (!result.successful) {
     return result;
   }
-  // TODO: rclcpp calls on_parameters_set callbacks here.
+
+  // Call the user callbacks to see if the new value(s) are allowed.
+  result = call_on_parameters_set_callbacks(parameters, callback_container);
+  if (!result.successful) {
+    return result;
+  }
 
   // If accepted, actually set the values.
   for (size_t i = 0; i < parameters.size(); ++i) {
@@ -265,7 +294,12 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
   // Check with the user's callback to see if the initial value can be set.
   std::vector<rclcpp::Parameter> parameter_wrappers{rclcpp::Parameter(name, *initial_value)};
   // This function also takes care of default vs initial value.
-  auto result = set_parameters_atomically_common(parameter_wrappers, parameter_infos);
+  // Note: We pass an empty callback container here because callbacks should not be called
+  // during declare_parameter. The callback will be called once in set_parameters_atomically
+  // with all parameters to be set.
+  CallbacksContainerType empty_callback_container;
+  auto result =
+    set_parameters_atomically_common(parameter_wrappers, parameter_infos, empty_callback_container);
 
   if (!result.successful) {
     return result;
@@ -463,6 +497,9 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   // If there were implicitly declared parameters, then we may need to copy the input parameters
   // and then assign the value that was selected after the declare (could be affected by the
   // initial parameter values).
+  // NOTE: In the current implementation, since declare_parameter_common is called with
+  // ignore_override=true, the staged value should always match the user input value.
+  // This code path is likely never executed, but is kept to align with rclcpp.
   const std::vector<rclcpp::Parameter> * parameters_to_be_set = &parameters;
   std::vector<rclcpp::Parameter> parameters_copy;
   if (0 != staged_parameter_changes.size()) {  // If there were any implicitly declared parameters.
@@ -511,6 +548,8 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
     *parameters_to_be_set,
     // they are actually set on the official parameter storage
     parameters_,
+    // this will get called once, with all the parameters to be set
+    on_parameters_set_callback_container_,
     allow_undeclared_);  // allow undeclared
 
   // If not successful, then stop here.
@@ -621,19 +660,28 @@ rcl_interfaces::msg::ListParametersResult NodeParameters::list_parameters(
 rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
 NodeParameters::add_on_set_parameters_callback(OnParametersSetCallbackType callback)
 {
-  // TODO(Koichi98)
-  (void)callback;
-  throw std::runtime_error(
-    "NodeParameters::add_on_set_parameters_callback is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  auto handle = std::make_shared<rclcpp::node_interfaces::OnSetParametersCallbackHandle>();
+  handle->callback = callback;
+  // the last callback registered is executed first.
+  on_parameters_set_callback_container_.emplace_front(handle);
+  return handle;
 }
 
 void NodeParameters::remove_on_set_parameters_callback(
   const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler)
 {
-  // TODO(Koichi98)
-  (void)handler;
-  throw std::runtime_error(
-    "NodeParameters::remove_on_set_parameters_callback is not yet implemented in agnocast");
+  std::lock_guard<std::mutex> lock(parameters_mutex_);
+
+  auto it = std::find_if(
+    on_parameters_set_callback_container_.begin(), on_parameters_set_callback_container_.end(),
+    [handler](const auto & weak_handle) { return handler == weak_handle.lock().get(); });
+  if (it != on_parameters_set_callback_container_.end()) {
+    on_parameters_set_callback_container_.erase(it);
+  } else {
+    throw std::runtime_error("Callback doesn't exist");
+  }
 }
 
 const std::map<std::string, rclcpp::ParameterValue> & NodeParameters::get_parameter_overrides()
