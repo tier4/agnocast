@@ -24,7 +24,7 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  // Handle subscription callbacks using main's refactored approach
+  // Handle subscription callbacks
   agnocast::prepare_epoll_impl(
     epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
     [this](const rclcpp::CallbackGroup::SharedPtr & group) {

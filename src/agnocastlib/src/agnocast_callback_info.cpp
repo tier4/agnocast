@@ -123,7 +123,6 @@ void wait_and_handle_epoll_event(
       ready_agnocast_executables.emplace_back(AgnocastExecutable{callable, callback_group});
     }
   } else {
-    // Handle subscription callback
     const uint32_t callback_info_id = event_id;
     CallbackInfo callback_info;
 
