@@ -226,7 +226,7 @@ std::string NodeBase::resolve_topic_or_service_name(
     if (RCUTILS_RET_BAD_ALLOC == rcutils_ret) {
       throw std::bad_alloc();
     }
-    throw std::runtime_error(std::string(error.str));
+    throw std::runtime_error(&error.str[0]);
   }
 
   char * expanded_topic_name = nullptr;
@@ -275,7 +275,7 @@ std::string NodeBase::resolve_topic_or_service_name(
   if (rmw_ret != RMW_RET_OK) {
     rcutils_error_string_t error = rmw_get_error_string();
     rmw_reset_error();
-    RCL_SET_ERROR_MSG(std::string(error.str).c_str());
+    RCL_SET_ERROR_MSG(&error.str[0]);
     ret = RCL_RET_ERROR;
     goto cleanup;  // NOLINT(cppcoreguidelines-avoid-goto, hicpp-avoid-goto)
   }
@@ -294,12 +294,12 @@ cleanup:
     rcutils_error_string_t error = rcutils_get_error_string();
     rcutils_reset_error();
     if (RCL_RET_OK == ret) {
-      RCL_SET_ERROR_MSG(std::string(error.str).c_str());
+      RCL_SET_ERROR_MSG(&error.str[0]);
       ret = RCL_RET_ERROR;
     } else {
       RCLCPP_ERROR(
         rclcpp::get_logger(node_name_), "failed to fini string_map (%d) during error handling: %s",
-        rcutils_ret, std::string(error.str).c_str());
+        rcutils_ret, &error.str[0]);
     }
   }
   allocator.deallocate(expanded_topic_name, allocator.state);
@@ -311,7 +311,7 @@ cleanup:
   if (ret != RCL_RET_OK) {
     rcl_error_string_t error = rcl_get_error_string();
     rcl_reset_error();
-    throw std::runtime_error(std::string(error.str));
+    throw std::runtime_error(&error.str[0]);
   }
 
   return output_topic_name;
