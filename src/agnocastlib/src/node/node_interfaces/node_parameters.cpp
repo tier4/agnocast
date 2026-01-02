@@ -457,6 +457,9 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   // If there were implicitly declared parameters, then we may need to copy the input parameters
   // and then assign the value that was selected after the declare (could be affected by the
   // initial parameter values).
+  // NOTE: In the current implementation, since declare_parameter_common is called with
+  // ignore_override=true, the staged value should always match the user input value.
+  // This code path is likely never executed, but is kept to align with rclcpp.
   const std::vector<rclcpp::Parameter> * parameters_to_be_set = &parameters;
   std::vector<rclcpp::Parameter> parameters_copy;
   if (0 != staged_parameter_changes.size()) {  // If there were any implicitly declared parameters.
