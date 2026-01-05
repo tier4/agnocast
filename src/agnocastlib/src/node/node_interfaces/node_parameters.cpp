@@ -383,7 +383,7 @@ std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parame
   results.reserve(parameters.size());
 
   for (const auto & p : parameters) {
-    auto result = set_parameters_atomically({{p}});
+    auto result = set_parameters_atomically(std::vector<rclcpp::Parameter>{p});
     results.push_back(result);
   }
 
