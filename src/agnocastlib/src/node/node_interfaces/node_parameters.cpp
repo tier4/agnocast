@@ -264,7 +264,8 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor,
   std::map<std::string, ParameterInfo> & parameters_out,
-  const std::map<std::string, rclcpp::ParameterValue> & overrides, bool ignore_override = false)
+  const std::map<std::string, rclcpp::ParameterValue> & overrides,
+  CallbacksContainerType & callback_container, bool ignore_override = false)
 {
   std::map<std::string, ParameterInfo> parameter_infos{{name, ParameterInfo()}};
   parameter_infos.at(name).descriptor = parameter_descriptor;
@@ -294,12 +295,8 @@ rcl_interfaces::msg::SetParametersResult declare_parameter_common(
   // Check with the user's callback to see if the initial value can be set.
   std::vector<rclcpp::Parameter> parameter_wrappers{rclcpp::Parameter(name, *initial_value)};
   // This function also takes care of default vs initial value.
-  // Note: We pass an empty callback container here because callbacks should not be called
-  // during declare_parameter. The callback will be called once in set_parameters_atomically
-  // with all parameters to be set.
-  CallbacksContainerType empty_callback_container;
   auto result =
-    set_parameters_atomically_common(parameter_wrappers, parameter_infos, empty_callback_container);
+    set_parameters_atomically_common(parameter_wrappers, parameter_infos, callback_container);
 
   if (!result.successful) {
     return result;
@@ -475,6 +472,7 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   // We explicitly avoid calling the user callback here, so that it may be called once, with
   // all the other parameters to be set (already declared parameters).
   std::map<std::string, ParameterInfo> staged_parameter_changes;
+  CallbacksContainerType empty_callback_container;
 
   // Implicit declare uses dynamic type descriptor.
   rcl_interfaces::msg::ParameterDescriptor descriptor;
@@ -485,7 +483,8 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
     result = declare_parameter_common(
       parameter_to_be_declared->get_name(), parameter_to_be_declared->get_parameter_value(),
       descriptor, staged_parameter_changes, parameter_overrides_,
-      true);  // ignore_override = true
+      // Only call callbacks once below
+      empty_callback_container, true);
     if (!result.successful) {
       // Declare failed, return knowing that nothing was changed because the
       // staged changes were not applied.
@@ -496,9 +495,6 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   // If there were implicitly declared parameters, then we may need to copy the input parameters
   // and then assign the value that was selected after the declare (could be affected by the
   // initial parameter values).
-  // NOTE: In the current implementation, since declare_parameter_common is called with
-  // ignore_override=true, the staged value should always match the user input value.
-  // This code path is likely never executed, but is kept to align with rclcpp.
   const std::vector<rclcpp::Parameter> * parameters_to_be_set = &parameters;
   std::vector<rclcpp::Parameter> parameters_copy;
   if (!staged_parameter_changes.empty()) {  // If there were any implicitly declared parameters.
