@@ -1,24 +1,51 @@
 #include "agnocast/agnocast_executor.hpp"
 
 #include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_executor_registry.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sys/epoll.h"
+
+#include <sys/eventfd.h>
 
 namespace agnocast
 {
 
 AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
-: rclcpp::Executor(options), epoll_fd_(epoll_create1(0)), my_pid_(getpid())
+: rclcpp::Executor(options), epoll_fd_(epoll_create1(0)), notify_fd_(-1), my_pid_(getpid())
 {
   if (epoll_fd_ == -1) {
     RCLCPP_ERROR(logger, "epoll_create1 failed: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
+
+  // Create eventfd for receiving notifications about new callbacks/timers
+  notify_fd_ = eventfd(0, EFD_NONBLOCK);
+  if (notify_fd_ == -1) {
+    RCLCPP_ERROR(logger, "eventfd failed: %s", strerror(errno));
+    close(epoll_fd_);
+    exit(EXIT_FAILURE);
+  }
+
+  // Add notify_fd to epoll
+  struct epoll_event ev = {};
+  ev.events = EPOLLIN;
+  ev.data.u32 = NOTIFY_EVENT_FLAG;
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, notify_fd_, &ev) == -1) {
+    RCLCPP_ERROR(logger, "epoll_ctl failed for notify_fd: %s", strerror(errno));
+    close(notify_fd_);
+    close(epoll_fd_);
+    exit(EXIT_FAILURE);
+  }
+
+  // Register this executor's notify_fd to the global registry
+  ExecutorRegistry::get_instance().register_executor(notify_fd_);
 }
 
 AgnocastExecutor::~AgnocastExecutor()
 {
+  ExecutorRegistry::get_instance().unregister_executor(notify_fd_);
+  close(notify_fd_);
   close(epoll_fd_);
 }
 
@@ -39,7 +66,8 @@ bool AgnocastExecutor::get_next_agnocast_executable(
   }
 
   agnocast::wait_and_handle_epoll_event(
-    epoll_fd_, my_pid_, timeout_ms, ready_agnocast_executables_mutex_, ready_agnocast_executables_);
+    epoll_fd_, notify_fd_, my_pid_, timeout_ms, ready_agnocast_executables_mutex_,
+    ready_agnocast_executables_, [this]() { prepare_epoll(); });
 
   // Try again
   return get_next_ready_agnocast_executable(agnocast_executable);

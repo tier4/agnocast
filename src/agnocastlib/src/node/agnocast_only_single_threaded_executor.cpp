@@ -30,15 +30,6 @@ void AgnocastOnlySingleThreadedExecutor::spin()
   RCPPUTILS_SCOPE_EXIT(this->spinning_.store(false););
 
   while (spinning_.load()) {
-    if (need_epoll_updates.load()) {
-      agnocast::prepare_epoll_impl(
-        epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
-        [](const rclcpp::CallbackGroup::SharedPtr & group) {
-          (void)group;
-          return true;
-        });
-    }
-
     agnocast::AgnocastExecutable agnocast_executable;
     if (get_next_agnocast_executable(agnocast_executable, next_exec_timeout_ms_)) {
       execute_agnocast_executable(agnocast_executable);

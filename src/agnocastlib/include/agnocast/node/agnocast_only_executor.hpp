@@ -16,6 +16,7 @@ class AgnocastOnlyExecutor
 protected:
   std::atomic_bool spinning_;
   int epoll_fd_;
+  int notify_fd_;  // eventfd for receiving notifications about new callbacks/timers
   pid_t my_pid_;
 
   std::mutex ready_agnocast_executables_mutex_;

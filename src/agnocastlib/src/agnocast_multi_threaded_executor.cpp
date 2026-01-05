@@ -141,10 +141,6 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
 void MultiThreadedAgnocastExecutor::agnocast_spin()
 {
   while (rclcpp::ok(this->context_) && spinning.load()) {
-    if (need_epoll_updates.load()) {
-      prepare_epoll();
-    }
-
     agnocast::AgnocastExecutable agnocast_executable;
 
     if (!rclcpp::ok(this->context_) || !spinning.load()) {

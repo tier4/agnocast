@@ -1,10 +1,12 @@
 #pragma once
 
+#include "agnocast/agnocast_executor_registry.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "sys/epoll.h"
 
 #include <mutex>
 #include <type_traits>
+#include <unistd.h>
 
 namespace agnocast
 {
@@ -56,7 +58,6 @@ std::vector<std::string> get_agnocast_topics_by_group(
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
 extern std::atomic<uint32_t> next_callback_info_id;
-extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
 TypeErasedCallback get_erased_callback(Func && callback)
@@ -104,7 +105,7 @@ uint32_t register_callback(
                    callback_group, erased_callback, message_creator};
   }
 
-  need_epoll_updates.store(true);
+  notify_executors();
 
   return callback_info_id;
 }
@@ -115,10 +116,84 @@ void receive_message(
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
+// Bit flag to distinguish notify events from other events in epoll
+constexpr uint32_t NOTIFY_EVENT_FLAG = 0x40000000;
+
+template <class PrepareEpollFn>
 void wait_and_handle_epoll_event(
-  const int epoll_fd, const pid_t my_pid, const int timeout_ms,
+  const int epoll_fd, const int notify_fd, const pid_t my_pid, const int timeout_ms,
   std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables);
+  std::vector<AgnocastExecutable> & ready_agnocast_executables,
+  PrepareEpollFn && prepare_epoll_fn)
+{
+  struct epoll_event event = {};
+
+  // blocking with timeout
+  const int nfds = epoll_wait(epoll_fd, &event, 1 /*maxevents*/, timeout_ms);
+
+  if (nfds == -1) {
+    if (errno != EINTR) {  // signal handler interruption is not error
+      RCLCPP_ERROR(logger, "epoll_wait failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    return;
+  }
+
+  // timeout
+  if (nfds == 0) {
+    return;
+  }
+
+  const uint32_t event_id = event.data.u32;
+
+  // Handle notify event (new callback/timer registered)
+  if (event_id == NOTIFY_EVENT_FLAG) {
+    // Consume the eventfd
+    uint64_t val;
+    (void)read(notify_fd, &val, sizeof(val));
+
+    // Call prepare_epoll to register new callbacks/timers
+    prepare_epoll_fn();
+    return;
+  }
+
+  const uint32_t callback_info_id = event_id;
+  CallbackInfo callback_info;
+
+  {
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+
+    const auto it = id2_callback_info.find(callback_info_id);
+    if (it == id2_callback_info.end()) {
+      RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    callback_info = it->second;
+  }
+
+  MqMsgAgnocast mq_msg = {};
+
+  // non-blocking
+  auto ret =
+    mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+  if (ret < 0) {
+    if (errno != EAGAIN) {
+      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
+    return;
+  }
+
+  agnocast::receive_message(
+    callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
+    ready_agnocast_executables);
+}
 
 template <class ValidateFn>
 void prepare_epoll_impl(
@@ -157,14 +232,6 @@ void prepare_epoll_impl(
     }
 
     callback_info.need_epoll_update = false;
-  }
-
-  const bool all_updated = std::none_of(
-    id2_callback_info.begin(), id2_callback_info.end(),
-    [](const auto & it) { return it.second.need_epoll_update; });
-
-  if (all_updated) {
-    need_epoll_updates.store(false);
   }
 }
 

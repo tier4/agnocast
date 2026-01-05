@@ -30,6 +30,7 @@ class AgnocastExecutor : public rclcpp::Executor
 
 protected:
   int epoll_fd_;
+  int notify_fd_;  // eventfd for receiving notifications about new callbacks/timers
   pid_t my_pid_;
   std::mutex wait_mutex_;
 
