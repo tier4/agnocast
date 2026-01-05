@@ -110,7 +110,6 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 |------|------------------------|-------------------------|---------|
 | Parameter Service | Creates `ParameterService` (optional) | None | Yes |
 | Parameter Event Publishing | Publishes to `/parameter_events` | None | TBD |
-| On-Set Callbacks | `set_parameters*()` triggers registered callbacks | Supported | - |
 
 ---
 
