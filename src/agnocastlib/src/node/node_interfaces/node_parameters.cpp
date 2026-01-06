@@ -631,6 +631,7 @@ bool NodeParameters::get_parameters_by_prefix(
   bool ret = false;
 
   for (const auto & param : parameters_) {
+    // TODO(bdm-k): Account for PARAMETER_NOT_SET?
     if (param.first.find(prefix_with_dot) == 0 && param.first.length() > prefix_with_dot.length()) {
       parameters[param.first.substr(prefix_with_dot.length())] = rclcpp::Parameter(param.second);
       ret = true;
