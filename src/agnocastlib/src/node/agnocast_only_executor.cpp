@@ -2,7 +2,6 @@
 
 #include "agnocast/agnocast.hpp"
 #include "agnocast/agnocast_callback_info.hpp"
-#include "agnocast/agnocast_executor_registry.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <sys/eventfd.h>

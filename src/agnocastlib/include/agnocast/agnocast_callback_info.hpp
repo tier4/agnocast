@@ -1,6 +1,5 @@
 #pragma once
 
-#include "agnocast/agnocast_executor_registry.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "sys/epoll.h"
@@ -14,6 +13,11 @@ namespace agnocast
 {
 
 class AgnocastExecutable;
+
+// Executor notification functions
+void register_executor_notify_fd(int notify_fd);
+void unregister_executor_notify_fd(int notify_fd);
+void notify_executors();
 
 // Base class for a type-erased object
 class AnyObject
