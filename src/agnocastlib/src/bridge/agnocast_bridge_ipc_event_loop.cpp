@@ -106,15 +106,7 @@ void BridgeIpcEventLoop::close_parent_mq()
     mq_parent_fd_ = -1;
   }
 
-  if (!mq_parent_name_.empty()) {
-    if (mq_unlink(mq_parent_name_.c_str()) == -1) {
-      if (errno != ENOENT) {
-        RCLCPP_WARN(
-          logger_, "Failed to unlink mq %s: %s", mq_parent_name_.c_str(), strerror(errno));
-      }
-    }
-    mq_parent_name_.clear();
-  }
+  mq_parent_name_.clear();
 }
 
 void BridgeIpcEventLoop::ignore_signals(std::initializer_list<int> signals)
@@ -231,14 +223,7 @@ void BridgeIpcEventLoop::cleanup_resources()
     mq_peer_fd_ = -1;
   }
 
-  if (!mq_self_name_.empty()) {
-    if (mq_unlink(mq_self_name_.c_str()) == -1) {
-      if (errno != ENOENT) {
-        RCLCPP_WARN(logger_, "Failed to unlink mq %s: %s", mq_self_name_.c_str(), strerror(errno));
-      }
-    }
-    mq_self_name_.clear();
-  }
+  mq_self_name_.clear();
 }
 
 }  // namespace agnocast

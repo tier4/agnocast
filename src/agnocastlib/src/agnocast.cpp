@@ -171,6 +171,9 @@ void poll_for_unlink()
       if (get_exit_process_args.ret_pid > 0) {
         const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
         shm_unlink(shm_name.c_str());
+
+        const std::string mq_name = create_mq_name_for_bridge(get_exit_process_args.ret_pid);
+        mq_unlink(mq_name.c_str());
       }
     } while (get_exit_process_args.ret_pid > 0);
 
