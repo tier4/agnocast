@@ -150,9 +150,9 @@ sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
 
 void BridgeIpcEventLoop::setup_mq(pid_t target_pid)
 {
-  mq_parent_name_ = create_mq_name_for_bridge_parent(target_pid);
+  mq_parent_name_ = create_mq_name_for_bridge(target_pid);
   mq_parent_fd_ = create_and_open_mq(mq_parent_name_, "Parent");
-  mq_self_name_ = create_mq_name_for_bridge_daemon(getpid());
+  mq_self_name_ = create_mq_name_for_bridge(getpid());
   mq_peer_fd_ = create_and_open_mq(mq_self_name_, "Peer");
 }
 

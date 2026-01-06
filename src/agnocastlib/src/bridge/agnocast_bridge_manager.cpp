@@ -174,7 +174,7 @@ void BridgeManager::activate_bridge(
 
 void BridgeManager::send_delegation(const MqMsgBridge & req, pid_t owner_pid)
 {
-  std::string mq_name = create_mq_name_for_bridge_daemon(owner_pid);
+  std::string mq_name = create_mq_name_for_bridge(owner_pid);
 
   mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
   if (mq == -1) {
