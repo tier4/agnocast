@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstring>
 #include <limits>
 #include <sstream>
 #include <string_view>
@@ -111,9 +110,7 @@ const rclcpp::ParameterValue & declare_parameter_helper(
   // If it failed to be set, then throw an exception.
   if (!result.successful) {
     constexpr std::string_view type_error_msg_start = "Wrong parameter type";
-    if (
-      0U == std::strncmp(
-              result.reason.c_str(), type_error_msg_start.data(), type_error_msg_start.size())) {
+    if (std::string_view(result.reason).starts_with(type_error_msg_start)) {
       throw rclcpp::exceptions::InvalidParameterTypeException(name, result.reason);
     }
     throw rclcpp::exceptions::InvalidParameterValueException(
