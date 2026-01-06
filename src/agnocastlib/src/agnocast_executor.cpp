@@ -24,42 +24,11 @@ AgnocastExecutor::~AgnocastExecutor()
 
 void AgnocastExecutor::prepare_epoll()
 {
-  // Handle subscription callbacks
   agnocast::prepare_epoll_impl(
     epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
     [this](const rclcpp::CallbackGroup::SharedPtr & group) {
       return validate_callback_group(group);
     });
-
-  // Handle timer registration
-  {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-
-    for (auto & it : id2_timer_info) {
-      const uint32_t timer_id = it.first;
-      TimerInfo & timer_info = it.second;
-      if (!timer_info.need_epoll_update) {
-        continue;
-      }
-
-      if (!validate_callback_group(timer_info.callback_group)) {
-        continue;
-      }
-
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      // Use high bit to distinguish timer IDs from callback IDs
-      ev.data.u32 = timer_id | 0x80000000;
-
-      if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
-      }
-
-      timer_info.need_epoll_update = false;
-    }
-  }
 }
 
 bool AgnocastExecutor::get_next_agnocast_executable(
