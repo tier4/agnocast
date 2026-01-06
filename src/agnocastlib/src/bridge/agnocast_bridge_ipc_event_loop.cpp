@@ -121,7 +121,7 @@ sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
 void BridgeIpcEventLoop::setup_mq()
 {
   mq_name_ = create_mq_name_for_bridge(getpid());
-  mq_fd_ = create_and_open_mq(mq_name_, "Peer");
+  mq_fd_ = create_and_open_mq(mq_name_, "Self");
 }
 
 void BridgeIpcEventLoop::setup_signals()
@@ -142,7 +142,7 @@ void BridgeIpcEventLoop::setup_epoll()
     throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
-  add_fd_to_epoll(mq_fd_, "Peer MQ");
+  add_fd_to_epoll(mq_fd_, "MQ");
   add_fd_to_epoll(signal_fd_, "Signal");
 }
 
