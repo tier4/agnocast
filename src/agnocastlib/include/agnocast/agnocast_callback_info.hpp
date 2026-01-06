@@ -1,12 +1,14 @@
 #pragma once
 
 #include "agnocast/agnocast_executor_registry.hpp"
+#include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "sys/epoll.h"
 
+#include <unistd.h>
+
 #include <mutex>
 #include <type_traits>
-#include <unistd.h>
 
 namespace agnocast
 {
@@ -123,8 +125,7 @@ template <class PrepareEpollFn>
 void wait_and_handle_epoll_event(
   const int epoll_fd, const int notify_fd, const pid_t my_pid, const int timeout_ms,
   std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables,
-  PrepareEpollFn && prepare_epoll_fn)
+  std::vector<AgnocastExecutable> & ready_agnocast_executables, PrepareEpollFn && prepare_epoll_fn)
 {
   struct epoll_event event = {};
 
@@ -150,9 +151,11 @@ void wait_and_handle_epoll_event(
 
   // Handle notify event (new callback/timer registered)
   if (event_id == NOTIFY_EVENT_FLAG) {
-    // Consume the eventfd
+    // Consume the eventfd (ignore return value as we only care about wakeup)
     uint64_t val;
-    (void)read(notify_fd, &val, sizeof(val));
+    if (read(notify_fd, &val, sizeof(val)) < 0) {
+      // EAGAIN is expected if already consumed by another thread
+    }
 
     // Call prepare_epoll to register new callbacks/timers
     prepare_epoll_fn();

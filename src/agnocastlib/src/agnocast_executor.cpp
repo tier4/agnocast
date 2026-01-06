@@ -39,12 +39,12 @@ AgnocastExecutor::AgnocastExecutor(const rclcpp::ExecutorOptions & options)
   }
 
   // Register this executor's notify_fd to the global registry
-  ExecutorRegistry::get_instance().register_executor(notify_fd_);
+  register_executor_notify_fd(notify_fd_);
 }
 
 AgnocastExecutor::~AgnocastExecutor()
 {
-  ExecutorRegistry::get_instance().unregister_executor(notify_fd_);
+  unregister_executor_notify_fd(notify_fd_);
   close(notify_fd_);
   close(epoll_fd_);
 }

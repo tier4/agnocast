@@ -5,8 +5,9 @@
 #include "agnocast/agnocast_executor_registry.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <memory>
 #include <sys/eventfd.h>
+
+#include <memory>
 
 namespace agnocast
 {
@@ -39,12 +40,12 @@ AgnocastOnlyExecutor::AgnocastOnlyExecutor()
   }
 
   // Register this executor's notify_fd to the global registry
-  ExecutorRegistry::get_instance().register_executor(notify_fd_);
+  register_executor_notify_fd(notify_fd_);
 }
 
 AgnocastOnlyExecutor::~AgnocastOnlyExecutor()
 {
-  ExecutorRegistry::get_instance().unregister_executor(notify_fd_);
+  unregister_executor_notify_fd(notify_fd_);
   close(notify_fd_);
   close(epoll_fd_);
 }
