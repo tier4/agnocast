@@ -21,26 +21,7 @@ namespace agnocast::node_interfaces
 {
 
 using rclcpp::node_interfaces::ParameterInfo;
-
-// Internal RAII-style guard for mutation recursion
-class ParameterMutationRecursionGuard
-{
-public:
-  explicit ParameterMutationRecursionGuard(bool & allow_mod) : allow_modification_(allow_mod)
-  {
-    if (!allow_modification_) {
-      throw rclcpp::exceptions::ParameterModifiedInCallbackException(
-        "cannot set or declare a parameter, or change the callback from within set callback");
-    }
-
-    allow_modification_ = false;
-  }
-
-  ~ParameterMutationRecursionGuard() { allow_modification_ = true; }
-
-private:
-  bool & allow_modification_;
-};
+using rclcpp::node_interfaces::ParameterMutationRecursionGuard;
 
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
@@ -109,7 +90,7 @@ public:
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
 
-  mutable std::mutex parameters_mutex_;
+  mutable std::recursive_mutex parameters_mutex_;
 
   // There are times when we don't want to allow modifications to parameters
   // (particularly when a set_parameter callback tries to call set_parameter,
