@@ -9,7 +9,6 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
-#include <string_view>
 #include <utility>
 
 namespace agnocast::node_interfaces
@@ -109,8 +108,8 @@ const rclcpp::ParameterValue & declare_parameter_helper(
 
   // If it failed to be set, then throw an exception.
   if (!result.successful) {
-    constexpr std::string_view type_error_msg_start = "Wrong parameter type";
-    if (std::string_view(result.reason).starts_with(type_error_msg_start)) {
+    constexpr auto type_error_msg_start = "Wrong parameter type";
+    if (result.reason.rfind(type_error_msg_start, 0) == 0) {
       throw rclcpp::exceptions::InvalidParameterTypeException(name, result.reason);
     }
     throw rclcpp::exceptions::InvalidParameterValueException(
