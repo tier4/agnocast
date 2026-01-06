@@ -57,7 +57,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `for_each_callback_group()` | ✓ | **Full Support** | - | |
 | `get_notify_guard_condition()` | ✗ | **Throws Exception** | Yes | Not needed as agnocast uses epoll instead of condition variables, but planned for loading into Component Container |
 | `get_associated_with_executor_atomic()` | ✓ | **Full Support** | - | |
-| `resolve_topic_or_service_name()` | ✗ | **Not Implemented** | Yes | **Still TODO**, returns empty string. Use NodeTopics' `resolve_topic_name()` instead |
+| `resolve_topic_or_service_name()` | ✓ | **Full Support** | - | Used by NodeTopics and (future) NodeServices |
 | `get_use_intra_process_default()` | ⚠ | **API Only** | No | Returns value while logging a warning. agnocast uses its own shared memory IPC, so rclcpp's intra_process_communication is not used. |
 | `get_enable_topic_statistics_default()` | ⚠ | **API Only** | Yes | Returns value passed from NodeOptions. |
 
@@ -95,8 +95,8 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `get_parameter(name, param&)` | ✓ | **Full Support** | - | |
 | `get_parameters(names)` | ✓ | **Full Support** | - | |
 | `get_parameter_overrides()` | ✓ | **Full Support** | - | |
-| `set_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `set_parameters_atomically()` | ✗ | **Not Implemented** | Yes | Throws exception |
+| `set_parameters()` | ✓ | **Full Support** | - | Callbacks and parameter events not triggered (see below) |
+| `set_parameters_atomically()` | ✓ | **Full Support** | - | Callbacks and parameter events not triggered (see below) |
 | `get_parameters_by_prefix()` | ✗ | **Not Implemented** | Yes | Throws exception |
 | `describe_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
 | `get_parameter_types()` | ✗ | **Not Implemented** | Yes | Throws exception |
@@ -110,6 +110,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 |------|------------------------|-------------------------|---------|
 | Parameter Service | Creates `ParameterService` (optional) | None | Yes |
 | Parameter Event Publishing | Publishes to `/parameter_events` | None | TBD |
+| On-Set Callbacks | `set_parameters*()` triggers registered callbacks | Callbacks not called | Yes |
 
 ---
 
@@ -237,9 +238,9 @@ The following tables compare methods that are **directly defined** in each class
 | `get_parameter()` | ✓ | ✓ | |
 | `get_parameter_or()` | ✓ | ✗ | |
 | `get_parameters()` | ✓ | ✓ | agnocast does not support prefix specification |
-| `set_parameter()` | ✓ | ✗ | |
-| `set_parameters()` | ✓ | ✗ | |
-| `set_parameters_atomically()` | ✓ | ✗ | |
+| `set_parameter()` | ✓ | ✓ | |
+| `set_parameters()` | ✓ | ✓ | |
+| `set_parameters_atomically()` | ✓ | ✓ | |
 | `describe_parameter()` | ✓ | ✗ | |
 | `describe_parameters()` | ✓ | ✗ | |
 | `get_parameter_types()` | ✓ | ✗ | |
