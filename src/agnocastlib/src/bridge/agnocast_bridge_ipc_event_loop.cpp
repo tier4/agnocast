@@ -121,7 +121,7 @@ sigset_t BridgeIpcEventLoop::block_signals(std::initializer_list<int> signals)
 void BridgeIpcEventLoop::setup_mq()
 {
   mq_name_ = create_mq_name_for_bridge(getpid());
-  mq_fd_ = create_and_open_mq(mq_name_, "Self");
+  mq_fd_ = create_and_open_mq(mq_name_);
 }
 
 void BridgeIpcEventLoop::setup_signals()
@@ -146,7 +146,7 @@ void BridgeIpcEventLoop::setup_epoll()
   add_fd_to_epoll(signal_fd_, "Signal");
 }
 
-mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name, const std::string & label)
+mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name)
 {
   struct mq_attr attr = {};
   attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
@@ -156,7 +156,7 @@ mqd_t BridgeIpcEventLoop::create_and_open_mq(const std::string & name, const std
     mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
 
   if (fd == -1) {
-    throw std::system_error(errno, std::generic_category(), label + " MQ open failed");
+    throw std::system_error(errno, std::generic_category(), "MQ open failed");
   }
 
   return fd;

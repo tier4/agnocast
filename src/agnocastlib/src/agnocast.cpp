@@ -172,6 +172,8 @@ void poll_for_unlink()
         const std::string shm_name = create_shm_name(get_exit_process_args.ret_pid);
         shm_unlink(shm_name.c_str());
 
+        // We don't need to call mq_unlink for non BridgeManager processes. However, we do it for
+        // all exited processes to avoid the complexity of checking the process type.
         const std::string mq_name = create_mq_name_for_bridge(get_exit_process_args.ret_pid);
         mq_unlink(mq_name.c_str());
       }

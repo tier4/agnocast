@@ -47,7 +47,7 @@ private:
   void setup_signals();
   void setup_epoll();
 
-  static mqd_t create_and_open_mq(const std::string & name, const std::string & label);
+  static mqd_t create_and_open_mq(const std::string & name);
   void add_fd_to_epoll(int fd, const std::string & label) const;
 
   void cleanup_resources();
