@@ -350,8 +350,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   return declare_parameter_helper(
     name, rclcpp::PARAMETER_NOT_SET, default_value, parameter_descriptor, ignore_override,
@@ -363,8 +362,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   if (rclcpp::PARAMETER_NOT_SET == type) {
     throw std::invalid_argument{
@@ -385,8 +383,7 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
 void NodeParameters::undeclare_parameter(const std::string & name)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto parameter_info = parameters_.find(name);
   if (parameter_info == parameters_.end()) {
@@ -431,8 +428,7 @@ rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomical
   const std::vector<rclcpp::Parameter> & parameters)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   rcl_interfaces::msg::SetParametersResult result;
 
@@ -663,8 +659,7 @@ rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
 NodeParameters::add_on_set_parameters_callback(OnParametersSetCallbackType callback)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto handle = std::make_shared<rclcpp::node_interfaces::OnSetParametersCallbackHandle>();
   handle->callback = callback;
@@ -677,8 +672,7 @@ void NodeParameters::remove_on_set_parameters_callback(
   const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler)
 {
   std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto it = std::find_if(
     on_parameters_set_callback_container_.begin(), on_parameters_set_callback_container_.end(),
