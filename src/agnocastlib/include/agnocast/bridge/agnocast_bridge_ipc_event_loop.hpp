@@ -16,7 +16,7 @@ public:
   using EventCallback = std::function<void(int fd)>;
   using SignalCallback = std::function<void()>;
 
-  BridgeIpcEventLoop(const rclcpp::Logger & logger);
+  explicit BridgeIpcEventLoop(const rclcpp::Logger & logger);
   ~BridgeIpcEventLoop();
 
   BridgeIpcEventLoop(const BridgeIpcEventLoop &) = delete;
