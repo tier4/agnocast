@@ -404,6 +404,8 @@ struct initialize_agnocast_result initialize_agnocast(
   if (!add_process_args.ret_unlink_daemon_exist) {
     spawn_daemon_process([]() { poll_for_unlink(); });
 
+    // Since the performance bridge daemon is created once per IPC namespace,
+    // this logic is placed inside this block.
     if (bridge_mode == BridgeMode::Performance) {
       should_spawn_bridge = true;
     }
