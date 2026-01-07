@@ -621,7 +621,7 @@ bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter &
 bool NodeParameters::get_parameters_by_prefix(
   const std::string & prefix, std::map<std::string, rclcpp::Parameter> & parameters) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   std::string prefix_with_dot = prefix.empty() ? prefix : prefix + ".";
   bool ret = false;
