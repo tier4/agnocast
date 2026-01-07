@@ -83,6 +83,7 @@ struct topic_struct
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
   topic_local_id_t current_pubsub_id;
   int64_t current_entry_id;
+  uint32_t ros2_subscriber_count;  // Updated by Bridge Manager
 };
 
 struct topic_wrapper
@@ -198,6 +199,7 @@ static int add_topic(
   hash_init((*wrapper)->topic.sub_info_htable);
   (*wrapper)->topic.current_pubsub_id = 0;
   (*wrapper)->topic.current_entry_id = 0;
+  (*wrapper)->topic.ros2_subscriber_count = 0;
   hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
 
   dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
@@ -1129,12 +1131,24 @@ int get_subscriber_num(
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+    ioctl_ret->ret_subscriber_num =
+      get_size_sub_info_htable(wrapper) + wrapper->topic.ros2_subscriber_count;
   } else {
     ioctl_ret->ret_subscriber_num = 0;
   }
 
   return 0;
+}
+
+int set_ros2_subscriber_count(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t count)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (wrapper) {
+    wrapper->topic.ros2_subscriber_count = count;
+    return 0;
+  }
+  return -ENOENT;
 }
 
 int get_publisher_num(
@@ -2188,6 +2202,22 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
     ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, remove_bridge_args.is_r2a, ipc_ns);
+    kfree(topic_name_buf);
+  } else if (cmd == AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD) {
+    struct ioctl_set_ros2_subscriber_num_args set_ros2_sub_args;
+    if (copy_from_user(&set_ros2_sub_args, (void __user *)arg, sizeof(set_ros2_sub_args)))
+      goto return_EFAULT;
+    if (set_ros2_sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(set_ros2_sub_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)set_ros2_sub_args.topic_name.ptr,
+          set_ros2_sub_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[set_ros2_sub_args.topic_name.len] = '\0';
+    ret = set_ros2_subscriber_count(topic_name_buf, ipc_ns, set_ros2_sub_args.ros2_subscriber_count);
     kfree(topic_name_buf);
   } else {
     goto return_EINVAL;
