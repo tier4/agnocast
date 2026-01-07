@@ -40,7 +40,6 @@ private:
 
   EventCallback mq_cb_;
   SignalCallback signal_cb_;
-  ReloadCallback reload_cb_;
 
   void ignore_signals(std::initializer_list<int> signals);
   sigset_t block_signals(std::initializer_list<int> signals);

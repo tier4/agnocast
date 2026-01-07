@@ -133,7 +133,6 @@ sigset_t PerformanceBridgeIpcEventLoop::block_signals(std::initializer_list<int>
 void PerformanceBridgeIpcEventLoop::setup_mq()
 {
   mq_name_ = create_mq_name_for_bridge(PERFORMANCE_BRIDGE_VIRTUAL_PID);
-  mq_unlink(mq_name_.c_str());
   mq_fd_ = create_and_open_mq(mq_name_);
 }
 
@@ -169,7 +168,7 @@ mqd_t PerformanceBridgeIpcEventLoop::create_and_open_mq(const std::string & name
   struct mq_attr attr = {};
 
   attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
-  attr.mq_msgsize = PREFORMANCE_BRIDGE_MQ_MESSAGE_SIZE;
+  attr.mq_msgsize = PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE;
 
   mqd_t fd =
     mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
