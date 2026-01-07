@@ -2,19 +2,57 @@
 
 #include <rclcpp/logger.hpp>
 
+#include <mqueue.h>
+
+#include <csignal>
+#include <functional>
+#include <initializer_list>
+#include <string>
+
 namespace agnocast
 {
 
 class PerformanceBridgeIpcEventLoop
 {
 public:
+  using EventCallback = std::function<void(int)>;
+  using SignalCallback = std::function<void()>;
+  using ReloadCallback = std::function<void()>;
+
   explicit PerformanceBridgeIpcEventLoop(const rclcpp::Logger & logger);
   ~PerformanceBridgeIpcEventLoop();
 
-  void spin_once();
+  bool spin_once(int timeout_ms);
+
+  void set_mq_handler(EventCallback cb);
+  void set_signal_handler(SignalCallback cb);
+  void set_reload_handler(ReloadCallback cb);
 
 private:
   rclcpp::Logger logger_;
+
+  int epoll_fd_ = -1;
+  int signal_fd_ = -1;
+  int reload_fd_ = -1;
+
+  mqd_t mq_fd_ = -1;
+  std::string mq_name_;
+
+  EventCallback mq_cb_;
+  SignalCallback signal_cb_;
+  ReloadCallback reload_cb_;
+
+  void ignore_signals(std::initializer_list<int> signals);
+  sigset_t block_signals(std::initializer_list<int> signals);
+
+  void setup_mq();
+  void setup_signals();
+  void setup_epoll();
+
+  mqd_t create_and_open_mq(const std::string & name);
+  void add_fd_to_epoll(int fd, const std::string & label) const;
+
+  void cleanup_resources();
 };
 
 }  // namespace agnocast
