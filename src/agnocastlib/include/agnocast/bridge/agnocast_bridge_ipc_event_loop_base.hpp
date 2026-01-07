@@ -235,18 +235,21 @@ inline void IpcEventLoopBase::cleanup_resources()
     }
     epoll_fd_ = -1;
   }
+
   if (signal_fd_ != -1) {
     if (close(signal_fd_) == -1) {
       RCLCPP_WARN(logger_, "Failed to close signal_fd: %s", strerror(errno));
     }
     signal_fd_ = -1;
   }
+
   if (mq_fd_ != -1) {
     if (mq_close(mq_fd_) == -1) {
       RCLCPP_WARN(logger_, "Failed to close mq_fd: %s", strerror(errno));
     }
     mq_fd_ = -1;
   }
+
   mq_name_.clear();
 }
 
