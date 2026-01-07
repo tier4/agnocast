@@ -34,11 +34,15 @@ void send_bridge_request(
 // Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
 struct RosToAgnocastRequestPolicy
 {
-  auto bridge_mode = get_bridge_mode();
-  if (bridge_mode == BridgeMode::Standard) {
-    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
-  } else if (bridge_mode == BridgeMode::Performance) {
-    // TODO(yutarokobayashi): Implement performance bridge request
+  template <typename MessageT>
+  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
+  {
+    auto bridge_mode = get_bridge_mode();
+    if (bridge_mode == BridgeMode::Standard) {
+      send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
+    } else if (bridge_mode == BridgeMode::Performance) {
+      // TODO(yutarokobayashi): Implement performance bridge request
+    }
   }
 };
 
@@ -46,11 +50,15 @@ struct RosToAgnocastRequestPolicy
 // Requests a bridge that forwards messages from Agnocast to ROS 2 (A2R).
 struct AgnocastToRosRequestPolicy
 {
-  auto bridge_mode = get_bridge_mode();
-  if (bridge_mode == BridgeMode::Standard) {
-    send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
-  } else if (bridge_mode == BridgeMode::Performance) {
-    // TODO(yutarokobayashi): Implement performance bridge request
+  template <typename MessageT>
+  static void request_bridge(const std::string & topic_name, topic_local_id_t id)
+  {
+    auto bridge_mode = get_bridge_mode();
+    if (bridge_mode == BridgeMode::Standard) {
+      send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
+    } else if (bridge_mode == BridgeMode::Performance) {
+      // TODO(yutarokobayashi): Implement performance bridge request
+    }
   }
 };
 
