@@ -48,7 +48,6 @@ public:
 
 protected:
   rclcpp::Logger logger_;
-  virtual void handle_signal(int signo);
 
 private:
   int epoll_fd_ = -1;
@@ -104,7 +103,6 @@ inline bool IpcEventLoopBase::spin_once(int timeout_ms)
   do {
     event_count = epoll_wait(epoll_fd_, events.data(), MAX_EVENTS, timeout_ms);
   } while (event_count < 0 && errno == EINTR);
-
   if (event_count < 0) {
     RCLCPP_ERROR(logger_, "epoll_wait failed: %s", strerror(errno));
     return false;
@@ -112,10 +110,8 @@ inline bool IpcEventLoopBase::spin_once(int timeout_ms)
   if (event_count == 0) {
     return true;
   }
-
   for (int event_index = 0; event_index < event_count; ++event_index) {
     int fd = events[event_index].data.fd;
-
     if (fd == mq_fd_) {
       if (mq_cb_) {
         mq_cb_(fd);
@@ -126,18 +122,13 @@ inline bool IpcEventLoopBase::spin_once(int timeout_ms)
       };
       ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
       if (s == sizeof(struct signalfd_siginfo)) {
-        handle_signal(fdsi.ssi_signo);
+        if ((fdsi.ssi_signo == SIGTERM || fdsi.ssi_signo == SIGINT) && signal_cb_) {
+          signal_cb_();
+        }
       }
     }
   }
   return true;
-}
-
-inline void IpcEventLoopBase::handle_signal(int signo)
-{
-  if ((signo == SIGTERM || signo == SIGINT) && signal_cb_) {
-    signal_cb_();
-  }
 }
 
 inline void IpcEventLoopBase::set_mq_handler(EventCallback cb)
@@ -174,12 +165,8 @@ inline void IpcEventLoopBase::setup_epoll()
     throw std::runtime_error("epoll_create1 failed: " + std::string(strerror(errno)));
   }
 
-  if (mq_fd_ != -1) {
-    add_fd_to_epoll(mq_fd_, "MQ");
-  }
-  if (signal_fd_ != -1) {
-    add_fd_to_epoll(signal_fd_, "Signal");
-  }
+  add_fd_to_epoll(mq_fd_, "MQ");
+  add_fd_to_epoll(signal_fd_, "Signal");
 }
 
 inline mqd_t IpcEventLoopBase::create_and_open_mq(const std::string & name)
@@ -188,12 +175,10 @@ inline mqd_t IpcEventLoopBase::create_and_open_mq(const std::string & name)
   attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
   attr.mq_msgsize = mq_msg_size_;
 
-  int oflag = O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC;
-  mode_t perms = BRIDGE_MQ_PERMS;
+  mqd_t fd =
+    mq_open(name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
 
-  mqd_t fd = mq_open(name.c_str(), oflag, perms, &attr);
-
-  if (fd == (mqd_t)-1) {
+  if (fd == -1) {
     throw std::system_error(errno, std::generic_category(), "MQ open failed: " + name);
   }
 
@@ -245,16 +230,22 @@ inline sigset_t IpcEventLoopBase::block_signals_impl(const std::vector<int> & si
 inline void IpcEventLoopBase::cleanup_resources()
 {
   if (epoll_fd_ != -1) {
-    close(epoll_fd_);
+    if (close(epoll_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close epoll_fd: %s", strerror(errno));
+    }
     epoll_fd_ = -1;
   }
   if (signal_fd_ != -1) {
-    close(signal_fd_);
+    if (close(signal_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close signal_fd: %s", strerror(errno));
+    }
     signal_fd_ = -1;
   }
-  if (mq_fd_ != (mqd_t)-1) {
-    mq_close(mq_fd_);
-    mq_fd_ = (mqd_t)-1;
+  if (mq_fd_ != -1) {
+    if (mq_close(mq_fd_) == -1) {
+      RCLCPP_WARN(logger_, "Failed to close mq_fd: %s", strerror(errno));
+    }
+    mq_fd_ = -1;
   }
   mq_name_.clear();
 }
