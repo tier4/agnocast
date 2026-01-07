@@ -48,6 +48,7 @@ public:
 
 protected:
   rclcpp::Logger logger_;
+  virtual void handle_signal(int signo);
 
 private:
   int epoll_fd_ = -1;
@@ -67,7 +68,7 @@ private:
   void setup_epoll();
   void cleanup_resources();
 
-  mqd_t create_and_open_mq(const std::string & name);
+  mqd_t create_and_open_mq(const std::string & name) const;
   void add_fd_to_epoll(int fd, const std::string & label) const;
 
   static void ignore_signals_impl(const std::vector<int> & signals);
@@ -122,13 +123,18 @@ inline bool IpcEventLoopBase::spin_once(int timeout_ms)
       };
       ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
       if (s == sizeof(struct signalfd_siginfo)) {
-        if ((fdsi.ssi_signo == SIGTERM || fdsi.ssi_signo == SIGINT) && signal_cb_) {
-          signal_cb_();
-        }
+        handle_signal(fdsi.ssi_signo);
       }
     }
   }
   return true;
+}
+
+inline void IpcEventLoopBase::handle_signal(int signo)
+{
+  if ((signo == SIGTERM || signo == SIGINT) && signal_cb_) {
+    signal_cb_();
+  }
 }
 
 inline void IpcEventLoopBase::set_mq_handler(EventCallback cb)
@@ -169,7 +175,7 @@ inline void IpcEventLoopBase::setup_epoll()
   add_fd_to_epoll(signal_fd_, "Signal");
 }
 
-inline mqd_t IpcEventLoopBase::create_and_open_mq(const std::string & name)
+inline mqd_t IpcEventLoopBase::create_and_open_mq(const std::string & name) const
 {
   struct mq_attr attr = {};
   attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
