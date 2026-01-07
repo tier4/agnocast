@@ -11,8 +11,6 @@ public:
   explicit PerformanceBridgeConfig(const rclcpp::Logger & logger);
   ~PerformanceBridgeConfig();
 
-  // void load_config();
-
 private:
   rclcpp::Logger logger_;
 };
