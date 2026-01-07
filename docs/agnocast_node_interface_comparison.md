@@ -97,7 +97,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `get_parameter_overrides()` | ✓ | **Full Support** | - | |
 | `set_parameters()` | ✓ | **Full Support** | - | Parameter events not triggered (see below) |
 | `set_parameters_atomically()` | ✓ | **Full Support** | - | Parameter events not triggered (see below) |
-| `get_parameters_by_prefix()` | ✗ | **Not Implemented** | Yes | Throws exception |
+| `get_parameters_by_prefix()` | ✓ | **Full Support** | - | |
 | `describe_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
 | `get_parameter_types()` | ✗ | **Not Implemented** | Yes | Throws exception |
 | `list_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
@@ -236,7 +236,7 @@ The following tables compare methods that are **directly defined** in each class
 | `has_parameter()` | ✓ | ✓ | |
 | `get_parameter()` | ✓ | ✓ | |
 | `get_parameter_or()` | ✓ | ✗ | |
-| `get_parameters()` | ✓ | ✓ | agnocast does not support prefix specification |
+| `get_parameters()` | ✓ | ✓ | |
 | `set_parameter()` | ✓ | ✓ | |
 | `set_parameters()` | ✓ | ✓ | |
 | `set_parameters_atomically()` | ✓ | ✓ | |
@@ -320,6 +320,8 @@ The following tables compare methods that are **directly defined** in each class
 ## 5. Composable Node Considerations
 
 `agnocast::Node` implements `rclcpp::node_interfaces::NodeBaseInterface`, so it can be loaded as a Composable Node into a Component Container.
+
+**Note**: While `agnocast::Node` can be loaded into a Component Container, the Component Container itself becomes a DDS participant. Therefore, the performance maximization benefits—which are the primary purpose of using `agnocast::Node`—cannot be fully realized when using a Component Container.
 
 ---
 
