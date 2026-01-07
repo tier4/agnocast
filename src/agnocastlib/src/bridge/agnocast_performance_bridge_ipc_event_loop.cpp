@@ -12,9 +12,7 @@ PerformanceBridgeIpcEventLoop::PerformanceBridgeIpcEventLoop(const rclcpp::Logge
   RCLCPP_INFO(logger_, "PerformanceBridgeIpcEventLoop initialized (Skeleton).");
 }
 
-PerformanceBridgeIpcEventLoop::~PerformanceBridgeIpcEventLoop()
-{
-}
+PerformanceBridgeIpcEventLoop::~PerformanceBridgeIpcEventLoop() = default;
 
 void PerformanceBridgeIpcEventLoop::spin_once()
 {

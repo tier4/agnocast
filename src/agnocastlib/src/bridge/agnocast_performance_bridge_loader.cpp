@@ -11,8 +11,6 @@ PerformanceBridgeLoader::PerformanceBridgeLoader(const rclcpp::Logger & logger) 
   RCLCPP_INFO(logger_, "PerformanceBridgeLoader initialized (Skeleton).");
 }
 
-PerformanceBridgeLoader::~PerformanceBridgeLoader()
-{
-}
+PerformanceBridgeLoader::~PerformanceBridgeLoader() = default;
 
 }  // namespace agnocast
