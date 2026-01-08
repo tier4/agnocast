@@ -61,7 +61,10 @@ class BasicPublisher
     const PublisherOptions & options)
   {
     if (options.do_always_ros2_publish) {
-      RCLCPP_ERROR(logger, "The 'do_always_ros2_publish' option is deprecated.");
+      RCLCPP_ERROR(
+        logger,
+        "The 'do_always_ros2_publish' option is deprecated. "
+        "Use the AGNOCAST_BRIDGE_MODE environment variable instead.");
     }
 
     topic_name_ = node->get_node_topics_interface()->resolve_topic_name(topic_name);
