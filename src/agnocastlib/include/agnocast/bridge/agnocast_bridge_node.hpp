@@ -29,6 +29,9 @@ static constexpr size_t DEFAULT_QOS_DEPTH = 10;
 template <typename MessageT>
 void send_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction);
+template <typename MessageT>
+void send_performance_bridge_request(
+  const std::string & topic_name, topic_local_id_t id, BridgeDirection direction);
 
 // Policy for agnocast::Subscription.
 // Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
@@ -41,7 +44,7 @@ struct RosToAgnocastRequestPolicy
     if (bridge_mode == BridgeMode::Standard) {
       send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
     } else if (bridge_mode == BridgeMode::Performance) {
-      // TODO(yutarokobayashi): Implement performance bridge request
+      send_performance_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
     }
   }
 };
@@ -57,7 +60,7 @@ struct AgnocastToRosRequestPolicy
     if (bridge_mode == BridgeMode::Standard) {
       send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
     } else if (bridge_mode == BridgeMode::Performance) {
-      // TODO(yutarokobayashi): Implement performance bridge request
+      send_performance_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
     }
   }
 };
@@ -276,6 +279,46 @@ void send_bridge_request(
       logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
       errno);
 
+    mq_close(mq);
+    return;
+  }
+
+  mq_close(mq);
+}
+
+template <typename MessageT>
+void send_performance_bridge_request(
+  const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
+{
+  static const auto logger = rclcpp::get_logger("agnocast_performance_requester");
+
+  const std::string message_type_name = rosidl_generator_traits::name<MessageT>();
+
+  MqMsgPerformanceBridge msg = {};
+  snprintf(msg.message_type, MESSAGE_TYPE_BUFFER_SIZE, "%s", message_type_name.c_str());
+  snprintf(msg.target.topic_name, TOPIC_NAME_BUFFER_SIZE, "%s", topic_name.c_str());
+  msg.target.target_id = id;
+  msg.direction = direction;
+
+  std::string mq_name = create_mq_name_for_bridge(PERFORMANCE_BRIDGE_VIRTUAL_PID);
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  attr.mq_msgsize = PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE;
+
+  mqd_t mq =
+    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
+
+  if (mq == (mqd_t)-1) {
+    RCLCPP_ERROR(
+      logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
+    return;
+  }
+
+  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
+    RCLCPP_ERROR(
+      logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
     mq_close(mq);
     return;
   }
