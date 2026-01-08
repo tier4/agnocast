@@ -33,6 +33,18 @@ template <typename MessageT>
 void send_performance_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction);
 
+template <typename MessageT>
+void dispatch_bridge_request(
+  const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
+{
+  auto bridge_mode = get_bridge_mode();
+  if (bridge_mode == BridgeMode::Standard) {
+    send_bridge_request<MessageT>(topic_name, id, direction);
+  } else if (bridge_mode == BridgeMode::Performance) {
+    send_performance_bridge_request<MessageT>(topic_name, id, direction);
+  }
+}
+
 // Policy for agnocast::Subscription.
 // Requests a bridge that forwards messages from ROS 2 to Agnocast (R2A).
 struct RosToAgnocastRequestPolicy
@@ -40,12 +52,7 @@ struct RosToAgnocastRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    auto bridge_mode = get_bridge_mode();
-    if (bridge_mode == BridgeMode::Standard) {
-      send_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
-    } else if (bridge_mode == BridgeMode::Performance) {
-      send_performance_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
-    }
+    dispatch_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
   }
 };
 
@@ -56,12 +63,7 @@ struct AgnocastToRosRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    auto bridge_mode = get_bridge_mode();
-    if (bridge_mode == BridgeMode::Standard) {
-      send_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
-    } else if (bridge_mode == BridgeMode::Performance) {
-      send_performance_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
-    }
+    dispatch_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
 
@@ -223,6 +225,34 @@ std::shared_ptr<void> start_agno_to_ros_node(
     node, topic_name, get_publisher_qos(topic_name, info.target_id));
 }
 
+template <typename MsgStruct>
+void send_mq_message(
+  const std::string & mq_name, const MsgStruct & msg, long msg_size_limit,
+  const rclcpp::Logger & logger)
+{
+  struct mq_attr attr = {};
+  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  attr.mq_msgsize = msg_size_limit;
+
+  mqd_t mq =
+    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
+
+  if (mq == (mqd_t)-1) {
+    RCLCPP_ERROR(
+      logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
+    return;
+  }
+
+  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
+    RCLCPP_ERROR(
+      logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
+      errno);
+  }
+
+  mq_close(mq);
+}
+
 template <typename MessageT>
 void send_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
@@ -260,30 +290,7 @@ void send_bridge_request(
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
   std::string mq_name = create_mq_name_for_bridge(bridge_manager_pid);
-  struct mq_attr attr = {};
-  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
-  attr.mq_msgsize = BRIDGE_MQ_MESSAGE_SIZE;
-
-  mqd_t mq =
-    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
-
-  if (mq == -1) {
-    RCLCPP_ERROR(
-      logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
-      errno);
-    return;
-  }
-
-  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
-    RCLCPP_ERROR(
-      logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
-      errno);
-
-    mq_close(mq);
-    return;
-  }
-
-  mq_close(mq);
+  send_mq_message(mq_name, msg, BRIDGE_MQ_MESSAGE_SIZE, logger);
 }
 
 template <typename MessageT>
@@ -301,29 +308,7 @@ void send_performance_bridge_request(
   msg.direction = direction;
 
   std::string mq_name = create_mq_name_for_bridge(PERFORMANCE_BRIDGE_VIRTUAL_PID);
-  struct mq_attr attr = {};
-  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
-  attr.mq_msgsize = PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE;
-
-  mqd_t mq =
-    mq_open(mq_name.c_str(), O_CREAT | O_WRONLY | O_NONBLOCK | O_CLOEXEC, BRIDGE_MQ_PERMS, &attr);
-
-  if (mq == (mqd_t)-1) {
-    RCLCPP_ERROR(
-      logger, "mq_open failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
-      errno);
-    return;
-  }
-
-  if (mq_send(mq, reinterpret_cast<const char *>(&msg), sizeof(msg), 0) < 0) {
-    RCLCPP_ERROR(
-      logger, "mq_send failed for name '%s': %s (errno: %d)", mq_name.c_str(), strerror(errno),
-      errno);
-    mq_close(mq);
-    return;
-  }
-
-  mq_close(mq);
+  send_mq_message(mq_name, msg, PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE, logger);
 }
 
 }  // namespace agnocast
