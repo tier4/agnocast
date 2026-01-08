@@ -354,7 +354,7 @@ int add_bridge(
 int remove_bridge(
   const char * topic_name, const pid_t pid, bool is_r2a, const struct ipc_namespace * ipc_ns);
 
-int get_active_proc_num(const struct ipc_namespace * ipc_ns);
+int get_active_process_num(const struct ipc_namespace * ipc_ns);
 
 void process_exit_cleanup(const pid_t pid);
 

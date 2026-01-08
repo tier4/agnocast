@@ -1745,7 +1745,7 @@ int remove_bridge(
   return 0;
 }
 
-int get_active_proc_num(const struct ipc_namespace * ipc_ns)
+int get_active_process_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct process_info * proc_info;
@@ -2205,7 +2205,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD) {
     struct ioctl_get_active_process_num_args get_active_process_num_args;
-    get_active_process_num_args.ret_active_process_num = get_active_proc_num(ipc_ns);
+    get_active_process_num_args.ret_active_process_num = get_active_process_num(ipc_ns);
     if (copy_to_user(
           (struct ioctl_get_active_process_num_args __user *)arg, &get_active_process_num_args,
           sizeof(get_active_process_num_args)))
