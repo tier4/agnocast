@@ -162,7 +162,8 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
