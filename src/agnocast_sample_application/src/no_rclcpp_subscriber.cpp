@@ -67,13 +67,10 @@ public:
     RCLCPP_INFO(get_logger(), "Topic name (input): %s", topic_name_.c_str());
     RCLCPP_INFO(get_logger(), "Topic name (resolved): %s", resolved_topic.c_str());
     RCLCPP_INFO(get_logger(), "Queue size: %ld", queue_size_);
-    RCLCPP_INFO(get_logger(), "Durability: overridden by QosOverridingOptions");
-    RCLCPP_INFO(get_logger(), "====================================");
 
     auto group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     agnocast::SubscriptionOptions agnocast_options;
     agnocast_options.callback_group = group;
-    // Use QosOverridingOptions to allow QoS durability override via parameter file
     agnocast_options.qos_overriding_options =
       rclcpp::QosOverridingOptions({rclcpp::QosPolicyKind::Durability});
 
@@ -82,7 +79,13 @@ public:
     sub_dynamic_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       resolved_topic, qos, std::bind(&NoRclcppSubscriber::callback, this, _1), agnocast_options);
 
-    RCLCPP_INFO(get_logger(), "QosOverridingOptions enabled for topic: %s", resolved_topic.c_str());
+    std::string durability_param_name =
+      "qos_overrides." + resolved_topic + ".subscription.durability";
+    std::string durability_value;
+    get_parameter(durability_param_name, durability_value);
+    RCLCPP_INFO(
+      get_logger(), "Durability (via QosOverridingOptions): %s", durability_value.c_str());
+    RCLCPP_INFO(get_logger(), "====================================");
   }
 };
 
