@@ -1745,14 +1745,14 @@ int remove_bridge(
   return 0;
 }
 
-int get_active_process_num(const struct ipc_namespace * ipc_ns)
+int get_process_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct process_info * proc_info;
   int bkt_proc_info;
   hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
   {
-    if (ipc_eq(ipc_ns, proc_info->ipc_ns) && !proc_info->exited) {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
       count++;
     }
   }
@@ -2203,12 +2203,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
     ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, remove_bridge_args.is_r2a, ipc_ns);
     kfree(topic_name_buf);
-  } else if (cmd == AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD) {
-    struct ioctl_get_active_process_num_args get_active_process_num_args;
-    get_active_process_num_args.ret_active_process_num = get_active_process_num(ipc_ns);
+  } else if (cmd == AGNOCAST_GET_PROCESS_NUM_CMD) {
+    struct ioctl_get_process_num_args get_process_num_args;
+    get_process_num_args.ret_process_num = get_process_num(ipc_ns);
     if (copy_to_user(
-          (struct ioctl_get_active_process_num_args __user *)arg, &get_active_process_num_args,
-          sizeof(get_active_process_num_args)))
+          (struct ioctl_get_process_num_args __user *)arg, &get_process_num_args,
+          sizeof(get_process_num_args)))
       goto return_EFAULT;
   } else {
     goto return_EINVAL;

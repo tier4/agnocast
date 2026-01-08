@@ -57,14 +57,14 @@ void PerformanceBridgeManager::run()
 
 void PerformanceBridgeManager::check_and_request_shutdown()
 {
-  struct ioctl_get_active_process_num_args args = {};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_ACTIVE_PROCESS_NUM_CMD, &args) < 0) {
+  struct ioctl_get_process_num_args args = {};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_PROCESS_NUM_CMD, &args) < 0) {
     RCLCPP_ERROR(logger_, "Failed to get active process count from kernel module.");
     return;
   }
 
   // Request shutdown if there is no other active process excluding poll_for_unlink.
-  if (args.ret_active_process_num <= 1) {
+  if (args.ret_process_num <= 1) {
     shutdown_requested_ = true;
   }
 }
