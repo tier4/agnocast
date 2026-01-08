@@ -63,7 +63,7 @@ void PerformanceBridgeManager::check_and_request_shutdown()
     return;
   }
 
-  // Request shutdown if there is no other active process excluding poll_for_unlink.
+  // Request shutdown if there is no other process excluding poll_for_unlink.
   if (args.ret_process_num <= 1) {
     shutdown_requested_ = true;
   }
