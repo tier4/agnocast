@@ -43,9 +43,9 @@ def main():
         header_path = "/".join(parts) + ".hpp"
         
         data = {
-            'msg_type': msg_type,        
-            'cpp_type': cpp_type,       
-            'header_path': header_path,  
+            'msg_type': msg_type,        # geometry_msgs/msg/Pose
+            'cpp_type': cpp_type,        # geometry_msgs::msg::Pose
+            'header_path': header_path,  # geometry_msgs/msg/pose.hpp
             'function_name': 'create_a2r_bridge' 
         }
 
