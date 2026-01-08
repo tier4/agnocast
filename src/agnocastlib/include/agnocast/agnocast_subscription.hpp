@@ -6,6 +6,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
+#include "rclcpp/detail/qos_parameters.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -36,6 +37,7 @@ struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
   bool ignore_local_publications{false};
+  rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
 // These are cut out of the class for information hiding.
@@ -127,10 +129,16 @@ public:
     agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
+    const rclcpp::QoS & actual_qos = options.qos_overriding_options.get_policy_kinds().size()
+                                       ? rclcpp::detail::declare_qos_parameters(
+                                           options.qos_overriding_options, node, topic_name_, qos,
+                                           rclcpp::detail::SubscriptionQosParametersTraits{})
+                                       : qos;
+
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
+      constructor_impl(node, actual_qos, std::forward<Func>(callback), callback_group, options);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -149,10 +157,16 @@ public:
     Func && callback, agnocast::SubscriptionOptions options)
   : SubscriptionBase(node, topic_name)
   {
+    const rclcpp::QoS & actual_qos = options.qos_overriding_options.get_policy_kinds().size()
+                                       ? rclcpp::detail::declare_qos_parameters(
+                                           options.qos_overriding_options, node, topic_name_, qos,
+                                           rclcpp::detail::SubscriptionQosParametersTraits{})
+                                       : qos;
+
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
+      constructor_impl(node, actual_qos, std::forward<Func>(callback), callback_group, options);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
