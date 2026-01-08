@@ -34,7 +34,7 @@ void send_performance_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction);
 
 template <typename MessageT>
-void dispatch_bridge_request(
+void request_bridge_core(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
 {
   auto bridge_mode = get_bridge_mode();
@@ -52,7 +52,7 @@ struct RosToAgnocastRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    dispatch_bridge_request<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
+    request_bridge_core<MessageT>(topic_name, id, BridgeDirection::ROS2_TO_AGNOCAST);
   }
 };
 
@@ -63,7 +63,7 @@ struct AgnocastToRosRequestPolicy
   template <typename MessageT>
   static void request_bridge(const std::string & topic_name, topic_local_id_t id)
   {
-    dispatch_bridge_request<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
+    request_bridge_core<MessageT>(topic_name, id, BridgeDirection::AGNOCAST_TO_ROS2);
   }
 };
 
