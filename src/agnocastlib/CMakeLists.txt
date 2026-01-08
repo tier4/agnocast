@@ -82,6 +82,7 @@ if(BUILD_GENERIC_BRIDGE)
   set(GENERATED_DEPENDENCIES_TXT "${CMAKE_CURRENT_BINARY_DIR}/generated_dependencies.txt")
   set(CLEAN_MESSAGE_LIST_FILE "${CMAKE_CURRENT_BINARY_DIR}/clean_ros2_interfaces.txt") 
 
+  set(R2A_TEMPLATE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/bridge/templates/r2a_bridge_plugin.cpp.em")
   set(R2A_PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/bridge/scripts/generate_r2a_bridge_plugin.py")
   execute_process(
     COMMAND ${Python3_EXECUTABLE} "${R2A_PLUGIN_GENERATION_SCRIPT}"
@@ -89,12 +90,14 @@ if(BUILD_GENERIC_BRIDGE)
             "${GENERATED_PLUGINS_SRC_DIR}"
             "${GENERATED_DEPENDENCIES_TXT}"
             "${CLEAN_MESSAGE_LIST_FILE}"
+            "${R2A_TEMPLATE_FILE}"
     RESULT_VARIABLE r2a_script_res
   )
   if(NOT r2a_script_res EQUAL 0)
     message(FATAL_ERROR "Python script for r2a plugin generation failed.")
   endif()
 
+  set(A2R_TEMPLATE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/bridge/templates/a2r_bridge_plugin.cpp.em")
   set(A2R_PLUGIN_GENERATION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/bridge/scripts/generate_a2r_bridge_plugin.py")
   execute_process(
     COMMAND ${Python3_EXECUTABLE} "${A2R_PLUGIN_GENERATION_SCRIPT}"
@@ -102,6 +105,7 @@ if(BUILD_GENERIC_BRIDGE)
             "${GENERATED_PLUGINS_SRC_DIR}"
             "${GENERATED_DEPENDENCIES_TXT}"
             "${CLEAN_MESSAGE_LIST_FILE}"
+            "${A2R_TEMPLATE_FILE}"
     RESULT_VARIABLE a2r_script_res
   )
   if(NOT a2r_script_res EQUAL 0)
