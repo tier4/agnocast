@@ -69,11 +69,13 @@ class BasicPublisher
 
     topic_name_ = node->get_node_topics_interface()->resolve_topic_name(topic_name);
 
-    const rclcpp::QoS actual_qos = options.qos_overriding_options.get_policy_kinds().size()
-                                     ? rclcpp::detail::declare_qos_parameters(
-                                         options.qos_overriding_options, node, topic_name_, qos,
-                                         rclcpp::detail::PublisherQosParametersTraits{})
-                                     : qos;
+    auto node_parameters = node->get_node_parameters_interface();
+    const rclcpp::QoS actual_qos =
+      options.qos_overriding_options.get_policy_kinds().size()
+        ? rclcpp::detail::declare_qos_parameters(
+            options.qos_overriding_options, node_parameters, topic_name_, qos,
+            rclcpp::detail::PublisherQosParametersTraits{})
+        : qos;
 
     id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
