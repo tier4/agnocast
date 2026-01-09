@@ -101,13 +101,22 @@ void * PerformanceBridgeLoader::get_bridge_factory_symbol(
   void * handle = load_library(lib_path);
   if (!handle) return nullptr;
 
+  dlerror();
   void * symbol = dlsym(handle, symbol_name.c_str());
 
   const char * dlsym_error = dlerror();
-  if (!symbol || dlsym_error != nullptr) {
+  if (dlsym_error != nullptr) {
     RCLCPP_ERROR(
       logger_, "Failed to find symbol '%s' in %s: %s", symbol_name.c_str(), lib_path.c_str(),
-      dlsym_error ? dlsym_error : "Unknown error");
+      dlsym_error);
+    return nullptr;
+  }
+
+  if (!symbol) {
+    RCLCPP_ERROR(
+      logger_,
+      "Symbol '%s' was found in %s but returned NULL, which is invalid for a factory function.",
+      symbol_name.c_str(), lib_path.c_str());
     return nullptr;
   }
 

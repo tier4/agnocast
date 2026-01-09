@@ -127,9 +127,7 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     } else {
       RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
     }
-  }
-
-  else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+  } else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
     if (active_a2r_bridges_.count(topic_name) > 0) {
       RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
       return;
@@ -144,9 +142,7 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     } else {
       RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
     }
-  }
-
-  else {
+  } else {
     RCLCPP_ERROR(logger_, "Invalid bridge direction received: %d", (int)msg->direction);
   }
 }
