@@ -53,8 +53,7 @@ std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_
   return factory(std::move(node), topic_name, qos);
 }
 
-std::string PerformanceBridgeLoader::convert_type_to_snake_case(
-  const std::string & message_type) const
+std::string PerformanceBridgeLoader::convert_type_to_snake_case(const std::string & message_type)
 {
   std::string result = message_type;
   std::replace(result.begin(), result.end(), '/', '_');
