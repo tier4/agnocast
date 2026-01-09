@@ -114,6 +114,12 @@ void PerformanceBridgeManager::on_mq_request(int fd)
   // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
 
+  if (!config_.is_topic_allowed(topic_name, msg->direction)) {
+    // TODO(yutarokobayashi): For debugging. Remove later.
+    RCLCPP_WARN(logger_, "Request for '%s' denied by filter.", topic_name.c_str());
+    return;
+  }
+
   if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     if (active_r2a_bridges_.count(topic_name) > 0) {
       // TODO(yutarokobayashi): For debugging. Remove later.
