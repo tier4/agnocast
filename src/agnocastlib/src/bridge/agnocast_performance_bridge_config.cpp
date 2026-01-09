@@ -30,61 +30,49 @@ namespace agnocast
 
 PerformanceBridgeConfig::PerformanceBridgeConfig(const rclcpp::Logger & logger) : logger_(logger)
 {
-  load_config();
+  if (!load_config()) {
+    RCLCPP_WARN(logger_, "Initialization failed. Using default configuration.");
+  }
 }
 
-PerformanceBridgeConfig::~PerformanceBridgeConfig()
-{
-}
+PerformanceBridgeConfig::~PerformanceBridgeConfig() = default;
 
 bool PerformanceBridgeConfig::load_config()
 {
-  BridgeConfig new_config;
-  new_config.mode = FilterMode::ALLOW_ALL;
-  new_config.rules.clear();
-
   const char * env_path = std::getenv("AGNOCAST_BRIDGE_CONFIG_FILE");
-
   if (env_path == nullptr) {
-    RCLCPP_INFO(logger_, "AGNOCAST_BRIDGE_CONFIG_FILE is not set. Using default ALLOW_ALL mode.");
-    config_ = new_config;
+    RCLCPP_INFO(logger_, "AGNOCAST_BRIDGE_CONFIG_FILE not set. Mode: ALLOW_ALL.");
+    config_ = {};
     return true;
   }
 
-  std::string config_path = env_path;
-  RCLCPP_INFO(logger_, "Loading bridge config from: %s", config_path.c_str());
-
   try {
-    YAML::Node root = YAML::LoadFile(config_path);
+    YAML::Node root = YAML::LoadFile(env_path);
+    BridgeConfig new_config;
 
-    if (root["filter_mode"]) {
-      std::string mode_str = root["filter_mode"].as<std::string>();
-      std::transform(mode_str.begin(), mode_str.end(), mode_str.begin(), ::tolower);
-
-      if (mode_str == "whitelist") {
-        new_config.mode = FilterMode::WHITELIST;
-      } else if (mode_str == "blacklist") {
-        new_config.mode = FilterMode::BLACKLIST;
-      } else {
-        new_config.mode = FilterMode::ALLOW_ALL;
+    if (auto node = root["filter_mode"]) {
+      auto mode = node.as<std::string>();
+      for (auto & c : mode) {
+        c = std::tolower(c);
       }
-      RCLCPP_INFO(logger_, "Filter Mode set to: %s", mode_str.c_str());
+
+      if (mode == "whitelist") {
+        new_config.mode = FilterMode::WHITELIST;
+      }
+      if (mode == "blacklist") {
+        new_config.mode = FilterMode::BLACKLIST;
+      }
     }
 
     if (root["rules"]) {
       parse_rules_node(root["rules"], new_config);
-      RCLCPP_INFO(logger_, "Loaded %zu filtering rules into map.", new_config.rules.size());
     }
 
-    config_ = new_config;
+    config_ = std::move(new_config);
     return true;
-
   } catch (const std::exception & e) {
-    RCLCPP_ERROR(
-      logger_, "Failed to parse config file '%s': %s. Fallback to ALLOW_ALL.", config_path.c_str(),
-      e.what());
-
-    config_ = BridgeConfig();
+    RCLCPP_ERROR(logger_, "Failed to parse '%s': %s. Fallback: ALLOW_ALL.", env_path, e.what());
+    config_ = {};
     return false;
   }
 }
@@ -97,43 +85,32 @@ void PerformanceBridgeConfig::parse_rules_node(
     return;
   }
 
-  for (YAML::const_iterator dir_it = rules_node.begin(); dir_it != rules_node.end(); ++dir_it) {
-    std::string dir_str = dir_it->first.as<std::string>();
-    YAML::Node topic_list = dir_it->second;
+  for (const auto & entry : rules_node) {
+    auto key = entry.first.as<std::string>();
+    for (auto & c : key) {
+      c = std::tolower(c);
+    }
 
-    BridgeDirection direction;
-    std::string dir_str_lower = dir_str;
-    std::transform(dir_str_lower.begin(), dir_str_lower.end(), dir_str_lower.begin(), ::tolower);
-
-    if (dir_str_lower == "r2a") {
-      direction = BridgeDirection::ROS2_TO_AGNOCAST;
-    } else if (dir_str_lower == "a2r") {
-      direction = BridgeDirection::AGNOCAST_TO_ROS2;
-    } else if (dir_str_lower == "bidirectional" || dir_str_lower == "bi") {
-      direction = BridgeDirection::BIDIRECTIONAL;
+    BridgeDirection dir;
+    if (key == "r2a") {
+      dir = BridgeDirection::ROS2_TO_AGNOCAST;
+    } else if (key == "a2r") {
+      dir = BridgeDirection::AGNOCAST_TO_ROS2;
+    } else if (key == "bidirectional" || key == "bi") {
+      dir = BridgeDirection::BIDIRECTIONAL;
     } else {
-      RCLCPP_WARN(logger_, "Unknown direction key '%s'. Skipping.", dir_str.c_str());
       continue;
     }
 
-    if (!topic_list.IsSequence()) {
-      RCLCPP_WARN(logger_, "Topic list for '%s' is not a sequence. Skipping.", dir_str.c_str());
+    const auto & topics = entry.second;
+    if (!topics.IsSequence()) {
+      RCLCPP_WARN(
+        logger_, "Topics under '%s' is not a sequence. Ignoring this entry.", key.c_str());
       continue;
     }
 
-    for (const auto & topic_node : topic_list) {
-      std::string topic_name = topic_node.as<std::string>();
-
-      if (config_out.rules.find(topic_name) != config_out.rules.end()) {
-        RCLCPP_WARN(
-          logger_, "Duplicate rule for topic '%s'. Overwriting with direction '%s'.",
-          topic_name.c_str(), dir_str.c_str());
-      }
-
-      config_out.rules[topic_name] = direction;
-
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_INFO(logger_, "Rule added: Topic='%s', Dir='%s'", topic_name.c_str(), dir_str.c_str());
+    for (const auto & node : topics) {
+      config_out.rules[node.as<std::string>()] = dir;
     }
   }
 }
@@ -157,32 +134,10 @@ bool PerformanceBridgeConfig::is_topic_allowed(
     }
   }
 
-  if (config_.mode == FilterMode::WHITELIST) {
-    if (match_found) {
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_INFO(logger_, "Topic '%s' ALLOWED by whitelist.", topic_name.c_str());
-      return true;
-    } else {
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_INFO(logger_, "Topic '%s' DENIED by whitelist.", topic_name.c_str());
-      return false;
-    }
-  } else {
-    // BLACKLIST mode
-    if (match_found) {
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_WARN(logger_, "Topic '%s' DENIED by blacklist.", topic_name.c_str());
-      return false;
-    } else {
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_INFO(logger_, "Topic '%s' ALLOWED by blacklist.", topic_name.c_str());
-      return true;
-    }
-  }
+  return (config_.mode == FilterMode::WHITELIST) ? match_found : !match_found;
 }
 
-bool PerformanceBridgeConfig::direction_matches(
-  BridgeDirection rule_dir, BridgeDirection req_dir) const
+bool PerformanceBridgeConfig::direction_matches(BridgeDirection rule_dir, BridgeDirection req_dir)
 {
   if (rule_dir == BridgeDirection::BIDIRECTIONAL) {
     return true;

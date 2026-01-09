@@ -27,7 +27,7 @@ private:
   BridgeConfig config_;
 
   void parse_rules_node(const YAML::Node & rules, BridgeConfig & config_out);
-  bool direction_matches(BridgeDirection rule_dir, BridgeDirection req_dir) const;
+  static bool direction_matches(BridgeDirection rule_dir, BridgeDirection req_dir);
 };
 
 }  // namespace agnocast
