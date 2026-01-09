@@ -706,19 +706,20 @@ rcl_interfaces::msg::ListParametersResult NodeParameters::list_parameters(
     return static_cast<uint64_t>(std::count(str.begin(), str.end(), *separator)) < depth;
   };
 
-  bool recursive = (prefixes.size() == 0) &&
-                   (depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE);
+  bool recursive =
+    (prefixes.empty()) && (depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE);
 
   for (const auto & param : parameters_) {
     if (!recursive) {
-      bool get_all = (prefixes.size() == 0) && separators_less_than_depth(param.first);
+      bool get_all = (prefixes.empty()) && separators_less_than_depth(param.first);
       if (!get_all) {
         bool prefix_matches = std::any_of(
           prefixes.cbegin(), prefixes.cend(),
           [&param, &depth, &separator, &separators_less_than_depth](const std::string & prefix) {
             if (param.first == prefix) {
               return true;
-            } else if (param.first.find(prefix + separator) == 0) {
+            }
+            if (param.first.find(prefix + separator) == 0) {
               if (depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE) {
                 return true;
               }
