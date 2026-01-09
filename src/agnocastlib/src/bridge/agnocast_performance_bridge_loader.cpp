@@ -28,7 +28,9 @@ rclcpp::SubscriptionBase::SharedPtr PerformanceBridgeLoader::create_r2a_bridge(
   const rclcpp::QoS & qos)
 {
   void * symbol = get_bridge_factory_symbol(message_type, "r2a", "create_r2a_bridge");
-  if (symbol == nullptr) return nullptr;
+  if (symbol == nullptr) {
+    return nullptr;
+  }
 
   auto factory = reinterpret_cast<BridgeEntryR2A>(symbol);
 

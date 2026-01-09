@@ -107,9 +107,9 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
   auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
 
-  std::string topic_name = msg->target.topic_name;
+  std::string topic_name = static_cast<const char *>(msg->target.topic_name);
   topic_local_id_t target_id = msg->target.target_id;
-  std::string message_type = msg->message_type;
+  std::string message_type = static_cast<const char *>(msg->message_type);
 
   // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
