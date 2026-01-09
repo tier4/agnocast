@@ -70,6 +70,7 @@ void PerformanceBridgeManager::run()
       break;
     }
 
+    check_and_remove_bridges();
     check_and_request_shutdown();
   }
 }
@@ -166,6 +167,45 @@ void PerformanceBridgeManager::on_reload()
 {
   // TODO(yutarokobayashi): Implement configuration reload
   RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
+}
+
+void PerformanceBridgeManager::check_and_remove_bridges()
+{
+  auto r2a_it = active_r2a_bridges_.begin();
+  while (r2a_it != active_r2a_bridges_.end()) {
+    const std::string & topic_name = r2a_it->first;
+
+    bool reverse_exists = (active_a2r_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_subscriber_count(topic_name);
+
+    if (count != -1 && count <= threshold) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "Removing R2A Bridge: %s", topic_name.c_str());
+      r2a_it = active_r2a_bridges_.erase(r2a_it);
+    } else {
+      ++r2a_it;
+    }
+  }
+
+  auto a2r_it = active_a2r_bridges_.begin();
+  while (a2r_it != active_a2r_bridges_.end()) {
+    const std::string & topic_name = a2r_it->first;
+
+    bool reverse_exists = (active_r2a_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? 1 : 0;
+
+    int count = get_agnocast_publisher_count(topic_name);
+
+    if (count != -1 && count <= threshold) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "Removing A2R Bridge: %s", topic_name.c_str());
+      a2r_it = active_a2r_bridges_.erase(a2r_it);
+    } else {
+      ++a2r_it;
+    }
+  }
 }
 
 void PerformanceBridgeManager::check_and_request_shutdown()
