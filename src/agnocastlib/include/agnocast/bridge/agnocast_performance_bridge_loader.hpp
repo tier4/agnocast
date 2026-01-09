@@ -33,7 +33,7 @@ private:
   // path -> handle
   std::unordered_map<std::string, void *> loaded_libraries_;
 
-  static std::string convert_type_to_snake_case(const std::string & message_type) const;
+  static std::string convert_type_to_snake_case(const std::string & message_type);
   std::string generate_library_path(
     const std::string & snake_type, const std::string & plugin_suffix) const;
   void * load_library(const std::string & library_path);
