@@ -1,0 +1,9 @@
+filter_mode: "blacklist" # "whitelist" or "blacklist"
+
+rules:
+  bidirectional:
+
+  r2a: # ROS2 -> Agnocast
+
+  a2r: # Agnocast -> ROS2
+    - /my_topic
