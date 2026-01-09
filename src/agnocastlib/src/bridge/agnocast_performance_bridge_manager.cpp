@@ -15,8 +15,6 @@
 namespace agnocast
 {
 
-extern int agnocast_fd;
-
 PerformanceBridgeManager::PerformanceBridgeManager()
 : logger_(rclcpp::get_logger("agnocast_performance_bridge_manager")),
   event_loop_(logger_),
@@ -96,7 +94,7 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 {
   std::vector<char> buffer(PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE);
 
-  ssize_t bytes_read = mq_receive((mqd_t)fd, buffer.data(), buffer.size(), nullptr);
+  ssize_t bytes_read = mq_receive(fd, buffer.data(), buffer.size(), nullptr);
 
   if (bytes_read < 0) {
     if (errno != EAGAIN) {
