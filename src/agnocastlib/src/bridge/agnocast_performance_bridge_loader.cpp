@@ -16,7 +16,7 @@ PerformanceBridgeLoader::PerformanceBridgeLoader(const rclcpp::Logger & logger) 
 PerformanceBridgeLoader::~PerformanceBridgeLoader()
 {
   for (auto & pair : loaded_libraries_) {
-    if (pair.second) {
+    if (pair.second != nullptr) {
       dlclose(pair.second);
     }
   }
@@ -28,13 +28,13 @@ rclcpp::SubscriptionBase::SharedPtr PerformanceBridgeLoader::create_r2a_bridge(
   const rclcpp::QoS & qos)
 {
   void * symbol = get_bridge_factory_symbol(message_type, "r2a", "create_r2a_bridge");
-  if (!symbol) return nullptr;
+  if (symbol == nullptr) return nullptr;
 
   auto factory = reinterpret_cast<BridgeEntryR2A>(symbol);
 
   // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Creating R2A bridge for topic: %s", topic_name.c_str());
-  return factory(node, topic_name, qos);
+  return factory(std::move(node), topic_name, qos);
 }
 
 std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_bridge(
@@ -42,13 +42,15 @@ std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_
   const rclcpp::QoS & qos)
 {
   void * symbol = get_bridge_factory_symbol(message_type, "a2r", "create_a2r_bridge");
-  if (!symbol) return nullptr;
+  if (symbol == nullptr) {
+    return nullptr;
+  }
 
   auto factory = reinterpret_cast<BridgeEntryA2R>(symbol);
 
   // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Creating A2R bridge for topic: %s", topic_name.c_str());
-  return factory(node, topic_name, qos);
+  return factory(std::move(node), topic_name, qos);
 }
 
 std::string PerformanceBridgeLoader::convert_type_to_snake_case(
@@ -76,7 +78,9 @@ std::string PerformanceBridgeLoader::generate_library_path(
 
 void * PerformanceBridgeLoader::load_library(const std::string & library_path)
 {
-  if (library_path.empty()) return nullptr;
+  if (library_path.empty()) {
+    return nullptr;
+  }
 
   if (loaded_libraries_.find(library_path) != loaded_libraries_.end()) {
     return loaded_libraries_[library_path];
@@ -84,7 +88,7 @@ void * PerformanceBridgeLoader::load_library(const std::string & library_path)
 
   void * handle = dlopen(library_path.c_str(), RTLD_LAZY);
 
-  if (!handle) {
+  if (handle == nullptr) {
     RCLCPP_ERROR(logger_, "Failed to load plugin '%s'. Error: %s", library_path.c_str(), dlerror());
     return nullptr;
   }
@@ -102,7 +106,9 @@ void * PerformanceBridgeLoader::get_bridge_factory_symbol(
   std::string lib_path = generate_library_path(snake_type, direction);
 
   void * handle = load_library(lib_path);
-  if (!handle) return nullptr;
+  if (handle == nullptr) {
+    return nullptr;
+  }
 
   dlerror();
   void * symbol = dlsym(handle, symbol_name.c_str());
@@ -115,7 +121,7 @@ void * PerformanceBridgeLoader::get_bridge_factory_symbol(
     return nullptr;
   }
 
-  if (!symbol) {
+  if (symbol == nullptr) {
     RCLCPP_ERROR(
       logger_,
       "Symbol '%s' was found in %s but returned NULL, which is invalid for a factory function.",
