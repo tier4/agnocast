@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <mqueue.h>
 #include <sys/prctl.h>
@@ -103,8 +104,51 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     return;
   }
 
-  // TODO(yutarokobayashi): Process the received message
-  RCLCPP_INFO(logger_, "Received MQ message (%zd bytes)", bytes_read);
+  auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
+
+  std::string topic_name = msg->target.topic_name;
+  topic_local_id_t target_id = msg->target.target_id;
+  std::string message_type = msg->message_type;
+
+  RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
+
+  if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    if (active_r2a_bridges_.count(topic_name) > 0) {
+      RCLCPP_INFO(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
+    }
+
+    rclcpp::QoS qos = get_subscriber_qos(topic_name, target_id);
+    auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, qos);
+
+    if (bridge) {
+      active_r2a_bridges_[topic_name] = bridge;
+      RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
+    }
+  }
+
+  else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+    if (active_a2r_bridges_.count(topic_name) > 0) {
+      RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
+    }
+
+    rclcpp::QoS qos = get_publisher_qos(topic_name, target_id);
+    auto bridge = loader_.create_a2r_bridge(container_node_, topic_name, message_type, qos);
+
+    if (bridge) {
+      active_a2r_bridges_[topic_name] = bridge;
+      RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
+    }
+  }
+
+  else {
+    RCLCPP_ERROR(logger_, "Invalid bridge direction received: %d", (int)msg->direction);
+  }
 }
 
 void PerformanceBridgeManager::on_signal()
