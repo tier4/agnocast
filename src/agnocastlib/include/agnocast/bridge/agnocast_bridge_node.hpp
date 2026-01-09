@@ -297,7 +297,7 @@ template <typename MessageT>
 void send_performance_bridge_request(
   const std::string & topic_name, topic_local_id_t id, BridgeDirection direction)
 {
-  static const auto logger = rclcpp::get_logger("agnocast_performance_requester");
+  static const auto logger = rclcpp::get_logger("agnocast_performance_bridge_requester");
 
   const std::string message_type_name = rosidl_generator_traits::name<MessageT>();
 
