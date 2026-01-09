@@ -158,8 +158,9 @@ public:
   rcl_interfaces::msg::ParameterDescriptor describe_parameter(const std::string & name) const
   {
     auto result = node_parameters_->describe_parameters({name});
-    // NOTE: These if checks are redundant because describe_parameters() ensures that the result is
-    // the same size as the input vector.
+    // TODO(bdm-k): These if checks are redundant because describe_parameters() ensures that the
+    // result is the same size as the input vector.
+    //   The current implementation mirrors that of rclcpp.
     if (0 == result.size()) {
       throw rclcpp::exceptions::ParameterNotDeclaredException(name);
     }

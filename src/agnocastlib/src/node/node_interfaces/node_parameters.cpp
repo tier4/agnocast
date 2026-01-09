@@ -658,6 +658,8 @@ std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_p
     }
   }
 
+  // TODO(bdm-k): This is unreachable code and can be removed.
+  //   The current implementation mirrors that of rclcpp.
   if (results.size() != names.size()) {
     throw std::runtime_error("results and names unexpectedly different sizes");
   }
