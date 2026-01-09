@@ -37,6 +37,9 @@ private:
   std::string generate_library_path(
     const std::string & snake_type, const std::string & plugin_suffix) const;
   void * load_library(const std::string & library_path);
+  void * get_bridge_factory_symbol(
+    const std::string & message_type, const std::string & direction,
+    const std::string & symbol_name);
 };
 
 }  // namespace agnocast

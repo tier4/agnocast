@@ -23,6 +23,32 @@ PerformanceBridgeLoader::~PerformanceBridgeLoader()
   loaded_libraries_.clear();
 }
 
+rclcpp::SubscriptionBase::SharedPtr PerformanceBridgeLoader::create_r2a_bridge(
+  rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
+  const rclcpp::QoS & qos)
+{
+  void * symbol = get_bridge_factory_symbol(message_type, "r2a", "create_r2a_bridge");
+  if (!symbol) return nullptr;
+
+  auto factory = reinterpret_cast<BridgeEntryR2A>(symbol);
+
+  RCLCPP_INFO(logger_, "Creating R2A bridge for topic: %s", topic_name.c_str());
+  return factory(node, topic_name, qos);
+}
+
+std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_bridge(
+  rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
+  const rclcpp::QoS & qos)
+{
+  void * symbol = get_bridge_factory_symbol(message_type, "a2r", "create_a2r_bridge");
+  if (!symbol) return nullptr;
+
+  auto factory = reinterpret_cast<BridgeEntryA2R>(symbol);
+
+  RCLCPP_INFO(logger_, "Creating A2R bridge for topic: %s", topic_name.c_str());
+  return factory(node, topic_name, qos);
+}
+
 std::string PerformanceBridgeLoader::convert_type_to_snake_case(
   const std::string & message_type) const
 {
@@ -66,58 +92,26 @@ void * PerformanceBridgeLoader::load_library(const std::string & library_path)
   return handle;
 }
 
-// ---------------------------------------------------------------------------
-// R2A Creation
-// ---------------------------------------------------------------------------
-rclcpp::SubscriptionBase::SharedPtr PerformanceBridgeLoader::create_r2a_bridge(
-  rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
-  const rclcpp::QoS & qos)
+void * PerformanceBridgeLoader::get_bridge_factory_symbol(
+  const std::string & message_type, const std::string & direction, const std::string & symbol_name)
 {
   std::string snake_type = convert_type_to_snake_case(message_type);
-  std::string lib_path = generate_library_path(snake_type, "r2a");
+  std::string lib_path = generate_library_path(snake_type, direction);
 
   void * handle = load_library(lib_path);
   if (!handle) return nullptr;
 
-  auto factory = reinterpret_cast<BridgeEntryR2A>(dlsym(handle, "create_r2a_bridge"));
+  void * symbol = dlsym(handle, symbol_name.c_str());
 
   const char * dlsym_error = dlerror();
-  if (!factory || dlsym_error != nullptr) {
+  if (!symbol || dlsym_error != nullptr) {
     RCLCPP_ERROR(
-      logger_, "Failed to find symbol 'create_r2a_bridge' in %s: %s", lib_path.c_str(),
+      logger_, "Failed to find symbol '%s' in %s: %s", symbol_name.c_str(), lib_path.c_str(),
       dlsym_error ? dlsym_error : "Unknown error");
     return nullptr;
   }
 
-  RCLCPP_INFO(logger_, "Creating R2A bridge for topic: %s", topic_name.c_str());
-  return factory(node, topic_name, qos);
-}
-
-// ---------------------------------------------------------------------------
-// A2R Creation
-// ---------------------------------------------------------------------------
-std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_bridge(
-  rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
-  const rclcpp::QoS & qos)
-{
-  std::string snake_type = convert_type_to_snake_case(message_type);
-  std::string lib_path = generate_library_path(snake_type, "a2r");
-
-  void * handle = load_library(lib_path);
-  if (!handle) return nullptr;
-
-  auto factory = reinterpret_cast<BridgeEntryA2R>(dlsym(handle, "create_a2r_bridge"));
-
-  const char * dlsym_error = dlerror();
-  if (!factory || dlsym_error != nullptr) {
-    RCLCPP_ERROR(
-      logger_, "Failed to find symbol 'create_a2r_bridge' in %s: %s", lib_path.c_str(),
-      dlsym_error ? dlsym_error : "Unknown error");
-    return nullptr;
-  }
-
-  RCLCPP_INFO(logger_, "Creating A2R bridge for topic: %s", topic_name.c_str());
-  return factory(node, topic_name, qos);
+  return symbol;
 }
 
 }  // namespace agnocast
