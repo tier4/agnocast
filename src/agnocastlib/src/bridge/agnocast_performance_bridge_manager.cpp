@@ -51,6 +51,8 @@ PerformanceBridgeManager::~PerformanceBridgeManager()
 void PerformanceBridgeManager::run()
 {
   constexpr int EVENT_LOOP_TIMEOUT_MS = 1000;
+  constexpr int MAINTENANCE_INTERVAL = 10;
+  int maintenance_counter = 0;
 
   std::string proc_name = "agno_pbr_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
@@ -68,6 +70,15 @@ void PerformanceBridgeManager::run()
     if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
       RCLCPP_ERROR(logger_, "Event loop spin failed.");
       break;
+    }
+
+    if (config_.get_current_config().mode == FilterMode::ALLOW_ALL) {
+      poll_ros2_demand_and_create_bridges();
+    }
+
+    if (++maintenance_counter >= MAINTENANCE_INTERVAL) {
+      cleanup_request_cache();
+      maintenance_counter = 0;
     }
 
     check_and_remove_bridges();
@@ -120,6 +131,8 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     RCLCPP_WARN(logger_, "Request for '%s' denied by filter.", topic_name.c_str());
     return;
   }
+
+  request_cache_[topic_name][target_id] = *msg;
 
   if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     if (active_r2a_bridges_.count(topic_name) > 0) {
@@ -175,6 +188,111 @@ void PerformanceBridgeManager::on_reload()
   RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
 }
 
+topic_local_id_t PerformanceBridgeManager::find_candidate_id(
+  const RequestMap & id_map, BridgeDirection direction) const
+{
+  topic_local_id_t max_id = -1;
+  bool found = false;
+
+  for (const auto & [id, req] : id_map) {
+    if (req.direction == direction) {
+      if (!found || id > (topic_local_id_t)max_id) {
+        max_id = id;
+        found = true;
+      }
+    }
+  }
+  return found ? max_id : -1;
+}
+
+void PerformanceBridgeManager::attempt_create_r2a(
+  const std::string & topic, RequestMap & id_map, const std::string & message_type)
+{
+  if (active_r2a_bridges_.count(topic) > 0) return;
+
+  bool reverse_exists = (active_a2r_bridges_.count(topic) > 0);
+  int threshold = reverse_exists ? 1 : 0;
+  int count = get_agnocast_subscriber_count(topic);
+
+  if (count == -1 || count <= threshold) return;
+
+  if (!has_external_ros2_publisher(container_node_.get(), topic)) return;
+
+  topic_local_id_t max_id = find_candidate_id(id_map, BridgeDirection::ROS2_TO_AGNOCAST);
+  if (max_id == -1) return;
+
+  try {
+    rclcpp::QoS qos = get_subscriber_qos(topic, max_id);
+    RCLCPP_INFO(logger_, "[Poll] Creating R2A '%s' (ROS2 Pub Detected).", topic.c_str());
+
+    auto bridge = loader_.create_r2a_bridge(container_node_, topic, message_type, qos);
+    if (bridge) active_r2a_bridges_[topic] = bridge;
+  } catch (const std::exception & e) {
+    RCLCPP_WARN(
+      logger_, "Failed to create R2A bridge for '%s': %s. Removing request ID %d.", topic.c_str(),
+      e.what(), max_id);
+    id_map.erase(max_id);
+  } catch (...) {
+    id_map.erase(max_id);
+  }
+}
+
+void PerformanceBridgeManager::attempt_create_a2r(
+  const std::string & topic, RequestMap & id_map, const std::string & message_type)
+{
+  if (active_a2r_bridges_.count(topic) > 0) return;
+
+  bool reverse_exists = (active_r2a_bridges_.count(topic) > 0);
+  int threshold = reverse_exists ? 1 : 0;
+  int count = get_agnocast_publisher_count(topic);
+
+  if (count == -1 || count <= threshold) return;
+
+  if (!agnocast::has_external_ros2_subscriber(container_node_.get(), topic)) return;
+
+  topic_local_id_t max_id = find_candidate_id(id_map, BridgeDirection::AGNOCAST_TO_ROS2);
+  if (max_id == -1) return;
+
+  try {
+    rclcpp::QoS qos = get_publisher_qos(topic, max_id);
+    RCLCPP_INFO(logger_, "[Poll] Creating A2R '%s' (ROS2 Sub Detected).", topic.c_str());
+
+    auto bridge = loader_.create_a2r_bridge(container_node_, topic, message_type, qos);
+    if (bridge) active_a2r_bridges_[topic] = bridge;
+  } catch (const std::exception & e) {
+    RCLCPP_WARN(
+      logger_, "Failed to create A2R bridge for '%s': %s. Removing request ID %d.", topic.c_str(),
+      e.what(), max_id);
+    id_map.erase(max_id);
+  } catch (...) {
+    id_map.erase(max_id);
+  }
+}
+
+void PerformanceBridgeManager::poll_ros2_demand_and_create_bridges()
+{
+  for (auto it = request_cache_.begin(); it != request_cache_.end();) {
+    const std::string & topic = it->first;
+    auto & id_map = it->second;
+
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
+      continue;
+    }
+
+    std::string message_type = id_map.begin()->second.message_type;
+
+    attempt_create_r2a(topic, id_map, message_type);
+    attempt_create_a2r(topic, id_map, message_type);
+
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 void PerformanceBridgeManager::check_and_remove_bridges()
 {
   auto r2a_it = active_r2a_bridges_.begin();
@@ -225,6 +343,45 @@ void PerformanceBridgeManager::check_and_request_shutdown()
   // Request shutdown if there is no other process excluding poll_for_unlink.
   if (args.ret_process_num <= 1) {
     shutdown_requested_ = true;
+  }
+}
+
+void PerformanceBridgeManager::cleanup_request_cache()
+{
+  for (auto it = request_cache_.begin(); it != request_cache_.end();) {
+    const std::string & topic = it->first;
+    auto & id_map = it->second;
+
+    for (auto id_it = id_map.begin(); id_it != id_map.end();) {
+      topic_local_id_t target_id = id_it->first;
+      const auto & req = id_it->second;
+      bool is_alive = false;
+
+      try {
+        if (req.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+          (void)get_subscriber_qos(topic, target_id);
+        } else {
+          (void)get_publisher_qos(topic, target_id);
+        }
+        is_alive = true;
+      } catch (...) {
+        is_alive = false;
+      }
+
+      if (!is_alive) {
+        RCLCPP_INFO(
+          logger_, "Removed dead ID %d from cache for topic %s", target_id, topic.c_str());
+        id_it = id_map.erase(id_it);
+      } else {
+        ++id_it;
+      }
+    }
+
+    if (id_map.empty()) {
+      it = request_cache_.erase(it);
+    } else {
+      ++it;
+    }
   }
 }
 

@@ -7,8 +7,12 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <map>
 #include <memory>
+#include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace agnocast
 {
@@ -22,6 +26,8 @@ public:
   void run();
 
 private:
+  using RequestMap = std::unordered_map<topic_local_id_t, MqMsgPerformanceBridge>;
+
   rclcpp::Logger logger_;
   PerformanceBridgeIpcEventLoop event_loop_;
   PerformanceBridgeLoader loader_;
@@ -35,6 +41,7 @@ private:
 
   std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> active_r2a_bridges_;
   std::unordered_map<std::string, std::shared_ptr<agnocast::SubscriptionBase>> active_a2r_bridges_;
+  std::unordered_map<std::string, RequestMap> request_cache_;
 
   void start_ros_execution();
 
@@ -42,8 +49,16 @@ private:
   void on_signal();
   void on_reload();
 
+  topic_local_id_t find_candidate_id(const RequestMap & id_map, BridgeDirection direction) const;
+  void attempt_create_r2a(
+    const std::string & topic, RequestMap & id_map, const std::string & message_type);
+  void attempt_create_a2r(
+    const std::string & topic, RequestMap & id_map, const std::string & message_type);
+  void poll_ros2_demand_and_create_bridges();
+
   void check_and_remove_bridges();
   void check_and_request_shutdown();
+  void cleanup_request_cache();
 };
 
 }  // namespace agnocast

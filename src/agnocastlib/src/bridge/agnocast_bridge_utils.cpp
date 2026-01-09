@@ -46,26 +46,56 @@ rclcpp::QoS get_publisher_qos(const std::string & topic_name, topic_local_id_t p
                                                     : rclcpp::DurabilityPolicy::Volatile);
 }
 
-int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
+int get_agnocast_subscriber_count(const std::string & topic_name)
 {
   union ioctl_get_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_subscriber_num);
 }
 
-int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
+int get_agnocast_publisher_count(const std::string & topic_name)
 {
   union ioctl_get_publisher_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
     return -1;
   }
   return static_cast<int>(args.ret_publisher_num);
+}
+
+bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name)
+{
+  if (!node) return false;
+
+  std::string self_name = node->get_name();
+
+  auto publishers = node->get_publishers_info_by_topic(topic_name);
+  for (const auto & info : publishers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string & topic_name)
+{
+  if (!node) return false;
+
+  std::string self_name = node->get_name();
+
+  auto subscribers = node->get_subscriptions_info_by_topic(topic_name);
+  for (const auto & info : subscribers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace agnocast
