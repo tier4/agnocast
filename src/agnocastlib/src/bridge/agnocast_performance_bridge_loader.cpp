@@ -32,6 +32,7 @@ rclcpp::SubscriptionBase::SharedPtr PerformanceBridgeLoader::create_r2a_bridge(
 
   auto factory = reinterpret_cast<BridgeEntryR2A>(symbol);
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Creating R2A bridge for topic: %s", topic_name.c_str());
   return factory(node, topic_name, qos);
 }
@@ -45,6 +46,7 @@ std::shared_ptr<agnocast::SubscriptionBase> PerformanceBridgeLoader::create_a2r_
 
   auto factory = reinterpret_cast<BridgeEntryA2R>(symbol);
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Creating A2R bridge for topic: %s", topic_name.c_str());
   return factory(node, topic_name, qos);
 }
@@ -87,6 +89,7 @@ void * PerformanceBridgeLoader::load_library(const std::string & library_path)
     return nullptr;
   }
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Loaded plugin: %s", library_path.c_str());
   loaded_libraries_[library_path] = handle;
   return handle;

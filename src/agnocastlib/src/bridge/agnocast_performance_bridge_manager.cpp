@@ -55,6 +55,7 @@ void PerformanceBridgeManager::run()
   std::string proc_name = "agno_pbr_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Performance Bridge Manager started.");
 
   start_ros_execution();
@@ -110,10 +111,12 @@ void PerformanceBridgeManager::on_mq_request(int fd)
   topic_local_id_t target_id = msg->target.target_id;
   std::string message_type = msg->message_type;
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
 
   if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
     if (active_r2a_bridges_.count(topic_name) > 0) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
       return;
     }
@@ -123,12 +126,14 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
     if (bridge) {
       active_r2a_bridges_[topic_name] = bridge;
+      // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
     } else {
       RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
     }
   } else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
     if (active_a2r_bridges_.count(topic_name) > 0) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
       return;
     }
@@ -138,6 +143,7 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
     if (bridge) {
       active_a2r_bridges_[topic_name] = bridge;
+      // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
     } else {
       RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
