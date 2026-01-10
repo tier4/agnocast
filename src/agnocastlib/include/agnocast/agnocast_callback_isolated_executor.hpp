@@ -30,7 +30,8 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
   mutable std::mutex weak_child_executors_mutex_;
 
   // Child executors created during spin()
-  std::vector<rclcpp::Executor::WeakPtr> weak_child_executors RCPPUTILS_TSA_GUARDED_BY(weak_child_executors_mutex_);
+  std::vector<rclcpp::Executor::WeakPtr> weak_child_executors
+    RCPPUTILS_TSA_GUARDED_BY(weak_child_executors_mutex_);
 
   std::vector<rclcpp::CallbackGroup::WeakPtr> get_manually_added_callback_groups_internal() const
     RCPPUTILS_TSA_REQUIRES(mutex_);
