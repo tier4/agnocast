@@ -317,6 +317,7 @@ void CallbackIsolatedAgnocastExecutor::cancel()
       child_executor->cancel();
     }
   }
+  child_executors_.clear();
 }
 
 }  // namespace agnocast
