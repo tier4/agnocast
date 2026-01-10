@@ -85,7 +85,7 @@ void CallbackIsolatedAgnocastExecutor::spin()
           ->dedicate_to_callback_group(group, node);
       }
 
-      weak_child_executors.push_back(executor);
+      weak_child_executors_.push_back(executor);
 
       threads.emplace_back([executor, callback_group_id = std::move(callback_group_id),
                             &client_publisher, &client_publisher_mutex]() {
@@ -312,12 +312,12 @@ void CallbackIsolatedAgnocastExecutor::remove_node(rclcpp::Node::SharedPtr node_
 void CallbackIsolatedAgnocastExecutor::cancel()
 {
   std::lock_guard<std::mutex> guard{weak_child_executors_mutex_};
-  for (auto & weak_child_executor : weak_child_executors) {
+  for (auto & weak_child_executor : weak_child_executors_) {
     if (auto child_executor = weak_child_executor.lock()) {
       child_executor->cancel();
     }
   }
-  child_executors_.clear();
+  weak_child_executors_.clear();
 }
 
 }  // namespace agnocast
