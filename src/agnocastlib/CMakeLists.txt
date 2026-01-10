@@ -25,6 +25,7 @@ find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
+find_package(Python3 REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -40,22 +41,18 @@ add_library(agnocast SHARED
   src/bridge/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/agnocast_performance_bridge_loader.cpp 
   src/bridge/agnocast_performance_bridge_manager.cpp src/bridge/agnocast_performance_bridge_config.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator)
-
-target_link_libraries(agnocast
-  ${rclcpp_LIBRARIES}
-  ${rcl_yaml_param_parser_LIBRARIES}
-  ${tracetools_LIBRARIES}
-  ${LTTNGUST_LIBRARIES}
+ament_target_dependencies(agnocast
+  rclcpp
+  rcl_yaml_param_parser
+  tracetools
+  LTTngUST
+  cie_thread_configurator
+  cie_config_msgs
 )
 
 target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-  ${rclcpp_INCLUDE_DIRS}
-  ${rcl_yaml_param_parser_INCLUDE_DIRS}
-  ${tracetools_INCLUDE_DIRS}
-  ${LTTNGUST_INCLUDE_DIRS}
 )
 
 # Start of generic bridge plugin
@@ -217,8 +214,6 @@ install(
   DESTINATION include
 )
 
-find_package(Python3 REQUIRED)
-
 execute_process(
   COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
   OUTPUT_VARIABLE PACKAGE_VERSION
@@ -252,10 +247,14 @@ if(BUILD_TESTING)
   ament_add_gmock(test_integration_${PROJECT_NAME}
     test/integration/test_agnocast_single_threaded_executor.cpp
     test/integration/test_agnocast_multi_threaded_executor.cpp
+    test/integration/test_callback_isolated_executor.cpp
     test/integration/src/ioctl_mock.cpp
     test/integration/src/node_for_executor_test.cpp)
   target_include_directories(test_integration_${PROJECT_NAME} PRIVATE test/integration/include)
   target_link_libraries(test_integration_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_integration_${PROJECT_NAME}
+    cie_config_msgs
+    std_msgs)
   set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
     TIMEOUT 120
