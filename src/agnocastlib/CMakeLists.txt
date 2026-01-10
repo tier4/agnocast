@@ -25,7 +25,6 @@ find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
-find_package(Python3 REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -41,18 +40,22 @@ add_library(agnocast SHARED
   src/bridge/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/agnocast_performance_bridge_loader.cpp 
   src/bridge/agnocast_performance_bridge_manager.cpp src/bridge/agnocast_performance_bridge_config.cpp)
 
-ament_target_dependencies(agnocast
-  rclcpp
-  rcl_yaml_param_parser
-  tracetools
-  LTTngUST
-  cie_thread_configurator
-  cie_config_msgs
+ament_target_dependencies(agnocast cie_thread_configurator)
+
+target_link_libraries(agnocast
+  ${rclcpp_LIBRARIES}
+  ${rcl_yaml_param_parser_LIBRARIES}
+  ${tracetools_LIBRARIES}
+  ${LTTNGUST_LIBRARIES}
 )
 
 target_include_directories(agnocast PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${rclcpp_INCLUDE_DIRS}
+  ${rcl_yaml_param_parser_INCLUDE_DIRS}
+  ${tracetools_INCLUDE_DIRS}
+  ${LTTNGUST_INCLUDE_DIRS}
 )
 
 # Start of generic bridge plugin
@@ -213,6 +216,8 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
+
+find_package(Python3 REQUIRED)
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} -c "import xml.etree.ElementTree as ET; print(ET.parse('${CMAKE_CURRENT_SOURCE_DIR}/package.xml').getroot().find('version').text)"
