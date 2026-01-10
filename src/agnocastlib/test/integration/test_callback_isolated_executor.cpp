@@ -18,11 +18,11 @@ class DummyNode : public rclcpp::Node
 public:
   DummyNode() : Node("dummy_node")
   {
-    rclcpp::CallbackGroup::SharedPtr callback_group_1_ =
+    rclcpp::CallbackGroup::SharedPtr callback_group_1 =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     rclcpp::PublisherOptions pub_options_1;
-    pub_options_1.callback_group = callback_group_1_;
+    pub_options_1.callback_group = callback_group_1;
     ros2_pub_1_ = this->create_publisher<std_msgs::msg::Bool>("/test_topic_1", 10, pub_options_1);
 
     timer_ = this->create_wall_timer(
@@ -33,12 +33,12 @@ public:
         ros2_pub_1_->publish(msg);
         published_ = true;
       },
-      callback_group_1_);
+      callback_group_1);
 
-    rclcpp::CallbackGroup::SharedPtr callback_group_2_ =
+    rclcpp::CallbackGroup::SharedPtr callback_group_2 =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions sub_options_1;
-    sub_options_1.callback_group = callback_group_2_;
+    sub_options_1.callback_group = callback_group_2;
     ros2_sub_1_ = this->create_subscription<std_msgs::msg::Bool>(
       "/test_topic_1", 10,
       [this](const std_msgs::msg::Bool::SharedPtr msg) {
