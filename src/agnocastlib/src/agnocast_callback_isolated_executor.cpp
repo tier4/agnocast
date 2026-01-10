@@ -73,19 +73,23 @@ void CallbackIsolatedAgnocastExecutor::spin()
       cie_thread_configurator::create_callback_group_id(group, node, agnocast_topics);
 
     if (agnocast_topics.empty()) {
-      auto rclcpp_executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-      rclcpp_executor->add_callback_group(group, node);
-      executor = std::move(rclcpp_executor);
+      executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+      std::static_pointer_cast<rclcpp::executors::SingleThreadedExecutor>(executor)
+        ->add_callback_group(group, node);
     } else {
-      auto agnocast_executor = std::make_shared<SingleThreadedAgnocastExecutor>(
+      executor = std::make_shared<SingleThreadedAgnocastExecutor>(
         rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
-      agnocast_executor->dedicate_to_callback_group(group, node);
-      executor = std::move(agnocast_executor);
+      std::static_pointer_cast<SingleThreadedAgnocastExecutor>(executor)
+        ->dedicate_to_callback_group(group, node);
     }
 
-    threads.emplace_back([executor = std::move(executor),
-                          callback_group_id = std::move(callback_group_id), &client_publisher,
-                          &client_publisher_mutex]() {
+    {
+      std::lock_guard<std::mutex> guard{mutex_};
+      child_executors_.push_back(executor);
+    }
+
+    threads.emplace_back([executor, callback_group_id = std::move(callback_group_id),
+                          &client_publisher, &client_publisher_mutex]() {
       auto tid = static_cast<pid_t>(syscall(SYS_gettid));
 
       {
@@ -303,6 +307,16 @@ void CallbackIsolatedAgnocastExecutor::remove_node(
 void CallbackIsolatedAgnocastExecutor::remove_node(rclcpp::Node::SharedPtr node_ptr, bool notify)
 {
   remove_node(node_ptr->get_node_base_interface(), notify);
+}
+
+void CallbackIsolatedAgnocastExecutor::cancel()
+{
+  std::lock_guard<std::mutex> guard{mutex_};
+  for (auto & child_executor : child_executors_) {
+    if (child_executor) {
+      child_executor->cancel();
+    }
+  }
 }
 
 }  // namespace agnocast
