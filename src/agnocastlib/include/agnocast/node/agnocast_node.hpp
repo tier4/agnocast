@@ -104,7 +104,7 @@ public:
     const std::string & name, const ParameterDescriptor & descriptor = ParameterDescriptor{},
     bool ignore_override = false)
   {
-    // get advantage of parameter value template magic to get
+    // take advantage of parameter value template magic to get
     // the correct rclcpp::ParameterType from ParameterT
     rclcpp::ParameterValue value{ParameterT{}};
     try {
