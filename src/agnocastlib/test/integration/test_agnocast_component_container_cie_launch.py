@@ -95,6 +95,6 @@ class TestComponentContainerCIEShutdown(unittest.TestCase):
 
     def test_cleanup(self):
         import os
-        template_yaml = '/home/atsushi/agnocast/template.yaml'
+        template_yaml = os.path.join(os.path.expanduser("~"), "agnocast", "template.yaml")
         if os.path.exists(template_yaml):
             os.remove(template_yaml)
