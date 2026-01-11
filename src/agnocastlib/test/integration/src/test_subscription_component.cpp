@@ -1,5 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
+
 #include <std_msgs/msg/string.hpp>
 
 #include <memory>
@@ -14,11 +15,10 @@ public:
   : Node("test_subscription_component", options), received_count_(0)
   {
     subscription_ = this->create_subscription<std_msgs::msg::String>(
-      "test_topic", 10,
-      [this](std_msgs::msg::String::SharedPtr msg) {
+      "test_topic", 10, [this](std_msgs::msg::String::SharedPtr msg) {
         received_count_++;
-        RCLCPP_INFO(this->get_logger(), "Received: '%s' (count: %d)",
-                    msg->data.c_str(), received_count_);
+        RCLCPP_INFO(
+          this->get_logger(), "Received: '%s' (count: %d)", msg->data.c_str(), received_count_);
       });
 
     RCLCPP_INFO(this->get_logger(), "TestSubscriptionComponent initialized");
