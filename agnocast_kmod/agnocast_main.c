@@ -1112,13 +1112,16 @@ int take_msg(
 }
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const bool include_ros2,
   union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_subscriber_num =
-      get_size_sub_info_htable(wrapper) + wrapper->topic.ros2_subscriber_count;
+    uint32_t count = get_size_sub_info_htable(wrapper);
+    if (include_ros2) {
+      count += wrapper->topic.ros2_subscriber_count;
+    }
+    ioctl_ret->ret_subscriber_num = count;
   } else {
     ioctl_ret->ret_subscriber_num = 0;
   }
@@ -1192,10 +1195,11 @@ int get_topic_list(
       return -ENOBUFS;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
@@ -1232,10 +1236,11 @@ static int get_node_subscriber_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1275,10 +1280,11 @@ static int get_node_publisher_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1952,7 +1958,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_subscriber_num(topic_name_buf, ipc_ns, &get_subscriber_num_args);
+    bool include_ros2 = get_subscriber_num_args.include_ros2;
+    ret = get_subscriber_num(topic_name_buf, ipc_ns, include_ros2, &get_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
@@ -2224,7 +2231,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[set_ros2_sub_args.topic_name.len] = '\0';
-    ret = set_ros2_subscriber_count(topic_name_buf, ipc_ns, set_ros2_sub_args.ros2_subscriber_count);
+    ret =
+      set_ros2_subscriber_count(topic_name_buf, ipc_ns, set_ros2_sub_args.ros2_subscriber_count);
     kfree(topic_name_buf);
   } else {
     goto return_EINVAL;

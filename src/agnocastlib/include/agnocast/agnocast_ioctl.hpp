@@ -158,7 +158,11 @@ union ioctl_take_msg_args {
 #pragma GCC diagnostic pop
 
 union ioctl_get_subscriber_num_args {
-  struct name_info topic_name;
+  struct
+  {
+    struct name_info topic_name;
+    bool include_ros2;
+  };
   uint32_t ret_subscriber_num;
 };
 
