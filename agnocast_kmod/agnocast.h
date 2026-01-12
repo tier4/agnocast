@@ -215,7 +215,7 @@ struct ioctl_get_process_num_args
 struct ioctl_set_ros2_subscriber_num_args
 {
   struct name_info topic_name;
-  uint32_t ros2_subscriber_count;
+  uint32_t ros2_subscriber_num;
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
@@ -368,7 +368,7 @@ int remove_bridge(
 
 int get_process_num(const struct ipc_namespace * ipc_ns);
 
-int set_ros2_subscriber_count(
+int set_ros2_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t count);
 
 void process_exit_cleanup(const pid_t pid);

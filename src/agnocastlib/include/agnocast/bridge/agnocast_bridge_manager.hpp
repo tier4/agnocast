@@ -76,7 +76,7 @@ private:
   int get_agnocast_subscriber_count(const std::string & topic_name);
   int get_agnocast_publisher_count(const std::string & topic_name);
   void remove_active_bridge(const std::string & topic_name_with_direction);
-  void update_ros2_subscriber_count(const std::string & topic_name);
+  void update_ros2_subscriber_num(const std::string & topic_name);
 
   static std::pair<std::string, std::string> extract_topic_info(const MqMsgBridge & req);
 };

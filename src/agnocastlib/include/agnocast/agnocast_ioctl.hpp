@@ -278,7 +278,7 @@ struct ioctl_get_process_num_args
 struct ioctl_set_ros2_subscriber_num_args
 {
   struct name_info topic_name;
-  uint32_t ros2_subscriber_count;
+  uint32_t ros2_subscriber_num;
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)

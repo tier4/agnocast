@@ -265,7 +265,7 @@ void BridgeManager::check_active_bridges()
     } else {
       count = get_agnocast_publisher_count(std::string(topic_name_view));
       // Update ROS 2 subscriber count to kernel for A2R bridges
-      update_ros2_subscriber_count(std::string(topic_name_view));
+      update_ros2_subscriber_num(std::string(topic_name_view));
     }
 
     if (count <= threshold) {
@@ -330,13 +330,13 @@ int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
   return static_cast<int>(args.ret_publisher_num);
 }
 
-void BridgeManager::update_ros2_subscriber_count(const std::string & topic_name)
+void BridgeManager::update_ros2_subscriber_num(const std::string & topic_name)
 {
   size_t ros2_count = container_node_->count_subscribers(topic_name);
 
   struct ioctl_set_ros2_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
-  args.ros2_subscriber_count = static_cast<uint32_t>(ros2_count);
+  args.ros2_subscriber_num = static_cast<uint32_t>(ros2_count);
 
   if (ioctl(agnocast_fd, AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD, &args) < 0) {
     // ENOENT is expected if the topic doesn't exist yet in the kernel

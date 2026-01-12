@@ -79,8 +79,10 @@ void test_case_get_subscriber_num_different_topic(struct kunit * test)
 
   union ioctl_get_subscriber_num_args subscriber_num_args1;
   union ioctl_get_subscriber_num_args subscriber_num_args2;
-  int ret1 = get_subscriber_num(topic_name1, current->nsproxy->ipc_ns, false, &subscriber_num_args1);
-  int ret2 = get_subscriber_num(topic_name2, current->nsproxy->ipc_ns, false, &subscriber_num_args2);
+  int ret1 =
+    get_subscriber_num(topic_name1, current->nsproxy->ipc_ns, false, &subscriber_num_args1);
+  int ret2 =
+    get_subscriber_num(topic_name2, current->nsproxy->ipc_ns, false, &subscriber_num_args2);
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -111,4 +113,25 @@ void test_case_get_subscriber_num_no_subscriber(struct kunit * test)
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
+}
+
+void test_case_get_subscriber_num_include_ros2(struct kunit * test)
+{
+  char * topic_name = "/kunit_test_topic";
+  setup_one_subscriber(test, topic_name);
+
+  int ret1 = set_ros2_subscriber_num(topic_name, current->nsproxy->ipc_ns, 3);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+
+  union ioctl_get_subscriber_num_args subscriber_num_args_without_ros2;
+  int ret2 = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args_without_ros2);
+  KUNIT_EXPECT_EQ(test, ret2, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args_without_ros2.ret_subscriber_num, 1);
+
+  union ioctl_get_subscriber_num_args subscriber_num_args_with_ros2;
+  int ret3 =
+    get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args_with_ros2);
+  KUNIT_EXPECT_EQ(test, ret3, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args_with_ros2.ret_subscriber_num, 4);  // 1 + 3
 }
