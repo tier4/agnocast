@@ -52,9 +52,8 @@ bool PerformanceBridgeConfig::load_config()
 
     if (auto node = root["filter_mode"]) {
       auto mode = node.as<std::string>();
-      for (auto & c : mode) {
-        c = std::tolower(c);
-      }
+      std::transform(
+        mode.begin(), mode.end(), mode.begin(), [](unsigned char c) { return std::tolower(c); });
 
       if (mode == "whitelist") {
         new_config.mode = FilterMode::WHITELIST;
@@ -87,9 +86,8 @@ void PerformanceBridgeConfig::parse_rules_node(
 
   for (const auto & entry : rules_node) {
     auto key = entry.first.as<std::string>();
-    for (auto & c : key) {
-      c = std::tolower(c);
-    }
+    std::transform(
+      key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::tolower(c); });
 
     BridgeDirection dir;
     if (key == "r2a") {
