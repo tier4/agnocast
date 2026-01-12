@@ -89,4 +89,33 @@ install(DIRECTORY test
   DESTINATION share/${PROJECT_NAME}/
 )
 
+# Test nodes for AgnocastOnlyCallbackIsolatedExecutor
+add_executable(test_agnocast_only_publisher_node
+  src/test_agnocast_only_publisher_node.cpp)
+target_link_libraries(test_agnocast_only_publisher_node)
+ament_target_dependencies(test_agnocast_only_publisher_node
+  rclcpp
+  std_msgs
+  agnocastlib)
+target_include_directories(test_agnocast_only_publisher_node PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(test_agnocast_only_subscriber_node
+  src/test_agnocast_only_subscriber_node.cpp)
+target_link_libraries(test_agnocast_only_subscriber_node)
+ament_target_dependencies(test_agnocast_only_subscriber_node
+  rclcpp
+  std_msgs
+  agnocastlib)
+target_include_directories(test_agnocast_only_subscriber_node PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+install(TARGETS
+  test_agnocast_only_publisher_node
+  test_agnocast_only_subscriber_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
