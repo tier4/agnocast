@@ -349,9 +349,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, const rclcpp::ParameterValue & default_value,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   return declare_parameter_helper(
     name, rclcpp::PARAMETER_NOT_SET, default_value, parameter_descriptor, ignore_override,
@@ -362,9 +361,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
   const std::string & name, rclcpp::ParameterType type,
   const rcl_interfaces::msg::ParameterDescriptor & parameter_descriptor, bool ignore_override)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   if (rclcpp::PARAMETER_NOT_SET == type) {
     throw std::invalid_argument{
@@ -384,9 +382,8 @@ const rclcpp::ParameterValue & NodeParameters::declare_parameter(
 
 void NodeParameters::undeclare_parameter(const std::string & name)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto parameter_info = parameters_.find(name);
   if (parameter_info == parameters_.end()) {
@@ -408,7 +405,7 @@ void NodeParameters::undeclare_parameter(const std::string & name)
 
 bool NodeParameters::has_parameter(const std::string & name) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   return lockless_has_parameter(parameters_, name);
 }
@@ -430,9 +427,8 @@ std::vector<rcl_interfaces::msg::SetParametersResult> NodeParameters::set_parame
 rcl_interfaces::msg::SetParametersResult NodeParameters::set_parameters_atomically(
   const std::vector<rclcpp::Parameter> & parameters)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   rcl_interfaces::msg::SetParametersResult result;
 
@@ -594,7 +590,7 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
   std::vector<rclcpp::Parameter> results;
   results.reserve(names.size());
 
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
   for (const auto & name : names) {
     results.emplace_back(lockless_get_parameter(parameters_, name, allow_undeclared_));
   }
@@ -603,14 +599,14 @@ std::vector<rclcpp::Parameter> NodeParameters::get_parameters(
 
 rclcpp::Parameter NodeParameters::get_parameter(const std::string & name) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   return lockless_get_parameter(parameters_, name, allow_undeclared_);
 }
 
 bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter & parameter) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   auto param_iter = parameters_.find(name);
   if (
@@ -625,7 +621,7 @@ bool NodeParameters::get_parameter(const std::string & name, rclcpp::Parameter &
 bool NodeParameters::get_parameters_by_prefix(
   const std::string & prefix, std::map<std::string, rclcpp::Parameter> & parameters) const
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
 
   std::string prefix_with_dot = prefix.empty() ? prefix : prefix + ".";
   bool ret = false;
@@ -645,36 +641,119 @@ bool NodeParameters::get_parameters_by_prefix(
 std::vector<rcl_interfaces::msg::ParameterDescriptor> NodeParameters::describe_parameters(
   const std::vector<std::string> & names) const
 {
-  // TODO(Koichi98)
-  (void)names;
-  throw std::runtime_error(
-    "NodeParameters::describe_parameters is not yet implemented in agnocast");
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::vector<rcl_interfaces::msg::ParameterDescriptor> results;
+  results.reserve(names.size());
+
+  for (const auto & name : names) {
+    auto it = parameters_.find(name);
+    if (it != parameters_.cend()) {
+      results.push_back(it->second.descriptor);
+    } else if (allow_undeclared_) {
+      rcl_interfaces::msg::ParameterDescriptor default_description;
+      default_description.name = name;
+      results.push_back(std::move(default_description));
+    } else {
+      throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+    }
+  }
+
+  // TODO(bdm-k): This is unreachable code and can be removed.
+  //   The current implementation mirrors that of rclcpp.
+  if (results.size() != names.size()) {
+    throw std::runtime_error("results and names unexpectedly different sizes");
+  }
+
+  return results;
 }
 
 std::vector<uint8_t> NodeParameters::get_parameter_types(
   const std::vector<std::string> & names) const
 {
-  // TODO(Koichi98)
-  (void)names;
-  throw std::runtime_error(
-    "NodeParameters::get_parameter_types is not yet implemented in agnocast");
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  std::vector<uint8_t> results;
+  results.reserve(names.size());
+
+  for (const auto & name : names) {
+    auto it = parameters_.find(name);
+    if (it != parameters_.cend()) {
+      results.push_back(it->second.value.get_type());
+    } else if (allow_undeclared_) {
+      results.push_back(rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET);
+    } else {
+      throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+    }
+  }
+
+  // TODO(bdm-k): This is unreachable code and can be removed.
+  //    The current implementation mirrors that of rclcpp.
+  if (results.size() != names.size()) {
+    throw std::runtime_error("results and names unexpectedly different sizes");
+  }
+
+  return results;
 }
 
 rcl_interfaces::msg::ListParametersResult NodeParameters::list_parameters(
   const std::vector<std::string> & prefixes, uint64_t depth) const
 {
-  // TODO(Koichi98)
-  (void)prefixes;
-  (void)depth;
-  throw std::runtime_error("NodeParameters::list_parameters is not yet implemented in agnocast");
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  rcl_interfaces::msg::ListParametersResult result;
+
+  const char * separator = ".";
+
+  auto separators_less_than_depth = [&depth, &separator](const std::string & str) -> bool {
+    return static_cast<uint64_t>(std::count(str.begin(), str.end(), *separator)) < depth;
+  };
+
+  bool recursive =
+    (prefixes.empty()) && (depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE);
+
+  for (const auto & param : parameters_) {
+    if (!recursive) {
+      bool get_all = (prefixes.empty()) && separators_less_than_depth(param.first);
+      if (!get_all) {
+        bool prefix_matches = std::any_of(
+          prefixes.cbegin(), prefixes.cend(),
+          [&param, &depth, &separator, &separators_less_than_depth](const std::string & prefix) {
+            if (param.first == prefix) {
+              return true;
+            }
+            if (param.first.find(prefix + separator) == 0) {
+              if (depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE) {
+                return true;
+              }
+              std::string substr = param.first.substr(prefix.length() + 1);
+              return separators_less_than_depth(substr);
+            }
+            return false;
+          });
+
+        if (!prefix_matches) {
+          continue;
+        }
+      }
+    }
+
+    result.names.push_back(param.first);
+    size_t last_separator = param.first.find_last_of(separator);
+    if (std::string::npos != last_separator) {
+      std::string prefix = param.first.substr(0, last_separator);
+      if (
+        std::find(result.prefixes.cbegin(), result.prefixes.cend(), prefix) ==
+        result.prefixes.cend()) {
+        result.prefixes.push_back(prefix);
+      }
+    }
+  }
+  return result;
 }
 
 rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
 NodeParameters::add_on_set_parameters_callback(OnParametersSetCallbackType callback)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto handle = std::make_shared<rclcpp::node_interfaces::OnSetParametersCallbackHandle>();
   handle->callback = callback;
@@ -686,9 +765,8 @@ NodeParameters::add_on_set_parameters_callback(OnParametersSetCallbackType callb
 void NodeParameters::remove_on_set_parameters_callback(
   const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler)
 {
-  std::lock_guard<std::mutex> lock(parameters_mutex_);
-  // TODO(Koichi98): rclcpp uses ParameterMutationRecursionGuard here to prevent parameter
-  // modification from within callbacks.
+  std::lock_guard<std::recursive_mutex> lock(parameters_mutex_);
+  ParameterMutationRecursionGuard guard(parameter_modification_enabled_);
 
   auto it = std::find_if(
     on_parameters_set_callback_container_.begin(), on_parameters_set_callback_container_.end(),

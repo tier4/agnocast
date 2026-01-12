@@ -155,6 +155,38 @@ public:
     return node_parameters_->set_parameters_atomically(parameters);
   }
 
+  rcl_interfaces::msg::ParameterDescriptor describe_parameter(const std::string & name) const
+  {
+    auto result = node_parameters_->describe_parameters({name});
+    // TODO(bdm-k): These if checks are redundant because describe_parameters() ensures that the
+    // result is the same size as the input vector.
+    //   The current implementation mirrors that of rclcpp.
+    if (0 == result.size()) {
+      throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+    }
+    if (result.size() > 1) {
+      throw std::runtime_error("number of described parameters unexpectedly more than one");
+    }
+    return result.front();
+  }
+
+  std::vector<rcl_interfaces::msg::ParameterDescriptor> describe_parameters(
+    const std::vector<std::string> & names) const
+  {
+    return node_parameters_->describe_parameters(names);
+  }
+
+  std::vector<uint8_t> get_parameter_types(const std::vector<std::string> & names) const
+  {
+    return node_parameters_->get_parameter_types(names);
+  }
+
+  rcl_interfaces::msg::ListParametersResult list_parameters(
+    const std::vector<std::string> & prefixes, uint64_t depth) const
+  {
+    return node_parameters_->list_parameters(prefixes, depth);
+  }
+
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
     rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType callback)
   {
@@ -169,16 +201,19 @@ public:
 
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
-    const std::string & topic_name, const rclcpp::QoS & qos)
+    const std::string & topic_name, const rclcpp::QoS & qos,
+    agnocast::PublisherOptions options = agnocast::PublisherOptions{})
   {
-    return std::make_shared<Publisher<MessageT>>(this, topic_name, qos);
+    return std::make_shared<Publisher<MessageT>>(this, topic_name, qos, options);
   }
 
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
-    const std::string & topic_name, size_t queue_size)
+    const std::string & topic_name, size_t queue_size,
+    agnocast::PublisherOptions options = agnocast::PublisherOptions{})
   {
-    return create_publisher<MessageT>(topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+    return create_publisher<MessageT>(
+      topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), options);
   }
 
   template <typename MessageT, typename Func>
