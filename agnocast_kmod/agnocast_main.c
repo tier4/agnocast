@@ -1130,7 +1130,7 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
-  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
   ioctl_ret->ret_bridge_exist = (br_info && br_info->has_a2r);
 
   return 0;
@@ -1158,7 +1158,7 @@ int get_publisher_num(
     ioctl_ret->ret_publisher_num = 0;
   }
 
-  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
   ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
 
   return 0;
