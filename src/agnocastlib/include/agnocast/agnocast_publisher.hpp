@@ -161,8 +161,8 @@ public:
     message.reset();
   }
 
-  // Returns the total subscriber count (Agnocast subscribers + ROS 2 subscribers).
-  // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically (every ~1 second).
+  // Returns the total subscriber count (Agnocast + ROS 2).
+  // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 };
 
