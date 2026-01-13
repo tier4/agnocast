@@ -11,14 +11,14 @@ namespace agnocast
 
 struct SubscriberCountResult
 {
-  int count;          // -1 on error, otherwise the subscriber count (including bridge subscriber)
-  bool bridge_exist;  // true if A2R bridge exists for this topic
+  int count;          // -1 on error
+  bool bridge_exist;  // true if A2R bridge exists
 };
 
 struct PublisherCountResult
 {
-  int count;          // -1 on error, otherwise the publisher count (including bridge publisher)
-  bool bridge_exist;  // true if R2A bridge exists for this topic
+  int count;          // -1 on error
+  bool bridge_exist;  // true if R2A bridge exists
 };
 
 rclcpp::QoS get_subscriber_qos(const std::string & topic_name, topic_local_id_t subscriber_id);

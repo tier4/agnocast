@@ -1159,7 +1159,6 @@ int get_publisher_num(
     ioctl_ret->ret_publisher_num = 0;
   }
 
-  // Check if R2A bridge exists for this topic
   struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
   ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
 

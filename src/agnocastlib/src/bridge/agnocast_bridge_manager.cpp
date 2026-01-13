@@ -265,8 +265,6 @@ void BridgeManager::check_active_bridges()
       reverse_bridge_exist = result.bridge_exist;  // R2A bridge is the reverse of A2R
     }
 
-    // If the reverse bridge exists, it holds one internal Agnocast Pub/Sub instance.
-    // We set the threshold to 1 to exclude this self-count and detect only external demand.
     const int threshold = reverse_bridge_exist ? 1 : 0;
 
     if (count <= threshold) {

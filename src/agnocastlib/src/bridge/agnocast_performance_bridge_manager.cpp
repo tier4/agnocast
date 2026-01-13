@@ -176,7 +176,6 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    // If A2R bridge exists (reverse of R2A), its internal subscriber is included in count
     const int threshold = result.bridge_exist ? 1 : 0;
     if (result.count <= threshold) {
       r2a_it = active_r2a_bridges_.erase(r2a_it);
@@ -197,7 +196,6 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    // If R2A bridge exists (reverse of A2R), its internal publisher is included in count
     const int threshold = result.bridge_exist ? 1 : 0;
     if (result.count <= threshold) {
       a2r_it = active_a2r_bridges_.erase(a2r_it);
