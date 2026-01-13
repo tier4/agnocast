@@ -73,8 +73,6 @@ private:
   void check_managed_bridges();
   void check_should_exit();
 
-  int get_agnocast_subscriber_count(const std::string & topic_name);
-  int get_agnocast_publisher_count(const std::string & topic_name);
   void remove_active_bridge(const std::string & topic_name_with_direction);
   void update_ros2_subscriber_num(const std::string & topic_name);
 
