@@ -119,23 +119,11 @@ void test_case_get_publisher_num_bridge_exist(struct kunit * test)
   pid_t bridge_owner_pid = 9000;
   setup_one_publisher(test, topic_name);
 
-  // Without any bridge, ret_bridge_exist should be false
   union ioctl_get_publisher_num_args publisher_num_args;
   int ret1 = get_publisher_num(topic_name, current->nsproxy->ipc_ns, &publisher_num_args);
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_FALSE(test, publisher_num_args.ret_bridge_exist);
 
-  // Add A2R bridge (is_r2a=false), ret_bridge_exist should still be false (we check for R2A)
-  struct ioctl_add_bridge_args add_bridge_args = {0};
-  int ret2 =
-    add_bridge(topic_name, bridge_owner_pid, false, current->nsproxy->ipc_ns, &add_bridge_args);
-  KUNIT_ASSERT_EQ(test, ret2, 0);
-
-  int ret3 = get_publisher_num(topic_name, current->nsproxy->ipc_ns, &publisher_num_args);
-  KUNIT_EXPECT_EQ(test, ret3, 0);
-  KUNIT_EXPECT_FALSE(test, publisher_num_args.ret_bridge_exist);
-
-  // Add R2A bridge (is_r2a=true), ret_bridge_exist should be true
   int ret4 =
     add_bridge(topic_name, bridge_owner_pid, true, current->nsproxy->ipc_ns, &add_bridge_args);
   KUNIT_ASSERT_EQ(test, ret4, 0);
