@@ -1,9 +1,9 @@
 #pragma once
 
+#include "agnocast/agnocast_subscription.hpp"
 #include "rclcpp/clock.hpp"
-#include "rclcpp/node_interfaces/node_topics_interface.hpp"
+#include "rclcpp/node_interfaces/node_time_source_interface.hpp"
 #include "rclcpp/qos.hpp"
-#include "rclcpp/subscription.hpp"
 
 #include "rosgraph_msgs/msg/clock.hpp"
 
@@ -11,20 +11,24 @@
 
 #include <memory>
 
+namespace agnocast
+{
+class Node;
+}
+
 namespace agnocast::node_interfaces
 {
 
-class NodeTimeSource
+class NodeTimeSource : public rclcpp::node_interfaces::NodeTimeSourceInterface
 {
 public:
-  using SharedPtr = std::shared_ptr<NodeTimeSource>;
+  RCLCPP_SMART_PTR_ALIASES_ONLY(NodeTimeSource)
 
   NodeTimeSource(
-    rclcpp::Clock::SharedPtr clock,
-    rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics,
+    agnocast::Node * node, rclcpp::Clock::SharedPtr clock,
     const rclcpp::QoS & qos = rclcpp::ClockQoS());
 
-  ~NodeTimeSource();
+  ~NodeTimeSource() override;
 
   NodeTimeSource(const NodeTimeSource &) = delete;
   NodeTimeSource & operator=(const NodeTimeSource &) = delete;
@@ -33,12 +37,12 @@ public:
 
 private:
   void create_clock_subscription();
-  void clock_callback(std::shared_ptr<const rosgraph_msgs::msg::Clock> msg);
+  void clock_callback(agnocast::ipc_shared_ptr<const rosgraph_msgs::msg::Clock> msg);
 
+  agnocast::Node * node_;
   rclcpp::Clock::SharedPtr clock_;
-  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics_;
   rclcpp::QoS qos_;
-  rclcpp::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
+  agnocast::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
 };
 
 }  // namespace agnocast::node_interfaces

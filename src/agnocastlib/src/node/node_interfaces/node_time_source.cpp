@@ -1,6 +1,6 @@
 #include "agnocast/node/node_interfaces/node_time_source.hpp"
 
-#include "rclcpp/create_subscription.hpp"
+#include "agnocast/node/agnocast_node.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/time.hpp"
 
@@ -8,9 +8,8 @@ namespace agnocast::node_interfaces
 {
 
 NodeTimeSource::NodeTimeSource(
-  rclcpp::Clock::SharedPtr clock,
-  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics, const rclcpp::QoS & qos)
-: clock_(clock), node_topics_(node_topics), qos_(qos)
+  agnocast::Node * node, rclcpp::Clock::SharedPtr clock, const rclcpp::QoS & qos)
+: node_(node), clock_(clock), qos_(qos)
 {
   // TODO(Koichi98): Subscribe to /parameter_events using
   // rclcpp::AsyncParametersClient::on_parameter_event() for dynamic use_sim_time changes
@@ -44,12 +43,12 @@ void NodeTimeSource::enable_ros_time()
 
 void NodeTimeSource::create_clock_subscription()
 {
-  clock_subscription_ = rclcpp::create_subscription<rosgraph_msgs::msg::Clock>(
-    node_topics_, "/clock", qos_,
-    [this](std::shared_ptr<const rosgraph_msgs::msg::Clock> msg) { clock_callback(msg); });
+  clock_subscription_ = node_->create_subscription<rosgraph_msgs::msg::Clock>(
+    "/clock", qos_,
+    [this](agnocast::ipc_shared_ptr<const rosgraph_msgs::msg::Clock> msg) { clock_callback(msg); });
 }
 
-void NodeTimeSource::clock_callback(std::shared_ptr<const rosgraph_msgs::msg::Clock> msg)
+void NodeTimeSource::clock_callback(agnocast::ipc_shared_ptr<const rosgraph_msgs::msg::Clock> msg)
 {
   rcl_clock_t * rcl_clock = clock_->get_clock_handle();
   rcl_ret_t ret = rcl_set_ros_time_override(rcl_clock, rclcpp::Time(msg->clock).nanoseconds());

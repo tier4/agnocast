@@ -31,7 +31,7 @@ Node::Node(
   node_clock_ = std::make_shared<node_interfaces::NodeClock>(RCL_ROS_TIME);
 
   node_time_source_ = std::make_shared<node_interfaces::NodeTimeSource>(
-    node_clock_->get_clock(), node_topics_, options.clock_qos());
+    this, node_clock_->get_clock(), options.clock_qos());
 
   // Initialize use_sim_time parameter for simulation time support
   rclcpp::ParameterValue use_sim_time_param;
