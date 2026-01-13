@@ -311,6 +311,7 @@ void CallbackIsolatedAgnocastExecutor::remove_node(rclcpp::Node::SharedPtr node_
 
 void CallbackIsolatedAgnocastExecutor::cancel()
 {
+  spinning.store(false);
   std::lock_guard<std::mutex> guard{weak_child_executors_mutex_};
   for (auto & weak_child_executor : weak_child_executors_) {
     if (auto child_executor = weak_child_executor.lock()) {
