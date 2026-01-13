@@ -1,6 +1,7 @@
 #include "agnocast/bridge/agnocast_bridge_manager.hpp"
 
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <sys/prctl.h>
 #include <unistd.h>
@@ -251,20 +252,20 @@ void BridgeManager::check_active_bridges()
     std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
 
     bool is_r2a = (suffix == SUFFIX_R2A);
-    std::string reverse_key(topic_name_view);
-    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
-
-    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
-    // We set the threshold to 1 to exclude this self-count and detect only external demand.
-    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
-    const int threshold = reverse_exists ? 1 : 0;
 
     int count = 0;
+    bool reverse_bridge_exist = false;
     if (is_r2a) {
-      count = get_agnocast_subscriber_count(std::string(topic_name_view));
+      auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
+      count = result.count;
+      reverse_bridge_exist = result.bridge_exist;
     } else {
-      count = get_agnocast_publisher_count(std::string(topic_name_view));
+      auto result = get_agnocast_publisher_count(std::string(topic_name_view));
+      count = result.count;
+      reverse_bridge_exist = result.bridge_exist;
     }
+
+    const int threshold = reverse_bridge_exist ? 1 : 0;
 
     if (count <= threshold) {
       if (count < 0) {
@@ -303,28 +304,6 @@ void BridgeManager::check_should_exit()
       executor_->cancel();
     }
   }
-}
-
-int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
-{
-  union ioctl_get_subscriber_num_args args = {};
-  args.topic_name = {topic_name.c_str(), topic_name.size()};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-    return -1;
-  }
-  return static_cast<int>(args.ret_subscriber_num);
-}
-
-int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
-{
-  union ioctl_get_publisher_num_args args = {};
-  args.topic_name = {topic_name.c_str(), topic_name.size()};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
-    return -1;
-  }
-  return static_cast<int>(args.ret_publisher_num);
 }
 
 void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)

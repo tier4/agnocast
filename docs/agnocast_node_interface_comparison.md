@@ -100,7 +100,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `get_parameters_by_prefix()` | ✓ | **Full Support** | - | |
 | `describe_parameters()` | ✓ | **Full Support** | - | |
 | `get_parameter_types()` | ✓ | **Full Support** | - | |
-| `list_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
+| `list_parameters()` | ✓ | **Full Support** | - | |
 | `add_on_set_parameters_callback()` | ✓ | **Full Support** | - | |
 | `remove_on_set_parameters_callback()` | ✓ | **Full Support** | - | |
 
@@ -241,7 +241,7 @@ The following tables compare methods that are **directly defined** in each class
 
 | API | rclcpp::Node | agnocast::Node | Notes |
 |-----|:------------:|:--------------:|-------|
-| `declare_parameter()` | ✓ | ✓ | agnocast requires default value |
+| `declare_parameter()` | ✓ | ✓ | |
 | `declare_parameters()` | ✓ | ✗ | |
 | `undeclare_parameter()` | ✓ | ✓ | |
 | `has_parameter()` | ✓ | ✓ | |
@@ -254,7 +254,7 @@ The following tables compare methods that are **directly defined** in each class
 | `describe_parameter()` | ✓ | ✓ | |
 | `describe_parameters()` | ✓ | ✓ | |
 | `get_parameter_types()` | ✓ | ✓ | |
-| `list_parameters()` | ✓ | ✗ | |
+| `list_parameters()` | ✓ | ✓ | |
 | `add_on_set_parameters_callback()` | ✓ | ✓ | |
 | `remove_on_set_parameters_callback()` | ✓ | ✓ | |
 
@@ -356,6 +356,10 @@ agnocast::Node uses the following rcl/rclcpp functions, data structures, and cla
 
 - `rcl_arguments_t` - Parsed arguments
 
+**rclcpp Functions**:
+
+- `rclcpp::detail::declare_qos_parameters()` - Declares QoS-related parameters and applies overrides. This function only requires `NodeParametersInterface` and internally calls `declare_parameter`/`get_parameter`, so it works with `agnocast::Node`. When `QosOverridingOptions` is specified, QoS policies are automatically applied from parameters using the naming convention `qos_overrides.<topic>.<entity>.<policy>` (e.g., `qos_overrides./my_topic.subscription.durability`), without requiring explicit parameter declaration in user code.
+
 **rclcpp Classes/Interfaces**:
 
 - `rclcpp::Context` - Context management
@@ -363,6 +367,7 @@ agnocast::Node uses the following rcl/rclcpp functions, data structures, and cla
 - `rclcpp::Logger` - Logging
 - `rclcpp::Parameter` / `rclcpp::ParameterValue` - Parameter management
 - `rclcpp::QoS` - QoS configuration
+- `rclcpp::QosOverridingOptions` - QoS override configuration via parameters
 - `rclcpp::NodeOptions` - Node construction options
 - `rclcpp::node_interfaces::NodeBaseInterface` - Node base interface (inherited)
 - `rclcpp::node_interfaces::NodeTopicsInterface` - Node topics interface (inherited)

@@ -36,6 +36,7 @@ add_library(agnocast SHARED
   src/node/agnocast_only_executor.cpp src/node/agnocast_only_single_threaded_executor.cpp src/node/agnocast_only_multi_threaded_executor.cpp
   src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp src/node/node_interfaces/node_clock.cpp
   src/bridge/agnocast_bridge_ipc_event_loop.cpp src/bridge/agnocast_bridge_loader.cpp src/bridge/agnocast_bridge_manager.cpp
+  src/bridge/agnocast_bridge_utils.cpp
   src/bridge/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/agnocast_performance_bridge_loader.cpp 
   src/bridge/agnocast_performance_bridge_manager.cpp src/bridge/agnocast_performance_bridge_config.cpp)
 
@@ -251,12 +252,48 @@ if(BUILD_TESTING)
   ament_add_gmock(test_integration_${PROJECT_NAME}
     test/integration/test_agnocast_single_threaded_executor.cpp
     test/integration/test_agnocast_multi_threaded_executor.cpp
+    test/integration/test_agnocast_callback_isolated_executor.cpp
     test/integration/src/ioctl_mock.cpp
     test/integration/src/node_for_executor_test.cpp)
   target_include_directories(test_integration_${PROJECT_NAME} PRIVATE test/integration/include)
   target_link_libraries(test_integration_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_integration_${PROJECT_NAME}
+    cie_config_msgs
+    std_msgs)
   set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+    TIMEOUT 120
+  )
+
+  # Test component for ComponentManagerCallbackIsolated integration tests
+  add_library(test_publisher_component SHARED
+    test/integration/src/test_publisher_component.cpp)
+  target_link_libraries(test_publisher_component agnocast)
+  ament_target_dependencies(test_publisher_component rclcpp rclcpp_components std_msgs)
+  rclcpp_components_register_node(test_publisher_component
+    PLUGIN "agnocastlib_test::TestPublisherComponent"
+    EXECUTABLE test_publisher_component_node)
+  install(TARGETS test_publisher_component
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin)
+
+  add_library(test_subscription_component SHARED
+    test/integration/src/test_subscription_component.cpp)
+  target_link_libraries(test_subscription_component agnocast)
+  ament_target_dependencies(test_subscription_component rclcpp rclcpp_components std_msgs)
+  rclcpp_components_register_node(test_subscription_component
+    PLUGIN "agnocastlib_test::TestSubscriptionComponent"
+    EXECUTABLE test_subscription_component_node)
+  install(TARGETS test_subscription_component
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin)
+
+  # Integration tests for ComponentManagerCallbackIsolated using launch_testing
+  find_package(launch_testing_ament_cmake REQUIRED)
+  add_launch_test(
+    test/integration/test_agnocast_component_container_cie_launch.py
     TIMEOUT 120
   )
 

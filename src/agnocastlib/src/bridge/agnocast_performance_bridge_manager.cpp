@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <mqueue.h>
 #include <sys/prctl.h>
@@ -54,13 +55,13 @@ void PerformanceBridgeManager::run()
   std::string proc_name = "agno_pbr_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
 
+  // TODO(yutarokobayashi): For debugging. Remove later.
   RCLCPP_INFO(logger_, "Performance Bridge Manager started.");
 
   start_ros_execution();
 
   event_loop_.set_mq_handler([this](int fd) { this->on_mq_request(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
-  event_loop_.set_reload_handler([this]() { this->on_reload(); });
 
   while (!shutdown_requested_) {
     if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
@@ -68,6 +69,7 @@ void PerformanceBridgeManager::run()
       break;
     }
 
+    check_and_remove_bridges();
     check_and_request_shutdown();
   }
 }
@@ -103,8 +105,52 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     return;
   }
 
-  // TODO(yutarokobayashi): Process the received message
-  RCLCPP_INFO(logger_, "Received MQ message (%zd bytes)", bytes_read);
+  auto * msg = reinterpret_cast<MqMsgPerformanceBridge *>(buffer.data());
+
+  std::string topic_name = static_cast<const char *>(msg->target.topic_name);
+  topic_local_id_t target_id = msg->target.target_id;
+  std::string message_type = static_cast<const char *>(msg->message_type);
+
+  // TODO(yutarokobayashi): For debugging. Remove later.
+  RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
+
+  if (msg->direction == BridgeDirection::ROS2_TO_AGNOCAST) {
+    if (active_r2a_bridges_.count(topic_name) > 0) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "R2A Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
+    }
+
+    rclcpp::QoS qos = get_subscriber_qos(topic_name, target_id);
+    auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, qos);
+
+    if (bridge) {
+      active_r2a_bridges_[topic_name] = bridge;
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create R2A Bridge for %s", topic_name.c_str());
+    }
+  } else if (msg->direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+    if (active_a2r_bridges_.count(topic_name) > 0) {
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
+    }
+
+    rclcpp::QoS qos = get_publisher_qos(topic_name, target_id);
+    auto bridge = loader_.create_a2r_bridge(container_node_, topic_name, message_type, qos);
+
+    if (bridge) {
+      active_a2r_bridges_[topic_name] = bridge;
+      // TODO(yutarokobayashi): For debugging. Remove later.
+      RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
+    } else {
+      RCLCPP_ERROR(logger_, "Failed to create A2R Bridge for %s", topic_name.c_str());
+    }
+  } else {
+    RCLCPP_ERROR(logger_, "Invalid bridge direction received: %d", (int)msg->direction);
+  }
 }
 
 void PerformanceBridgeManager::on_signal()
@@ -116,10 +162,47 @@ void PerformanceBridgeManager::on_signal()
   }
 }
 
-void PerformanceBridgeManager::on_reload()
+void PerformanceBridgeManager::check_and_remove_bridges()
 {
-  // TODO(yutarokobayashi): Implement configuration reload
-  RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
+  auto r2a_it = active_r2a_bridges_.begin();
+  while (r2a_it != active_r2a_bridges_.end()) {
+    const std::string & topic_name = r2a_it->first;
+    auto result = get_agnocast_subscriber_count(topic_name);
+    if (result.count == -1) {
+      RCLCPP_ERROR(
+        logger_, "Failed to get subscriber count for topic '%s'. Requesting shutdown.",
+        topic_name.c_str());
+      shutdown_requested_ = true;
+      return;
+    }
+
+    const int threshold = result.bridge_exist ? 1 : 0;
+    if (result.count <= threshold) {
+      r2a_it = active_r2a_bridges_.erase(r2a_it);
+    } else {
+      ++r2a_it;
+    }
+  }
+
+  auto a2r_it = active_a2r_bridges_.begin();
+  while (a2r_it != active_a2r_bridges_.end()) {
+    const std::string & topic_name = a2r_it->first;
+    auto result = get_agnocast_publisher_count(topic_name);
+    if (result.count == -1) {
+      RCLCPP_ERROR(
+        logger_, "Failed to get publisher count for topic '%s'. Requesting shutdown.",
+        topic_name.c_str());
+      shutdown_requested_ = true;
+      return;
+    }
+
+    const int threshold = result.bridge_exist ? 1 : 0;
+    if (result.count <= threshold) {
+      a2r_it = active_a2r_bridges_.erase(a2r_it);
+    } else {
+      ++a2r_it;
+    }
+  }
 }
 
 void PerformanceBridgeManager::check_and_request_shutdown()
