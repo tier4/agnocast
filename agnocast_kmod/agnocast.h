@@ -132,14 +132,17 @@ union ioctl_get_subscriber_num_args {
   struct
   {
     uint32_t ret_subscriber_num;
-    bool ret_has_a2r_bridge;  // true if A2R bridge exists (its internal subscriber is included in
-                              // ret_subscriber_num)
+    bool ret_bridge_exist;
   };
 };
 
 union ioctl_get_publisher_num_args {
   struct name_info topic_name;
-  uint32_t ret_publisher_num;
+  struct
+  {
+    uint32_t ret_publisher_num;
+    bool ret_bridge_exist;
+  };
 };
 
 struct ioctl_get_exit_process_args

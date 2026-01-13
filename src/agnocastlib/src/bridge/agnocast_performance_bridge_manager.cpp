@@ -62,7 +62,6 @@ void PerformanceBridgeManager::run()
 
   event_loop_.set_mq_handler([this](int fd) { this->on_mq_request(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
-  event_loop_.set_reload_handler([this]() { this->on_reload(); });
 
   while (!shutdown_requested_) {
     if (!event_loop_.spin_once(EVENT_LOOP_TIMEOUT_MS)) {
@@ -163,12 +162,6 @@ void PerformanceBridgeManager::on_signal()
   }
 }
 
-void PerformanceBridgeManager::on_reload()
-{
-  // TODO(yutarokobayashi): Implement configuration reload
-  RCLCPP_INFO(logger_, "Reload signal (SIGHUP) received.");
-}
-
 void PerformanceBridgeManager::check_and_remove_bridges()
 {
   auto r2a_it = active_r2a_bridges_.begin();
@@ -183,8 +176,7 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    // If A2R bridge exists (reverse of R2A), its internal subscriber is included in count
-    const int threshold = result.has_a2r_bridge ? 1 : 0;
+    const int threshold = result.bridge_exist ? 1 : 0;
     if (result.count <= threshold) {
       r2a_it = active_r2a_bridges_.erase(r2a_it);
     } else {
@@ -195,8 +187,8 @@ void PerformanceBridgeManager::check_and_remove_bridges()
   auto a2r_it = active_a2r_bridges_.begin();
   while (a2r_it != active_a2r_bridges_.end()) {
     const std::string & topic_name = a2r_it->first;
-    int count = get_agnocast_publisher_count(topic_name);
-    if (count == -1) {
+    auto result = get_agnocast_publisher_count(topic_name);
+    if (result.count == -1) {
       RCLCPP_ERROR(
         logger_, "Failed to get publisher count for topic '%s'. Requesting shutdown.",
         topic_name.c_str());
@@ -204,7 +196,8 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    if (count <= 0) {
+    const int threshold = result.bridge_exist ? 1 : 0;
+    if (result.count <= threshold) {
       a2r_it = active_a2r_bridges_.erase(a2r_it);
     } else {
       ++a2r_it;

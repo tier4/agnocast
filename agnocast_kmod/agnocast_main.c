@@ -1115,6 +1115,10 @@ int take_msg(
   return 0;
 }
 
+// Forward declaration
+static struct bridge_info * find_bridge_info(
+  const char * topic_name, const struct ipc_namespace * ipc_ns);
+
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const bool include_ros2,
   union ioctl_get_subscriber_num_args * ioctl_ret)
@@ -1130,9 +1134,8 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
-  // Check if A2R bridge exists for this topic
-  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
-  ioctl_ret->ret_has_a2r_bridge = (br_info && br_info->has_a2r);
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_a2r);
 
   return 0;
 }
@@ -1158,6 +1161,9 @@ int get_publisher_num(
   } else {
     ioctl_ret->ret_publisher_num = 0;
   }
+
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
 
   return 0;
 }

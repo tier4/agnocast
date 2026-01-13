@@ -254,21 +254,23 @@ void BridgeManager::check_active_bridges()
     bool is_r2a = (suffix == SUFFIX_R2A);
 
     int count = 0;
-    bool has_reverse_bridge = false;
+    bool reverse_bridge_exist = false;
     if (is_r2a) {
       auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
       count = result.count;
-      has_reverse_bridge = result.has_a2r_bridge;  // A2R bridge is the reverse of R2A
+      reverse_bridge_exist = result.bridge_exist;
     } else {
-      count = get_agnocast_publisher_count(std::string(topic_name_view));
+      auto result = get_agnocast_publisher_count(std::string(topic_name_view));
+      count = result.count;
+      reverse_bridge_exist = result.bridge_exist;
       if (!update_ros2_subscriber_num(std::string(topic_name_view))) {
         to_remove.push_back(key);
         continue;
       }
     }
 
-    // If reverse bridge exists, its internal Pub/Sub is included in count, so threshold is 1
-    const int threshold = has_reverse_bridge ? 1 : 0;
+    const int threshold = reverse_bridge_exist ? 1 : 0;
+
     if (count <= threshold) {
       if (count < 0) {
         RCLCPP_ERROR(
