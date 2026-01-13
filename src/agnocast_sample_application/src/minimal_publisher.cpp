@@ -24,9 +24,7 @@ class MinimalPublisher : public rclcpp::Node
     }
 
     publisher_dynamic_->publish(std::move(message));
-    RCLCPP_INFO(
-      this->get_logger(), "publish message: id=%ld, subscription_count=%u", count_++,
-      publisher_dynamic_->get_subscription_count());
+    RCLCPP_INFO(this->get_logger(), "publish message: id=%ld", count_++);
   }
 
 public:
