@@ -119,6 +119,10 @@ struct bridge_info
 
 static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
 
+// Forward declaration
+static struct bridge_info * find_bridge_info(
+  const char * topic_name, const struct ipc_namespace * ipc_ns);
+
 #ifndef KUNIT_BUILD
 // Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
 // Thus, PIDs must be converted from global to local before they are passed from kernel to user.
@@ -1125,6 +1129,10 @@ int get_subscriber_num(
   } else {
     ioctl_ret->ret_subscriber_num = 0;
   }
+
+  // Check if A2R bridge exists for this topic
+  struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_has_a2r_bridge = (br_info && br_info->has_a2r);
 
   return 0;
 }

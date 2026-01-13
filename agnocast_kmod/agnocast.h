@@ -129,7 +129,12 @@ union ioctl_get_subscriber_num_args {
     struct name_info topic_name;
     bool include_ros2;
   };
-  uint32_t ret_subscriber_num;
+  struct
+  {
+    uint32_t ret_subscriber_num;
+    bool ret_has_a2r_bridge;  // true if A2R bridge exists (its internal subscriber is included in
+                              // ret_subscriber_num)
+  };
 };
 
 union ioctl_get_publisher_num_args {

@@ -252,17 +252,13 @@ void BridgeManager::check_active_bridges()
     std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
 
     bool is_r2a = (suffix == SUFFIX_R2A);
-    std::string reverse_key(topic_name_view);
-    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
-
-    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
-    // We set the threshold to 1 to exclude this self-count and detect only external demand.
-    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
-    const int threshold = reverse_exists ? 1 : 0;
 
     int count = 0;
+    bool has_reverse_bridge = false;
     if (is_r2a) {
-      count = get_agnocast_subscriber_count(std::string(topic_name_view));
+      auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
+      count = result.count;
+      has_reverse_bridge = result.has_a2r_bridge;  // A2R bridge is the reverse of R2A
     } else {
       count = get_agnocast_publisher_count(std::string(topic_name_view));
       if (!update_ros2_subscriber_num(std::string(topic_name_view))) {
@@ -271,6 +267,8 @@ void BridgeManager::check_active_bridges()
       }
     }
 
+    // If reverse bridge exists, its internal Pub/Sub is included in count, so threshold is 1
+    const int threshold = has_reverse_bridge ? 1 : 0;
     if (count <= threshold) {
       if (count < 0) {
         RCLCPP_ERROR(

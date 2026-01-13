@@ -171,14 +171,11 @@ void PerformanceBridgeManager::on_reload()
 
 void PerformanceBridgeManager::check_and_remove_bridges()
 {
-  constexpr int THRESHOLD_WITH_REVERSE = 1;
-  constexpr int THRESHOLD_WITHOUT_REVERSE = 0;
-
   auto r2a_it = active_r2a_bridges_.begin();
   while (r2a_it != active_r2a_bridges_.end()) {
     const std::string & topic_name = r2a_it->first;
-    int count = get_agnocast_subscriber_count(topic_name);
-    if (count == -1) {
+    auto result = get_agnocast_subscriber_count(topic_name);
+    if (result.count == -1) {
       RCLCPP_ERROR(
         logger_, "Failed to get subscriber count for topic '%s'. Requesting shutdown.",
         topic_name.c_str());
@@ -186,9 +183,9 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    bool reverse_exists = (active_a2r_bridges_.count(topic_name) > 0);
-    int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
-    if (count <= threshold) {
+    // If A2R bridge exists (reverse of R2A), its internal subscriber is included in count
+    const int threshold = result.has_a2r_bridge ? 1 : 0;
+    if (result.count <= threshold) {
       r2a_it = active_r2a_bridges_.erase(r2a_it);
     } else {
       ++r2a_it;
@@ -207,9 +204,7 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    bool reverse_exists = (active_r2a_bridges_.count(topic_name) > 0);
-    int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
-    if (count <= threshold) {
+    if (count <= 0) {
       a2r_it = active_a2r_bridges_.erase(a2r_it);
     } else {
       ++a2r_it;
