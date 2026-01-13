@@ -171,31 +171,36 @@ void PerformanceBridgeManager::on_reload()
 
 void PerformanceBridgeManager::check_and_remove_bridges()
 {
-  auto remove_bridges = [&](auto & bridges, const auto & reverse_bridges, auto get_count_func) {
-    auto it = bridges.begin();
-    while (it != bridges.end()) {
-      const std::string & topic_name = it->first;
+  constexpr int THRESHOLD_WITH_REVERSE = 1;
+  constexpr int THRESHOLD_WITHOUT_REVERSE = 0;
 
-      bool reverse_exists = (reverse_bridges.count(topic_name) > 0);
-      int threshold = reverse_exists ? 1 : 0;
+  auto r2a_it = active_r2a_bridges_.begin();
+  while (r2a_it != active_r2a_bridges_.end()) {
+    const std::string & topic_name = r2a_it->first;
+    bool reverse_exists = (active_a2r_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
+    int count = get_agnocast_subscriber_count(topic_name);
 
-      int count = get_count_func(topic_name);
-
-      if (count != -1 && count <= threshold) {
-        it = bridges.erase(it);
-      } else {
-        ++it;
-      }
+    if (count != -1 && count <= threshold) {
+      r2a_it = active_r2a_bridges_.erase(r2a_it);
+    } else {
+      ++r2a_it;
     }
-  };
+  }
 
-  remove_bridges(active_r2a_bridges_, active_a2r_bridges_, [this](const std::string & topic_name) {
-    return get_agnocast_subscriber_count(topic_name);
-  });
+  auto a2r_it = active_a2r_bridges_.begin();
+  while (a2r_it != active_a2r_bridges_.end()) {
+    const std::string & topic_name = a2r_it->first;
+    bool reverse_exists = (active_r2a_bridges_.count(topic_name) > 0);
+    int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
+    int count = get_agnocast_publisher_count(topic_name);
 
-  remove_bridges(active_a2r_bridges_, active_r2a_bridges_, [this](const std::string & topic_name) {
-    return get_agnocast_publisher_count(topic_name);
-  });
+    if (count != -1 && count <= threshold) {
+      a2r_it = active_a2r_bridges_.erase(a2r_it);
+    } else {
+      ++a2r_it;
+    }
+  }
 }
 
 void PerformanceBridgeManager::check_and_request_shutdown()
