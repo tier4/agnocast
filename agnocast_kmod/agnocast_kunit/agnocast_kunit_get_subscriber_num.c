@@ -133,5 +133,5 @@ void test_case_get_subscriber_num_include_ros2(struct kunit * test)
   int ret3 =
     get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args_with_ros2);
   KUNIT_EXPECT_EQ(test, ret3, 0);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args_with_ros2.ret_subscriber_num, 4);  // 1 + 3
+  KUNIT_EXPECT_EQ(test, subscriber_num_args_with_ros2.ret_subscriber_num, 4);
 }

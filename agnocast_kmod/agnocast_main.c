@@ -1949,6 +1949,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
     if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    bool include_ros2 = get_subscriber_num_args.include_ros2;
     char * topic_name_buf = kmalloc(get_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
