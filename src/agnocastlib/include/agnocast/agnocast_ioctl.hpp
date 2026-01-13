@@ -309,5 +309,13 @@ struct ioctl_set_ros2_subscriber_num_args
 #define AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD \
   _IOW(0xA6, 25, struct ioctl_set_ros2_subscriber_num_args)
 #define AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD _IOWR(0xA6, 21, union ioctl_topic_info_args)
+#define AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD \
+  _IOW(0xA6, 25, struct ioctl_set_ros2_subscriber_num_args)
+
+struct ioctl_set_ros2_subscriber_num_args
+{
+  struct name_info topic_name;
+  uint32_t ros2_subscriber_num;
+};
 
 }  // namespace agnocast
