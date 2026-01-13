@@ -4,10 +4,12 @@
 
 #include <rclcpp/qos.hpp>
 
+#include <chrono>
 #include <string>
 
 namespace agnocast
 {
+static constexpr std::chrono::nanoseconds WAKEUP_IMMEDIATE_INTERVAL{1};
 
 struct SubscriberCountResult
 {

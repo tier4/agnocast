@@ -51,6 +51,7 @@ private:
   rclcpp::Node::SharedPtr container_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::thread executor_thread_;
+  rclcpp::TimerBase::SharedPtr wakeup_timer_;
 
   std::map<std::string, std::shared_ptr<void>> active_bridges_;
   std::map<std::string, BridgeInfo> managed_bridges_;
