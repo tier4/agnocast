@@ -265,7 +265,10 @@ void BridgeManager::check_active_bridges()
       count = get_agnocast_subscriber_count(std::string(topic_name_view));
     } else {
       count = get_agnocast_publisher_count(std::string(topic_name_view));
-      update_ros2_subscriber_num(std::string(topic_name_view));
+      if (!update_ros2_subscriber_num(std::string(topic_name_view))) {
+        to_remove.push_back(key);
+        continue;
+      }
     }
 
     if (count <= threshold) {
@@ -307,7 +310,7 @@ void BridgeManager::check_should_exit()
   }
 }
 
-void BridgeManager::update_ros2_subscriber_num(const std::string & topic_name)
+bool BridgeManager::update_ros2_subscriber_num(const std::string & topic_name)
 {
   size_t ros2_count = container_node_->count_subscribers(topic_name);
 
@@ -316,11 +319,10 @@ void BridgeManager::update_ros2_subscriber_num(const std::string & topic_name)
   args.ros2_subscriber_num = static_cast<uint32_t>(ros2_count);
 
   if (ioctl(agnocast_fd, AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    // ENOENT is expected if the topic doesn't exist yet in the kernel
-    if (errno != ENOENT) {
-      RCLCPP_WARN(logger_, "AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-    }
+    RCLCPP_ERROR(logger_, "AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return false;
   }
+  return true;
 }
 
 void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)
