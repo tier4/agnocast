@@ -123,15 +123,12 @@ void test_case_get_subscriber_num_include_ros2(struct kunit * test)
   int ret1 = set_ros2_subscriber_num(topic_name, current->nsproxy->ipc_ns, 3);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  union ioctl_get_subscriber_num_args subscriber_num_args_without_ros2;
-  int ret2 = get_subscriber_num(
-    topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args_without_ros2);
+  union ioctl_get_subscriber_num_args subscriber_num_args;
+  int ret2 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args_without_ros2.ret_subscriber_num, 1);
 
-  union ioctl_get_subscriber_num_args subscriber_num_args_with_ros2;
-  int ret3 =
-    get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args_with_ros2);
+  int ret3 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args_with_ros2.ret_subscriber_num, 4);
 }
