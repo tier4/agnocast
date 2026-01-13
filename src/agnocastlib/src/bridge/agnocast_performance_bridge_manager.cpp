@@ -121,6 +121,13 @@ void PerformanceBridgeManager::on_mq_request(int fd)
       return;
     }
 
+    if (!has_external_ros2_publisher(container_node_.get(), topic_name)) {
+      RCLCPP_INFO(
+        logger_, "Skipping R2A creation for '%s': No external ROS 2 publisher found.",
+        topic_name.c_str());
+      return;
+    }
+
     rclcpp::QoS qos = get_subscriber_qos(topic_name, target_id);
     auto bridge = loader_.create_r2a_bridge(container_node_, topic_name, message_type, qos);
 
@@ -135,6 +142,13 @@ void PerformanceBridgeManager::on_mq_request(int fd)
     if (active_a2r_bridges_.count(topic_name) > 0) {
       // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "A2R Bridge for '%s' already exists. Skipping.", topic_name.c_str());
+      return;
+    }
+
+    if (!has_external_ros2_subscriber(container_node_.get(), topic_name)) {
+      RCLCPP_INFO(
+        logger_, "Skipping A2R creation for '%s': No external ROS 2 subscriber found.",
+        topic_name.c_str());
       return;
     }
 
@@ -179,9 +193,11 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
+    bool ros2_has_publisher = has_external_ros2_publisher(container_node_.get(), topic_name);
+
     bool reverse_exists = (active_a2r_bridges_.count(topic_name) > 0);
     int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
-    if (count <= threshold) {
+    if (count <= threshold || !ros2_has_publisher) {
       r2a_it = active_r2a_bridges_.erase(r2a_it);
     } else {
       ++r2a_it;
@@ -200,9 +216,11 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
+    bool ros2_has_subscriber = has_external_ros2_subscriber(container_node_.get(), topic_name);
+
     bool reverse_exists = (active_r2a_bridges_.count(topic_name) > 0);
     int threshold = reverse_exists ? THRESHOLD_WITH_REVERSE : THRESHOLD_WITHOUT_REVERSE;
-    if (count <= threshold) {
+    if (count <= threshold || !ros2_has_subscriber) {
       a2r_it = active_a2r_bridges_.erase(a2r_it);
     } else {
       ++a2r_it;
