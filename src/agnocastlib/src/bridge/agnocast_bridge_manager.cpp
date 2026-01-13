@@ -264,7 +264,6 @@ void BridgeManager::check_active_bridges()
       count = get_agnocast_subscriber_count(std::string(topic_name_view));
     } else {
       count = get_agnocast_publisher_count(std::string(topic_name_view));
-      // Update ROS 2 subscriber count to kernel for A2R bridges
       update_ros2_subscriber_num(std::string(topic_name_view));
     }
 
