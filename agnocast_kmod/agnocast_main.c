@@ -119,10 +119,6 @@ struct bridge_info
 
 static DEFINE_HASHTABLE(bridge_htable, TOPIC_HASH_BITS);
 
-// Forward declaration
-static struct bridge_info * find_bridge_info(
-  const char * topic_name, const struct ipc_namespace * ipc_ns);
-
 #ifndef KUNIT_BUILD
 // Kernel module uses global PIDs, whereas user-space and the interface between them use local PIDs.
 // Thus, PIDs must be converted from global to local before they are passed from kernel to user.

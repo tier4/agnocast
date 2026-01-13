@@ -140,7 +140,12 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
-  return get_subscriber_count_args.ret_subscriber_num;
+  uint32_t count = get_subscriber_count_args.ret_subscriber_num;
+  // Exclude internal subscriber from A2R bridge
+  if (get_subscriber_count_args.ret_bridge_exist && count > 0) {
+    count--;
+  }
+  return count;
 }
 
 }  // namespace agnocast
