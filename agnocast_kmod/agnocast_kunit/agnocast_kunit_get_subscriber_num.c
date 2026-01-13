@@ -120,17 +120,14 @@ void test_case_get_subscriber_num_include_ros2(struct kunit * test)
   char * topic_name = "/kunit_test_topic";
   setup_one_subscriber(test, topic_name);
 
-  // Set ROS2 subscriber count
   int ret1 = set_ros2_subscriber_num(topic_name, current->nsproxy->ipc_ns, 3);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  // Without include_ros2, should only return agnocast subscribers
   union ioctl_get_subscriber_num_args subscriber_num_args;
   int ret2 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
 
-  // With include_ros2, should return agnocast + ros2 subscribers
   int ret3 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 4);
