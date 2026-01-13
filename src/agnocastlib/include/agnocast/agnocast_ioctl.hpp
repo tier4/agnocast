@@ -157,15 +157,25 @@ union ioctl_take_msg_args {
 };
 #pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_subscriber_num_args {
-  struct name_info topic_name;
+  struct
+  {
+    struct name_info topic_name;
+    bool include_ros2;
+  };
   uint32_t ret_subscriber_num;
 };
+#pragma GCC diagnostic pop
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_publisher_num_args {
   struct name_info topic_name;
   uint32_t ret_publisher_num;
 };
+#pragma GCC diagnostic pop
 
 struct ioctl_get_exit_process_args
 {
