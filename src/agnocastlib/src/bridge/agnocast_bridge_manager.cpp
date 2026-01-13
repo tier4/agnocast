@@ -258,11 +258,11 @@ void BridgeManager::check_active_bridges()
     if (is_r2a) {
       auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
       count = result.count;
-      reverse_bridge_exist = result.bridge_exist;  // A2R bridge is the reverse of R2A
+      reverse_bridge_exist = result.bridge_exist;
     } else {
       auto result = get_agnocast_publisher_count(std::string(topic_name_view));
       count = result.count;
-      reverse_bridge_exist = result.bridge_exist;  // R2A bridge is the reverse of A2R
+      reverse_bridge_exist = result.bridge_exist;
     }
 
     const int threshold = reverse_bridge_exist ? 1 : 0;
