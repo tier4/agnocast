@@ -8,17 +8,24 @@ namespace agnocast::node_interfaces
 {
 
 NodeTimeSource::NodeTimeSource(
-  rclcpp::Clock::SharedPtr clock, bool use_sim_time,
+  rclcpp::Clock::SharedPtr clock,
   rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics, const rclcpp::QoS & qos)
-: clock_(clock)
+: clock_(clock), node_topics_(node_topics), qos_(qos)
 {
   // TODO(Koichi98): Subscribe to /parameter_events using
   // rclcpp::AsyncParametersClient::on_parameter_event() for dynamic use_sim_time changes
+}
 
-  if (!use_sim_time) {
-    return;
+NodeTimeSource::~NodeTimeSource()
+{
+  if (clock_ && clock_->get_clock_type() == RCL_ROS_TIME) {
+    rcl_clock_t * rcl_clock = clock_->get_clock_handle();
+    [[maybe_unused]] rcl_ret_t ret = rcl_disable_ros_time_override(rcl_clock);
   }
+}
 
+void NodeTimeSource::enable_ros_time()
+{
   if (clock_->get_clock_type() != RCL_ROS_TIME) {
     RCLCPP_WARN(
       rclcpp::get_logger("agnocast"), "use_sim_time is true but clock type is not RCL_ROS_TIME");
@@ -32,17 +39,14 @@ NodeTimeSource::NodeTimeSource(
     return;
   }
 
-  clock_subscription_ = rclcpp::create_subscription<rosgraph_msgs::msg::Clock>(
-    node_topics, "/clock", qos,
-    [this](std::shared_ptr<const rosgraph_msgs::msg::Clock> msg) { clock_callback(msg); });
+  create_clock_subscription();
 }
 
-NodeTimeSource::~NodeTimeSource()
+void NodeTimeSource::create_clock_subscription()
 {
-  if (clock_ && clock_->get_clock_type() == RCL_ROS_TIME) {
-    rcl_clock_t * rcl_clock = clock_->get_clock_handle();
-    [[maybe_unused]] rcl_ret_t ret = rcl_disable_ros_time_override(rcl_clock);
-  }
+  clock_subscription_ = rclcpp::create_subscription<rosgraph_msgs::msg::Clock>(
+    node_topics_, "/clock", qos_,
+    [this](std::shared_ptr<const rosgraph_msgs::msg::Clock> msg) { clock_callback(msg); });
 }
 
 void NodeTimeSource::clock_callback(std::shared_ptr<const rosgraph_msgs::msg::Clock> msg)

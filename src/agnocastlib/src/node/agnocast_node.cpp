@@ -30,7 +30,10 @@ Node::Node(
 
   node_clock_ = std::make_shared<node_interfaces::NodeClock>(RCL_ROS_TIME);
 
-  // Initialize NodeTimeSource for simulation time support
+  node_time_source_ = std::make_shared<node_interfaces::NodeTimeSource>(
+    node_clock_->get_clock(), node_topics_, options.clock_qos());
+
+  // Initialize use_sim_time parameter for simulation time support
   rclcpp::ParameterValue use_sim_time_param;
   const std::string use_sim_time_name = "use_sim_time";
   if (!node_parameters_->has_parameter(use_sim_time_name)) {
@@ -40,12 +43,13 @@ Node::Node(
   } else {
     use_sim_time_param = node_parameters_->get_parameter(use_sim_time_name).get_parameter_value();
   }
-  if (use_sim_time_param.get_type() != rclcpp::PARAMETER_BOOL) {
+  if (use_sim_time_param.get_type() == rclcpp::PARAMETER_BOOL) {
+    if (use_sim_time_param.get<bool>()) {
+      node_time_source_->enable_ros_time();
+    }
+  } else {
     throw std::invalid_argument("Invalid type for parameter 'use_sim_time', should be 'bool'");
   }
-
-  node_time_source_ = std::make_shared<node_interfaces::NodeTimeSource>(
-    node_clock_->get_clock(), use_sim_time_param.get<bool>(), node_topics_, options.clock_qos());
 }
 
 }  // namespace agnocast
