@@ -1,15 +1,13 @@
 #pragma once
 
-#include "agnocast/agnocast_subscription.hpp"
-#include "rclcpp/clock.hpp"
+#include "agnocast/time_source.hpp"
+#include "rclcpp/macros.hpp"
+#include "rclcpp/node_interfaces/node_base_interface.hpp"
+#include "rclcpp/node_interfaces/node_clock_interface.hpp"
+#include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/node_interfaces/node_time_source_interface.hpp"
 #include "rclcpp/qos.hpp"
-
-#include "rosgraph_msgs/msg/clock.hpp"
-
-#include <rcl/time.h>
-
-#include <memory>
+#include "rclcpp/visibility_control.hpp"
 
 namespace agnocast
 {
@@ -19,30 +17,28 @@ class Node;
 namespace agnocast::node_interfaces
 {
 
+/// Implementation of the NodeTimeSource part of the Node API.
 class NodeTimeSource : public rclcpp::node_interfaces::NodeTimeSourceInterface
 {
 public:
   RCLCPP_SMART_PTR_ALIASES_ONLY(NodeTimeSource)
 
   NodeTimeSource(
-    agnocast::Node * node, rclcpp::Clock::SharedPtr clock,
-    const rclcpp::QoS & qos = rclcpp::ClockQoS());
+    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
+    rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters,
+    rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock, agnocast::Node * node,
+    const rclcpp::QoS & qos = rclcpp::ClockQoS(), bool use_clock_thread = true);
 
-  ~NodeTimeSource() override;
-
-  NodeTimeSource(const NodeTimeSource &) = delete;
-  NodeTimeSource & operator=(const NodeTimeSource &) = delete;
-
-  void enable_ros_time();
+  virtual ~NodeTimeSource();
 
 private:
-  void create_clock_subscription();
-  void clock_callback(agnocast::ipc_shared_ptr<const rosgraph_msgs::msg::Clock> msg);
+  RCLCPP_DISABLE_COPY(NodeTimeSource)
 
-  agnocast::Node * node_;
-  rclcpp::Clock::SharedPtr clock_;
-  rclcpp::QoS qos_;
-  agnocast::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
+  rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock_;
+
+  agnocast::TimeSource time_source_;
 };
 
 }  // namespace agnocast::node_interfaces
