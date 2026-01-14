@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/time_source.hpp"
+#include "agnocast/node/time_source.hpp"
 #include "rclcpp/macros.hpp"
 #include "rclcpp/node_interfaces/node_base_interface.hpp"
 #include "rclcpp/node_interfaces/node_clock_interface.hpp"
