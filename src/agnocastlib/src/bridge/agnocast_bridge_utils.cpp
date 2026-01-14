@@ -69,4 +69,34 @@ PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name
   return {static_cast<int>(args.ret_publisher_num), args.ret_bridge_exist};
 }
 
+bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name)
+{
+  if (!node) return false;
+
+  std::string self_name = node->get_name();
+
+  auto publishers = node->get_publishers_info_by_topic(topic_name);
+  for (const auto & info : publishers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string & topic_name)
+{
+  if (!node) return false;
+
+  std::string self_name = node->get_name();
+
+  auto subscribers = node->get_subscriptions_info_by_topic(topic_name);
+  for (const auto & info : subscribers) {
+    if (info.node_name() != self_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace agnocast
