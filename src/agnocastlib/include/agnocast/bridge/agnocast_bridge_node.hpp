@@ -99,7 +99,6 @@ public:
     agnocast_pub_ = std::make_shared<AgnoPub>(
       parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(),
       agnocast::PublisherOptions{});
-
     ros_cb_group_ = parent_node->create_callback_group(rclcpp::CallbackGroupType::Reentrant, false);
 
     rclcpp::SubscriptionOptions ros_opts;
