@@ -40,8 +40,14 @@ const std::string use_sim_time_name = "use_sim_time";
 class TimeSource::NodeState final
 {
 public:
-  NodeState(agnocast::Node * node, const rclcpp::QoS & qos);
+  explicit NodeState(const rclcpp::QoS & qos);
   ~NodeState();
+
+  // Attach a node to this time source
+  void attachNode(agnocast::Node * node);
+
+  // Detach the attached node
+  void detachNode();
 
   void attachClock(rclcpp::Clock::SharedPtr clock);
 
@@ -61,7 +67,7 @@ private:
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
 
   // Agnocast node for creating subscriptions
-  agnocast::Node * agnocast_node_;
+  agnocast::Node * agnocast_node_{nullptr};
 
   // QoS of the clock subscription
   rclcpp::QoS qos_;
@@ -102,12 +108,23 @@ private:
   void clock_cb(const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg);
 };
 
-TimeSource::NodeState::NodeState(agnocast::Node * node, const rclcpp::QoS & qos)
-: node_base_(node->get_node_base_interface()),
-  node_parameters_(node->get_node_parameters_interface()),
-  agnocast_node_(node),
-  qos_(qos)
+TimeSource::NodeState::NodeState(const rclcpp::QoS & qos) : qos_(qos)
 {
+}
+
+TimeSource::NodeState::~NodeState()
+{
+  if (node_base_ || node_parameters_) {
+    detachNode();
+  }
+}
+
+void TimeSource::NodeState::attachNode(agnocast::Node * node)
+{
+  node_base_ = node->get_node_base_interface();
+  node_parameters_ = node->get_node_parameters_interface();
+  agnocast_node_ = node;
+
   // Though this defaults to false, it can be overridden by initial parameter values for the
   // node, which may be given by the user at the node's construction or even by command-line
   // arguments.
@@ -131,7 +148,7 @@ TimeSource::NodeState::NodeState(agnocast::Node * node, const rclcpp::QoS & qos)
   // rclcpp::AsyncParametersClient::on_parameter_event
 }
 
-TimeSource::NodeState::~NodeState()
+void TimeSource::NodeState::detachNode()
 {
   // destroy_clock_sub() *must* be first here, to ensure that the executor
   // can't possibly call any of the callbacks as we are cleaning up.
@@ -140,6 +157,7 @@ TimeSource::NodeState::~NodeState()
   // TODO(Koichi98): Add parameter_subscription_.reset()
   node_base_.reset();
   node_parameters_.reset();
+  agnocast_node_ = nullptr;
 }
 
 void TimeSource::NodeState::attachClock(rclcpp::Clock::SharedPtr clock)
@@ -253,64 +271,46 @@ void TimeSource::NodeState::clock_cb(
   const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg)
 {
   if (!ros_time_active_) {
-    ros_time_active_ = true;
+    enable_ros_time();
   }
-  // TODO(Koichi98): Cache the last message in case a new clock is attached
-  // clocks_state_.cache_last_msg(msg);
+  // Cache the last message in case a new clock is attached.
+  // TODO(Koichi98): last_msg_set_ = msg;
+
   set_clock(msg->clock, true);
 }
 
 // TimeSource implementation
 
-TimeSource::TimeSource(agnocast::Node * node, const rclcpp::QoS & qos)
-: node_state_(std::make_shared<NodeState>(node, qos)), constructed_qos_(qos)
+TimeSource::TimeSource(agnocast::Node * node, const rclcpp::QoS & qos) : TimeSource(qos)
 {
+  attachNode(node);
 }
 
-TimeSource::TimeSource(const rclcpp::QoS & qos) : node_state_(nullptr), constructed_qos_(qos)
+TimeSource::TimeSource(const rclcpp::QoS & qos) : constructed_qos_(qos)
 {
+  node_state_ = std::make_shared<NodeState>(qos);
 }
 
 TimeSource::~TimeSource() = default;
 
 void TimeSource::attachNode(agnocast::Node * node)
 {
-  if (node_state_) {
-    detachNode();
-  }
-  node_state_ = std::make_shared<NodeState>(node, constructed_qos_);
-}
-
-void TimeSource::attachNode(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_interface,
-  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_interface,
-  agnocast::Node * node)
-{
-  // Note: node_base_interface and node_parameters_interface are unused
-  // because agnocast::Node is always required and interfaces are obtained from it.
-  (void)node_base_interface;
-  (void)node_parameters_interface;
-  attachNode(node);
+  node_state_->attachNode(node);
 }
 
 void TimeSource::detachNode()
 {
-  node_state_.reset();
+  node_state_->detachNode();
 }
 
 void TimeSource::attachClock(rclcpp::Clock::SharedPtr clock)
 {
-  if (!node_state_) {
-    throw std::runtime_error("Cannot attach clock without a node");
-  }
   node_state_->attachClock(std::move(clock));
 }
 
 void TimeSource::detachClock(rclcpp::Clock::SharedPtr clock)
 {
-  if (node_state_) {
-    node_state_->detachClock(std::move(clock));
-  }
+  node_state_->detachClock(std::move(clock));
 }
 
 }  // namespace agnocast

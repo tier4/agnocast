@@ -2,8 +2,6 @@
 
 #include "rclcpp/clock.hpp"
 #include "rclcpp/macros.hpp"
-#include "rclcpp/node_interfaces/node_base_interface.hpp"
-#include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/qos.hpp"
 
 #include <memory>
@@ -26,11 +24,6 @@ public:
   TimeSource & operator=(TimeSource &&) = default;
 
   void attachNode(agnocast::Node * node);
-
-  void attachNode(
-    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_interface,
-    rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_interface,
-    agnocast::Node * node);
 
   void detachNode();
 
