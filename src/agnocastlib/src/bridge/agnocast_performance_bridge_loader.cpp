@@ -23,7 +23,7 @@ PerformanceBridgeLoader::~PerformanceBridgeLoader()
   loaded_libraries_.clear();
 }
 
-PerformanceBridgePair PerformanceBridgeLoader::create_r2a_bridge(
+PerformanceBridgeResult PerformanceBridgeLoader::create_r2a_bridge(
   rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
   const rclcpp::QoS & qos)
 {
@@ -39,7 +39,7 @@ PerformanceBridgePair PerformanceBridgeLoader::create_r2a_bridge(
   return factory(std::move(node), topic_name, qos);
 }
 
-PerformanceBridgePair PerformanceBridgeLoader::create_a2r_bridge(
+PerformanceBridgeResult PerformanceBridgeLoader::create_a2r_bridge(
   rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
   const rclcpp::QoS & qos)
 {

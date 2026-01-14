@@ -16,8 +16,6 @@ public:
   virtual rclcpp::CallbackGroup::SharedPtr get_callback_group() const = 0;
 };
 
-using PerformanceBridgePair = std::pair<std::shared_ptr<void>, rclcpp::CallbackGroup::SharedPtr>;
-
 struct SubscriberCountResult
 {
   int count;          // -1 on error
