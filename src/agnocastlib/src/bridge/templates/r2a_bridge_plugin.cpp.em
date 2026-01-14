@@ -22,7 +22,7 @@ extern "C" agnocast::PerformanceBridgePair @(function_name)(
     rclcpp::QoS(agnocast::DEFAULT_QOS_DEPTH).transient_local(),
     agnocast::PublisherOptions{});
 
-  auto ros_cb_group = node->create_callback_group(rclcpp::CallbackGroupType::Reentrant, false);
+  auto ros_cb_group = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 
   rclcpp::SubscriptionOptions ros_opts;
   ros_opts.ignore_local_publications = true;

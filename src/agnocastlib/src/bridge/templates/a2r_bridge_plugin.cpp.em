@@ -17,7 +17,7 @@ extern "C" agnocast::PerformanceBridgePair @(function_name)(
   auto ros_pub = node->create_publisher<@(cpp_type)>(
     topic_name, rclcpp::QoS(agnocast::DEFAULT_QOS_DEPTH).reliable().transient_local());
 
-  auto cb_group = node->create_callback_group(rclcpp::CallbackGroupType::Reentrant, false);
+  auto cb_group = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 
   auto agno_callback = [ros_pub](const agnocast::ipc_shared_ptr<@(cpp_type)> msg) {
     auto loaned_msg = ros_pub->borrow_loaned_message();
