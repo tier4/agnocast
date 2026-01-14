@@ -41,10 +41,6 @@ class TimeSource::NodeState final
 {
 public:
   NodeState(agnocast::Node * node, const rclcpp::QoS & qos);
-  NodeState(
-    rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_interface,
-    rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_interface,
-    agnocast::Node * node, const rclcpp::QoS & qos);
   ~NodeState();
 
   void attachClock(rclcpp::Clock::SharedPtr clock);
@@ -91,8 +87,10 @@ private:
   // An internal method to use in the clock callback that disables ros time
   void disable_ros_time();
 
-  // Internal helper function to set clock time
-  void set_clock(const builtin_interfaces::msg::Time & msg_time);
+  // Internal helper function used inside iterators
+  // Note: In rclcpp, this is ClocksState::set_clock() which handles both
+  // enabling/disabling ros time override and setting the time value.
+  void set_clock(const builtin_interfaces::msg::Time & msg, bool set_ros_time_enabled);
 
   // Create the subscription for the clock topic
   void create_clock_sub();
@@ -105,16 +103,8 @@ private:
 };
 
 TimeSource::NodeState::NodeState(agnocast::Node * node, const rclcpp::QoS & qos)
-: NodeState(node->get_node_base_interface(), node->get_node_parameters_interface(), node, qos)
-{
-}
-
-TimeSource::NodeState::NodeState(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_interface,
-  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_interface,
-  agnocast::Node * node, const rclcpp::QoS & qos)
-: node_base_(std::move(node_base_interface)),
-  node_parameters_(std::move(node_parameters_interface)),
+: node_base_(node->get_node_base_interface()),
+  node_parameters_(node->get_node_parameters_interface()),
   agnocast_node_(node),
   qos_(qos)
 {
@@ -177,38 +167,60 @@ void TimeSource::NodeState::detachClock(rclcpp::Clock::SharedPtr clock)
 
 void TimeSource::NodeState::enable_ros_time()
 {
-  ros_time_active_ = true;
-  if (clock_) {
-    auto clock_handle = clock_->get_clock_handle();
-    rcl_ret_t ret = rcl_enable_ros_time_override(clock_handle);
-    if (ret != RCL_RET_OK) {
-      throw std::runtime_error("Failed to enable ros_time_override: " + std::to_string(ret));
-    }
+  if (ros_time_active_) {
+    // already enabled no-op
+    return;
   }
+
+  // Local storage
+  ros_time_active_ = true;
+
+  // Update the attached clock to zero or last recorded time
+  // TODO(Koichi98): Use last_msg_set_ for cached time
+  builtin_interfaces::msg::Time time_msg;
+  set_clock(time_msg, true);
 }
 
 void TimeSource::NodeState::disable_ros_time()
 {
-  ros_time_active_ = false;
-  if (clock_) {
-    auto clock_handle = clock_->get_clock_handle();
-    rcl_ret_t ret = rcl_disable_ros_time_override(clock_handle);
-    if (ret != RCL_RET_OK) {
-      throw std::runtime_error("Failed to disable ros_time_override: " + std::to_string(ret));
-    }
+  if (!ros_time_active_) {
+    // already disabled no-op
+    return;
   }
+
+  // Local storage
+  ros_time_active_ = false;
+
+  // Update the attached clock
+  builtin_interfaces::msg::Time time_msg;
+  set_clock(time_msg, false);
 }
 
-void TimeSource::NodeState::set_clock(const builtin_interfaces::msg::Time & msg_time)
+void TimeSource::NodeState::set_clock(
+  const builtin_interfaces::msg::Time & msg, bool set_ros_time_enabled)
 {
   if (!clock_) {
     return;
   }
 
-  auto clock_handle = clock_->get_clock_handle();
+  // TODO(Koichi98): Add std::lock_guard<std::mutex> clock_guard(clock->get_clock_mutex())
+
+  // Do change
+  if (!set_ros_time_enabled && clock_->ros_time_is_active()) {
+    auto ret = rcl_disable_ros_time_override(clock_->get_clock_handle());
+    if (ret != RCL_RET_OK) {
+      throw std::runtime_error("Failed to disable ros_time_override: " + std::to_string(ret));
+    }
+  } else if (set_ros_time_enabled && !clock_->ros_time_is_active()) {
+    auto ret = rcl_enable_ros_time_override(clock_->get_clock_handle());
+    if (ret != RCL_RET_OK) {
+      throw std::runtime_error("Failed to enable ros_time_override: " + std::to_string(ret));
+    }
+  }
+
   rcl_time_point_value_t time_point =
-    static_cast<rcl_time_point_value_t>(RCL_S_TO_NS(msg_time.sec)) + msg_time.nanosec;
-  rcl_ret_t ret = rcl_set_ros_time_override(clock_handle, time_point);
+    static_cast<rcl_time_point_value_t>(RCL_S_TO_NS(msg.sec)) + msg.nanosec;
+  auto ret = rcl_set_ros_time_override(clock_->get_clock_handle(), time_point);
   if (ret != RCL_RET_OK) {
     throw std::runtime_error("Failed to set ros_time_override: " + std::to_string(ret));
   }
@@ -241,11 +253,11 @@ void TimeSource::NodeState::clock_cb(
   const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg)
 {
   if (!ros_time_active_) {
-    enable_ros_time();
+    ros_time_active_ = true;
   }
   // TODO(Koichi98): Cache the last message in case a new clock is attached
   // clocks_state_.cache_last_msg(msg);
-  set_clock(msg->clock);
+  set_clock(msg->clock, true);
 }
 
 // TimeSource implementation
@@ -263,7 +275,10 @@ TimeSource::~TimeSource() = default;
 
 void TimeSource::attachNode(agnocast::Node * node)
 {
-  attachNode(node->get_node_base_interface(), node->get_node_parameters_interface(), node);
+  if (node_state_) {
+    detachNode();
+  }
+  node_state_ = std::make_shared<NodeState>(node, constructed_qos_);
 }
 
 void TimeSource::attachNode(
@@ -271,11 +286,11 @@ void TimeSource::attachNode(
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_interface,
   agnocast::Node * node)
 {
-  if (node_state_) {
-    detachNode();
-  }
-  node_state_ = std::make_shared<NodeState>(
-    node_base_interface, node_parameters_interface, node, constructed_qos_);
+  // Note: node_base_interface and node_parameters_interface are unused
+  // because agnocast::Node is always required and interfaces are obtained from it.
+  (void)node_base_interface;
+  (void)node_parameters_interface;
+  attachNode(node);
 }
 
 void TimeSource::detachNode()
