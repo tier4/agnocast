@@ -71,7 +71,7 @@ PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name
 
 bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name)
 {
-  if (!node) {
+  if (node == nullptr) {
     return false;
   }
 
@@ -85,7 +85,7 @@ bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & 
 
 bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string & topic_name)
 {
-  if (!node) {
+  if (node == nullptr) {
     return false;
   }
 
