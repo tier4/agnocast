@@ -1,17 +1,3 @@
-// Copyright 2017 Open Source Robotics Foundation, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 #include "agnocast/node/time_source.hpp"
 
 #include "agnocast/bridge/agnocast_bridge_node.hpp"
@@ -31,7 +17,25 @@ namespace agnocast
 const std::string use_sim_time_name = "use_sim_time";
 
 // TODO(Koichi98): Add ClocksState class for multiple clock support
-// ClocksState will manage a vector of clocks and cache the last received message
+// class ClocksState final
+// {
+// public:
+//   void enable_ros_time();
+//   void disable_ros_time();
+//   bool is_ros_time_active() const;
+//   void attachClock(rclcpp::Clock::SharedPtr clock);
+//   void detachClock(rclcpp::Clock::SharedPtr clock);
+//   static void set_clock(const builtin_interfaces::msg::Time::SharedPtr msg,
+//                         bool set_ros_time_enabled, rclcpp::Clock::SharedPtr clock);
+//   void set_all_clocks(const builtin_interfaces::msg::Time::SharedPtr msg, bool
+//   set_ros_time_enabled); void cache_last_msg(std::shared_ptr<const rosgraph_msgs::msg::Clock>
+//   msg);
+// private:
+//   std::mutex clock_list_lock_;
+//   std::vector<rclcpp::Clock::SharedPtr> associated_clocks_;
+//   bool ros_time_active_{false};
+//   std::shared_ptr<const rosgraph_msgs::msg::Clock> last_msg_set_;
+// };
 
 class TimeSource::NodeState final
 {
@@ -43,43 +47,32 @@ public:
     agnocast::Node * node, const rclcpp::QoS & qos);
   ~NodeState();
 
-  // Attach a clock to be controlled by this TimeSource
   void attachClock(rclcpp::Clock::SharedPtr clock);
 
-  // Detach the clock from this TimeSource
   void detachClock(rclcpp::Clock::SharedPtr clock);
 
 private:
-  // Enable ros time for the attached clock
-  void enable_ros_time();
+  // TODO(Koichi98): Replace with ClocksState for multiple clock support
+  // ClocksState clocks_state_;
 
-  // Disable ros time for the attached clock
-  void disable_ros_time();
+  // TODO(Koichi98): Add dedicated thread for clock subscription
+  // bool use_clock_thread_;
+  // std::thread clock_executor_thread_;
 
-  // Set ros time for the attached clock
-  void set_clock(const builtin_interfaces::msg::Time & msg_time);
-
-  // Create clock subscription
-  void create_clock_subscription();
-
-  // Destroy clock subscription
-  void destroy_clock_subscription();
-
-  // Callback for clock subscription
-  void clock_cb(const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg);
-
-  // Node interfaces
+  // Preserve the node reference
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
+  // TODO(Koichi98): Add node_topics_, node_graph_, node_services_, node_logging_, node_clock_
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
 
   // Agnocast node for creating subscriptions
   agnocast::Node * agnocast_node_;
 
-  // QoS for clock subscription
+  // QoS of the clock subscription
   rclcpp::QoS qos_;
 
-  // Clock subscription
+  // The subscription for the clock callback
   agnocast::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
+  // TODO(Koichi98): Add clock_sub_lock_, clock_callback_group_, clock_executor_
 
   // TODO(Koichi98): Replace with ClocksState for multiple clock support
   // Attached clock (single clock for minimal version)
@@ -88,8 +81,27 @@ private:
   // Whether ros time is active
   bool ros_time_active_{false};
 
-  // TODO(Koichi98): Add use_clock_thread_ and clock_executor_thread_ for dedicated thread
-  // TODO(Koichi98): Add last_msg_set_ and last_msg_set_cv_ for message caching
+  // TODO(Koichi98): Add parameter_subscription_ for runtime parameter changes
+  // using ParamSubscriptionT = rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>;
+  // std::shared_ptr<ParamSubscriptionT> parameter_subscription_;
+
+  // An internal method to use in the clock callback that enables ros time
+  void enable_ros_time();
+
+  // An internal method to use in the clock callback that disables ros time
+  void disable_ros_time();
+
+  // Internal helper function to set clock time
+  void set_clock(const builtin_interfaces::msg::Time & msg_time);
+
+  // Create the subscription for the clock topic
+  void create_clock_sub();
+
+  // Destroy the subscription for the clock topic
+  void destroy_clock_sub();
+
+  // The clock callback itself
+  void clock_cb(const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg);
 };
 
 TimeSource::NodeState::NodeState(agnocast::Node * node, const rclcpp::QoS & qos)
@@ -106,21 +118,38 @@ TimeSource::NodeState::NodeState(
   agnocast_node_(node),
   qos_(qos)
 {
-  // Check and handle use_sim_time parameter
-  rclcpp::Parameter use_sim_time_param;
-  if (node_parameters_->get_parameter(use_sim_time_name, use_sim_time_param)) {
-    if (use_sim_time_param.get_value<bool>()) {
-      create_clock_subscription();
-    }
+  // Though this defaults to false, it can be overridden by initial parameter values for the
+  // node, which may be given by the user at the node's construction or even by command-line
+  // arguments.
+  rclcpp::ParameterValue use_sim_time_param;
+  if (!node_parameters_->has_parameter(use_sim_time_name)) {
+    use_sim_time_param =
+      node_parameters_->declare_parameter(use_sim_time_name, rclcpp::ParameterValue(false));
+  } else {
+    use_sim_time_param = node_parameters_->get_parameter(use_sim_time_name).get_parameter_value();
   }
+  if (use_sim_time_param.get_type() == rclcpp::PARAMETER_BOOL) {
+    if (use_sim_time_param.get<bool>()) {
+      enable_ros_time();
+      create_clock_sub();
+    }
+  } else {
+    throw std::invalid_argument("Invalid type for parameter 'use_sim_time', should be 'bool'");
+  }
+
+  // TODO(Koichi98): Add parameter event subscription using
+  // rclcpp::AsyncParametersClient::on_parameter_event
 }
 
 TimeSource::NodeState::~NodeState()
 {
-  destroy_clock_subscription();
-  if (clock_) {
-    disable_ros_time();
-  }
+  // destroy_clock_sub() *must* be first here, to ensure that the executor
+  // can't possibly call any of the callbacks as we are cleaning up.
+  destroy_clock_sub();
+  disable_ros_time();
+  // TODO(Koichi98): Add parameter_subscription_.reset()
+  node_base_.reset();
+  node_parameters_.reset();
 }
 
 void TimeSource::NodeState::attachClock(rclcpp::Clock::SharedPtr clock)
@@ -185,22 +214,27 @@ void TimeSource::NodeState::set_clock(const builtin_interfaces::msg::Time & msg_
   }
 }
 
-void TimeSource::NodeState::create_clock_subscription()
+void TimeSource::NodeState::create_clock_sub()
 {
-  // TODO(Koichi98): Add QoS override support using rclcpp::detail::declare_qos_parameters
+  if (clock_subscription_) {
+    // Subscription already created.
+    return;
+  }
+
+  // TODO(Koichi98): Add QoS override support using
+  // rclcpp::SubscriptionOptions::qos_overriding_options
+  // TODO(Koichi98): Add clock thread support (use_clock_thread_, clock_callback_group_,
+  // clock_executor_)
+
   clock_subscription_ = agnocast_node_->create_subscription<rosgraph_msgs::msg::Clock>(
     "/clock", qos_,
     [this](const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg) { clock_cb(msg); });
-
-  enable_ros_time();
 }
 
-void TimeSource::NodeState::destroy_clock_subscription()
+void TimeSource::NodeState::destroy_clock_sub()
 {
-  if (clock_subscription_) {
-    clock_subscription_.reset();
-    disable_ros_time();
-  }
+  // TODO(Koichi98): Add clock thread cleanup (clock_executor_thread_.join(), etc.)
+  clock_subscription_.reset();
 }
 
 void TimeSource::NodeState::clock_cb(
@@ -209,7 +243,8 @@ void TimeSource::NodeState::clock_cb(
   if (!ros_time_active_) {
     enable_ros_time();
   }
-  // TODO(Koichi98): Cache the message for newly attached clocks
+  // TODO(Koichi98): Cache the last message in case a new clock is attached
+  // clocks_state_.cache_last_msg(msg);
   set_clock(msg->clock);
 }
 
