@@ -36,6 +36,7 @@ public:
    *
    * \param qos QoS that will be used when creating a `/clock` subscription.
    */
+  // TODO(Koichi98): Add use_clock_thread parameter (PR4)
   explicit TimeSource(const rclcpp::QoS & qos = rclcpp::ClockQoS());
 
   // The TimeSource is uncopyable
@@ -80,6 +81,10 @@ public:
   /// Detach a clock from the time source
   void detachClock(rclcpp::Clock::SharedPtr clock);
 
+  // TODO(Koichi98): Add get_use_clock_thread() (PR4)
+  // TODO(Koichi98): Add set_use_clock_thread(bool use_clock_thread) (PR4)
+  // TODO(Koichi98): Add clock_thread_is_joinable() (PR4)
+
   /// TimeSource Destructor
   ~TimeSource();
 
@@ -88,6 +93,7 @@ private:
   std::shared_ptr<NodeState> node_state_;
 
   // Preserve the arguments received by the constructor for reuse at runtime
+  // TODO(Koichi98): Add constructed_use_clock_thread_ member (PR4)
   rclcpp::QoS constructed_qos_;
 };
 
