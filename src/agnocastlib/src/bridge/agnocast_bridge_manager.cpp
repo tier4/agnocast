@@ -87,11 +87,6 @@ void BridgeManager::start_ros_execution()
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
 
-  wakeup_timer_ = container_node_->create_wall_timer(
-    WAKEUP_IMMEDIATE_INTERVAL, [this]() { this->wakeup_timer_->cancel(); });
-
-  wakeup_timer_->cancel();
-
   executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
   executor_->add_node(container_node_);
 
