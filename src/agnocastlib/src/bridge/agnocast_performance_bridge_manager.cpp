@@ -74,37 +74,10 @@ void PerformanceBridgeManager::run()
   }
 }
 
-/**
- * When a new bridge (Subscriber) is created dynamically, the Executor's active WaitSet
- * does not yet include the new entity. If the Executor is waiting, it will
- * simply ignore the new bridge. We must strictly force the Executor to wake up and
- * rebuild the WaitSet to recognize the new Subscriber immediately.
- *
- * In the standard rclcpp::Executor implementation, `get_next_executable()` only checks
- * the following five types as "valid executables":
- * 1. Timer, 2. Subscription, 3. Service, 4. Client, 5. Waitable.
- *
- * `GuardCondition` (triggers) are NOT included in this check. Therefore, even if a trigger wakes
- * the Executor from `wait_for_work()`, the subsequent call to `get_next_executable()` returns
- * `false`. Consequently, within the spin loop, the flow hits a `continue` statement, skipping the
- * `execute_any_executable` and immediately returning to the wait state:
- *
- * if (!get_next_executable(...)) {
- * continue; // <--- Triggers cause the loop to enter here, skipping necessary Discovery processing.
- * }
- *
- * By activating this timer specifically upon bridge creation, we ensure that
- * `get_next_executable()` returns `true`. This allows the loop to bypass the `continue` and
- * guarantees that `execute_any_executable()` is run.
- */
 void PerformanceBridgeManager::start_ros_execution()
 {
   std::string node_name = "agnocast_bridge_node_" + std::to_string(getpid());
   container_node_ = std::make_shared<rclcpp::Node>(node_name);
-
-  wakeup_timer_ = container_node_->create_wall_timer(
-    WAKEUP_IMMEDIATE_INTERVAL, [this]() { this->wakeup_timer_->cancel(); });
-  wakeup_timer_->cancel();
 
   // TODO(yutarokobayashi): Select executor type based on config
   executor_ = std::make_shared<agnocast::MultiThreadedAgnocastExecutor>();
@@ -153,7 +126,6 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
     if (bridge) {
       active_r2a_bridges_[topic_name] = bridge;
-      wakeup_timer_->reset();
       // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "Activated R2A Bridge. Total active: %zu", active_r2a_bridges_.size());
     } else {
@@ -171,7 +143,6 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
     if (bridge) {
       active_a2r_bridges_[topic_name] = bridge;
-      wakeup_timer_->reset();
       // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(logger_, "Activated A2R Bridge. Total active: %zu", active_a2r_bridges_.size());
     } else {

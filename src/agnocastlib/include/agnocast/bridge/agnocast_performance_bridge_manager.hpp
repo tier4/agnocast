@@ -30,7 +30,6 @@ private:
   std::shared_ptr<rclcpp::Node> container_node_;
   std::shared_ptr<agnocast::MultiThreadedAgnocastExecutor> executor_;
   std::thread executor_thread_;
-  rclcpp::TimerBase::SharedPtr wakeup_timer_;
 
   bool shutdown_requested_ = false;
 

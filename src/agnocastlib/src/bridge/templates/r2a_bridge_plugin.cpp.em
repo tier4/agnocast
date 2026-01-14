@@ -20,11 +20,8 @@ extern "C" rclcpp::SubscriptionBase::SharedPtr @(function_name)(
     rclcpp::QoS(agnocast::DEFAULT_QOS_DEPTH).transient_local(),
     agnocast::PublisherOptions{});
 
-  auto ros_cb_group = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-
   rclcpp::SubscriptionOptions ros_opts;
   ros_opts.ignore_local_publications = true;
-  ros_opts.callback_group = ros_cb_group;
 
   auto ros_sub = node->create_subscription<@(cpp_type)>(
     topic_name,
