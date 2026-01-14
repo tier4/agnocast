@@ -30,8 +30,8 @@ namespace agnocast
 
 const std::string use_sim_time_name = "use_sim_time";
 
-// TODO(Koichi98): Add ClocksState class for multiple clock support (PR2)
-// ClocksState will manage a vector of clocks and cache the last received message (PR3)
+// TODO(Koichi98): Add ClocksState class for multiple clock support
+// ClocksState will manage a vector of clocks and cache the last received message
 
 class TimeSource::NodeState final
 {
@@ -81,15 +81,15 @@ private:
   // Clock subscription
   agnocast::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
 
-  // TODO(Koichi98): Replace with ClocksState for multiple clock support (PR2)
+  // TODO(Koichi98): Replace with ClocksState for multiple clock support
   // Attached clock (single clock for minimal version)
   rclcpp::Clock::SharedPtr clock_;
 
   // Whether ros time is active
   bool ros_time_active_{false};
 
-  // TODO(Koichi98): Add use_clock_thread_ and clock_executor_thread_ for dedicated thread (PR4)
-  // TODO(Koichi98): Add last_msg_set_ and last_msg_set_cv_ for message caching (PR3)
+  // TODO(Koichi98): Add use_clock_thread_ and clock_executor_thread_ for dedicated thread
+  // TODO(Koichi98): Add last_msg_set_ and last_msg_set_cv_ for message caching
 };
 
 TimeSource::NodeState::NodeState(agnocast::Node * node, const rclcpp::QoS & qos)
@@ -129,12 +129,12 @@ void TimeSource::NodeState::attachClock(rclcpp::Clock::SharedPtr clock)
     throw std::invalid_argument("Cannot attach a clock that is not ROS_TIME");
   }
 
-  // TODO(Koichi98): Use ClocksState to manage multiple clocks (PR2)
+  // TODO(Koichi98): Use ClocksState to manage multiple clocks
   clock_ = std::move(clock);
 
   if (ros_time_active_) {
     enable_ros_time();
-    // TODO(Koichi98): Send cached last message to newly attached clock (PR3)
+    // TODO(Koichi98): Send cached last message to newly attached clock
   }
 }
 
@@ -187,7 +187,7 @@ void TimeSource::NodeState::set_clock(const builtin_interfaces::msg::Time & msg_
 
 void TimeSource::NodeState::create_clock_subscription()
 {
-  // TODO(Koichi98): Add QoS override support using rclcpp::detail::declare_qos_parameters (PR5)
+  // TODO(Koichi98): Add QoS override support using rclcpp::detail::declare_qos_parameters
   clock_subscription_ = agnocast_node_->create_subscription<rosgraph_msgs::msg::Clock>(
     "/clock", qos_,
     [this](const agnocast::ipc_shared_ptr<rosgraph_msgs::msg::Clock> & msg) { clock_cb(msg); });
@@ -209,7 +209,7 @@ void TimeSource::NodeState::clock_cb(
   if (!ros_time_active_) {
     enable_ros_time();
   }
-  // TODO(Koichi98): Cache the message for newly attached clocks (PR3)
+  // TODO(Koichi98): Cache the message for newly attached clocks
   set_clock(msg->clock);
 }
 
