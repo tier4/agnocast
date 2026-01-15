@@ -83,7 +83,7 @@ void NodeTimeSource::attachClock(rclcpp::Clock::SharedPtr clock)
 
   clock_ = std::move(clock);
 
-  // TODO(Koichi98):Set the clock to zero unless there's a recently received message
+  // TODO(Koichi98): Set the clock to zero unless there's a recently received message
 
   builtin_interfaces::msg::Time time_msg;
   set_clock(time_msg, ros_time_active_);
