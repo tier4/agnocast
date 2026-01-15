@@ -194,8 +194,6 @@ public:
     agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions())
   : SubscriptionBase(node, topic_name)
   {
-    constructor_impl(node, qos, options);
-
     {
       auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
         rclcpp::CallbackGroupType::MutuallyExclusive, false);
@@ -208,6 +206,8 @@ public:
         static_cast<const void *>(&dummy_cb), static_cast<const void *>(dummy_cbg.get()),
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
+
+    constructor_impl(node, qos, options);
   }
 
   BasicTakeSubscription(
