@@ -305,6 +305,21 @@ public:
     }
   }
 
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const size_t qos_history_depth)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+  }
+
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos);
+  }
+
 private:
   // ParsedArguments must be stored to keep rcl_arguments_t alive
   ParsedArguments local_args_;
