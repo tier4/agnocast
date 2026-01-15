@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 namespace agnocast
 {
@@ -77,13 +78,79 @@ uint32_t register_timer(
       now + period,  // next_call_time
       period,
       callback_group,
-      true  // need_epoll_update
+      true,  // need_epoll_update
+      false  // is_canceled
     };
   }
 
   need_epoll_updates.store(true);
 
   return timer_id;
+}
+
+void cancel_timer(uint32_t timer_id)
+{
+  std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  auto it = id2_timer_info.find(timer_id);
+  if (it == id2_timer_info.end()) {
+    throw std::out_of_range("Timer ID not found: " + std::to_string(timer_id));
+  }
+
+  TimerInfo & info = it->second;
+  if (info.is_canceled) {
+    return;  // Already canceled
+  }
+
+  // Disarm the timer by setting interval to zero
+  struct itimerspec spec = {};
+  if (timerfd_settime(info.timer_fd, 0, &spec, nullptr) == -1) {
+    throw std::runtime_error(std::string("timerfd_settime failed in cancel: ") + std::strerror(errno));
+  }
+
+  info.is_canceled = true;
+}
+
+void reset_timer(uint32_t timer_id)
+{
+  std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  auto it = id2_timer_info.find(timer_id);
+  if (it == id2_timer_info.end()) {
+    throw std::out_of_range("Timer ID not found: " + std::to_string(timer_id));
+  }
+
+  TimerInfo & info = it->second;
+
+  // Re-arm the timer with the original period
+  struct itimerspec spec = {};
+  const auto period_count = info.period.count();
+  spec.it_interval.tv_sec = period_count / 1000000000;
+  spec.it_interval.tv_nsec = period_count % 1000000000;
+  spec.it_value = spec.it_interval;
+
+  if (timerfd_settime(info.timer_fd, 0, &spec, nullptr) == -1) {
+    throw std::runtime_error(std::string("timerfd_settime failed in reset: ") + std::strerror(errno));
+  }
+
+  info.is_canceled = false;
+  info.next_call_time = std::chrono::steady_clock::now() + info.period;
+}
+
+void remove_timer(uint32_t timer_id)
+{
+  std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  auto it = id2_timer_info.find(timer_id);
+  if (it == id2_timer_info.end()) {
+    throw std::out_of_range("Timer ID not found: " + std::to_string(timer_id));
+  }
+
+  // Close the timer fd
+  close(it->second.timer_fd);
+
+  // Remove from map
+  id2_timer_info.erase(it);
+
+  // Signal that epoll needs to be updated (to remove the fd)
+  need_epoll_updates.store(true);
 }
 
 }  // namespace agnocast

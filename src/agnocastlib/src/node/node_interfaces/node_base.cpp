@@ -90,6 +90,12 @@ NodeBase::NodeBase(
   default_callback_group_ =
     std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
   callback_groups_.push_back(default_callback_group_);
+
+  // Initialize guard condition if we have a valid context
+  if (context_ && context_->is_valid()) {
+    notify_guard_condition_.emplace(context_);
+    notify_guard_condition_is_valid_ = true;
+  }
 }
 
 const char * NodeBase::get_name() const
@@ -187,7 +193,13 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
-  throw std::runtime_error("notify_guard_condition is not available in agnocast::Node.");
+  std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
+  if (!notify_guard_condition_is_valid_ || !notify_guard_condition_.has_value()) {
+    throw std::runtime_error(
+      "notify_guard_condition is not available. "
+      "This may occur if the node was created without a valid rclcpp context.");
+  }
+  return notify_guard_condition_.value();
 }
 
 bool NodeBase::get_use_intra_process_default() const

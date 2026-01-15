@@ -25,6 +25,8 @@ Node::Node(
 
   node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
 
+  node_timers_ = std::make_shared<node_interfaces::NodeTimers>(node_base_.get());
+
   node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(
     node_base_, options.parameter_overrides(), local_args_.get());
 

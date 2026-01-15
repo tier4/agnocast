@@ -66,9 +66,12 @@ void NodeTopics::add_subscription(
 
 rclcpp::node_interfaces::NodeTimersInterface * NodeTopics::get_node_timers_interface() const
 {
+  // TODO(agnocast): This method is called by rclcpp's internal create_timer() helpers.
+  // For now, we throw because agnocast::Node provides get_node_timers_interface() directly.
+  // If needed, NodeTopics could store a reference to NodeTimers and return it here.
   throw std::runtime_error(
-    "NodeTopics::get_node_timers_interface is not supported in agnocast. "
-    "Timers interface is not available.");
+    "NodeTopics::get_node_timers_interface is not implemented. "
+    "Use agnocast::Node::get_node_timers_interface() instead.");
 }
 
 }  // namespace agnocast::node_interfaces

@@ -9,6 +9,7 @@
 #include "agnocast/node/node_interfaces/node_clock.hpp"
 #include "agnocast/node/node_interfaces/node_parameters.hpp"
 #include "agnocast/node/node_interfaces/node_time_source.hpp"
+#include "agnocast/node/node_interfaces/node_timers.hpp"
 #include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -73,6 +74,13 @@ public:
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr get_node_parameters_interface()
   {
     return node_parameters_;
+  }
+
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeTimersInterface::SharedPtr get_node_timers_interface()
+  {
+    return node_timers_;
   }
 
   const ParameterValue & declare_parameter(
@@ -302,6 +310,7 @@ private:
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
+  node_interfaces::NodeTimers::SharedPtr node_timers_;
   node_interfaces::NodeClock::SharedPtr node_clock_;
   node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
 };
