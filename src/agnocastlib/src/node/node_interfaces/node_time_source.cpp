@@ -3,7 +3,9 @@
 #include "agnocast/bridge/agnocast_bridge_node.hpp"
 #include "agnocast/node/agnocast_node.hpp"
 #include "rcl/time.h"
+#include "rclcpp/exceptions.hpp"
 #include "rclcpp/logging.hpp"
+#include "rclcpp/time.hpp"
 
 #include <memory>
 #include <string>
@@ -29,6 +31,7 @@ NodeTimeSource::~NodeTimeSource()
   }
 }
 
+// Attach a node to this time source
 void NodeTimeSource::attachNode(agnocast::Node * node)
 {
   node_base_ = node->get_node_base_interface();
@@ -51,10 +54,16 @@ void NodeTimeSource::attachNode(agnocast::Node * node)
       create_clock_sub();
     }
   } else {
+    RCLCPP_ERROR(
+      logger_, "Invalid type '%s' for parameter 'use_sim_time', should be 'bool'",
+      rclcpp::to_string(use_sim_time_param.get_type()).c_str());
     throw std::invalid_argument("Invalid type for parameter 'use_sim_time', should be 'bool'");
   }
+
+  // TODO(Koichi98): Add parameter event handling
 }
 
+// Detach the attached node
 void NodeTimeSource::detachNode()
 {
   // destroy_clock_sub() *must* be first here, to ensure that the executor
@@ -74,8 +83,8 @@ void NodeTimeSource::attachClock(rclcpp::Clock::SharedPtr clock)
 
   clock_ = std::move(clock);
 
-  // Set the clock to zero unless there's a recently received message
-  // This matches rclcpp's behavior of directly calling set_clock in attachClock
+  // TODO(Koichi98):Set the clock to zero unless there's a recently received message
+
   builtin_interfaces::msg::Time time_msg;
   set_clock(time_msg, ros_time_active_);
 }
@@ -90,7 +99,7 @@ void NodeTimeSource::enable_ros_time()
   // Local storage
   ros_time_active_ = true;
 
-  // Update the attached clock to zero or last recorded time
+  // Update the attached clock to zero
   builtin_interfaces::msg::Time time_msg;
   set_clock(time_msg, true);
 }
@@ -116,29 +125,30 @@ void NodeTimeSource::set_clock(const builtin_interfaces::msg::Time & msg, bool s
     return;
   }
 
+  std::lock_guard<std::mutex> clock_guard(clock_->get_clock_mutex());
+
   // Do change
   if (!set_ros_time_enabled && clock_->ros_time_is_active()) {
     auto ret = rcl_disable_ros_time_override(clock_->get_clock_handle());
     if (ret != RCL_RET_OK) {
-      throw std::runtime_error("Failed to disable ros_time_override: " + std::to_string(ret));
+      rclcpp::exceptions::throw_from_rcl_error(ret, "Failed to disable ros_time_override");
     }
   } else if (set_ros_time_enabled && !clock_->ros_time_is_active()) {
     auto ret = rcl_enable_ros_time_override(clock_->get_clock_handle());
     if (ret != RCL_RET_OK) {
-      throw std::runtime_error("Failed to enable ros_time_override: " + std::to_string(ret));
+      rclcpp::exceptions::throw_from_rcl_error(ret, "Failed to enable ros_time_override");
     }
   }
 
-  rcl_time_point_value_t time_point =
-    static_cast<rcl_time_point_value_t>(RCL_S_TO_NS(msg.sec)) + msg.nanosec;
-  auto ret = rcl_set_ros_time_override(clock_->get_clock_handle(), time_point);
+  auto ret = rcl_set_ros_time_override(clock_->get_clock_handle(), rclcpp::Time(msg).nanoseconds());
   if (ret != RCL_RET_OK) {
-    throw std::runtime_error("Failed to set ros_time_override: " + std::to_string(ret));
+    rclcpp::exceptions::throw_from_rcl_error(ret, "Failed to set ros_time_override");
   }
 }
 
 void NodeTimeSource::create_clock_sub()
 {
+  std::lock_guard<std::mutex> guard(clock_sub_lock_);
   if (clock_subscription_) {
     // Subscription already created.
     return;
@@ -151,6 +161,7 @@ void NodeTimeSource::create_clock_sub()
 
 void NodeTimeSource::destroy_clock_sub()
 {
+  std::lock_guard<std::mutex> guard(clock_sub_lock_);
   clock_subscription_.reset();
 }
 
