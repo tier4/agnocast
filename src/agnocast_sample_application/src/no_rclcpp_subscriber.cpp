@@ -18,7 +18,6 @@ class NoRclcppSubscriber : public agnocast::Node
   void callback(
     const agnocast::ipc_shared_ptr<agnocast_sample_interfaces::msg::DynamicSizeArray> & message)
   {
-    // TimeSource verification: compare ROS time with wall time
     auto ros_time = now();
     auto wall_time = std::chrono::system_clock::now();
     auto wall_seconds = std::chrono::duration<double>(wall_time.time_since_epoch()).count();

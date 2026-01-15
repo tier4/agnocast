@@ -169,10 +169,11 @@ void TimeSource::NodeState::attachClock(rclcpp::Clock::SharedPtr clock)
   // TODO(Koichi98): Use ClocksState to manage multiple clocks
   clock_ = std::move(clock);
 
-  if (ros_time_active_) {
-    enable_ros_time();
-    // TODO(Koichi98): Send cached last message to newly attached clock
-  }
+  // Set the clock to zero unless there's a recently received message
+  // This matches rclcpp's behavior of directly calling set_clock in attachClock
+  builtin_interfaces::msg::Time time_msg;
+  // TODO(Koichi98): if (last_msg_set_) { time_msg = last_msg_set_->clock; }
+  set_clock(time_msg, ros_time_active_);
 }
 
 void TimeSource::NodeState::detachClock(rclcpp::Clock::SharedPtr clock)
@@ -222,6 +223,10 @@ void TimeSource::NodeState::set_clock(
   }
 
   // TODO(Koichi98): Add std::lock_guard<std::mutex> clock_guard(clock->get_clock_mutex())
+
+  RCLCPP_INFO(
+    rclcpp::get_logger("agnocast"), "set_clock(): set_ros_time_enabled=%d",
+    set_ros_time_enabled ? 1 : 0);
 
   // Do change
   if (!set_ros_time_enabled && clock_->ros_time_is_active()) {
