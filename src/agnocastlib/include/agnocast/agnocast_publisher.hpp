@@ -200,6 +200,8 @@ public:
   // Returns the GID (Global ID) of this publisher.
   // The GID is unique across both Agnocast and ROS 2 publishers.
   const rmw_gid_t & get_gid() const { return gid_; }
+
+  const char * get_topic_name() const { return topic_name_.c_str(); }
 };
 
 struct AgnocastToRosRequestPolicy;
