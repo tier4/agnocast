@@ -7,6 +7,7 @@
 #include "agnocast/node/node_interfaces/node_base.hpp"
 #include "agnocast/node/node_interfaces/node_clock.hpp"
 #include "agnocast/node/node_interfaces/node_parameters.hpp"
+#include "agnocast/node/node_interfaces/node_time_source.hpp"
 #include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -26,6 +27,9 @@ class Node
 public:
   using SharedPtr = std::shared_ptr<Node>;
   using ParameterValue = rclcpp::ParameterValue;
+  using OnSetParametersCallbackHandle = rclcpp::node_interfaces::OnSetParametersCallbackHandle;
+  using OnParametersSetCallbackType =
+    rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType;
 
   explicit Node(
     const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
@@ -278,6 +282,7 @@ private:
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
   node_interfaces::NodeClock::SharedPtr node_clock_;
+  node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
 };
 
 }  // namespace agnocast
