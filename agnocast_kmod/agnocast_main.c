@@ -83,6 +83,7 @@ struct topic_struct
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
   topic_local_id_t current_pubsub_id;
   int64_t current_entry_id;
+  uint32_t ros2_subscriber_num;  // Updated by Bridge Manager
 };
 
 struct topic_wrapper
@@ -198,6 +199,7 @@ static int add_topic(
   hash_init((*wrapper)->topic.sub_info_htable);
   (*wrapper)->topic.current_pubsub_id = 0;
   (*wrapper)->topic.current_entry_id = 0;
+  (*wrapper)->topic.ros2_subscriber_num = 0;
   hash_add(topic_hashtable, &(*wrapper)->node, get_topic_hash(topic_name));
 
   dev_info(agnocast_device, "Topic (topic_name=%s) added. (add_topic)\n", topic_name);
@@ -705,20 +707,6 @@ static int get_version(struct ioctl_get_version_args * ioctl_ret)
   return 0;
 }
 
-static bool check_daemon_necessity(const struct ipc_namespace * ipc_ns)
-{
-  struct process_info * proc_info;
-  int bkt;
-  hash_for_each(proc_info_htable, bkt, proc_info, node)
-  {
-    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret)
 {
@@ -726,7 +714,7 @@ int add_process(
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (add_process)\n", pid);
     return -EINVAL;
   }
-  ioctl_ret->ret_unlink_daemon_exist = check_daemon_necessity(ipc_ns);
+  ioctl_ret->ret_unlink_daemon_exist = (get_process_num(ipc_ns) > 0);
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
@@ -1123,18 +1111,40 @@ int take_msg(
   return 0;
 }
 
+// Forward declaration
+static struct bridge_info * find_bridge_info(
+  const char * topic_name, const struct ipc_namespace * ipc_ns);
+
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const bool include_ros2,
   union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    ioctl_ret->ret_subscriber_num = get_size_sub_info_htable(wrapper);
+    uint32_t count = get_size_sub_info_htable(wrapper);
+    if (include_ros2) {
+      count += wrapper->topic.ros2_subscriber_num;
+    }
+    ioctl_ret->ret_subscriber_num = count;
   } else {
     ioctl_ret->ret_subscriber_num = 0;
   }
 
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_a2r);
+
   return 0;
+}
+
+int set_ros2_subscriber_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t count)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (wrapper) {
+    wrapper->topic.ros2_subscriber_num = count;
+    return 0;
+  }
+  return -ENOENT;
 }
 
 int get_publisher_num(
@@ -1147,6 +1157,9 @@ int get_publisher_num(
   } else {
     ioctl_ret->ret_publisher_num = 0;
   }
+
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
 
   return 0;
 }
@@ -1170,7 +1183,7 @@ static int get_exit_process(
     break;
   }
 
-  ioctl_ret->ret_daemon_should_exit = !check_daemon_necessity(ipc_ns);
+  ioctl_ret->ret_daemon_should_exit = (get_process_num(ipc_ns) == 0);
   return 0;
 }
 
@@ -1745,6 +1758,20 @@ int remove_bridge(
   return 0;
 }
 
+int get_process_num(const struct ipc_namespace * ipc_ns)
+{
+  int count = 0;
+  struct process_info * proc_info;
+  int bkt_proc_info;
+  hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
+  {
+    if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
+      count++;
+    }
+  }
+  return count;
+}
+
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
 {
   mutex_lock(&global_mutex);
@@ -1929,6 +1956,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
     if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    bool include_ros2 = get_subscriber_num_args.include_ros2;
     char * topic_name_buf = kmalloc(get_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
@@ -1938,7 +1966,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_subscriber_num(topic_name_buf, ipc_ns, &get_subscriber_num_args);
+    ret = get_subscriber_num(topic_name_buf, ipc_ns, include_ros2, &get_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
@@ -2188,6 +2216,29 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     topic_name_buf[remove_bridge_args.topic_name.len] = '\0';
     ret = remove_bridge(topic_name_buf, remove_bridge_args.pid, remove_bridge_args.is_r2a, ipc_ns);
+    kfree(topic_name_buf);
+  } else if (cmd == AGNOCAST_GET_PROCESS_NUM_CMD) {
+    struct ioctl_get_process_num_args get_process_num_args;
+    get_process_num_args.ret_process_num = get_process_num(ipc_ns);
+    if (copy_to_user(
+          (struct ioctl_get_process_num_args __user *)arg, &get_process_num_args,
+          sizeof(get_process_num_args)))
+      goto return_EFAULT;
+  } else if (cmd == AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD) {
+    struct ioctl_set_ros2_subscriber_num_args set_ros2_sub_args;
+    if (copy_from_user(&set_ros2_sub_args, (void __user *)arg, sizeof(set_ros2_sub_args)))
+      goto return_EFAULT;
+    if (set_ros2_sub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+    char * topic_name_buf = kmalloc(set_ros2_sub_args.topic_name.len + 1, GFP_KERNEL);
+    if (!topic_name_buf) goto return_ENOMEM;
+    if (copy_from_user(
+          topic_name_buf, (char __user *)set_ros2_sub_args.topic_name.ptr,
+          set_ros2_sub_args.topic_name.len)) {
+      kfree(topic_name_buf);
+      goto return_EFAULT;
+    }
+    topic_name_buf[set_ros2_sub_args.topic_name.len] = '\0';
+    ret = set_ros2_subscriber_num(topic_name_buf, ipc_ns, set_ros2_sub_args.ros2_subscriber_num);
     kfree(topic_name_buf);
   } else {
     goto return_EINVAL;

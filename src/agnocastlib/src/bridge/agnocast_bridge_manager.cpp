@@ -1,6 +1,7 @@
 #include "agnocast/bridge/agnocast_bridge_manager.hpp"
 
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <sys/prctl.h>
 #include <unistd.h>
@@ -15,7 +16,7 @@ namespace agnocast
 BridgeManager::BridgeManager(pid_t target_pid)
 : target_pid_(target_pid),
   logger_(rclcpp::get_logger("agnocast_bridge_manager")),
-  event_loop_(target_pid, logger_),
+  event_loop_(logger_),
   loader_(logger_)
 {
   // Optimization: Fail-fast to avoid rclcpp::init overhead.
@@ -66,8 +67,7 @@ void BridgeManager::run()
 
   start_ros_execution();
 
-  event_loop_.set_parent_mq_handler([this](int fd) { this->on_mq_request(fd); });
-  event_loop_.set_peer_mq_handler([this](int fd) { this->on_mq_request(fd); });
+  event_loop_.set_mq_handler([this](int fd) { this->on_mq_request(fd); });
   event_loop_.set_signal_handler([this]() { this->on_signal(); });
 
   while (!shutdown_requested_) {
@@ -170,11 +170,18 @@ void BridgeManager::activate_bridge(
   }
 
   active_bridges_[topic_name_with_direction] = bridge;
+
+  auto cast_bridge = std::static_pointer_cast<agnocast::BridgeBase>(bridge);
+
+  auto callback_group = cast_bridge->get_callback_group();
+  if (callback_group) {
+    executor_->add_callback_group(callback_group, container_node_->get_node_base_interface(), true);
+  }
 }
 
 void BridgeManager::send_delegation(const MqMsgBridge & req, pid_t owner_pid)
 {
-  std::string mq_name = create_mq_name_for_bridge_daemon(owner_pid);
+  std::string mq_name = create_mq_name_for_bridge(owner_pid);
 
   mqd_t mq = mq_open(mq_name.c_str(), O_WRONLY | O_NONBLOCK);
   if (mq == -1) {
@@ -233,7 +240,6 @@ void BridgeManager::check_parent_alive()
   }
   if (kill(target_pid_, 0) != 0) {
     is_parent_alive_ = false;
-    event_loop_.close_parent_mq();
     managed_bridges_.clear();
   }
 }
@@ -253,20 +259,24 @@ void BridgeManager::check_active_bridges()
     std::string_view topic_name_view = key_view.substr(0, key_view.size() - SUFFIX_LEN);
 
     bool is_r2a = (suffix == SUFFIX_R2A);
-    std::string reverse_key(topic_name_view);
-    reverse_key += (is_r2a ? SUFFIX_A2R : SUFFIX_R2A);
-
-    // If the reverse bridge exists locally, it holds one internal Agnocast Pub/Sub instance.
-    // We set the threshold to 1 to exclude this self-count and detect only external demand.
-    const bool reverse_exists = (active_bridges_.count(reverse_key) > 0);
-    const int threshold = reverse_exists ? 1 : 0;
 
     int count = 0;
+    bool reverse_bridge_exist = false;
     if (is_r2a) {
-      count = get_agnocast_subscriber_count(std::string(topic_name_view));
+      auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
+      count = result.count;
+      reverse_bridge_exist = result.bridge_exist;
     } else {
-      count = get_agnocast_publisher_count(std::string(topic_name_view));
+      auto result = get_agnocast_publisher_count(std::string(topic_name_view));
+      count = result.count;
+      reverse_bridge_exist = result.bridge_exist;
+      if (!update_ros2_subscriber_num(std::string(topic_name_view))) {
+        to_remove.push_back(key);
+        continue;
+      }
     }
+
+    const int threshold = reverse_bridge_exist ? 1 : 0;
 
     if (count <= threshold) {
       if (count < 0) {
@@ -307,26 +317,19 @@ void BridgeManager::check_should_exit()
   }
 }
 
-int BridgeManager::get_agnocast_subscriber_count(const std::string & topic_name)
+bool BridgeManager::update_ros2_subscriber_num(const std::string & topic_name)
 {
-  union ioctl_get_subscriber_num_args args = {};
-  args.topic_name = {topic_name.c_str(), topic_name.size()};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
-    return -1;
-  }
-  return static_cast<int>(args.ret_subscriber_num);
-}
+  size_t ros2_count = container_node_->count_subscribers(topic_name);
 
-int BridgeManager::get_agnocast_publisher_count(const std::string & topic_name)
-{
-  union ioctl_get_publisher_num_args args = {};
+  struct ioctl_set_ros2_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
-  if (ioctl(agnocast_fd, AGNOCAST_GET_PUBLISHER_NUM_CMD, &args) < 0) {
-    RCLCPP_ERROR(logger_, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
-    return -1;
+  args.ros2_subscriber_num = static_cast<uint32_t>(ros2_count);
+
+  if (ioctl(agnocast_fd, AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger_, "AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return false;
   }
-  return static_cast<int>(args.ret_publisher_num);
+  return true;
 }
 
 void BridgeManager::remove_active_bridge(const std::string & topic_name_with_direction)

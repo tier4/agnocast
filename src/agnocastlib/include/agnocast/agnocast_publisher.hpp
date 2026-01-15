@@ -5,6 +5,7 @@
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "agnocast/agnocast_utils.hpp"
+#include "rclcpp/detail/qos_parameters.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <fcntl.h>
@@ -42,7 +43,9 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
-  // Currently empty, reserved for future use.
+  // NOTE: This option is deprecated. Any values set here will be ignored.
+  bool do_always_ros2_publish = false;
+  rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
@@ -51,14 +54,33 @@ class BasicPublisher
   topic_local_id_t id_ = -1;
   std::string topic_name_;
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> opened_mqs_;
-  PublisherOptions options_;
 
   template <typename NodeT>
-  void constructor_impl(NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  rclcpp::QoS constructor_impl(
+    NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    const PublisherOptions & options)
   {
+    if (options.do_always_ros2_publish) {
+      RCLCPP_ERROR(
+        logger,
+        "The 'do_always_ros2_publish' option is deprecated. "
+        "Use the AGNOCAST_BRIDGE_MODE environment variable instead.");
+    }
+
     topic_name_ = node->get_node_topics_interface()->resolve_topic_name(topic_name);
-    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), qos);
+
+    auto node_parameters = node->get_node_parameters_interface();
+    const rclcpp::QoS actual_qos =
+      options.qos_overriding_options.get_policy_kinds().size()
+        ? rclcpp::detail::declare_qos_parameters(
+            options.qos_overriding_options, node_parameters, topic_name_, qos,
+            rclcpp::detail::PublisherQosParametersTraits{})
+        : qos;
+
+    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
+
+    return actual_qos;
   }
 
 public:
@@ -66,20 +88,22 @@ public:
 
   BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & /*options*/)
+    const PublisherOptions & options)
   {
-    constructor_impl(node, topic_name, qos);
+    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
       static_cast<const void *>(
         node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-      topic_name_.c_str(), qos.depth());
+      topic_name_.c_str(), actual_qos.depth());
   }
 
-  BasicPublisher(agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos)
+  BasicPublisher(
+    agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    const PublisherOptions & options = PublisherOptions{})
   {
-    constructor_impl(node, topic_name, qos);
+    constructor_impl(node, topic_name, qos, options);
 
     // TODO: CARET tracepoint for agnocast::Node
   }
@@ -137,8 +161,9 @@ public:
     message.reset();
   }
 
-  // Note: Currently returns only agnocast core subscribers.
-  // We also want to include the ros2 subscriber's number in the future.
+  // Returns the total subscriber count (Agnocast + ROS 2).
+  // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically.
+  // TODO(Koichi98): It just returns the number of Agnocast subscribers for performance bridge.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 };
 

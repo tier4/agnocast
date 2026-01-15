@@ -6,7 +6,9 @@
 #include "agnocast/node/agnocast_arguments.hpp"
 #include "agnocast/node/agnocast_context.hpp"
 #include "agnocast/node/node_interfaces/node_base.hpp"
+#include "agnocast/node/node_interfaces/node_clock.hpp"
 #include "agnocast/node/node_interfaces/node_parameters.hpp"
+#include "agnocast/node/node_interfaces/node_time_source.hpp"
 #include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -80,14 +82,41 @@ public:
     return node_parameters_->declare_parameter(name, default_value, descriptor, ignore_override);
   }
 
+  const ParameterValue & declare_parameter(
+    const std::string & name, rclcpp::ParameterType type,
+    const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
+  {
+    return node_parameters_->declare_parameter(name, type, descriptor, ignore_override);
+  }
+
   template <typename ParameterT>
   ParameterT declare_parameter(
     const std::string & name, const ParameterT & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
   {
-    return declare_parameter(
-             name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
-      .get<ParameterT>();
+    try {
+      return declare_parameter(
+               name, rclcpp::ParameterValue(default_value), descriptor, ignore_override)
+        .get<ParameterT>();
+    } catch (const rclcpp::ParameterTypeException & ex) {
+      throw rclcpp::exceptions::InvalidParameterTypeException(name, ex.what());
+    }
+  }
+
+  template <typename ParameterT>
+  ParameterT declare_parameter(
+    const std::string & name, const ParameterDescriptor & descriptor = ParameterDescriptor{},
+    bool ignore_override = false)
+  {
+    // take advantage of parameter value template magic to get
+    // the correct rclcpp::ParameterType from ParameterT
+    rclcpp::ParameterValue value{ParameterT{}};
+    try {
+      return declare_parameter(name, value.get_type(), descriptor, ignore_override)
+        .template get<ParameterT>();
+    } catch (const rclcpp::ParameterTypeException &) {
+      throw rclcpp::exceptions::UninitializedStaticallyTypedParameterException(name);
+    }
   }
 
   bool has_parameter(const std::string & name) const
@@ -126,6 +155,20 @@ public:
     return node_parameters_->get_parameters(names);
   }
 
+  template <typename ParameterT>
+  bool get_parameters(const std::string & prefix, std::map<std::string, ParameterT> & values) const
+  {
+    std::map<std::string, rclcpp::Parameter> params;
+    bool result = node_parameters_->get_parameters_by_prefix(prefix, params);
+    if (result) {
+      for (const auto & param : params) {
+        values[param.first] = static_cast<ParameterT>(param.second.get_value<ParameterT>());
+      }
+    }
+
+    return result;
+  }
+
   rcl_interfaces::msg::SetParametersResult set_parameter(const rclcpp::Parameter & parameter)
   {
     return set_parameters_atomically({parameter});
@@ -143,18 +186,71 @@ public:
     return node_parameters_->set_parameters_atomically(parameters);
   }
 
+  rcl_interfaces::msg::ParameterDescriptor describe_parameter(const std::string & name) const
+  {
+    auto result = node_parameters_->describe_parameters({name});
+    // TODO(bdm-k): These if checks are redundant because describe_parameters() ensures that the
+    // result is the same size as the input vector.
+    //   The current implementation mirrors that of rclcpp.
+    if (0 == result.size()) {
+      throw rclcpp::exceptions::ParameterNotDeclaredException(name);
+    }
+    if (result.size() > 1) {
+      throw std::runtime_error("number of described parameters unexpectedly more than one");
+    }
+    return result.front();
+  }
+
+  std::vector<rcl_interfaces::msg::ParameterDescriptor> describe_parameters(
+    const std::vector<std::string> & names) const
+  {
+    return node_parameters_->describe_parameters(names);
+  }
+
+  std::vector<uint8_t> get_parameter_types(const std::vector<std::string> & names) const
+  {
+    return node_parameters_->get_parameter_types(names);
+  }
+
+  rcl_interfaces::msg::ListParametersResult list_parameters(
+    const std::vector<std::string> & prefixes, uint64_t depth) const
+  {
+    return node_parameters_->list_parameters(prefixes, depth);
+  }
+
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
+    rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType callback)
+  {
+    return node_parameters_->add_on_set_parameters_callback(callback);
+  }
+
+  void remove_on_set_parameters_callback(
+    const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler)
+  {
+    node_parameters_->remove_on_set_parameters_callback(handler);
+  }
+
+  rclcpp::Clock::SharedPtr get_clock() { return node_clock_->get_clock(); }
+
+  rclcpp::Clock::ConstSharedPtr get_clock() const { return node_clock_->get_clock(); }
+
+  rclcpp::Time now() const { return node_clock_->get_clock()->now(); }
+
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
-    const std::string & topic_name, const rclcpp::QoS & qos)
+    const std::string & topic_name, const rclcpp::QoS & qos,
+    agnocast::PublisherOptions options = agnocast::PublisherOptions{})
   {
-    return std::make_shared<Publisher<MessageT>>(this, topic_name, qos);
+    return std::make_shared<Publisher<MessageT>>(this, topic_name, qos, options);
   }
 
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
-    const std::string & topic_name, size_t queue_size)
+    const std::string & topic_name, size_t queue_size,
+    agnocast::PublisherOptions options = agnocast::PublisherOptions{})
   {
-    return create_publisher<MessageT>(topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+    return create_publisher<MessageT>(
+      topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), options);
   }
 
   template <typename MessageT, typename Func>
@@ -206,6 +302,8 @@ private:
   node_interfaces::NodeBase::SharedPtr node_base_;
   node_interfaces::NodeParameters::SharedPtr node_parameters_;
   node_interfaces::NodeTopics::SharedPtr node_topics_;
+  node_interfaces::NodeClock::SharedPtr node_clock_;
+  node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
 };
 
 }  // namespace agnocast
