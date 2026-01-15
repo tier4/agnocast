@@ -12,7 +12,9 @@ NodeTimeSource::NodeTimeSource(
   const rclcpp::QoS & qos)
 : time_source_(qos)
 {
-  time_source_.attachNode(node_base, node_parameters, node);
+  (void)node_base;
+  (void)node_parameters;
+  time_source_.attachNode(node);
   time_source_.attachClock(node_clock->get_clock());
 }
 

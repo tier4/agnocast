@@ -2,7 +2,6 @@
 #include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 #include "rclcpp/time.hpp"
 
-#include <chrono>
 #include <iostream>
 
 using std::placeholders::_1;
@@ -11,7 +10,6 @@ class NoRclcppSubscriber : public agnocast::Node
 {
   agnocast::Subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_dynamic_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
-  rclcpp::TimerBase::SharedPtr timer_;
 
   std::string topic_name_;
   int64_t queue_size_;
@@ -21,17 +19,6 @@ class NoRclcppSubscriber : public agnocast::Node
   {
     RCLCPP_INFO(
       get_logger(), "I heard dynamic size array message with size: %zu", message->data.size());
-  }
-
-  void timer_callback()
-  {
-    auto ros_time = now();
-    auto wall_time = std::chrono::system_clock::now();
-    auto wall_seconds = std::chrono::duration<double>(wall_time.time_since_epoch()).count();
-
-    RCLCPP_INFO(
-      get_logger(), "[use_sim_time check] ROS time: %.3f sec, Wall time: %.3f sec",
-      ros_time.seconds(), wall_seconds);
   }
 
   rcl_interfaces::msg::SetParametersResult on_parameter_change(
@@ -108,10 +95,6 @@ public:
     RCLCPP_INFO(
       get_logger(), "Durability (via QosOverridingOptions): %s", durability_value.c_str());
     RCLCPP_INFO(get_logger(), "====================================");
-
-    // Timer to log time for use_sim_time verification
-    timer_ = create_wall_timer(
-      std::chrono::seconds(1), std::bind(&NoRclcppSubscriber::timer_callback, this));
   }
 };
 
