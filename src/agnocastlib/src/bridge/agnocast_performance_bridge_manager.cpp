@@ -318,26 +318,21 @@ void PerformanceBridgeManager::remove_invalid_requests(
   for (auto req_it = request_map.begin(); req_it != request_map.end();) {
     const auto target_id = req_it->first;
     const auto & msg = req_it->second;
-    bool is_alive = false;
 
+    // Verify liveness by attempting to retrieve QoS.
+    // If the target no longer exists, an exception is thrown.
     try {
       if (msg.direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-        (void)get_subscriber_qos(topic_name, target_id);
+        get_subscriber_qos(topic_name, target_id);
       } else {
-        (void)get_publisher_qos(topic_name, target_id);
+        get_publisher_qos(topic_name, target_id);
       }
-      is_alive = true;
+      ++req_it;
     } catch (...) {
-      // is_alive remains false
-    }
-
-    if (!is_alive) {
       // TODO(yutarokobayashi): For debugging. Remove later.
       RCLCPP_INFO(
         logger_, "Removed dead ID %d from cache for topic %s", target_id, topic_name.c_str());
       req_it = request_map.erase(req_it);
-    } else {
-      ++req_it;
     }
   }
 }
