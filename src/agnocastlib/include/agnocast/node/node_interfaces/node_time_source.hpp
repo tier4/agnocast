@@ -28,8 +28,8 @@ public:
   using WeakPtr = std::weak_ptr<NodeTimeSource>;
 
   NodeTimeSource(
-    rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock, agnocast::Node * node,
-    const rclcpp::QoS & qos = rclcpp::ClockQoS());
+    const rclcpp::node_interfaces::NodeClockInterface::SharedPtr & node_clock,
+    agnocast::Node * node, const rclcpp::QoS & qos = rclcpp::ClockQoS());
 
   ~NodeTimeSource() override;
 
