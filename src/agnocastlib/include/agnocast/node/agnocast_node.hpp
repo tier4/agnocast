@@ -271,20 +271,18 @@ public:
   }
 
   template <typename MessageT>
-  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_polling_subscription(
-    const std::string & topic_name, const rclcpp::QoS & qos,
-    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const size_t qos_history_depth)
   {
-    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos, options);
+    return std::make_shared<PollingSubscriber<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
   }
 
   template <typename MessageT>
-  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_polling_subscription(
-    const std::string & topic_name, size_t queue_size = 1,
-    agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const rclcpp::QoS & qos)
   {
-    return create_polling_subscription<MessageT>(
-      topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), options);
+    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos);
   }
 
 private:
