@@ -234,23 +234,25 @@ bool PerformanceBridgeManager::should_create_bridge(
   const std::string & topic_name, BridgeDirection direction) const
 {
   if (direction == BridgeDirection::ROS2_TO_AGNOCAST) {
-    if (active_r2a_bridges_.count(topic_name) > 0) return false;
+    if (active_r2a_bridges_.count(topic_name) > 0) {
+      return false;
+    }
 
     const auto stats = get_agnocast_subscriber_count(topic_name);
     const int threshold = stats.bridge_exist ? 1 : 0;
-    if (stats.count == -1 || stats.count <= threshold) return false;
+    if (stats.count == -1 || stats.count <= threshold) {
+      return false;
+    }
 
     return has_external_ros2_publisher(container_node_.get(), topic_name);
-
-  } else {
-    if (active_a2r_bridges_.count(topic_name) > 0) return false;
-
-    const auto stats = get_agnocast_publisher_count(topic_name);
-    const int threshold = stats.bridge_exist ? 1 : 0;
-    if (stats.count == -1 || stats.count <= threshold) return false;
-
-    return agnocast::has_external_ros2_subscriber(container_node_.get(), topic_name);
   }
+  if (active_a2r_bridges_.count(topic_name) > 0) return false;
+
+  const auto stats = get_agnocast_publisher_count(topic_name);
+  const int threshold = stats.bridge_exist ? 1 : 0;
+  if (stats.count == -1 || stats.count <= threshold) return false;
+
+  return agnocast::has_external_ros2_subscriber(container_node_.get(), topic_name);
 }
 
 void PerformanceBridgeManager::create_bridge_if_needed(
@@ -268,7 +270,9 @@ void PerformanceBridgeManager::create_bridge_if_needed(
       break;
     }
   }
-  if (qos_source_id == -1) return;
+  if (qos_source_id == -1) {
+    return;
+  }
 
   try {
     const bool is_r2a = (direction == BridgeDirection::ROS2_TO_AGNOCAST);
