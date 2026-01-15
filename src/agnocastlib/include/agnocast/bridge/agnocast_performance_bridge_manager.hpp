@@ -33,14 +33,15 @@ private:
 
   bool shutdown_requested_ = false;
 
-  std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> active_r2a_bridges_;
-  std::unordered_map<std::string, std::shared_ptr<agnocast::SubscriptionBase>> active_a2r_bridges_;
+  std::unordered_map<std::string, std::shared_ptr<void>> active_r2a_bridges_;
+  std::unordered_map<std::string, std::shared_ptr<void>> active_a2r_bridges_;
 
   void start_ros_execution();
 
   void on_mq_request(int fd);
   void on_signal();
 
+  void check_ros2_demand_and_create_bridges();
   void check_and_remove_bridges();
   void check_and_request_shutdown();
 };

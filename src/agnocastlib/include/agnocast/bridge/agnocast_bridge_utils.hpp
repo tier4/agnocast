@@ -2,12 +2,19 @@
 
 #include "agnocast/agnocast_ioctl.hpp"
 
-#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 #include <string>
 
 namespace agnocast
 {
+
+class BridgeBase
+{
+public:
+  virtual ~BridgeBase() = default;
+  virtual rclcpp::CallbackGroup::SharedPtr get_callback_group() const = 0;
+};
 
 struct SubscriberCountResult
 {
@@ -25,5 +32,7 @@ rclcpp::QoS get_subscriber_qos(const std::string & topic_name, topic_local_id_t 
 rclcpp::QoS get_publisher_qos(const std::string & topic_name, topic_local_id_t publisher_id);
 PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name);
 SubscriberCountResult get_agnocast_subscriber_count(const std::string & topic_name);
+bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name);
+bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string & topic_name);
 
 }  // namespace agnocast
