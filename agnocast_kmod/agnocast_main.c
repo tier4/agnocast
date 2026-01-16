@@ -2287,12 +2287,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       topic_name_buf, ipc_ns, &bridge_exist_args.ret_publisher_bridge_exist,
       &bridge_exist_args.ret_subscriber_bridge_exist);
     kfree(topic_name_buf);
-    if (ret == 0) {
-      if (copy_to_user(
-            (union ioctl_get_topic_bridge_exist_args __user *)arg, &bridge_exist_args,
-            sizeof(bridge_exist_args)))
-        goto return_EFAULT;
-    }
+    if (copy_to_user(
+          (union ioctl_get_topic_bridge_exist_args __user *)arg, &bridge_exist_args,
+          sizeof(bridge_exist_args)))
+      goto return_EFAULT;
   } else {
     goto return_EINVAL;
   }
