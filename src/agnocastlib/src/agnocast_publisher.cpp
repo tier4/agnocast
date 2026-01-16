@@ -142,8 +142,17 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
+  union ioctl_get_topic_bridge_exist_args exist_args {
+  };
+  exist_args.topic_name = {topic_name.c_str(), topic_name.size()};
+
+  if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD, &exist_args) != 0) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
   uint32_t count = get_subscriber_count_args.ret_subscriber_num;
-  if (get_subscriber_count_args.ret_bridge_exist && count > 0) {
+  if (exist_args.ret_subscriber_bridge_exist && count > 0) {
     count--;
   }
   return count;

@@ -55,7 +55,16 @@ SubscriberCountResult get_agnocast_subscriber_count(const std::string & topic_na
     RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     return {-1, false};
   }
-  return {static_cast<int>(args.ret_subscriber_num), args.ret_bridge_exist};
+
+  union ioctl_get_topic_bridge_exist_args exist_args {
+  };
+  exist_args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD, &exist_args) != 0) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  return {static_cast<int>(args.ret_subscriber_num), exist_args.ret_subscriber_bridge_exist};
 }
 
 PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name)
@@ -66,7 +75,16 @@ PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name
     RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
     return {-1, false};
   }
-  return {static_cast<int>(args.ret_publisher_num), args.ret_bridge_exist};
+
+  union ioctl_get_topic_bridge_exist_args exist_args {
+  };
+  exist_args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD, &exist_args) != 0) {
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  return {static_cast<int>(args.ret_publisher_num), exist_args.ret_publisher_bridge_exist};
 }
 
 bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name)
