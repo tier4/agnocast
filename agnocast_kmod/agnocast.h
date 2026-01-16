@@ -134,6 +134,7 @@ union ioctl_get_subscriber_num_args {
   struct
   {
     uint32_t ret_subscriber_num;
+    bool ret_bridge_exist;
   };
 };
 
@@ -142,6 +143,7 @@ union ioctl_get_publisher_num_args {
   struct
   {
     uint32_t ret_publisher_num;
+    bool ret_bridge_exist;
   };
 };
 
@@ -203,6 +205,8 @@ struct ioctl_add_bridge_args
   struct
   {
     pid_t ret_pid;
+    bool ret_has_r2a;
+    bool ret_has_a2r;
   };
 };
 
@@ -222,18 +226,6 @@ struct ioctl_set_ros2_subscriber_num_args
 {
   struct name_info topic_name;
   uint32_t ros2_subscriber_num;
-};
-
-union ioctl_get_topic_bridge_exist_args {
-  struct
-  {
-    struct name_info topic_name;
-  };
-  struct
-  {
-    bool ret_publisher_bridge_exist;
-    bool ret_subscriber_bridge_exist;
-  };
 };
 
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
@@ -257,7 +249,6 @@ union ioctl_get_topic_bridge_exist_args {
 #define AGNOCAST_GET_PROCESS_NUM_CMD _IOR(0xA6, 19, struct ioctl_get_process_num_args)
 #define AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD \
   _IOW(0xA6, 25, struct ioctl_set_ros2_subscriber_num_args)
-#define AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD _IOWR(0xA6, 26, union ioctl_get_topic_bridge_exist_args)
 
 // ================================================
 // ros2cli ioctls
@@ -389,10 +380,6 @@ int get_process_num(const struct ipc_namespace * ipc_ns);
 
 int set_ros2_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t count);
-
-int get_topic_bridge_exist(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, bool * ret_publisher_bridge_exist,
-  bool * ret_subscriber_bridge_exist);
 
 void process_exit_cleanup(const pid_t pid);
 

@@ -147,10 +147,11 @@ BridgeManager::BridgeKernelResult BridgeManager::try_add_bridge_to_kernel(
 
   if (ret == 0 || errno == EEXIST) {
     return BridgeKernelResult{
-      (ret == 0) ? AddBridgeResult::SUCCESS : AddBridgeResult::EXIST, add_bridge_args.ret_pid};
+      (ret == 0) ? AddBridgeResult::SUCCESS : AddBridgeResult::EXIST, add_bridge_args.ret_pid,
+      add_bridge_args.ret_has_r2a, add_bridge_args.ret_has_a2r};
   }
 
-  return BridgeKernelResult{AddBridgeResult::ERROR, 0};
+  return BridgeKernelResult{AddBridgeResult::ERROR, 0, false, false};
 }
 
 void BridgeManager::activate_bridge(
@@ -211,21 +212,9 @@ void BridgeManager::process_managed_bridge(
   bool is_r2a = (req->direction == BridgeDirection::ROS2_TO_AGNOCAST);
   std::string_view suffix = is_r2a ? SUFFIX_R2A : SUFFIX_A2R;
 
-  auto [status, owner_pid] = try_add_bridge_to_kernel(topic_name, is_r2a);
-
-  union ioctl_get_topic_bridge_exist_args exist_args {
-  };
-  exist_args.topic_name = {topic_name.c_str(), topic_name.size()};
-
-  if (ioctl(agnocast_fd, AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD, &exist_args) != 0) {
-    RCLCPP_ERROR(
-      logger_, "Failed to get topic bridge existence for '%s': %s", topic_name.c_str(),
-      strerror(errno));
-    return;
-  }
-
-  bool is_active_in_owner =
-    is_r2a ? exist_args.ret_publisher_bridge_exist : exist_args.ret_subscriber_bridge_exist;
+  auto [status, owner_pid, kernel_has_r2a, kernel_has_a2r] =
+    try_add_bridge_to_kernel(topic_name, is_r2a);
+  bool is_active_in_owner = is_r2a ? kernel_has_r2a : kernel_has_a2r;
 
   switch (status) {
     case AddBridgeResult::SUCCESS:

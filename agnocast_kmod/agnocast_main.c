@@ -1136,6 +1136,9 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_a2r);
+
   return 0;
 }
 
@@ -1160,6 +1163,9 @@ int get_publisher_num(
   } else {
     ioctl_ret->ret_publisher_num = 0;
   }
+
+  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
+  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
 
   return 0;
 }
@@ -1644,6 +1650,8 @@ int add_bridge(
   if (existing) {
     if (existing->pid != pid) {
       ioctl_ret->ret_pid = existing->pid;
+      ioctl_ret->ret_has_r2a = existing->has_r2a;
+      ioctl_ret->ret_has_a2r = existing->has_a2r;
       return -EEXIST;
     }
 
@@ -1663,6 +1671,8 @@ int add_bridge(
     }
 
     ioctl_ret->ret_pid = existing->pid;
+    ioctl_ret->ret_has_r2a = existing->has_r2a;
+    ioctl_ret->ret_has_a2r = existing->has_a2r;
     return 0;
   }
 
@@ -1694,6 +1704,8 @@ int add_bridge(
 
   if (ioctl_ret) {
     ioctl_ret->ret_pid = pid;
+    ioctl_ret->ret_has_r2a = br_info->has_r2a;
+    ioctl_ret->ret_has_a2r = br_info->has_a2r;
   }
 
   INIT_HLIST_NODE(&br_info->node);
@@ -1764,41 +1776,6 @@ int get_process_num(const struct ipc_namespace * ipc_ns)
     }
   }
   return count;
-}
-
-int get_topic_bridge_exist(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, bool * ret_publisher_bridge_exist,
-  bool * ret_subscriber_bridge_exist)
-{
-  *ret_publisher_bridge_exist = false;
-  *ret_subscriber_bridge_exist = false;
-
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
-  if (!wrapper) {
-    return 0;
-  }
-
-  struct publisher_info * pub_info;
-  int bkt_pub;
-  hash_for_each(wrapper->topic.pub_info_htable, bkt_pub, pub_info, node)
-  {
-    if (pub_info->is_bridge) {
-      *ret_publisher_bridge_exist = true;
-      break;
-    }
-  }
-
-  struct subscriber_info * sub_info;
-  int bkt_sub;
-  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub, sub_info, node)
-  {
-    if (sub_info->is_bridge) {
-      *ret_subscriber_bridge_exist = true;
-      break;
-    }
-  }
-
-  return 0;
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
@@ -2269,28 +2246,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[set_ros2_sub_args.topic_name.len] = '\0';
     ret = set_ros2_subscriber_num(topic_name_buf, ipc_ns, set_ros2_sub_args.ros2_subscriber_num);
     kfree(topic_name_buf);
-  } else if (cmd == AGNOCAST_GET_TOPIC_BRIDGE_EXIST_CMD) {
-    union ioctl_get_topic_bridge_exist_args bridge_exist_args;
-    if (copy_from_user(&bridge_exist_args, (void __user *)arg, sizeof(bridge_exist_args)))
-      goto return_EFAULT;
-    if (bridge_exist_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
-    char * topic_name_buf = kmalloc(bridge_exist_args.topic_name.len + 1, GFP_KERNEL);
-    if (!topic_name_buf) goto return_ENOMEM;
-    if (copy_from_user(
-          topic_name_buf, (char __user *)bridge_exist_args.topic_name.ptr,
-          bridge_exist_args.topic_name.len)) {
-      kfree(topic_name_buf);
-      goto return_EFAULT;
-    }
-    topic_name_buf[bridge_exist_args.topic_name.len] = '\0';
-    ret = get_topic_bridge_exist(
-      topic_name_buf, ipc_ns, &bridge_exist_args.ret_publisher_bridge_exist,
-      &bridge_exist_args.ret_subscriber_bridge_exist);
-    kfree(topic_name_buf);
-    if (copy_to_user(
-          (union ioctl_get_topic_bridge_exist_args __user *)arg, &bridge_exist_args,
-          sizeof(bridge_exist_args)))
-      goto return_EFAULT;
   } else {
     goto return_EINVAL;
   }

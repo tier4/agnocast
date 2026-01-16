@@ -143,6 +143,7 @@ void test_case_get_subscriber_num_bridge_exist(struct kunit * test)
   union ioctl_get_subscriber_num_args subscriber_num_args;
   int ret1 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret1, 0);
+  KUNIT_EXPECT_FALSE(test, subscriber_num_args.ret_bridge_exist);
 
   struct ioctl_add_bridge_args add_bridge_args = {0};
   int ret2 =
@@ -151,4 +152,5 @@ void test_case_get_subscriber_num_bridge_exist(struct kunit * test)
 
   int ret3 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
+  KUNIT_EXPECT_TRUE(test, subscriber_num_args.ret_bridge_exist);
 }

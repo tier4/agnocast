@@ -10,7 +10,6 @@
 #include "agnocast_kunit/agnocast_kunit_get_publisher_qos.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_qos.h"
-#include "agnocast_kunit/agnocast_kunit_get_topic_bridge_exist.h"
 #include "agnocast_kunit/agnocast_kunit_increment_rc.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
@@ -43,7 +42,6 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_GET_PUBLISHER_QOS,
   TEST_CASES_ADD_BRIDGE,
   TEST_CASES_REMOVE_BRIDGE,
-  TEST_CASES_GET_TOPIC_BRIDGE_EXIST,
   TEST_CASES_SET_ROS2_SUBSCRIBER_NUM,
   TEST_CASES_DO_EXIT,
   {},

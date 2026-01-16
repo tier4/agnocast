@@ -29,6 +29,8 @@ private:
   {
     AddBridgeResult status;
     pid_t owner_pid;
+    bool has_r2a;
+    bool has_a2r;
   };
 
   struct BridgeInfo
