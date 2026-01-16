@@ -1117,6 +1117,41 @@ int take_msg(
   return 0;
 }
 
+static int get_topic_bridge_exist(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, bool * ret_publisher_bridge_exist,
+  bool * ret_subscriber_bridge_exist)
+{
+  *ret_publisher_bridge_exist = false;
+  *ret_subscriber_bridge_exist = false;
+
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    return 0;
+  }
+
+  struct publisher_info * pub_info;
+  int bkt_pub;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt_pub, pub_info, node)
+  {
+    if (pub_info->is_bridge) {
+      *ret_publisher_bridge_exist = true;
+      break;
+    }
+  }
+
+  struct subscriber_info * sub_info;
+  int bkt_sub;
+  hash_for_each(wrapper->topic.sub_info_htable, bkt_sub, sub_info, node)
+  {
+    if (sub_info->is_bridge) {
+      *ret_subscriber_bridge_exist = true;
+      break;
+    }
+  }
+
+  return 0;
+}
+
 // Forward declaration
 static struct bridge_info * find_bridge_info(
   const char * topic_name, const struct ipc_namespace * ipc_ns);
@@ -1136,8 +1171,11 @@ int get_subscriber_num(
     ioctl_ret->ret_subscriber_num = 0;
   }
 
-  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
-  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_a2r);
+  bool is_pub_bridge_exist = false;
+  bool is_sub_bridge_exist = false;
+
+  get_topic_bridge_exist(topic_name, ipc_ns, &is_pub_bridge_exist, &is_sub_bridge_exist);
+  ioctl_ret->ret_bridge_exist = is_sub_bridge_exist;
 
   return 0;
 }
@@ -1164,8 +1202,11 @@ int get_publisher_num(
     ioctl_ret->ret_publisher_num = 0;
   }
 
-  const struct bridge_info * br_info = find_bridge_info(topic_name, ipc_ns);
-  ioctl_ret->ret_bridge_exist = (br_info && br_info->has_r2a);
+  bool is_pub_bridge_exist = false;
+  bool is_sub_bridge_exist = false;
+
+  get_topic_bridge_exist(topic_name, ipc_ns, &is_pub_bridge_exist, &is_sub_bridge_exist);
+  ioctl_ret->ret_bridge_exist = is_pub_bridge_exist;
 
   return 0;
 }
