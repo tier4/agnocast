@@ -37,7 +37,6 @@ struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
   bool ignore_local_publications{false};
-  bool is_bridge{false};
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
@@ -71,9 +70,12 @@ class SubscriptionBase
 protected:
   topic_local_id_t id_;
   const std::string topic_name_;
-  union ioctl_add_subscriber_args initialize(
+  union ioctl_add_subscriber_args initialize_internal(
     const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
     const bool is_bridge, const std::string & node_name);
+  union ioctl_add_subscriber_args initialize(
+    const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
+    const std::string & node_name);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
@@ -104,7 +106,8 @@ class BasicSubscription : public SubscriptionBase
   template <typename NodeT, typename Func>
   uint32_t constructor_impl(
     NodeT * node, const rclcpp::QoS & qos, Func && callback,
-    rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options)
+    rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options,
+    const bool is_bridge)
   {
     auto node_parameters = node->get_node_parameters_interface();
     const rclcpp::QoS actual_qos =
@@ -114,8 +117,8 @@ class BasicSubscription : public SubscriptionBase
             rclcpp::detail::SubscriptionQosParametersTraits{})
         : qos;
 
-    union ioctl_add_subscriber_args add_subscriber_args = initialize(
-      actual_qos, false, options.ignore_local_publications, options.is_bridge,
+    union ioctl_add_subscriber_args add_subscriber_args = initialize_internal(
+      actual_qos, false, options.ignore_local_publications, is_bridge,
       node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
@@ -143,7 +146,29 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, false);
+
+    {
+      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
+      TRACEPOINT(
+        agnocast_subscription_init, static_cast<const void *>(this),
+        static_cast<const void *>(
+          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
+        static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
+        tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_callback_info_id);
+    }
+  }
+
+  template <typename Func>
+  BasicSubscription(
+    InternalBridgeTag, rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    Func && callback, agnocast::SubscriptionOptions options)
+  : SubscriptionBase(node, topic_name)
+  {
+    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
+
+    [[maybe_unused]] uint32_t callback_info_id =
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, true);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
@@ -165,7 +190,7 @@ public:
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options);
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, false);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
@@ -197,9 +222,8 @@ public:
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
 
-    union ioctl_add_subscriber_args add_subscriber_args = initialize(
-      qos, true, options.ignore_local_publications, options.is_bridge,
-      node->get_fully_qualified_name());
+    union ioctl_add_subscriber_args add_subscriber_args =
+      initialize(qos, true, options.ignore_local_publications, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
 

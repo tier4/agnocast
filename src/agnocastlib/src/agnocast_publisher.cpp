@@ -39,7 +39,7 @@ void decrement_borrowed_publisher_num()
   borrowed_publisher_num--;
 }
 
-topic_local_id_t initialize_publisher(
+topic_local_id_t initialize_publisher_internal(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
   const bool is_bridge)
 {
@@ -58,6 +58,12 @@ topic_local_id_t initialize_publisher(
   }
 
   return pub_args.ret_id;
+}
+
+topic_local_id_t initialize_publisher(
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos)
+{
+  return initialize_publisher_internal(topic_name, node_name, qos, false);
 }
 
 union ioctl_publish_msg_args publish_core(

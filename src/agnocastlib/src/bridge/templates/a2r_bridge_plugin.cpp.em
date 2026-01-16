@@ -34,6 +34,7 @@ extern "C" PerformanceBridgeResult @(function_name)(
 
   using AgnoSub = agnocast::BasicSubscription<@(cpp_type), agnocast::NoBridgeRequestPolicy>;
   auto agno_sub = std::make_shared<AgnoSub>(
+    agnocast::InternalBridgeTag{},
     node.get(),
     topic_name,
     sub_qos,

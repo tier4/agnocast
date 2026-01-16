@@ -28,9 +28,11 @@ namespace agnocast
 class Node;
 
 // These are cut out of the class for information hiding.
-topic_local_id_t initialize_publisher(
+topic_local_id_t initialize_publisher_internal(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
   const bool is_bridge);
+topic_local_id_t initialize_publisher(
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
 union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -44,8 +46,6 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
-  bool is_bridge{false};
-  // NOTE: This option is deprecated. Any values set here will be ignored.
   bool do_always_ros2_publish = false;
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
@@ -60,7 +60,7 @@ class BasicPublisher
   template <typename NodeT>
   rclcpp::QoS constructor_impl(
     NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & options)
+    const PublisherOptions & options, const bool is_bridge)
   {
     if (options.do_always_ros2_publish) {
       RCLCPP_ERROR(
@@ -79,8 +79,8 @@ class BasicPublisher
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
 
-    id_ = initialize_publisher(
-      topic_name_, node->get_fully_qualified_name(), actual_qos, options.is_bridge);
+    id_ = initialize_publisher_internal(
+      topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     return actual_qos;
@@ -93,7 +93,20 @@ public:
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options)
   {
-    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options);
+    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, false);
+
+    TRACEPOINT(
+      agnocast_publisher_init, static_cast<const void *>(this),
+      static_cast<const void *>(
+        node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
+      topic_name_.c_str(), actual_qos.depth());
+  }
+
+  BasicPublisher(
+    InternalBridgeTag, rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
+    const PublisherOptions & options = PublisherOptions{})
+  {
+    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, true);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
@@ -106,7 +119,7 @@ public:
     agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options = PublisherOptions{})
   {
-    constructor_impl(node, topic_name, qos, options);
+    constructor_impl(node, topic_name, qos, options, false);
 
     // TODO: CARET tracepoint for agnocast::Node
   }

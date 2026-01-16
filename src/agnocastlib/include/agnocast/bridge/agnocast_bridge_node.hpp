@@ -97,10 +97,10 @@ public:
     // TransientLocal is hardcoded here as a catch-all configuration that supports
     // any subscriber requirement (volatile or durable) by preserving data.
     agnocast::PublisherOptions agno_opts;
-    agno_opts.is_bridge = true;
 
     agnocast_pub_ = std::make_shared<AgnoPub>(
-      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(), agno_opts);
+      InternalBridgeTag{}, parent_node.get(), topic_name,
+      rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(), agno_opts);
     ros_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 
@@ -155,14 +155,13 @@ public:
 
     agnocast::SubscriptionOptions agno_opts;
     agno_opts.ignore_local_publications = true;
-    agno_opts.is_bridge = true;
     agno_opts.callback_group = agno_cb_group_;
 
     // Subscribe to Agnocast (shared memory).
     // The QoS settings are now passed via argument to inherit the settings
     // from the corresponding Agnocast publisher (e.g. Reliable or BestEffort).
     agnocast_sub_ = std::make_shared<AgnoSub>(
-      parent_node.get(), topic_name, sub_qos,
+      InternalBridgeTag{}, parent_node.get(), topic_name, sub_qos,
       [this](const agnocast::ipc_shared_ptr<MessageT> msg) {
         auto loaned_msg = this->ros_pub_->borrow_loaned_message();
         if (loaned_msg.is_valid()) {
