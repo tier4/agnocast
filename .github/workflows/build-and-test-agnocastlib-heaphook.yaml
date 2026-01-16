@@ -112,9 +112,7 @@ jobs:
           -DCOVERAGE=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-         --packages-up-to agnocastlib \
-         --event-handlers console_direct+ 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         ccache --show-stats
 
     - name: Run clang-tidy for agnocastlib
