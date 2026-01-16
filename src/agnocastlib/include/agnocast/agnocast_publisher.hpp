@@ -29,7 +29,8 @@ class Node;
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
-  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
+  const bool is_bridge);
 union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -43,6 +44,7 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
+  bool is_bridge{false};
   // NOTE: This option is deprecated. Any values set here will be ignored.
   bool do_always_ros2_publish = false;
   rclcpp::QosOverridingOptions qos_overriding_options;
@@ -77,7 +79,8 @@ class BasicPublisher
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
 
-    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
+    id_ = initialize_publisher(
+      topic_name_, node->get_fully_qualified_name(), actual_qos, options.is_bridge);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     return actual_qos;

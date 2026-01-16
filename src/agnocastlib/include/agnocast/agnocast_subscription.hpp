@@ -37,6 +37,7 @@ struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
   bool ignore_local_publications{false};
+  bool is_bridge{false};
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
 
@@ -72,7 +73,7 @@ protected:
   const std::string topic_name_;
   union ioctl_add_subscriber_args initialize(
     const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
-    const std::string & node_name);
+    const bool is_bridge, const std::string & node_name);
 
 public:
   SubscriptionBase(rclcpp::Node * node, const std::string & topic_name);
@@ -114,7 +115,8 @@ class BasicSubscription : public SubscriptionBase
         : qos;
 
     union ioctl_add_subscriber_args add_subscriber_args = initialize(
-      actual_qos, false, options.ignore_local_publications, node->get_fully_qualified_name());
+      actual_qos, false, options.ignore_local_publications, options.is_bridge,
+      node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
@@ -195,8 +197,9 @@ public:
         dummy_cb_symbols.c_str(), topic_name_.c_str(), qos.depth(), 0);
     }
 
-    union ioctl_add_subscriber_args add_subscriber_args =
-      initialize(qos, true, options.ignore_local_publications, node->get_fully_qualified_name());
+    union ioctl_add_subscriber_args add_subscriber_args = initialize(
+      qos, true, options.ignore_local_publications, options.is_bridge,
+      node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
 

@@ -96,9 +96,11 @@ public:
     // Agnocast relies on shared memory, so network reliability concepts do not apply.
     // TransientLocal is hardcoded here as a catch-all configuration that supports
     // any subscriber requirement (volatile or durable) by preserving data.
+    agnocast::PublisherOptions agno_opts;
+    agno_opts.is_bridge = true;
+
     agnocast_pub_ = std::make_shared<AgnoPub>(
-      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(),
-      agnocast::PublisherOptions{});
+      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(), agno_opts);
     ros_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 
@@ -153,6 +155,7 @@ public:
 
     agnocast::SubscriptionOptions agno_opts;
     agno_opts.ignore_local_publications = true;
+    agno_opts.is_bridge = true;
     agno_opts.callback_group = agno_cb_group_;
 
     // Subscribe to Agnocast (shared memory).
