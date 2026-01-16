@@ -57,7 +57,7 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `for_each_callback_group()` | ✓ | **Full Support** | - | |
 | `get_notify_guard_condition()` | ✗ | **Throws Exception** | Yes | Not needed as agnocast uses epoll instead of condition variables, but planned for loading into Component Container |
 | `get_associated_with_executor_atomic()` | ✓ | **Full Support** | - | |
-| `resolve_topic_or_service_name()` | ✗ | **Not Implemented** | Yes | **Still TODO**, returns empty string. Use NodeTopics' `resolve_topic_name()` instead |
+| `resolve_topic_or_service_name()` | ✓ | **Full Support** | - | Used by NodeTopics and (future) NodeServices |
 | `get_use_intra_process_default()` | ⚠ | **API Only** | No | Returns value while logging a warning. agnocast uses its own shared memory IPC, so rclcpp's intra_process_communication is not used. |
 | `get_enable_topic_statistics_default()` | ⚠ | **API Only** | Yes | Returns value passed from NodeOptions. |
 
@@ -95,14 +95,14 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 | `get_parameter(name, param&)` | ✓ | **Full Support** | - | |
 | `get_parameters(names)` | ✓ | **Full Support** | - | |
 | `get_parameter_overrides()` | ✓ | **Full Support** | - | |
-| `set_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `set_parameters_atomically()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `get_parameters_by_prefix()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `describe_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `get_parameter_types()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `list_parameters()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `add_on_set_parameters_callback()` | ✗ | **Not Implemented** | Yes | Throws exception |
-| `remove_on_set_parameters_callback()` | ✗ | **Not Implemented** | Yes | Throws exception |
+| `set_parameters()` | ✓ | **Full Support** | - | Parameter events not triggered (see below) |
+| `set_parameters_atomically()` | ✓ | **Full Support** | - | Parameter events not triggered (see below) |
+| `get_parameters_by_prefix()` | ✓ | **Full Support** | - | |
+| `describe_parameters()` | ✓ | **Full Support** | - | |
+| `get_parameter_types()` | ✓ | **Full Support** | - | |
+| `list_parameters()` | ✓ | **Full Support** | - | |
+| `add_on_set_parameters_callback()` | ✓ | **Full Support** | - | |
+| `remove_on_set_parameters_callback()` | ✓ | **Full Support** | - | |
 
 **Other differences from rclcpp::NodeParameters**:
 
@@ -113,7 +113,37 @@ Each interface is accessible via getter methods such as `get_node_base_interface
 
 ---
 
-### 2.4 Other Interfaces
+### 2.4 NodeClockInterface
+
+**Purpose**: Clock access
+
+| Feature | agnocast::Node | Support Level | Planned | Notes |
+|---------|----------------|---------------|---------|-------|
+| `get_clock()` | ✓ | **Full Support** | - | |
+
+---
+
+### 2.5 NodeTimeSourceInterface
+
+**Purpose**: Time source configuration for simulated time (`use_sim_time`)
+
+| Feature | agnocast::Node | Support Level | Planned | Notes |
+|---------|----------------|---------------|---------|-------|
+| `use_sim_time` parameter | ✓ | **Full Support** | - | Declared at node construction |
+| `/clock` subscription | ✓ | **Full Support** | - | Subscribes when `use_sim_time:=true` |
+| ROS time override | ✓ | **Full Support** | - | Uses `rcl_*_ros_time_override()` functions |
+
+**Unimplemented Features** (compared to rclcpp::TimeSource):
+
+| Feature | Impact | Notes |
+|---------|--------|-------|
+| Multiple clocks | Low | `agnocast::Node` uses single clock; rarely needed |
+| Message caching | Low | Only matters when attaching clocks after `/clock` messages arrive |
+| Dynamic parameter change | Low | Typically `use_sim_time` is set at launch time and not changed at runtime (e.g., Autoware's logging_simulation) |
+
+---
+
+### 2.6 Other Interfaces
 
 The following interfaces are all **unsupported**. agnocast::Node does not implement these interfaces.
 
@@ -123,9 +153,7 @@ The following interfaces are all **unsupported**. agnocast::Node does not implem
 | NodeLoggingInterface | Unsupported | TBD | `get_logger()` is provided as a direct method |
 | NodeServicesInterface | Unsupported | TBD | Uses agnocast's own service functionality |
 | NodeTimersInterface | Unsupported | Yes | |
-| NodeClockInterface | Unsupported | TBD | |
 | NodeWaitablesInterface | Unsupported | TBD | |
-| NodeTimeSourceInterface | Unsupported | TBD | |
 
 ---
 
@@ -230,22 +258,22 @@ The following tables compare methods that are **directly defined** in each class
 
 | API | rclcpp::Node | agnocast::Node | Notes |
 |-----|:------------:|:--------------:|-------|
-| `declare_parameter()` | ✓ | ✓ | agnocast requires default value |
+| `declare_parameter()` | ✓ | ✓ | |
 | `declare_parameters()` | ✓ | ✗ | |
 | `undeclare_parameter()` | ✓ | ✓ | |
 | `has_parameter()` | ✓ | ✓ | |
 | `get_parameter()` | ✓ | ✓ | |
 | `get_parameter_or()` | ✓ | ✗ | |
-| `get_parameters()` | ✓ | ✓ | agnocast does not support prefix specification |
-| `set_parameter()` | ✓ | ✗ | |
-| `set_parameters()` | ✓ | ✗ | |
-| `set_parameters_atomically()` | ✓ | ✗ | |
-| `describe_parameter()` | ✓ | ✗ | |
-| `describe_parameters()` | ✓ | ✗ | |
-| `get_parameter_types()` | ✓ | ✗ | |
-| `list_parameters()` | ✓ | ✗ | |
-| `add_on_set_parameters_callback()` | ✓ | ✗ | |
-| `remove_on_set_parameters_callback()` | ✓ | ✗ | |
+| `get_parameters()` | ✓ | ✓ | |
+| `set_parameter()` | ✓ | ✓ | |
+| `set_parameters()` | ✓ | ✓ | |
+| `set_parameters_atomically()` | ✓ | ✓ | |
+| `describe_parameter()` | ✓ | ✓ | |
+| `describe_parameters()` | ✓ | ✓ | |
+| `get_parameter_types()` | ✓ | ✓ | |
+| `list_parameters()` | ✓ | ✓ | |
+| `add_on_set_parameters_callback()` | ✓ | ✓ | |
+| `remove_on_set_parameters_callback()` | ✓ | ✓ | |
 
 #### Timers, Services, Clients
 
@@ -274,8 +302,8 @@ The following tables compare methods that are **directly defined** in each class
 
 | API | rclcpp::Node | agnocast::Node | Notes |
 |-----|:------------:|:--------------:|-------|
-| `get_clock()` | ✓ | ✗ | |
-| `now()` | ✓ | ✗ | |
+| `get_clock()` | ✓ | ✓ | |
+| `now()` | ✓ | ✓ | |
 
 #### Node Interface Access
 
@@ -321,6 +349,8 @@ The following tables compare methods that are **directly defined** in each class
 
 `agnocast::Node` implements `rclcpp::node_interfaces::NodeBaseInterface`, so it can be loaded as a Composable Node into a Component Container.
 
+**Note**: While `agnocast::Node` can be loaded into a Component Container, the Component Container itself becomes a DDS participant. Therefore, the performance maximization benefits—which are the primary purpose of using `agnocast::Node`—cannot be fully realized when using a Component Container.
+
 ---
 
 ## 6. Dependencies on rcl/rclcpp
@@ -338,10 +368,18 @@ agnocast::Node uses the following rcl/rclcpp functions, data structures, and cla
 - `rcl_arguments_get_param_overrides()` - Get parameter overrides
 - `rcl_arguments_fini()` - Argument cleanup
 - `rcl_get_default_allocator()` - Get default allocator
+- `rcl_enable_ros_time_override()` - Enable ROS time override for simulated time
+- `rcl_disable_ros_time_override()` - Disable ROS time override
+- `rcl_set_ros_time_override()` - Set ROS time override value
 
 **rcl Data Structures**:
 
 - `rcl_arguments_t` - Parsed arguments
+
+**rclcpp Functions**:
+
+- `rclcpp::detail::declare_qos_parameters()` - Declares QoS-related parameters and applies overrides. This function only requires `NodeParametersInterface` and internally calls `declare_parameter`/`get_parameter`, so it works with `agnocast::Node`. When `QosOverridingOptions` is specified, QoS policies are automatically applied from parameters using the naming convention `qos_overrides.<topic>.<entity>.<policy>` (e.g., `qos_overrides./my_topic.subscription.durability`), without requiring explicit parameter declaration in user code.
+- `rclcpp::exceptions::throw_from_rcl_error()` - Throw exception from rcl error
 
 **rclcpp Classes/Interfaces**:
 
@@ -350,7 +388,19 @@ agnocast::Node uses the following rcl/rclcpp functions, data structures, and cla
 - `rclcpp::Logger` - Logging
 - `rclcpp::Parameter` / `rclcpp::ParameterValue` - Parameter management
 - `rclcpp::QoS` - QoS configuration
+- `rclcpp::QosOverridingOptions` - QoS override configuration via parameters
 - `rclcpp::NodeOptions` - Node construction options
 - `rclcpp::node_interfaces::NodeBaseInterface` - Node base interface (inherited)
 - `rclcpp::node_interfaces::NodeTopicsInterface` - Node topics interface (inherited)
 - `rclcpp::node_interfaces::NodeParametersInterface` - Node parameters interface (inherited)
+- `rclcpp::node_interfaces::ParameterMutationRecursionGuard` - RAII guard to prevent recursive parameter modifications from within callbacks
+- `rclcpp::node_interfaces::ParameterInfo` - Parameter value and descriptor storage
+- `rclcpp::node_interfaces::OnSetParametersCallbackHandle` - Handle for parameter set callbacks
+- `rclcpp::node_interfaces::NodeClockInterface` - Node clock interface (inherited)
+- `rclcpp::node_interfaces::NodeTimeSourceInterface` - Node time source interface (inherited)
+- `rclcpp::Clock` - Clock management
+- `rclcpp::Time` - Time representation
+
+**Message Types**:
+
+- `rosgraph_msgs::msg::Clock` - Clock message for simulated time
