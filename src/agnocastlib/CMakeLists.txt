@@ -37,7 +37,7 @@ add_library(agnocast SHARED
   src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp
   src/bridge/agnocast_bridge_ipc_event_loop.cpp src/bridge/agnocast_bridge_loader.cpp src/bridge/agnocast_bridge_manager.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator)
+ament_target_dependencies(agnocast cie_thread_configurator cie_config_msgs)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
