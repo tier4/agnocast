@@ -108,7 +108,7 @@ jobs:
         CCACHE_COMPRESSLEVEL: "6"
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        colcon build --merge-install --cmake-args \
+        colcon build --parallel-workers 1 --merge-install --cmake-args \
           -DCOVERAGE=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
