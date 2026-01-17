@@ -16,11 +16,11 @@ extern "C" PerformanceBridgeResult @(function_name)(
   using AgnoPub = agnocast::BasicPublisher<@(cpp_type), agnocast::NoBridgeRequestPolicy>;
 
   auto agno_pub = std::make_shared<AgnoPub>(
-    agnocast::InternalBridgeTag{},
     node.get(),
     topic_name,
     rclcpp::QoS(agnocast::DEFAULT_QOS_DEPTH).transient_local(),
-    agnocast::PublisherOptions{});
+    agnocast::PublisherOptions{},
+    true);
 
   auto ros_cb_group = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 

@@ -137,35 +137,13 @@ public:
   template <typename Func>
   BasicSubscription(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos, Func && callback,
-    agnocast::SubscriptionOptions options)
+    agnocast::SubscriptionOptions options, const bool is_bridge = false)
   : SubscriptionBase(node, topic_name)
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
     [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, false);
-
-    {
-      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
-      TRACEPOINT(
-        agnocast_subscription_init, static_cast<const void *>(this),
-        static_cast<const void *>(
-          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-        static_cast<const void *>(&callback), static_cast<const void *>(callback_group.get()),
-        tracetools::get_symbol(callback), topic_name_.c_str(), qos.depth(), pid_callback_info_id);
-    }
-  }
-
-  template <typename Func>
-  BasicSubscription(
-    InternalBridgeTag, rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    Func && callback, agnocast::SubscriptionOptions options)
-  : SubscriptionBase(node, topic_name)
-  {
-    rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
-
-    [[maybe_unused]] uint32_t callback_info_id =
-      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, true);
+      constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, is_bridge);
 
     {
       uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;

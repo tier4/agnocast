@@ -99,8 +99,8 @@ public:
     agnocast::PublisherOptions agno_opts;
 
     agnocast_pub_ = std::make_shared<AgnoPub>(
-      InternalBridgeTag{}, parent_node.get(), topic_name,
-      rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(), agno_opts);
+      parent_node.get(), topic_name, rclcpp::QoS(DEFAULT_QOS_DEPTH).transient_local(), agno_opts,
+      true);
     ros_cb_group_ =
       parent_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
 
@@ -161,7 +161,7 @@ public:
     // The QoS settings are now passed via argument to inherit the settings
     // from the corresponding Agnocast publisher (e.g. Reliable or BestEffort).
     agnocast_sub_ = std::make_shared<AgnoSub>(
-      InternalBridgeTag{}, parent_node.get(), topic_name, sub_qos,
+      parent_node.get(), topic_name, sub_qos,
       [this](const agnocast::ipc_shared_ptr<MessageT> msg) {
         auto loaned_msg = this->ros_pub_->borrow_loaned_message();
         if (loaned_msg.is_valid()) {
@@ -171,7 +171,7 @@ public:
           this->ros_pub_->publish(*msg);
         }
       },
-      agno_opts);
+      agno_opts, true);
   }
 
   rclcpp::CallbackGroup::SharedPtr get_callback_group() const override { return agno_cb_group_; }

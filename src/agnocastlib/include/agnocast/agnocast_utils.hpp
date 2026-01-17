@@ -20,10 +20,6 @@ enum class BridgeMode : int { Off = 0, Standard = 1, Performance = 2 };
 
 BridgeMode get_bridge_mode();
 
-struct InternalBridgeTag
-{
-};
-
 void validate_ld_preload();
 std::string create_mq_name_for_agnocast_publish(
   const std::string & topic_name, const topic_local_id_t id);

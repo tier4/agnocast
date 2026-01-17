@@ -89,22 +89,9 @@ public:
 
   BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & options)
+    const PublisherOptions & options, const bool is_bridge = false)
   {
-    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, false);
-
-    TRACEPOINT(
-      agnocast_publisher_init, static_cast<const void *>(this),
-      static_cast<const void *>(
-        node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-      topic_name_.c_str(), actual_qos.depth());
-  }
-
-  BasicPublisher(
-    InternalBridgeTag, rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & options = PublisherOptions{})
-  {
-    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, true);
+    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, is_bridge);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
