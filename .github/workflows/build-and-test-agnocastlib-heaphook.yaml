@@ -108,8 +108,7 @@ jobs:
         CCACHE_COMPRESSLEVEL: "6"
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        # Use sequential build with merge-install to ensure proper dependency resolution
-        colcon build --parallel-workers 1 --merge-install --cmake-args \
+        colcon build --merge-install --cmake-args \
           -DCOVERAGE=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -132,7 +131,6 @@ jobs:
       id: test
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        source install/setup.bash
         colcon test --merge-install --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib|test_integration_test_agnocast_component_container_cie_launch"
 
     - name: Display coverage report in PR comment
@@ -204,5 +202,4 @@ jobs:
       if: github.event_name == 'pull_request' && steps.check_diff.outputs.heaphook_changed == 'true'
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        source install/setup.bash
         colcon test --merge-install --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_integration_agnocast_heaphook"
