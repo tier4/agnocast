@@ -28,11 +28,9 @@ namespace agnocast
 class Node;
 
 // These are cut out of the class for information hiding.
-topic_local_id_t initialize_publisher_internal(
+topic_local_id_t initialize_publisher(
   const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
   const bool is_bridge);
-topic_local_id_t initialize_publisher(
-  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
 union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -79,8 +77,8 @@ class BasicPublisher
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
 
-    id_ = initialize_publisher_internal(
-      topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
+    id_ =
+      initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     return actual_qos;

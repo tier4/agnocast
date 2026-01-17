@@ -16,7 +16,7 @@ SubscriptionBase::SubscriptionBase(
   validate_ld_preload();
 }
 
-union ioctl_add_subscriber_args SubscriptionBase::initialize_internal(
+union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
   const bool is_bridge, const std::string & node_name)
 {
@@ -37,13 +37,6 @@ union ioctl_add_subscriber_args SubscriptionBase::initialize_internal(
   }
 
   return add_subscriber_args;
-}
-
-union ioctl_add_subscriber_args SubscriptionBase::initialize(
-  const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
-  const std::string & node_name)
-{
-  return initialize_internal(qos, is_take_sub, ignore_local_publications, false, node_name);
 }
 
 mqd_t open_mq_for_subscription(
