@@ -108,26 +108,8 @@ jobs:
         CCACHE_COMPRESSLEVEL: "6"
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        # Workaround: colcon's parallel build may start configuring packages before
-        # dependencies are installed. Split into stages to ensure proper resolution.
-        # Stage 1: Build cie_config_msgs and cie_thread_configurator
-        colcon build --packages-up-to cie_thread_configurator --cmake-args \
-          -DCOVERAGE=ON \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-        # Source workspace to make cie_config_msgs available
-        source install/setup.bash
-        # Stage 2: Build agnocastlib and its dependencies
-        colcon build --packages-up-to agnocastlib --cmake-args \
-          -DCOVERAGE=ON \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-        # Source workspace to make agnocastlib available
-        source install/setup.bash
-        # Stage 3: Build remaining packages (agnocast_e2e_test, agnocast_sample_application)
-        colcon build --cmake-args \
+        # Use sequential build with merge-install to ensure proper dependency resolution
+        colcon build --parallel-workers 1 --merge-install --cmake-args \
           -DCOVERAGE=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -151,7 +133,7 @@ jobs:
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         source install/setup.bash
-        colcon test --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib|test_integration_test_agnocast_component_container_cie_launch"
+        colcon test --merge-install --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib|test_integration_test_agnocast_component_container_cie_launch"
 
     - name: Display coverage report in PR comment
       if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
@@ -223,4 +205,4 @@ jobs:
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         source install/setup.bash
-        colcon test --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_integration_agnocast_heaphook"
+        colcon test --merge-install --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_integration_agnocast_heaphook"
