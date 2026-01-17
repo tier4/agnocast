@@ -266,7 +266,6 @@ void BridgeManager::check_active_bridges()
       auto result = get_agnocast_subscriber_count(std::string(topic_name_view));
       count = result.count;
       reverse_bridge_exist = result.bridge_exist;
-      RCLCPP_INFO(logger_, "TEST EXIST %d", reverse_bridge_exist);
     } else {
       auto result = get_agnocast_publisher_count(std::string(topic_name_view));
       count = result.count;
