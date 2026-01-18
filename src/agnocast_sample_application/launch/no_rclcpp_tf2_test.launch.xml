@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="agnocast_sample_application" exec="no_rclcpp_tf2_test" name="tf2_test_node" output="screen">
+    <env name="LD_PRELOAD" value="$(find-pkg-share agnocast_heaphook)/../lib/libagnocast_heaphook.so"/>
+  </node>
+</launch>

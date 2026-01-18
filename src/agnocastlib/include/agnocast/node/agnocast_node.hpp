@@ -30,6 +30,7 @@ class Node
 public:
   using SharedPtr = std::shared_ptr<Node>;
   using ParameterValue = rclcpp::ParameterValue;
+  using OnSetParametersCallbackHandle = rclcpp::node_interfaces::OnSetParametersCallbackHandle;
 
   explicit Node(
     const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
