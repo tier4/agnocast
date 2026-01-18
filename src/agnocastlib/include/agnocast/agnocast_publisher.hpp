@@ -61,7 +61,6 @@ class BasicPublisher
   {
     std::memset(gid_.data, 0, RMW_GID_STORAGE_SIZE);
 
-    // === GuidPrefix equivalent (12 bytes) ===
     // [0-3]: Agnocast identifier (0xFFFF prefix ensures no collision with DDS GUIDs)
     gid_.data[0] = 0xFF;
     gid_.data[1] = 0xFF;
@@ -76,7 +75,6 @@ class BasicPublisher
     size_t topic_hash = std::hash<std::string>{}(topic_name_);
     std::memcpy(gid_.data + 8, &topic_hash, 4);
 
-    // === EntityId equivalent (4 bytes) ===
     // [12-15]: publisher id
     std::memcpy(gid_.data + 12, &id_, sizeof(id_));
 
