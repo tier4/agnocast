@@ -5,7 +5,7 @@
 namespace agnocast::node_interfaces
 {
 
-NodeServices::NodeServices(NodeBase::SharedPtr node_base) : node_base_(node_base)
+NodeServices::NodeServices(NodeBase::SharedPtr node_base) : node_base_(std::move(node_base))
 {
 }
 
