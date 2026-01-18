@@ -1122,7 +1122,7 @@ static struct bridge_info * find_bridge_info(
   const char * topic_name, const struct ipc_namespace * ipc_ns);
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t caller_pid,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
   const bool include_ros2, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   ioctl_ret->ret_subscriber_num = 0;
@@ -1145,7 +1145,7 @@ int get_subscriber_num(
     if (sub_info->is_bridge) {
       ioctl_ret->ret_bridge_exist = true;
     }
-    if (sub_info->pid == caller_pid) {
+    if (sub_info->pid == pid) {
       intra_count++;
     } else {
       inter_count++;

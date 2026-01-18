@@ -346,7 +346,7 @@ int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret);
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t caller_pid,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
   const bool include_ros2, union ioctl_get_subscriber_num_args * ioctl_ret);
 
 int get_publisher_num(
