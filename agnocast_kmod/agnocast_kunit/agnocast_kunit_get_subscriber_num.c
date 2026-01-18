@@ -88,7 +88,6 @@ void test_case_get_subscriber_num_normal(struct kunit * test)
     topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
-  // subscriber is in a different process, so it's counted as inter-process
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_intra_subscriber_num, 0);
 }
@@ -105,7 +104,6 @@ void test_case_get_subscriber_num_many(struct kunit * test)
     topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
-  // all subscribers are in different processes, so they're counted as inter-process
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, MAX_SUBSCRIBER_NUM);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_intra_subscriber_num, 0);
 }
