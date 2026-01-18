@@ -1122,10 +1122,11 @@ static struct bridge_info * find_bridge_info(
   const char * topic_name, const struct ipc_namespace * ipc_ns);
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, const bool include_ros2,
-  union ioctl_get_subscriber_num_args * ioctl_ret)
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t caller_pid,
+  const bool include_ros2, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   ioctl_ret->ret_subscriber_num = 0;
+  ioctl_ret->ret_intra_subscriber_num = 0;
   ioctl_ret->ret_bridge_exist = false;
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
@@ -1134,11 +1135,8 @@ int get_subscriber_num(
     return 0;
   }
 
-  uint32_t count = get_size_sub_info_htable(wrapper);
-  if (include_ros2) {
-    count += wrapper->topic.ros2_subscriber_num;
-  }
-  ioctl_ret->ret_subscriber_num = count;
+  uint32_t inter_count = 0;
+  uint32_t intra_count = 0;
 
   struct subscriber_info * sub_info;
   int bkt_sub;
@@ -1146,9 +1144,20 @@ int get_subscriber_num(
   {
     if (sub_info->is_bridge) {
       ioctl_ret->ret_bridge_exist = true;
-      break;
+    }
+    if (sub_info->pid == caller_pid) {
+      intra_count++;
+    } else {
+      inter_count++;
     }
   }
+
+  if (include_ros2) {
+    inter_count += wrapper->topic.ros2_subscriber_num;
+  }
+
+  ioctl_ret->ret_subscriber_num = inter_count;
+  ioctl_ret->ret_intra_subscriber_num = intra_count;
 
   return 0;
 }
@@ -1994,7 +2003,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_subscriber_num(topic_name_buf, ipc_ns, include_ros2, &get_subscriber_num_args);
+    ret = get_subscriber_num(topic_name_buf, ipc_ns, pid, include_ros2, &get_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
