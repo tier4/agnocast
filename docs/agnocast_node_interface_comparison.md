@@ -329,7 +329,7 @@ The following tables compare methods that are **directly defined** in each class
 | `get_node_timers_interface()` | ✓ | ✗ | |
 | `get_node_services_interface()` | ✓ | ✓ | |
 | `get_node_waitables_interface()` | ✓ | ✗ | |
-| `get_node_time_source_interface()` | ✓ | ✗ | |
+| `get_node_time_source_interface()` | ✓ | ✓ | |
 
 #### Sub-nodes & Namespaces
 
