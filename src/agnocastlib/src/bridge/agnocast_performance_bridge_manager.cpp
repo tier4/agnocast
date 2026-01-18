@@ -142,7 +142,8 @@ void PerformanceBridgeManager::check_and_create_bridges()
       continue;
     }
 
-    const std::string message_type = requests.begin()->second.message_type;
+    const std::string message_type =
+      static_cast<const char *>(requests.begin()->second.message_type);
 
     create_bridge_if_needed(topic_name, requests, message_type, BridgeDirection::ROS2_TO_AGNOCAST);
     create_bridge_if_needed(topic_name, requests, message_type, BridgeDirection::AGNOCAST_TO_ROS2);
@@ -246,11 +247,15 @@ bool PerformanceBridgeManager::should_create_bridge(
 
     return has_external_ros2_publisher(container_node_.get(), topic_name);
   }
-  if (active_a2r_bridges_.count(topic_name) > 0) return false;
+  if (active_a2r_bridges_.count(topic_name) > 0) {
+    return false;
+  }
 
   const auto stats = get_agnocast_publisher_count(topic_name);
   const int threshold = stats.bridge_exist ? 1 : 0;
-  if (stats.count == -1 || stats.count <= threshold) return false;
+  if (stats.count == -1 || stats.count <= threshold) {
+    return false;
+  }
 
   return agnocast::has_external_ros2_subscriber(container_node_.get(), topic_name);
 }
