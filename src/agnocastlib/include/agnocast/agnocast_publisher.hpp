@@ -197,8 +197,7 @@ public:
   // TODO(Koichi98): Define get_intra_subscription_count separately to align with rclcpp.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 
-  // Returns the GID (Global ID) of this publisher.
-  // The GID is unique across both Agnocast and ROS 2 publishers.
+  // Returns the GID of this publisher which is unique across both Agnocast and ROS 2 publishers.
   const rmw_gid_t & get_gid() const { return gid_; }
 
   const char * get_topic_name() const { return topic_name_.c_str(); }
