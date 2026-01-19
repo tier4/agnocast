@@ -955,8 +955,7 @@ int publish_msg(
 }
 
 // Find the first entry with entry_id >= target_entry_id
-static struct rb_node * find_first_entry_ge(
-  struct rb_root * root, const int64_t target_entry_id)
+static struct rb_node * find_first_entry_ge(struct rb_root * root, const int64_t target_entry_id)
 {
   struct rb_node ** curr = &(root->rb_node);
   struct rb_node * candidate = NULL;
