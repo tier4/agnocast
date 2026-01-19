@@ -46,7 +46,7 @@ add_library(agnocast SHARED
   src/bridge/agnocast_performance_bridge_manager.cpp src/bridge/agnocast_performance_bridge_config.cpp
   src/node/tf2/buffer.cpp src/node/tf2/transform_broadcaster.cpp src/node/tf2/static_transform_broadcaster.cpp src/node/tf2/transform_listener.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs tf2 tf2_ros tf2_msgs geometry_msgs)
+ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs tf2 tf2_ros tf2_msgs geometry_msgs)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}

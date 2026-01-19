@@ -16,7 +16,7 @@ namespace agnocast::node_interfaces
 const std::string use_sim_time_name = "use_sim_time";
 
 NodeTimeSource::NodeTimeSource(
-  rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock, agnocast::Node * node,
+  const rclcpp::node_interfaces::NodeClockInterface::SharedPtr & node_clock, agnocast::Node * node,
   const rclcpp::QoS & qos)
 : qos_(qos)
 {
