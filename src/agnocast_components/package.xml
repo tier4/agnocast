@@ -7,8 +7,6 @@
     CMake tools for registering ROS 2 component nodes with Agnocast executor support.
     Provides agnocast_components_register_node macro similar to rclcpp_components_register_node.
   </description>
-  <maintainer email="sykwer@gmail.com">Takahiro Ishikawa-Aso</maintainer>
-  <maintainer email="ryuta.kambe@tier4.jp">Ryuta Kambe</maintainer>
   <maintainer email="koichi.imai.2@tier4.jp">Koichi Imai</maintainer>
   <license>Apache License 2.0</license>
 

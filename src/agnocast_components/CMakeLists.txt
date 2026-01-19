@@ -7,13 +7,11 @@ find_package(rclcpp_components REQUIRED)
 find_package(class_loader REQUIRED)
 find_package(agnocastlib REQUIRED)
 
-# Install cmake modules
 install(
   DIRECTORY cmake/
   DESTINATION share/${PROJECT_NAME}/cmake
 )
 
-# Install node_main.cpp.in templates
 install(
   FILES node_main.cpp.in node_main_agnocast_only.cpp.in
   DESTINATION share/${PROJECT_NAME}
