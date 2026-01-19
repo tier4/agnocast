@@ -19,14 +19,14 @@ void receive_message(
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
-  {
-    std::lock_guard<std::mutex> lock(mmap_mtx);
+  bool call_again = true;
+  while (call_again) {
+    union ioctl_receive_msg_args receive_args = {};
+    receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
+    receive_args.subscriber_id = callback_info.subscriber_id;
 
-    bool call_again = true;
-    while (call_again) {
-      union ioctl_receive_msg_args receive_args = {};
-      receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
-      receive_args.subscriber_id = callback_info.subscriber_id;
+    {
+      std::lock_guard<std::mutex> lock(mmap_mtx);
 
       if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
         RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
@@ -41,14 +41,14 @@ void receive_message(
         const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
         map_read_only_area(pid, addr, size);
       }
-
-      // Collect entries (oldest first order from ioctl)
-      for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
-        entries.emplace_back(receive_args.ret_entry_ids[i], receive_args.ret_entry_addrs[i]);
-      }
-
-      call_again = receive_args.ret_call_again;
     }
+
+    // Collect entries (oldest first order from ioctl)
+    for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
+      entries.emplace_back(receive_args.ret_entry_ids[i], receive_args.ret_entry_addrs[i]);
+    }
+
+    call_again = receive_args.ret_call_again;
   }
 
   // Process entries from oldest to newest (ioctl returns oldest first)
