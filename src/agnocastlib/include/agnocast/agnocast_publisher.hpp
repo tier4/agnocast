@@ -78,7 +78,7 @@ class BasicPublisher
     // [12-15]: publisher id
     std::memcpy(gid_.data + 12, &id_, sizeof(id_));
 
-    // [16-23]: reserved (zero-filled)
+    // [16-23]: reserved
 
     gid_.implementation_identifier = "agnocast";
   }
