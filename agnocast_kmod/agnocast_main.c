@@ -961,7 +961,7 @@ static struct rb_node * find_first_entry_ge(struct rb_root * root, const int64_t
   struct rb_node * candidate = NULL;
 
   while (*curr) {
-    struct entry_node * en = container_of(*curr, struct entry_node, node);
+    const struct entry_node * en = container_of(*curr, struct entry_node, node);
     if (en->entry_id >= target_entry_id) {
       candidate = *curr;
       curr = &((*curr)->rb_left);
@@ -1002,7 +1002,7 @@ int receive_msg(
     goto check_mmap;
   }
 
-  struct entry_node * newest_en = container_of(newest_node, struct entry_node, node);
+  const struct entry_node * newest_en = container_of(newest_node, struct entry_node, node);
   const int64_t newest_entry_id = newest_en->entry_id;
 
   // Calculate start_entry_id = max(newest - qos_depth + 1, latest_received_entry_id + 1)
