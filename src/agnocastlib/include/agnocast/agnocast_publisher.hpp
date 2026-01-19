@@ -30,7 +30,8 @@ class Node;
 
 // These are cut out of the class for information hiding.
 topic_local_id_t initialize_publisher(
-  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos);
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
+  const bool is_bridge);
 union ioctl_publish_msg_args publish_core(
   [[maybe_unused]] const void * publisher_handle, /* for CARET */ const std::string & topic_name,
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
@@ -44,7 +45,6 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num();
 
 struct PublisherOptions
 {
-  // NOTE: This option is deprecated. Any values set here will be ignored.
   bool do_always_ros2_publish = false;
   rclcpp::QosOverridingOptions qos_overriding_options;
 };
@@ -88,7 +88,7 @@ class BasicPublisher
   template <typename NodeT>
   rclcpp::QoS constructor_impl(
     NodeT * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & options)
+    const PublisherOptions & options, const bool is_bridge)
   {
     if (options.do_always_ros2_publish) {
       RCLCPP_ERROR(
@@ -107,7 +107,8 @@ class BasicPublisher
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
 
-    id_ = initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos);
+    id_ =
+      initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
     generate_gid();
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
@@ -119,9 +120,9 @@ public:
 
   BasicPublisher(
     rclcpp::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
-    const PublisherOptions & options)
+    const PublisherOptions & options, const bool is_bridge = false)
   {
-    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options);
+    const rclcpp::QoS actual_qos = constructor_impl(node, topic_name, qos, options, is_bridge);
 
     TRACEPOINT(
       agnocast_publisher_init, static_cast<const void *>(this),
@@ -134,7 +135,7 @@ public:
     agnocast::Node * node, const std::string & topic_name, const rclcpp::QoS & qos,
     const PublisherOptions & options = PublisherOptions{})
   {
-    constructor_impl(node, topic_name, qos, options);
+    constructor_impl(node, topic_name, qos, options, false);
 
     // TODO: CARET tracepoint for agnocast::Node
   }
@@ -195,6 +196,7 @@ public:
   // Returns the total subscriber count (Agnocast + ROS 2).
   // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically.
   // TODO(Koichi98): It just returns the number of Agnocast subscribers for performance bridge.
+  // TODO(Koichi98): Define get_intra_subscription_count separately to align with rclcpp.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 
   // Returns the GID (Global ID) of this publisher.
