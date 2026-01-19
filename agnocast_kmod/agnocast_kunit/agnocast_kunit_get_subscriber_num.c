@@ -62,16 +62,34 @@ static void setup_one_publisher(struct kunit * test, char * topic_name)
   KUNIT_ASSERT_EQ(test, ret2, 0);
 }
 
+static void setup_one_intra_subscriber(struct kunit * test, char * topic_name)
+{
+  pid_t intra_pid = current->tgid;
+
+  union ioctl_add_process_args add_process_args;
+  int ret1 = add_process(intra_pid, current->nsproxy->ipc_ns, &add_process_args);
+
+  union ioctl_add_subscriber_args add_subscriber_args;
+  int ret2 = add_subscriber(
+    topic_name, current->nsproxy->ipc_ns, node_name, intra_pid, qos_depth, qos_is_transient_local,
+    qos_is_reliable, is_take_sub, ignore_local_publications, is_bridge, &add_subscriber_args);
+
+  KUNIT_ASSERT_TRUE(test, ret1 == 0 || ret1 == -EEXIST);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+}
+
 void test_case_get_subscriber_num_normal(struct kunit * test)
 {
   char * topic_name = "/kunit_test_topic";
   setup_one_subscriber(test, topic_name);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_intra_subscriber_num, 0);
 }
 
 void test_case_get_subscriber_num_many(struct kunit * test)
@@ -82,10 +100,12 @@ void test_case_get_subscriber_num_many(struct kunit * test)
   }
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, MAX_SUBSCRIBER_NUM);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_intra_subscriber_num, 0);
 }
 
 void test_case_get_subscriber_num_different_topic(struct kunit * test)
@@ -97,10 +117,10 @@ void test_case_get_subscriber_num_different_topic(struct kunit * test)
 
   union ioctl_get_subscriber_num_args subscriber_num_args1;
   union ioctl_get_subscriber_num_args subscriber_num_args2;
-  int ret1 =
-    get_subscriber_num(topic_name1, current->nsproxy->ipc_ns, false, &subscriber_num_args1);
-  int ret2 =
-    get_subscriber_num(topic_name2, current->nsproxy->ipc_ns, false, &subscriber_num_args2);
+  int ret1 = get_subscriber_num(
+    topic_name1, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args1);
+  int ret2 = get_subscriber_num(
+    topic_name2, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args2);
 
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -115,7 +135,8 @@ void test_case_get_subscriber_num_with_exit(struct kunit * test)
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
   process_exit_cleanup(subscriber_pid);
-  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
@@ -127,7 +148,8 @@ void test_case_get_subscriber_num_no_subscriber(struct kunit * test)
   setup_one_publisher(test, topic_name);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 0);
@@ -142,11 +164,13 @@ void test_case_get_subscriber_num_include_ros2(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret2 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret2 = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
 
-  int ret3 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, true, &subscriber_num_args);
+  int ret3 = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, true, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 4);
 }
@@ -157,13 +181,31 @@ void test_case_get_subscriber_num_bridge_exist(struct kunit * test)
   setup_one_subscriber(test, topic_name);
 
   union ioctl_get_subscriber_num_args subscriber_num_args;
-  int ret1 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret1 = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret1, 0);
   KUNIT_EXPECT_FALSE(test, subscriber_num_args.ret_bridge_exist);
 
   setup_one_subscriber_with_bridge(test, topic_name);
 
-  int ret3 = get_subscriber_num(topic_name, current->nsproxy->ipc_ns, false, &subscriber_num_args);
+  int ret3 = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_TRUE(test, subscriber_num_args.ret_bridge_exist);
+}
+
+void test_case_get_subscriber_num_intra_process(struct kunit * test)
+{
+  char * topic_name = "/kunit_test_topic";
+
+  setup_one_intra_subscriber(test, topic_name);
+  setup_one_subscriber(test, topic_name);
+
+  union ioctl_get_subscriber_num_args subscriber_num_args;
+  int ret = get_subscriber_num(
+    topic_name, current->nsproxy->ipc_ns, current->tgid, false, &subscriber_num_args);
+
+  KUNIT_EXPECT_EQ(test, ret, 0);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_intra_subscriber_num, 1);
 }

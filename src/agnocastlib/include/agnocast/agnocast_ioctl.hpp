@@ -170,6 +170,7 @@ union ioctl_get_subscriber_num_args {
   struct
   {
     uint32_t ret_subscriber_num;
+    uint32_t ret_intra_subscriber_num;
     bool ret_bridge_exist;
   };
 };
