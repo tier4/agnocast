@@ -166,7 +166,7 @@ void test_case_do_exit_with_subscriber(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 1);
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
 
   // Act
   enqueue_exit_pid(subscriber_pid);
@@ -200,7 +200,7 @@ void test_case_do_exit_with_many_pubsub_in_one_process(struct kunit * test)
   int ret1 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 2);
 
   // Act
   enqueue_exit_pid(pid);
@@ -241,7 +241,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_publisher_exi
   int ret1 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 2);
 
   // Act
   enqueue_exit_pid(publisher_pid1);
@@ -263,7 +263,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_publisher_exi
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 2);
   KUNIT_EXPECT_FALSE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id1));
   KUNIT_EXPECT_TRUE(
@@ -302,7 +302,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_subscriber_ex
   int ret1 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 2);
 
   // Act
   enqueue_exit_pid(subscriber_pid1);
@@ -324,7 +324,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_subscriber_ex
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_EXPECT_TRUE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id1));
   KUNIT_EXPECT_TRUE(
@@ -363,7 +363,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_all_pubsub_ex
   int ret1 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 2);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 2);
 
   // Act
   enqueue_exit_pid(publisher_pid1);
@@ -383,7 +383,7 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_all_pubsub_ex
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 0);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 0);
 }
 
 void test_case_do_exit_with_entry(struct kunit * test)
@@ -448,7 +448,7 @@ void test_case_do_exit_with_entry_with_subscriber_reference(struct kunit * test)
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 2);
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_EQ(
     test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, publisher_id), 0);
@@ -470,7 +470,7 @@ void test_case_do_exit_with_entry_with_subscriber_reference(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 1);
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(
     test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, publisher_id), 0);
@@ -504,7 +504,7 @@ void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit *
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 2);
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_EQ(
     test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, publisher_id), 1);
@@ -528,7 +528,7 @@ void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit *
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
   KUNIT_EXPECT_TRUE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_EXPECT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id));
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
@@ -553,7 +553,7 @@ void test_case_do_exit_with_multi_references_publisher_exit_first(struct kunit *
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 0);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 0);
 }
 
@@ -583,7 +583,7 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
   KUNIT_ASSERT_EQ(test, get_alive_proc_num(), 2);
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
-  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_ASSERT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_ASSERT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_ASSERT_EQ(
     test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, publisher_id), 1);
@@ -609,7 +609,7 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
   KUNIT_EXPECT_TRUE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 0);
   KUNIT_EXPECT_EQ(test, get_topic_entries_num(TOPIC_NAME, current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
   KUNIT_EXPECT_EQ(
@@ -632,5 +632,5 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
   KUNIT_EXPECT_EQ(test, get_alive_proc_num(), 0);
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 0);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 0);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 0);
 }

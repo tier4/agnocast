@@ -142,8 +142,12 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
-  uint32_t count = get_subscriber_count_args.ret_subscriber_num;
-  if (get_subscriber_count_args.ret_bridge_exist && count > 0) {
+  uint32_t count = get_subscriber_count_args.ret_inter_subscriber_num +
+                   get_subscriber_count_args.ret_ros2_subscriber_num;
+  if (get_subscriber_count_args.ret_sub_bridge_exist && count > 0) {
+    count--;
+  }
+  if (get_subscriber_count_args.ret_pub_bridge_exist && count > 0) {
     count--;
   }
   return count;

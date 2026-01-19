@@ -1125,9 +1125,11 @@ int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
   const bool include_ros2, union ioctl_get_subscriber_num_args * ioctl_ret)
 {
-  ioctl_ret->ret_subscriber_num = 0;
+  ioctl_ret->ret_inter_subscriber_num = 0;
   ioctl_ret->ret_intra_subscriber_num = 0;
-  ioctl_ret->ret_bridge_exist = false;
+  ioctl_ret->ret_ros2_subscriber_num = 0;
+  ioctl_ret->ret_sub_bridge_exist = false;
+  ioctl_ret->ret_pub_bridge_exist = false;
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
 
@@ -1143,7 +1145,7 @@ int get_subscriber_num(
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub, sub_info, node)
   {
     if (sub_info->is_bridge) {
-      ioctl_ret->ret_bridge_exist = true;
+      ioctl_ret->ret_sub_bridge_exist = true;
     }
     if (sub_info->pid == pid) {
       intra_count++;
@@ -1152,12 +1154,19 @@ int get_subscriber_num(
     }
   }
 
-  if (include_ros2) {
-    inter_count += wrapper->topic.ros2_subscriber_num;
+  struct publisher_info * pub_info;
+  int bkt_pub;
+  hash_for_each(wrapper->topic.pub_info_htable, bkt_pub, pub_info, node)
+  {
+    if (pub_info->is_bridge) {
+      ioctl_ret->ret_pub_bridge_exist = true;
+      break;
+    }
   }
 
-  ioctl_ret->ret_subscriber_num = inter_count;
+  ioctl_ret->ret_inter_subscriber_num = inter_count;
   ioctl_ret->ret_intra_subscriber_num = intra_count;
+  ioctl_ret->ret_ros2_subscriber_num = include_ros2 ? wrapper->topic.ros2_subscriber_num : 0;
 
   return 0;
 }
@@ -1178,7 +1187,7 @@ int get_publisher_num(
   union ioctl_get_publisher_num_args * ioctl_ret)
 {
   ioctl_ret->ret_publisher_num = 0;
-  ioctl_ret->ret_bridge_exist = false;
+  ioctl_ret->ret_pub_bridge_exist = false;
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
 
@@ -1193,7 +1202,7 @@ int get_publisher_num(
   hash_for_each(wrapper->topic.pub_info_htable, bkt_pub, pub_info, node)
   {
     if (pub_info->is_bridge) {
-      ioctl_ret->ret_bridge_exist = true;
+      ioctl_ret->ret_pub_bridge_exist = true;
       break;
     }
   }

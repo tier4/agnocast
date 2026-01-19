@@ -41,7 +41,7 @@ void test_case_add_subscriber_normal(struct kunit * test)
   union ioctl_get_subscriber_num_args get_subscriber_num_args;
   get_subscriber_num(
     TOPIC_NAME, current->nsproxy->ipc_ns, current->tgid, false, &get_subscriber_num_args);
-  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, get_subscriber_num_args.ret_inter_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, add_subscriber_args.ret_id, 0);
   KUNIT_EXPECT_TRUE(
     test,

@@ -138,11 +138,11 @@ void test_case_get_publisher_num_bridge_exist(struct kunit * test)
   union ioctl_get_publisher_num_args publisher_num_args;
   int ret1 = get_publisher_num(topic_name, current->nsproxy->ipc_ns, &publisher_num_args);
   KUNIT_EXPECT_EQ(test, ret1, 0);
-  KUNIT_EXPECT_FALSE(test, publisher_num_args.ret_bridge_exist);
+  KUNIT_EXPECT_FALSE(test, publisher_num_args.ret_pub_bridge_exist);
 
   setup_one_publisher_with_bridge(test, topic_name);
 
   int ret3 = get_publisher_num(topic_name, current->nsproxy->ipc_ns, &publisher_num_args);
   KUNIT_EXPECT_EQ(test, ret3, 0);
-  KUNIT_EXPECT_TRUE(test, publisher_num_args.ret_bridge_exist);
+  KUNIT_EXPECT_TRUE(test, publisher_num_args.ret_pub_bridge_exist);
 }
