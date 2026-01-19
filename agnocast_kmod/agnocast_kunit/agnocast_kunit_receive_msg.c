@@ -371,10 +371,10 @@ void test_case_receive_msg_qos_depth_larger_than_max_receive_num(struct kunit * 
     receive_msg(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, &ioctl_receive_msg_ret2);
 
   KUNIT_EXPECT_EQ(test, ret2, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret2.ret_entry_num, 10);
+  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret2.ret_entry_num, MAX_RECEIVE_NUM);
   KUNIT_EXPECT_FALSE(test, ioctl_receive_msg_ret2.ret_call_again);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret2.ret_entry_ids[0], first_entry_id + MAX_RECEIVE_NUM);
-  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret2.ret_entry_ids[9], last_entry_id);
+  KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret2.ret_entry_ids[MAX_RECEIVE_NUM - 1], last_entry_id);
 
   // Verify latest_received_entry_id is updated to the last entry
   KUNIT_EXPECT_EQ(
