@@ -954,6 +954,26 @@ int publish_msg(
   return 0;
 }
 
+// Find the first entry with entry_id >= target_entry_id
+static struct rb_node * find_first_entry_ge(
+  struct rb_root * root, const int64_t target_entry_id)
+{
+  struct rb_node ** curr = &(root->rb_node);
+  struct rb_node * candidate = NULL;
+
+  while (*curr) {
+    struct entry_node * en = container_of(*curr, struct entry_node, node);
+    if (en->entry_id >= target_entry_id) {
+      candidate = *curr;
+      curr = &((*curr)->rb_left);
+    } else {
+      curr = &((*curr)->rb_right);
+    }
+  }
+
+  return candidate;
+}
+
 int receive_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret)
@@ -976,13 +996,29 @@ int receive_msg(
 
   // Receive msg
   ioctl_ret->ret_entry_num = 0;
-  bool sub_info_updated = false;
-  int64_t latest_received_entry_id = sub_info->latest_received_entry_id;
-  for (struct rb_node * node = rb_last(&wrapper->topic.entries); node; node = rb_prev(node)) {
+  ioctl_ret->ret_call_again = false;
+
+  struct rb_node * newest_node = rb_last(&wrapper->topic.entries);
+  if (!newest_node) {
+    goto check_mmap;
+  }
+
+  struct entry_node * newest_en = container_of(newest_node, struct entry_node, node);
+  const int64_t newest_entry_id = newest_en->entry_id;
+
+  // Calculate start_entry_id = max(newest - qos_depth + 1, latest_received_entry_id + 1)
+  const int64_t latest_received_entry_id = sub_info->latest_received_entry_id;
+  const int64_t qos_start = newest_entry_id - (int64_t)sub_info->qos_depth + 1;
+  const int64_t start_entry_id =
+    (qos_start > latest_received_entry_id) ? qos_start : (latest_received_entry_id + 1);
+
+  struct rb_node * node = find_first_entry_ge(&wrapper->topic.entries, start_entry_id);
+
+  for (; node; node = rb_next(node)) {
     struct entry_node * en = container_of(node, struct entry_node, node);
-    if (
-      (en->entry_id <= latest_received_entry_id) ||
-      (sub_info->qos_depth == ioctl_ret->ret_entry_num)) {
+
+    if (MAX_RECEIVE_NUM == ioctl_ret->ret_entry_num) {
+      ioctl_ret->ret_call_again = true;
       break;
     }
 
@@ -1009,13 +1045,13 @@ int receive_msg(
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
     ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
     ioctl_ret->ret_entry_num++;
-
-    if (!sub_info_updated) {
-      sub_info->latest_received_entry_id = en->entry_id;
-      sub_info_updated = true;
-    }
   }
 
+  if (ioctl_ret->ret_entry_num > 0) {
+    sub_info->latest_received_entry_id = ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num - 1];
+  }
+
+check_mmap:
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
