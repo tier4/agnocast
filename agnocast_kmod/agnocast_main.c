@@ -964,33 +964,16 @@ static struct rb_node * find_first_entry_ge(struct rb_root * root, const int64_t
   return candidate;
 }
 
-int receive_msg(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+static int receive_msg_core(
+  struct topic_wrapper * wrapper, struct subscriber_info * sub_info,
   const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret)
 {
-  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
-  if (!wrapper) {
-    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
-    return -EINVAL;
-  }
-
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
-  if (!sub_info) {
-    dev_warn(
-      agnocast_device,
-      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(receive_msg)\n",
-      subscriber_id, topic_name);
-    return -EINVAL;
-  }
-
-  // Receive msg
   ioctl_ret->ret_entry_num = 0;
   ioctl_ret->ret_call_again = false;
 
   struct rb_node * newest_node = rb_last(&wrapper->topic.entries);
   if (!newest_node) {
-    goto check_mmap;
+    return 0;
   }
 
   const struct entry_node * newest_en = container_of(newest_node, struct entry_node, node);
@@ -1017,8 +1000,8 @@ int receive_msg(
       dev_warn(
         agnocast_device,
         "Unreachable: corresponding publisher(id=%d) not found for entry(id=%lld) in "
-        "topic(topic_name=%s). (receive_msg)\n",
-        en->publisher_id, en->entry_id, topic_name);
+        "topic(topic_name=%s). (receive_msg_core)\n",
+        en->publisher_id, en->entry_id, wrapper->key);
       return -ENODATA;
     }
 
@@ -1041,14 +1024,41 @@ int receive_msg(
     sub_info->latest_received_entry_id = ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num - 1];
   }
 
-check_mmap:
+  return 0;
+}
+
+int receive_msg(
+  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const topic_local_id_t subscriber_id, union ioctl_receive_msg_args * ioctl_ret)
+{
+  struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
+  if (!wrapper) {
+    dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (receive_msg)\n", topic_name);
+    return -EINVAL;
+  }
+
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
+      "(receive_msg)\n",
+      subscriber_id, topic_name);
+    return -EINVAL;
+  }
+
+  int ret = receive_msg_core(wrapper, sub_info, subscriber_id, ioctl_ret);
+  if (ret < 0) {
+    return ret;
+  }
+
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_info.publisher_num = 0;
     return 0;
   }
 
-  int ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
+  ret = set_publisher_shm_info(wrapper, sub_info->pid, &ioctl_ret->ret_pub_shm_info);
   if (ret < 0) {
     return ret;
   }
