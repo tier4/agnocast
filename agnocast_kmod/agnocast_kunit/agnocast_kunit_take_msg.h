@@ -15,7 +15,7 @@
     KUNIT_CASE(                                                                                  \
       test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_publish_num),     \
     KUNIT_CASE(                                                                                  \
-      test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_max_qos_depth), \
+      test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_equal), \
     KUNIT_CASE(                                                                                  \
       test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_all_equal),     \
     KUNIT_CASE(                                                                                  \
@@ -44,7 +44,7 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
   struct kunit * test);
 void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_publish_num(
   struct kunit * test);
-void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_max_qos_depth(
+void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_equal(
   struct kunit * test);
 void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_all_equal(
   struct kunit * test);
