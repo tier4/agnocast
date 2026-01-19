@@ -52,7 +52,10 @@ void receive_message(
   }
 
   // Process entries from oldest to newest (ioctl returns oldest first)
-  for (const auto & [entry_id, entry_addr] : entries) {
+  for (const auto & entry : entries) {
+    const int64_t entry_id = entry.first;
+    const uint64_t entry_addr = entry.second;
+
     const std::shared_ptr<std::function<void()>> callable =
       std::make_shared<std::function<void()>>([callback_info, entry_addr, entry_id]() {
         auto typed_msg = callback_info.message_creator(
