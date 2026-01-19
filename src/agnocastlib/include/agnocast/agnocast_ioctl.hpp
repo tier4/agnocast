@@ -162,11 +162,7 @@ union ioctl_take_msg_args {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_subscriber_num_args {
-  struct
-  {
-    struct name_info topic_name;
-    bool include_ros2;
-  };
+  struct name_info topic_name;
   struct
   {
     uint32_t ret_inter_subscriber_num;

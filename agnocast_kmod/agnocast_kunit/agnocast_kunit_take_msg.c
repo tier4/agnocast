@@ -865,7 +865,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   union ioctl_get_subscriber_num_args ioctl_get_subscriber_num_ret;
   int ret3 = get_subscriber_num(
-    TOPIC_NAME, current->nsproxy->ipc_ns, current->tgid, false, &ioctl_get_subscriber_num_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, current->tgid, &ioctl_get_subscriber_num_ret);
   union ioctl_get_publisher_num_args get_publisher_num_args;
   int ret4 = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_publisher_num_args);
 

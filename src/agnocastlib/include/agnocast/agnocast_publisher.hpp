@@ -167,7 +167,7 @@ public:
   // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 
-  // Returns the intra-process subscriber count.
+  // This doesn't include ROS 2 intra subscribers.
   uint32_t get_intra_subscription_count() const
   {
     return get_intra_subscription_count_core(topic_name_);

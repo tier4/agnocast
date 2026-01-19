@@ -1123,7 +1123,7 @@ static struct bridge_info * find_bridge_info(
 
 int get_subscriber_num(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
-  const bool include_ros2, union ioctl_get_subscriber_num_args * ioctl_ret)
+  union ioctl_get_subscriber_num_args * ioctl_ret)
 {
   ioctl_ret->ret_inter_subscriber_num = 0;
   ioctl_ret->ret_intra_subscriber_num = 0;
@@ -1166,7 +1166,7 @@ int get_subscriber_num(
 
   ioctl_ret->ret_inter_subscriber_num = inter_count;
   ioctl_ret->ret_intra_subscriber_num = intra_count;
-  ioctl_ret->ret_ros2_subscriber_num = include_ros2 ? wrapper->topic.ros2_subscriber_num : 0;
+  ioctl_ret->ret_ros2_subscriber_num = wrapper->topic.ros2_subscriber_num;
 
   return 0;
 }
@@ -2002,7 +2002,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           sizeof(get_subscriber_num_args)))
       goto return_EFAULT;
     if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
-    bool include_ros2 = get_subscriber_num_args.include_ros2;
     char * topic_name_buf = kmalloc(get_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) goto return_ENOMEM;
     if (copy_from_user(
@@ -2012,7 +2011,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
-    ret = get_subscriber_num(topic_name_buf, ipc_ns, pid, include_ros2, &get_subscriber_num_args);
+    ret = get_subscriber_num(topic_name_buf, ipc_ns, pid, &get_subscriber_num_args);
     kfree(topic_name_buf);
     if (copy_to_user(
           (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
