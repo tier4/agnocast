@@ -10,28 +10,13 @@
 namespace agnocast
 {
 
-struct AgnocastExecutable
-{
-  std::shared_ptr<std::function<void()>> callable;
-  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
-};
+struct AgnocastExecutable;
 
 extern std::atomic<bool> need_epoll_updates;
 
 void wait_and_handle_epoll_event(
   int epoll_fd, pid_t my_pid, int timeout_ms, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
-
-template <class ValidateFn>
-void prepare_epoll_impl(
-  int epoll_fd, pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables,
-  ValidateFn && validate_callback_group);
-
-}  // namespace agnocast
-
-namespace agnocast
-{
 
 template <class ValidateFn>
 void prepare_epoll_impl(
