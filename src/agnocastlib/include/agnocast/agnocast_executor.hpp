@@ -3,9 +3,6 @@
 #include "agnocast/agnocast_epoll.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include <functional>
-#include <memory>
-
 namespace agnocast
 {
 
