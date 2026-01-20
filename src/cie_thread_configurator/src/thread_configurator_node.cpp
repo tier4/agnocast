@@ -1,7 +1,6 @@
 #include "cie_thread_configurator/thread_configurator_node.hpp"
 
 #include "cie_thread_configurator/sched_deadline.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include "cie_config_msgs/msg/callback_group_info.hpp"
@@ -17,7 +16,7 @@
 #include <unordered_map>
 
 ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
-: Node("thread_configurator_node"), unapplied_num_(0), cgroup_num_(0)
+: agnocast::Node("thread_configurator_node"), unapplied_num_(0), cgroup_num_(0)
 {
   YAML::Node callback_groups = yaml["callback_groups"];
   unapplied_num_ = callback_groups.size();
@@ -221,7 +220,7 @@ bool ThreadConfiguratorNode::issue_syscalls(const CallbackGroupConfig & config)
 }
 
 void ThreadConfiguratorNode::topic_callback(
-  const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
+  const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg)
 {
   auto it = id_to_callback_group_config_.find(msg->callback_group_id);
   if (it == id_to_callback_group_config_.end()) {

@@ -1,7 +1,6 @@
 #include "cie_thread_configurator/prerun_node.hpp"
 
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include "cie_config_msgs/msg/callback_group_info.hpp"
@@ -11,14 +10,15 @@
 #include <iostream>
 #include <string>
 
-PrerunNode::PrerunNode() : Node("prerun_node")
+PrerunNode::PrerunNode() : agnocast::Node("prerun_node")
 {
   subscription_ = this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
     "/cie_thread_configurator/callback_group_info", 100,
     std::bind(&PrerunNode::topic_callback, this, std::placeholders::_1));
 }
 
-void PrerunNode::topic_callback(const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
+void PrerunNode::topic_callback(
+  const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg)
 {
   if (callback_group_ids_.find(msg->callback_group_id) != callback_group_ids_.end()) {
     return;

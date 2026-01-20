@@ -1,0 +1,14 @@
+<launch>
+  <arg name="prerun" default="false" description="Run in prerun mode to collect callback group information" />
+  <arg name="config_file" default="" description="Path to the configuration YAML file" />
+
+  <!-- Node for prerun mode -->
+  <node pkg="cie_thread_configurator" exec="thread_configurator_node" name="thread_configurator_node" output="screen" args="--prerun" if="$(var prerun)">
+    <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+  </node>
+
+  <!-- Node for config-file mode -->
+  <node pkg="cie_thread_configurator" exec="thread_configurator_node" name="thread_configurator_node" output="screen" args="--config-file $(var config_file)" unless="$(var prerun)">
+    <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
+  </node>
+</launch>

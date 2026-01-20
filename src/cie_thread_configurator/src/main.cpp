@@ -1,7 +1,7 @@
+#include "agnocast/agnocast.hpp"
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 #include "cie_thread_configurator/prerun_node.hpp"
 #include "cie_thread_configurator/thread_configurator_node.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include <filesystem>
@@ -73,7 +73,7 @@ static void spin_thread_configurator_node(const std::string & config_filename)
   std::cout << config["callback_groups"] << std::endl;
 
   auto node = std::make_shared<ThreadConfiguratorNode>(config);
-  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  auto executor = std::make_shared<agnocast::AgnocastOnlySingleThreadedExecutor>();
 
   executor->add_node(node);
 
@@ -106,7 +106,7 @@ static void spin_prerun_node()
   std::cout << "prerun mode" << std::endl;
 
   auto node = std::make_shared<PrerunNode>();
-  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  auto executor = std::make_shared<agnocast::AgnocastOnlySingleThreadedExecutor>();
 
   executor->add_node(node);
   executor->spin();
@@ -116,7 +116,7 @@ static void spin_prerun_node()
 
 int main(int argc, char * argv[])
 {
-  rclcpp::init(argc, argv);
+  agnocast::init(argc, argv);
   std::vector<std::string> args = rclcpp::remove_ros_arguments(argc, argv);
 
   bool prerun_mode = false;

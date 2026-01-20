@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -31,6 +32,8 @@ public:
   virtual ~AgnocastOnlyExecutor();
 
   virtual void spin() = 0;
+
+  void spin_once(std::chrono::nanoseconds timeout = std::chrono::nanoseconds(-1));
 
   // Implemented align to unify the API with rclcpp::Executor
   void add_node(const std::shared_ptr<agnocast::Node> & node);
