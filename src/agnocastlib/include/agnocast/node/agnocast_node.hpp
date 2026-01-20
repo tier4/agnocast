@@ -2,6 +2,7 @@
 
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/node/agnocast_arguments.hpp"
 #include "agnocast/node/agnocast_context.hpp"
 #include "agnocast/node/node_interfaces/node_base.hpp"
@@ -13,6 +14,7 @@
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -271,6 +273,26 @@ public:
     return std::make_shared<Subscription<MessageT>>(
       this, topic_name, rclcpp::QoS(rclcpp::KeepLast(queue_size)), std::forward<Func>(callback),
       options);
+  }
+
+  template <typename Func>
+  uint32_t create_wall_timer(
+    std::chrono::nanoseconds period, Func && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    if (!group) {
+      group = node_base_->get_default_callback_group();
+    }
+
+    if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
+      return register_timer(std::forward<Func>(callback), period, group);
+    } else {
+      static_assert(
+        std::is_invocable_v<Func>,
+        "Callback must be callable with void() or void(TimerCallbackInfo&)");
+      auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
+      return register_timer(std::move(wrapped), period, group);
+    }
   }
 
 private:
