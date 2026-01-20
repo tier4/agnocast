@@ -3,7 +3,7 @@
 namespace agnocast::node_interfaces
 {
 
-NodeLogging::NodeLogging(rclcpp::Logger logger) : logger_(std::move(logger))
+NodeLogging::NodeLogging(const rclcpp::Logger & logger) : logger_(logger)
 {
 }
 
