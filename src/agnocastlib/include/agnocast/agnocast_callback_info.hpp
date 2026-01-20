@@ -55,6 +55,7 @@ std::vector<std::string> get_agnocast_topics_by_group(
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
 extern std::atomic<uint32_t> next_callback_info_id;
+extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
 TypeErasedCallback get_erased_callback(Func && callback)
@@ -102,16 +103,14 @@ uint32_t register_callback(
                    callback_group, erased_callback, message_creator};
   }
 
-  // Note: need_epoll_updates is defined in agnocast_epoll.hpp
-  extern std::atomic<bool> need_epoll_updates;
   need_epoll_updates.store(true);
 
   return callback_info_id;
 }
 
 void receive_message(
-  [[maybe_unused]] uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] pid_t my_pid,               // for CARET
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  [[maybe_unused]] const pid_t my_pid,               // for CARET
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
