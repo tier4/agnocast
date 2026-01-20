@@ -1,7 +1,5 @@
 #include "agnocast/agnocast_timer_info.hpp"
 
-#include "agnocast/agnocast_callback_info.hpp"
-
 #include <sys/timerfd.h>
 #include <unistd.h>
 

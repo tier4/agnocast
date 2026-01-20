@@ -1,8 +1,7 @@
 #pragma once
 
-#include "rclcpp/callback_group.hpp"
+#include "agnocast/agnocast_event_source.hpp"
 
-#include <atomic>
 #include <chrono>
 #include <functional>
 #include <mutex>
