@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_epoll.hpp"
+#include "agnocast/agnocast_callback_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace agnocast
@@ -9,6 +9,12 @@ namespace agnocast
 extern std::mutex mmap_mtx;
 
 void map_read_only_area(const pid_t pid, const uint64_t shm_addr, const uint64_t shm_size);
+
+struct AgnocastExecutable
+{
+  std::shared_ptr<std::function<void()>> callable;
+  rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
+};
 
 class AgnocastExecutor : public rclcpp::Executor
 {
