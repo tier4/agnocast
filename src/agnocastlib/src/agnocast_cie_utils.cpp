@@ -86,7 +86,7 @@ agnocast::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr create_c
   auto node = std::make_shared<rclcpp::Node>(
     "client_node" + std::to_string(idx++), "/cie_thread_configurator");
   auto publisher = agnocast::create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-    node.get(), "/cie_thread_configurator/callback_group_info", rclcpp::QoS(10).keep_all());
+    node.get(), "/cie_thread_configurator/callback_group_info", rclcpp::QoS(10));
   return publisher;
 }
 

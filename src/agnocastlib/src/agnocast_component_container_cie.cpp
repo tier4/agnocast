@@ -51,8 +51,7 @@ public:
   {
     get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
     client_publisher_ = agnocast::create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-      this, "/cie_thread_configurator/callback_group_info",
-      rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
+      this, "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH));
   }
 
   ~ComponentManagerCallbackIsolated() override;
