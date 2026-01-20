@@ -168,7 +168,7 @@ public:
   // TODO(Koichi98): It just returns the number of Agnocast subscribers for performance bridge.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 
-  // This doesn't include ROS 2 intra subscribers.
+  // Returns the number of Agnocast intra-process subscribers only; ROS 2 subscribers are not included.
   uint32_t get_intra_subscription_count() const
   {
     return get_intra_subscription_count_core(topic_name_);
