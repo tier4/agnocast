@@ -76,9 +76,6 @@ macro(agnocast_components_register_node target)
 
   set(_path "lib")
   set(library_name "$<TARGET_FILE_NAME:${target}>")
-  if(WIN32)
-    set(_path "bin")
-  endif()
 
   # Register with ament resource index (using same format as rclcpp_components)
   set(_AGNOCAST_COMPONENTS_${resource_index}__NODES
