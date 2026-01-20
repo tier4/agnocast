@@ -1,7 +1,6 @@
 #pragma once
 
 #include "agnocast/agnocast_smart_pointer.hpp"
-#include "sys/epoll.h"
 
 #include <mutex>
 #include <type_traits>
@@ -9,7 +8,7 @@
 namespace agnocast
 {
 
-class AgnocastExecutable;
+struct AgnocastExecutable;
 
 // Base class for a type-erased object
 class AnyObject
@@ -56,7 +55,6 @@ std::vector<std::string> get_agnocast_topics_by_group(
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
 extern std::atomic<uint32_t> next_callback_info_id;
-extern std::atomic<bool> need_epoll_updates;
 
 template <typename T, typename Func>
 TypeErasedCallback get_erased_callback(Func && callback)
@@ -104,68 +102,17 @@ uint32_t register_callback(
                    callback_group, erased_callback, message_creator};
   }
 
+  // Note: need_epoll_updates is defined in agnocast_epoll.hpp
+  extern std::atomic<bool> need_epoll_updates;
   need_epoll_updates.store(true);
 
   return callback_info_id;
 }
 
 void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
+  [[maybe_unused]] uint32_t callback_info_id,  // for CARET
+  [[maybe_unused]] pid_t my_pid,               // for CARET
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
-
-void wait_and_handle_epoll_event(
-  const int epoll_fd, const pid_t my_pid, const int timeout_ms,
-  std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables);
-
-template <class ValidateFn>
-void prepare_epoll_impl(
-  const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables,
-  ValidateFn && validate_callback_group)
-{
-  std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-
-  for (auto & it : id2_callback_info) {
-    const uint32_t callback_info_id = it.first;
-    CallbackInfo & callback_info = it.second;
-
-    if (!callback_info.need_epoll_update) {
-      continue;
-    }
-
-    if (!validate_callback_group(callback_info.callback_group)) {
-      continue;
-    }
-
-    struct epoll_event ev = {};
-    ev.events = EPOLLIN;
-    ev.data.u32 = callback_info_id;
-
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
-      RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    if (callback_info.is_transient_local) {
-      agnocast::receive_message(
-        callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
-        ready_agnocast_executables);
-    }
-
-    callback_info.need_epoll_update = false;
-  }
-
-  const bool all_updated = std::none_of(
-    id2_callback_info.begin(), id2_callback_info.end(),
-    [](const auto & it) { return it.second.need_epoll_update; });
-
-  if (all_updated) {
-    need_epoll_updates.store(false);
-  }
-}
 
 }  // namespace agnocast
