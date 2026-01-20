@@ -63,29 +63,29 @@ void wait_and_handle_epoll_event(
       ready_agnocast_executables.emplace_back(AgnocastExecutable{callable, callback_group});
     }
   } else {
-    // Subscription event
-    const uint32_t subscription_id = event_id & ~SUBSCRIPTION_EVENT_FLAG;
-    SubscriptionInfo subscription_info;
+    // Subscription callback event
+    const uint32_t callback_info_id = event_id;
+    CallbackInfo callback_info;
 
     {
-      std::lock_guard<std::mutex> lock(id2_subscription_info_mtx);
+      std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
-      const auto it = id2_subscription_info.find(subscription_id);
-      if (it == id2_subscription_info.end()) {
+      const auto it = id2_callback_info.find(callback_info_id);
+      if (it == id2_callback_info.end()) {
         RCLCPP_ERROR(
-          logger, "Agnocast internal implementation error: subscription info cannot be found");
+          logger, "Agnocast internal implementation error: callback info cannot be found");
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
 
-      subscription_info = it->second;
+      callback_info = it->second;
     }
 
     MqMsgAgnocast mq_msg = {};
 
     // non-blocking
-    auto ret = mq_receive(
-      subscription_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
+    auto ret =
+      mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
     if (ret < 0) {
       if (errno != EAGAIN) {
         RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
@@ -97,7 +97,7 @@ void wait_and_handle_epoll_event(
     }
 
     agnocast::receive_message(
-      subscription_id, my_pid, subscription_info, ready_agnocast_executables_mutex,
+      callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
       ready_agnocast_executables);
   }
 }

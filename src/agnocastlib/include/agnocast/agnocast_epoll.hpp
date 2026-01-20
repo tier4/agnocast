@@ -1,7 +1,6 @@
 #pragma once
 
-#include "agnocast/agnocast_event_source.hpp"
-#include "agnocast/agnocast_subscription_info.hpp"
+#include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_timer_info.hpp"
 #include "sys/epoll.h"
 
@@ -13,7 +12,6 @@ namespace agnocast
 
 // Event type flags for epoll event identification
 // Using high bits to distinguish event sources
-constexpr uint32_t SUBSCRIPTION_EVENT_FLAG = 0x00000000;
 constexpr uint32_t TIMER_EVENT_FLAG = 0x80000000;
 
 /// Wait for epoll event and dispatch to appropriate handler.
@@ -54,37 +52,37 @@ void prepare_epoll_impl(
 {
   // Register subscription callbacks to epoll
   {
-    std::lock_guard<std::mutex> lock(id2_subscription_info_mtx);
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
 
-    for (auto & it : id2_subscription_info) {
-      const uint32_t subscription_id = it.first;
-      SubscriptionInfo & subscription_info = it.second;
+    for (auto & it : id2_callback_info) {
+      const uint32_t callback_info_id = it.first;
+      CallbackInfo & callback_info = it.second;
 
-      if (!subscription_info.need_epoll_update) {
+      if (!callback_info.need_epoll_update) {
         continue;
       }
 
-      if (!validate_callback_group(subscription_info.callback_group)) {
+      if (!validate_callback_group(callback_info.callback_group)) {
         continue;
       }
 
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
-      ev.data.u32 = subscription_id | SUBSCRIPTION_EVENT_FLAG;
+      ev.data.u32 = callback_info_id;
 
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, subscription_info.mqdes, &ev) == -1) {
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, callback_info.mqdes, &ev) == -1) {
         RCLCPP_ERROR(logger, "epoll_ctl failed: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
 
-      if (subscription_info.is_transient_local) {
+      if (callback_info.is_transient_local) {
         agnocast::receive_message(
-          subscription_id, my_pid, subscription_info, ready_agnocast_executables_mutex,
+          callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
           ready_agnocast_executables);
       }
 
-      subscription_info.need_epoll_update = false;
+      callback_info.need_epoll_update = false;
     }
   }
 
@@ -119,10 +117,10 @@ void prepare_epoll_impl(
   }
 
   // Check if all updates are done
-  const bool all_subscriptions_updated = [&]() {
-    std::lock_guard<std::mutex> lock(id2_subscription_info_mtx);
+  const bool all_callbacks_updated = [&]() {
+    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
     return std::none_of(
-      id2_subscription_info.begin(), id2_subscription_info.end(),
+      id2_callback_info.begin(), id2_callback_info.end(),
       [](const auto & it) { return it.second.need_epoll_update; });
   }();
 
@@ -133,7 +131,7 @@ void prepare_epoll_impl(
     });
   }();
 
-  if (all_subscriptions_updated && all_timers_updated) {
+  if (all_callbacks_updated && all_timers_updated) {
     need_epoll_updates.store(false);
   }
 }
