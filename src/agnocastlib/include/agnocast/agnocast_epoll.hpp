@@ -10,25 +10,18 @@
 namespace agnocast
 {
 
-/// Executable unit for Agnocast event handling.
-/// Wraps a callable with its associated callback group.
 struct AgnocastExecutable
 {
   std::shared_ptr<std::function<void()>> callable;
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
 };
 
-/// Global flag indicating whether any event source needs epoll registration update.
-/// Set to true when a new subscription is registered.
-/// Checked by executors to trigger prepare_epoll_impl().
 extern std::atomic<bool> need_epoll_updates;
 
-/// Wait for epoll event and dispatch to appropriate handler.
 void wait_and_handle_epoll_event(
   int epoll_fd, pid_t my_pid, int timeout_ms, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
-/// Prepare epoll by registering all event sources that need update.
 template <class ValidateFn>
 void prepare_epoll_impl(
   int epoll_fd, pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
@@ -37,7 +30,6 @@ void prepare_epoll_impl(
 
 }  // namespace agnocast
 
-// Template implementation
 namespace agnocast
 {
 
