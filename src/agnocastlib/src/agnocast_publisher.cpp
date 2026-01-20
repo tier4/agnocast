@@ -142,11 +142,13 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
   }
 
   uint32_t inter_count = args.ret_inter_subscriber_num;
+  // Assumes at most one bridge subscriber per topic
   if (args.ret_sub_bridge_exist && inter_count > 0) {
     inter_count--;
   }
 
   uint32_t ros2_count = args.ret_ros2_subscriber_num;
+  // Assumes at most one bridge subscriber per topic
   if (args.ret_pub_bridge_exist && ros2_count > 0) {
     ros2_count--;
   }
