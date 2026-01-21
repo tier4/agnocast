@@ -314,7 +314,7 @@ public:
   }
 
   template <typename Func>
-  uint32_t create_wall_timer(
+  typename WallTimer<Func>::SharedPtr create_wall_timer(
     std::chrono::nanoseconds period, Func && callback,
     rclcpp::CallbackGroup::SharedPtr group = nullptr)
   {
@@ -322,32 +322,18 @@ public:
       group = node_base_->get_default_callback_group();
     }
 
-    // Check if callback accepts TimerCallbackInfo&
-    if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
-      return register_timer(std::forward<Func>(callback), period, group);
-    } else {
-      // Wrap void() callback to match TimerCallbackInfo& signature
-      static_assert(
-        std::is_invocable_v<Func>,
-        "Callback must be callable with void() or void(TimerCallbackInfo&)");
-      auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
-      return register_timer(std::move(wrapped), period, group);
-    }
-  }
+    static_assert(
+      std::is_invocable_v<Func, TimerCallbackInfo &> || std::is_invocable_v<Func>,
+      "Callback must be callable with void() or void(TimerCallbackInfo&)");
 
-  template <typename MessageT>
-  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
-    const std::string & topic_name, const size_t qos_history_depth)
-  {
-    return std::make_shared<PollingSubscriber<MessageT>>(
-      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
-  }
+    const uint32_t timer_id = allocate_timer_id();
 
-  template <typename MessageT>
-  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
-    const std::string & topic_name, const rclcpp::QoS & qos)
-  {
-    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos);
+    auto timer =
+      std::make_shared<WallTimer<Func>>(timer_id, period, group, std::forward<Func>(callback));
+
+    register_timer_info(timer_id, timer, period, group);
+
+    return timer;
   }
 
 private:

@@ -60,7 +60,6 @@ target_include_directories(no_rclcpp_tf2_test PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-
 add_executable(client src/minimal_client.cpp)
 ament_target_dependencies(client rclcpp agnocastlib agnocast_sample_interfaces)
 target_include_directories(client PRIVATE
