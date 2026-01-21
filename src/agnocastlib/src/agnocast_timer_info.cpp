@@ -38,29 +38,6 @@ int create_timer_fd(std::chrono::nanoseconds period)
   return timer_fd;
 }
 
-void handle_timer_event(TimerInfo & timer_info)
-{
-  // Read the number of expirations to clear the event
-  uint64_t expirations = 0;
-  const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
-
-  if (ret == -1) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      return;
-    }
-  }
-
-  if (expirations > 0) {
-    const auto actual_call_time = std::chrono::steady_clock::now();
-    TimerCallbackInfo callback_info{timer_info.next_call_time, actual_call_time};
-
-    timer_info.callback(callback_info);
-
-    // Update next expected call time
-    timer_info.next_call_time += timer_info.period;
-  }
-}
-
 uint32_t register_timer(
   std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
@@ -82,6 +59,40 @@ uint32_t register_timer(
   need_epoll_updates.store(true);
 
   return timer_id;
+}
+
+void handle_timer_event(TimerInfo & timer_info)
+{
+  // Read the number of expirations to clear the event
+  uint64_t expirations = 0;
+  const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
+
+  if (ret == -1) {
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      return;
+    }
+  }
+
+  if (expirations > 0) {
+    const auto actual_call_time = std::chrono::steady_clock::now();
+    TimerCallbackInfo callback_info{timer_info.next_call_time, actual_call_time};
+
+    timer_info.callback(callback_info);
+
+    auto next_call_time = timer_info.next_call_time + timer_info.period;
+    const auto period = timer_info.period.count();
+
+    // in case the timer has missed at least once cycle
+    if (next_call_time < actual_call_time) {
+      // move the next call time forward by as many periods as necessary
+      const auto now_ahead = (actual_call_time - next_call_time).count();
+      // rounding up without overflow
+      const auto periods_ahead = 1 + (now_ahead - 1) / period;
+      next_call_time += timer_info.period * periods_ahead;
+    }
+
+    timer_info.next_call_time = next_call_time;
+  }
 }
 
 }  // namespace agnocast
