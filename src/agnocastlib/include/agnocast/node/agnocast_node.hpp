@@ -309,9 +309,6 @@ public:
     if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
       return register_timer(std::forward<Func>(callback), period, group);
     } else {
-      static_assert(
-        std::is_invocable_v<Func>,
-        "Callback must be callable with void() or void(TimerCallbackInfo&)");
       auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
       return register_timer(std::move(wrapped), period, group);
     }
