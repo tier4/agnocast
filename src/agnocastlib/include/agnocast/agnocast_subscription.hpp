@@ -114,11 +114,7 @@ class BasicSubscription : public SubscriptionBase
             rclcpp::detail::SubscriptionQosParametersTraits{})
         : qos;
 
-    if (actual_qos.history() == rclcpp::HistoryPolicy::KeepAll) {
-      RCLCPP_ERROR(logger, "Agnocast does not support KeepAll QoS policy. Use KeepLast instead.");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
+    validate_qos(actual_qos);
 
     union ioctl_add_subscriber_args add_subscriber_args = initialize(
       actual_qos, false, options.ignore_local_publications, is_bridge,
@@ -198,11 +194,7 @@ public:
             rclcpp::detail::SubscriptionQosParametersTraits{})
         : qos;
 
-    if (actual_qos.history() == rclcpp::HistoryPolicy::KeepAll) {
-      RCLCPP_ERROR(logger, "Agnocast does not support KeepAll QoS policy. Use KeepLast instead.");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
+    validate_qos(actual_qos);
 
     {
       auto dummy_cbg = node->get_node_base_interface()->create_callback_group(
