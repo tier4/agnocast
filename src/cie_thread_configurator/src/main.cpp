@@ -146,6 +146,5 @@ int main(int argc, char * argv[])
     spin_thread_configurator_node(filename);
   }
 
-  rclcpp::shutdown();
   return 0;
 }
