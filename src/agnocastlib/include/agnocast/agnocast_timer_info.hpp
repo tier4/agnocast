@@ -23,10 +23,12 @@ struct TimerInfo
 {
   int timer_fd;
   std::weak_ptr<TimerBase> timer;
+  std::function<void(TimerCallbackInfo &)> callback;  // for tf2 timers (when timer is empty)
   std::chrono::steady_clock::time_point next_call_time;
   std::chrono::nanoseconds period;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   bool need_epoll_update = true;
+  bool is_canceled = false;
 };
 
 extern std::mutex id2_timer_info_mtx;
@@ -42,5 +44,14 @@ uint32_t allocate_timer_id();
 void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   rclcpp::CallbackGroup::SharedPtr callback_group);
+
+// tf2 timer API functions
+uint32_t register_timer(
+  std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
+  rclcpp::CallbackGroup::SharedPtr callback_group);
+
+void cancel_timer(uint32_t timer_id);
+void reset_timer(uint32_t timer_id);
+void remove_timer(uint32_t timer_id);
 
 }  // namespace agnocast
