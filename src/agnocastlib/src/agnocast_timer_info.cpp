@@ -82,7 +82,7 @@ void handle_timer_event(TimerInfo & timer_info)
     auto next_call_time = timer_info.next_call_time + timer_info.period;
     const auto period = timer_info.period.count();
 
-    // in case the timer has missed at least once cycle
+    // in case the timer has missed at least one cycle
     if (next_call_time < actual_call_time) {
       // move the next call time forward by as many periods as necessary
       const auto now_ahead = (actual_call_time - next_call_time).count();
