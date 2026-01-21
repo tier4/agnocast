@@ -51,7 +51,7 @@ void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   rclcpp::CallbackGroup::SharedPtr callback_group)
 {
-const int timer_fd = create_timer_fd(timer_id, period);
+  const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
 
   {

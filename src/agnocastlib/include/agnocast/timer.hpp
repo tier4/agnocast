@@ -51,16 +51,13 @@ protected:
   std::atomic<bool> canceled_{false};
 };
 
-using VoidCallbackType = std::function<void()>;
-using TimerCallbackType = std::function<void(TimerCallbackInfo &)>;
-
 template <typename FunctorT>
-class GenericTimer : public TimerBase
+class WallTimer : public TimerBase
 {
 public:
-  RCLCPP_SMART_PTR_DEFINITIONS(GenericTimer)
+  RCLCPP_SMART_PTR_DEFINITIONS(WallTimer)
 
-  GenericTimer(
+  WallTimer(
     uint32_t timer_id, std::chrono::nanoseconds period,
     rclcpp::CallbackGroup::SharedPtr callback_group, FunctorT && callback)
   : TimerBase(timer_id, period, std::move(callback_group)),
@@ -70,49 +67,17 @@ public:
 
   void execute_callback(TimerCallbackInfo & callback_info) override
   {
-    execute_callback_impl(callback_info);
-  }
-
-protected:
-  RCLCPP_DISABLE_COPY(GenericTimer)
-
-  template <
-    typename CallbackT = FunctorT,
-    typename std::enable_if<std::is_invocable_v<CallbackT, TimerCallbackInfo &>>::type * = nullptr>
-  void execute_callback_impl(TimerCallbackInfo & callback_info)
-  {
-    callback_(callback_info);
-  }
-
-  template <
-    typename CallbackT = FunctorT,
-    typename std::enable_if<
-      !std::is_invocable_v<CallbackT, TimerCallbackInfo &> && std::is_invocable_v<CallbackT>>::
-      type * = nullptr>
-  void execute_callback_impl(TimerCallbackInfo &)
-  {
-    callback_();
-  }
-
-  FunctorT callback_;
-};
-
-template <typename FunctorT>
-class WallTimer : public GenericTimer<FunctorT>
-{
-public:
-  RCLCPP_SMART_PTR_DEFINITIONS(WallTimer)
-
-  WallTimer(
-    uint32_t timer_id, std::chrono::nanoseconds period,
-    rclcpp::CallbackGroup::SharedPtr callback_group, FunctorT && callback)
-  : GenericTimer<FunctorT>(
-      timer_id, period, std::move(callback_group), std::forward<FunctorT>(callback))
-  {
+    if constexpr (std::is_invocable_v<FunctorT, TimerCallbackInfo &>) {
+      callback_(callback_info);
+    } else {
+      callback_();
+    }
   }
 
 protected:
   RCLCPP_DISABLE_COPY(WallTimer)
+
+  FunctorT callback_;
 };
 
 }  // namespace agnocast
