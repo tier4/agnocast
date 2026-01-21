@@ -12,6 +12,8 @@
 
 int main(int argc, char * argv[])
 {
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
+
   // Use agnocast::init for agnocast::Node
   agnocast::init(argc, argv);
 
@@ -21,6 +23,7 @@ int main(int argc, char * argv[])
   agnocast::@executor@ exec;
 
   rclcpp::NodeOptions options;
+  options.arguments(args);
 
   std::vector<class_loader::ClassLoader *> loaders;
   std::vector<rclcpp_components::NodeInstanceWrapper> node_wrappers;
