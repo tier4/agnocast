@@ -16,11 +16,13 @@ std::mutex id2_timer_info_mtx;
 std::unordered_map<uint32_t, TimerInfo> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
-int create_timer_fd(std::chrono::nanoseconds period)
+int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 {
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
   if (timer_fd == -1) {
-    throw std::runtime_error(std::string("timerfd_create failed: ") + std::strerror(errno));
+    throw std::runtime_error(
+      "timerfd_create failed for timer_id=" + std::to_string(timer_id) + ": " +
+      std::strerror(errno));
   }
 
   struct itimerspec spec = {};
@@ -32,7 +34,9 @@ int create_timer_fd(std::chrono::nanoseconds period)
   if (timerfd_settime(timer_fd, 0, &spec, nullptr) == -1) {
     const int saved_errno = errno;
     close(timer_fd);
-    throw std::runtime_error(std::string("timerfd_settime failed: ") + std::strerror(saved_errno));
+    throw std::runtime_error(
+      "timerfd_settime failed for timer_id=" + std::to_string(timer_id) +
+      ", period=" + std::to_string(period_count) + "ns: " + std::strerror(saved_errno));
   }
 
   return timer_fd;
@@ -47,7 +51,7 @@ void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   rclcpp::CallbackGroup::SharedPtr callback_group)
 {
-  const int timer_fd = create_timer_fd(period);
+const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
 
   {
@@ -90,7 +94,7 @@ void handle_timer_event(TimerInfo & timer_info)
     auto next_call_time = timer_info.next_call_time + timer_info.period;
     const auto period = timer_info.period.count();
 
-    // in case the timer has missed at least once cycle
+    // in case the timer has missed at least one cycle
     if (next_call_time < actual_call_time) {
       // move the next call time forward by as many periods as necessary
       const auto now_ahead = (actual_call_time - next_call_time).count();
