@@ -298,7 +298,7 @@ public:
   }
 
   template <typename Func>
-  uint32_t create_wall_timer(
+  typename WallTimer<Func>::SharedPtr create_wall_timer(
     std::chrono::nanoseconds period, Func && callback,
     rclcpp::CallbackGroup::SharedPtr group = nullptr)
   {
@@ -306,15 +306,18 @@ public:
       group = node_base_->get_default_callback_group();
     }
 
-    if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
-      return register_timer(std::forward<Func>(callback), period, group);
-    } else {
-      static_assert(
-        std::is_invocable_v<Func>,
-        "Callback must be callable with void() or void(TimerCallbackInfo&)");
-      auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
-      return register_timer(std::move(wrapped), period, group);
-    }
+    static_assert(
+      std::is_invocable_v<Func, TimerCallbackInfo &> || std::is_invocable_v<Func>,
+      "Callback must be callable with void() or void(TimerCallbackInfo&)");
+
+    const uint32_t timer_id = allocate_timer_id();
+
+    auto timer =
+      std::make_shared<WallTimer<Func>>(timer_id, period, group, std::forward<Func>(callback));
+
+    register_timer_info(timer_id, timer, period, group);
+
+    return timer;
   }
 
 private:

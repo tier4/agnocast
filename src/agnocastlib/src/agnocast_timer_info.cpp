@@ -38,27 +38,30 @@ int create_timer_fd(std::chrono::nanoseconds period)
   return timer_fd;
 }
 
-uint32_t register_timer(
-  std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr callback_group)
+uint32_t allocate_timer_id()
+{
+  return next_timer_id.fetch_add(1);
+}
+
+void register_timer_info(
+  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
+  rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   const int timer_fd = create_timer_fd(period);
-  const uint32_t timer_id = next_timer_id.fetch_add(1);
   const auto now = std::chrono::steady_clock::now();
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
     id2_timer_info[timer_id] = TimerInfo{
-      timer_fd,     std::move(callback),
+      timer_fd,
+      timer,         // weak_ptr to Timer
       now + period,  // next_call_time
-      period,       callback_group,
+      period,       std::move(callback_group),
       true  // need_epoll_update
     };
   }
 
   need_epoll_updates.store(true);
-
-  return timer_id;
 }
 
 void handle_timer_event(TimerInfo & timer_info)
@@ -74,10 +77,15 @@ void handle_timer_event(TimerInfo & timer_info)
   }
 
   if (expirations > 0) {
+    auto timer = timer_info.timer.lock();
+    if (!timer) {
+      return;  // Timer object has been destroyed
+    }
+
     const auto actual_call_time = std::chrono::steady_clock::now();
     TimerCallbackInfo callback_info{timer_info.next_call_time, actual_call_time};
 
-    timer_info.callback(callback_info);
+    timer->execute_callback(callback_info);
 
     auto next_call_time = timer_info.next_call_time + timer_info.period;
     const auto period = timer_info.period.count();
