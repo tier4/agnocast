@@ -77,6 +77,12 @@ class BasicPublisher
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
 
+    if (actual_qos.history() == rclcpp::HistoryPolicy::KeepAll) {
+      RCLCPP_ERROR(logger, "Agnocast does not support KeepAll QoS policy. Use KeepLast instead.");
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+
     id_ =
       initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
