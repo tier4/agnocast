@@ -27,11 +27,6 @@ void prepare_epoll_impl(
   std::vector<AgnocastExecutable> & ready_agnocast_executables,
   ValidateFn && validate_callback_group);
 
-}  // namespace agnocast
-
-namespace agnocast
-{
-
 template <class ValidateFn>
 void prepare_epoll_impl(
   const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
