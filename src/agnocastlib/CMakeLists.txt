@@ -26,6 +26,10 @@ find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -35,11 +39,12 @@ add_library(agnocast SHARED
   src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
   src/node/agnocast_node.cpp src/node/agnocast_arguments.cpp src/node/agnocast_context.cpp
   src/node/agnocast_only_executor.cpp src/node/agnocast_only_single_threaded_executor.cpp src/node/agnocast_only_multi_threaded_executor.cpp
-  src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp src/node/node_interfaces/node_clock.cpp src/node/node_interfaces/node_time_source.cpp src/node/node_interfaces/node_services.cpp
+  src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp src/node/node_interfaces/node_timers.cpp src/node/node_interfaces/node_clock.cpp src/node/node_interfaces/node_time_source.cpp src/node/node_interfaces/node_services.cpp src/node/node_interfaces/node_logging.cpp
+  src/node/tf2/buffer.cpp src/node/tf2/transform_broadcaster.cpp src/node/tf2/static_transform_broadcaster.cpp src/node/tf2/transform_listener.cpp src/node/tf2/create_timer_agnocast.cpp
   src/bridge/agnocast_bridge_ipc_event_loop.cpp src/bridge/agnocast_bridge_loader.cpp src/bridge/agnocast_bridge_manager.cpp src/bridge/agnocast_bridge_utils.cpp
   src/bridge/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/agnocast_performance_bridge_loader.cpp src/bridge/agnocast_performance_bridge_manager.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs)
+ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs tf2 tf2_ros tf2_msgs geometry_msgs cie_config_msgs)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -315,5 +320,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(cie_thread_configurator cie_config_msgs)
+ament_export_dependencies(cie_thread_configurator cie_config_msgs tf2 tf2_ros tf2_msgs geometry_msgs)
 ament_package()
