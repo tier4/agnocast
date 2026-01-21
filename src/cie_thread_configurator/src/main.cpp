@@ -123,12 +123,25 @@ static void spin_prerun_node(const std::set<size_t> & domain_ids)
 
 static std::set<size_t> parse_domain_ids(const std::string & domains_str)
 {
+  // https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Domain-ID.html#choosing-a-domain-id-short-version
+  constexpr size_t max_domain_id = 101;
+
   std::set<size_t> domain_ids;
   std::stringstream ss(domains_str);
   std::string token;
   while (std::getline(ss, token, ',')) {
     if (!token.empty()) {
-      domain_ids.insert(static_cast<size_t>(std::stoul(token)));
+      try {
+        size_t domain_id = std::stoul(token);
+        if (domain_id > max_domain_id) {
+          std::cerr << "[WARN] Domain ID " << domain_id << " exceeds maximum valid value ("
+                    << max_domain_id << "). Skipping." << std::endl;
+          continue;
+        }
+        domain_ids.insert(domain_id);
+      } catch (const std::exception & e) {
+        std::cerr << "[WARN] Invalid domain ID value: " << token << ". Skipping." << std::endl;
+      }
     }
   }
   return domain_ids;
@@ -158,6 +171,12 @@ int main(int argc, char * argv[])
   if (prerun_mode) {
     spin_prerun_node(domain_ids);
   } else {
+    if (config_filename.empty()) {
+      std::cerr << "[ERROR] --config-file must be provided when not running in --prerun mode."
+                << std::endl;
+      rclcpp::shutdown();
+      return 1;
+    }
     spin_thread_configurator_node(config_filename);
   }
 
