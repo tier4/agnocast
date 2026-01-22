@@ -47,6 +47,9 @@ uint32_t register_timer(
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   const uint32_t timer_id = next_timer_id.fetch_add(1);
+  if (timer_id & TIMER_EVENT_FLAG) {                                                                                                                                                                                                                 
+    throw std::runtime_error("Timer ID overflow: too many timers created");                                                                                                                                                                                                          
+  } 
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
 
