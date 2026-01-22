@@ -12,6 +12,7 @@
 namespace agnocast
 {
 
+// TODO(Koichi98): Add timer reference to allow callbacks to cancel/reset/modify the timer
 struct TimerCallbackInfo
 {
   std::chrono::nanoseconds time_since_last_call;
