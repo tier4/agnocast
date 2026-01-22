@@ -23,12 +23,6 @@ void wait_and_handle_epoll_event(
 
 template <class ValidateFn>
 void prepare_epoll_impl(
-  int epoll_fd, pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables,
-  ValidateFn && validate_callback_group);
-
-template <class ValidateFn>
-void prepare_epoll_impl(
   const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables,
   ValidateFn && validate_callback_group)

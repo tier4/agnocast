@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_timer_info.hpp"
 
 #include "agnocast/agnocast_epoll.hpp"
+#include "agnocast/agnocast_utils.hpp"
 
 #include <sys/timerfd.h>
 #include <unistd.h>
@@ -76,6 +77,7 @@ void handle_timer_event(TimerInfo & timer_info)
 
   if (ret == -1) {
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      RCLCPP_WARN(logger, "Failed to read timer fd: %s", strerror(errno));
       return;
     }
   }
