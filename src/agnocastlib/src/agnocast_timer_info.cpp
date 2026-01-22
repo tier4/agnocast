@@ -14,7 +14,7 @@ namespace agnocast
 {
 
 std::mutex id2_timer_info_mtx;
-std::unordered_map<uint32_t, TimerInfo> id2_timer_info;
+std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
@@ -56,12 +56,19 @@ uint32_t register_timer(
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    id2_timer_info[timer_id] = TimerInfo{
-      timer_fd,     std::move(callback),
-      now + period,  // next_call_time
-      period,       callback_group,
+    const int64_t now_ns = to_nanoseconds(now);
+    auto timer_info = std::make_shared<TimerInfo>(TimerInfo{
+      timer_fd,
+      std::move(callback),
+      {},  // initialized below
+      {},  // initialized below
+      period,
+      callback_group,
       true  // need_epoll_update
-    };
+    });
+    timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+    timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
+    id2_timer_info[timer_id] = std::move(timer_info);
   }
 
   need_epoll_updates.store(true);
@@ -71,6 +78,8 @@ uint32_t register_timer(
 
 void handle_timer_event(TimerInfo & timer_info)
 {
+  // TODO(Koichi98): Add canceled check here
+
   // Read the number of expirations to clear the event
   uint64_t expirations = 0;
   const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
@@ -83,29 +92,36 @@ void handle_timer_event(TimerInfo & timer_info)
   }
 
   if (expirations > 0) {
-    const auto actual_call_time = std::chrono::steady_clock::now();
-    TimerCallbackInfo callback_info{timer_info.next_call_time, actual_call_time};
+    const auto now = std::chrono::steady_clock::now();
+    const int64_t now_ns = to_nanoseconds(now);
 
-    timer_info.callback(callback_info);
+    const int64_t previous_ns =
+      timer_info.last_call_time_ns.exchange(now_ns, std::memory_order_relaxed);
 
-    auto next_call_time = timer_info.next_call_time + timer_info.period;
-    const auto period = timer_info.period.count();
+    const int64_t period_ns = timer_info.period.count();
+    int64_t next_call_time_ns =
+      timer_info.next_call_time_ns.load(std::memory_order_relaxed) + period_ns;
 
     // in case the timer has missed at least one cycle
-    if (next_call_time < actual_call_time) {
-      if (period == 0) {
+    if (next_call_time_ns < now_ns) {
+      if (period_ns == 0) {
         // a timer with a period of zero is considered always ready
-        next_call_time = actual_call_time;
+        next_call_time_ns = now_ns;
       } else {
         // move the next call time forward by as many periods as necessary
-        const auto now_ahead = (actual_call_time - next_call_time).count();
+        const int64_t now_ahead = now_ns - next_call_time_ns;
         // rounding up without overflow
-        const auto periods_ahead = 1 + (now_ahead - 1) / period;
-        next_call_time += timer_info.period * periods_ahead;
+        const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
+        next_call_time_ns += periods_ahead * period_ns;
       }
     }
+    timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
 
-    timer_info.next_call_time = next_call_time;
+    if (timer_info.callback) {
+      const int64_t since_last_call_ns = now_ns - previous_ns;
+      TimerCallbackInfo callback_info{std::chrono::nanoseconds(since_last_call_ns)};
+      timer_info.callback(callback_info);
+    }
   }
 }
 
