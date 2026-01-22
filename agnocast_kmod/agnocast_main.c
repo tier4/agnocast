@@ -1223,7 +1223,7 @@ int get_publisher_num(
   union ioctl_get_publisher_num_args * ioctl_ret)
 {
   ioctl_ret->ret_publisher_num = 0;
-  ioctl_ret->ret_r2a_bridge_exist = false;
+  ioctl_ret->ret_bridge_exist = false;
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
 
@@ -1238,7 +1238,7 @@ int get_publisher_num(
   hash_for_each(wrapper->topic.pub_info_htable, bkt_pub, pub_info, node)
   {
     if (pub_info->is_bridge) {
-      ioctl_ret->ret_r2a_bridge_exist = true;
+      ioctl_ret->ret_bridge_exist = true;
       break;
     }
   }

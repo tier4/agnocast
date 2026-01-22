@@ -146,7 +146,7 @@ union ioctl_get_publisher_num_args {
   struct
   {
     uint32_t ret_publisher_num;
-    bool ret_r2a_bridge_exist;
+    bool ret_bridge_exist;
   };
 };
 

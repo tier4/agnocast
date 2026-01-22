@@ -65,7 +65,7 @@ PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name
     RCLCPP_ERROR(logger, "AGNOCAST_GET_PUBLISHER_NUM_CMD failed: %s", strerror(errno));
     return {-1, false};
   }
-  return {static_cast<int>(args.ret_publisher_num), args.ret_r2a_bridge_exist};
+  return {static_cast<int>(args.ret_publisher_num), args.ret_bridge_exist};
 }
 
 bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name)
