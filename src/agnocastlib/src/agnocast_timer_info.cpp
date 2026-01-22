@@ -47,9 +47,9 @@ uint32_t register_timer(
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   const uint32_t timer_id = next_timer_id.fetch_add(1);
-  if (timer_id & TIMER_EVENT_FLAG) {                                                                                                                                                                                                                 
-    throw std::runtime_error("Timer ID overflow: too many timers created");                                                                                                                                                                                                          
-  } 
+  if (timer_id & TIMER_EVENT_FLAG) {
+    throw std::runtime_error("Timer ID overflow: too many timers created");
+  }
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
 
@@ -91,11 +91,16 @@ void handle_timer_event(TimerInfo & timer_info)
 
     // in case the timer has missed at least one cycle
     if (next_call_time < actual_call_time) {
-      // move the next call time forward by as many periods as necessary
-      const auto now_ahead = (actual_call_time - next_call_time).count();
-      // rounding up without overflow
-      const auto periods_ahead = 1 + (now_ahead - 1) / period;
-      next_call_time += timer_info.period * periods_ahead;
+      if (period == 0) {
+        // a timer with a period of zero is considered always ready
+        next_call_time = actual_call_time;
+      } else {
+        // move the next call time forward by as many periods as necessary
+        const auto now_ahead = (actual_call_time - next_call_time).count();
+        // rounding up without overflow
+        const auto periods_ahead = 1 + (now_ahead - 1) / period;
+        next_call_time += timer_info.period * periods_ahead;
+      }
     }
 
     timer_info.next_call_time = next_call_time;
