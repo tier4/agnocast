@@ -30,27 +30,22 @@ inline void validate_qos(const rclcpp::QoS & qos)
   const auto & rmw_qos = qos.get_rmw_qos_profile();
 
   if (rmw_qos.deadline.sec != 0 || rmw_qos.deadline.nsec != 0) {
-    RCLCPP_ERROR(logger, "Agnocast does not support deadline QoS policy.");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    RCLCPP_WARN(logger, "Agnocast does not support deadline QoS policy. It will be ignored.");
   }
 
   if (rmw_qos.lifespan.sec != 0 || rmw_qos.lifespan.nsec != 0) {
-    RCLCPP_ERROR(logger, "Agnocast does not support lifespan QoS policy.");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    RCLCPP_WARN(logger, "Agnocast does not support lifespan QoS policy. It will be ignored.");
   }
 
-  if (rmw_qos.liveliness != RMW_QOS_POLICY_LIVELINESS_AUTOMATIC) {
-    RCLCPP_ERROR(logger, "Agnocast does not support liveliness QoS policy other than Automatic.");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+  if (rmw_qos.liveliness == RMW_QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC) {
+    RCLCPP_WARN(
+      logger, "Agnocast does not support liveliness QoS policy. ManualByTopic will be ignored.");
   }
 
   if (rmw_qos.liveliness_lease_duration.sec != 0 || rmw_qos.liveliness_lease_duration.nsec != 0) {
-    RCLCPP_ERROR(logger, "Agnocast does not support liveliness_lease_duration QoS policy.");
-    close(agnocast_fd);
-    exit(EXIT_FAILURE);
+    RCLCPP_WARN(
+      logger,
+      "Agnocast does not support liveliness_lease_duration QoS policy. It will be ignored.");
   }
 }
 
