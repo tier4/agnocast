@@ -141,15 +141,15 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
-  uint32_t inter_count = args.ret_inter_subscriber_num;
+  uint32_t inter_count = args.ret_other_process_subscriber_num;
   // Assumes at most one bridge subscriber per topic
-  if (args.ret_sub_bridge_exist && inter_count > 0) {
+  if (args.ret_a2r_bridge_exist && inter_count > 0) {
     inter_count--;
   }
 
   uint32_t ros2_count = args.ret_ros2_subscriber_num;
   // Assumes at most one bridge subscriber per topic
-  if (args.ret_pub_bridge_exist && ros2_count > 0) {
+  if (args.ret_r2a_bridge_exist && ros2_count > 0) {
     ros2_count--;
   }
 
@@ -166,7 +166,7 @@ uint32_t get_intra_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
-  return get_subscriber_count_args.ret_intra_subscriber_num;
+  return get_subscriber_count_args.ret_same_process_subscriber_num;
 }
 
 }  // namespace agnocast

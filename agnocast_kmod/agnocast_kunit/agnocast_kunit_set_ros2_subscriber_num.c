@@ -40,7 +40,7 @@ void test_case_set_ros2_subscriber_num_normal(struct kunit * test)
   int ret2 =
     get_subscriber_num(topic_name, current->nsproxy->ipc_ns, current->tgid, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret2, 0);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_inter_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_other_process_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_ros2_subscriber_num, 5);
 }
 
@@ -64,7 +64,7 @@ void test_case_set_ros2_subscriber_num_update(struct kunit * test)
   int ret2 =
     get_subscriber_num(topic_name, current->nsproxy->ipc_ns, current->tgid, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret2, 0);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_inter_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_other_process_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_ros2_subscriber_num, 3);
 
   // Update to new value
@@ -74,6 +74,6 @@ void test_case_set_ros2_subscriber_num_update(struct kunit * test)
   int ret4 =
     get_subscriber_num(topic_name, current->nsproxy->ipc_ns, current->tgid, &subscriber_num_args);
   KUNIT_EXPECT_EQ(test, ret4, 0);
-  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_inter_subscriber_num, 1);
+  KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_other_process_subscriber_num, 1);
   KUNIT_EXPECT_EQ(test, subscriber_num_args.ret_ros2_subscriber_num, 7);
 }

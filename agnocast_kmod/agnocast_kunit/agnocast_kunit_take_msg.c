@@ -884,7 +884,7 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
   KUNIT_ASSERT_TRUE(
     test, is_in_publisher_htable(TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id));
-  KUNIT_ASSERT_EQ(test, ioctl_get_subscriber_num_ret.ret_inter_subscriber_num, 2);
+  KUNIT_ASSERT_EQ(test, ioctl_get_subscriber_num_ret.ret_other_process_subscriber_num, 2);
   KUNIT_ASSERT_TRUE(
     test, is_in_subscriber_htable(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1));
   KUNIT_ASSERT_TRUE(

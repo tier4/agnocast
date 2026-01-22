@@ -133,11 +133,11 @@ union ioctl_get_subscriber_num_args {
   struct name_info topic_name;
   struct
   {
-    uint32_t ret_inter_subscriber_num;
-    uint32_t ret_intra_subscriber_num;
+    uint32_t ret_other_process_subscriber_num;
+    uint32_t ret_same_process_subscriber_num;
     uint32_t ret_ros2_subscriber_num;
-    bool ret_sub_bridge_exist;
-    bool ret_pub_bridge_exist;
+    bool ret_a2r_bridge_exist;
+    bool ret_r2a_bridge_exist;
   };
 };
 
@@ -146,7 +146,7 @@ union ioctl_get_publisher_num_args {
   struct
   {
     uint32_t ret_publisher_num;
-    bool ret_pub_bridge_exist;
+    bool ret_r2a_bridge_exist;
   };
 };
 
