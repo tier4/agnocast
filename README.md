@@ -71,7 +71,6 @@ cd agnocast
 ### System Configuration
 
 Agnocast requires increasing the system limit for the maximum number of messages in a queue.
-The default Linux limit is often too low, causing `mq_open` to fail (typically with `EINVAL`).
 
 **Temporary setting (Current session only):**
 
