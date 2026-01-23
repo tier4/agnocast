@@ -35,7 +35,7 @@ def calc_expect_pub_sub_num(config: dict) -> None:
     if config['sub_transient_local']:
         EXPECT_INIT_ROS2_SUB_NUM = min(
             EXPECT_INIT_PUB_NUM, config['sub_qos_depth']) if config['pub_transient_local'] else 0
-        EXPECT_INIT_SUB_NUM = 0 if config['use_take_sub'] else min(
+        EXPECT_INIT_SUB_NUM = min(
             EXPECT_INIT_PUB_NUM, config['sub_qos_depth'])
     else:
         EXPECT_INIT_ROS2_SUB_NUM = 0
@@ -105,7 +105,8 @@ def generate_test_description():
                                 "qos_depth": config['sub_qos_depth'],
                                 "transient_local": config['sub_transient_local'] if config['pub_transient_local'] else False,
                                 "sub_num": EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM,
-                                "forever": FOREVER
+                                "forever": FOREVER,
+                                "start_id": EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM
                             }
                         ],
                     )
@@ -209,16 +210,34 @@ class Test1To1(unittest.TestCase):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
             proc_output = "".join(cm._output)
 
+            start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
+            total_expected_count = EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
+
+            verified_count = 0
+            
             # The display order is not guaranteed, so the message order is not checked.
-            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM, EXPECT_SUB_NUM):
-                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
+            for i in range(start_index, start_index + total_expected_count):
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
+                verified_count += 1
+            
+            self.assertEqual(verified_count, total_expected_count, 
+                             f"Loop check failed! Expected {total_expected_count} checks, but did {verified_count}.")
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
             proc_output = "".join(cm._output)
 
+            start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM
+            total_expected_count = EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM
+
+            verified_count = 0
+
             # The display order is not guaranteed, so the message order is not checked.
-            for i in range(EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM, EXPECT_ROS2_SUB_NUM):
-                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
+            for i in range(start_index, start_index + total_expected_count):
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
+                verified_count += 1
+
+            self.assertEqual(verified_count, total_expected_count, 
+                             f"Loop check failed! Expected {total_expected_count} checks, but did {verified_count}.")
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
