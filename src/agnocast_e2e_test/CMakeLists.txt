@@ -4,7 +4,7 @@ project(agnocast_e2e_test)
 # Skip building and installation if in Jazzy environment
 # TODO(mitsudome-r): Remove this workaround when Jazzy supports agnocast
 if("$ENV{ROS_DISTRO}" STREQUAL "jazzy")
-  message(STATUS "Skipping ${PROJECT_NAME} build in Jazzy environment")
+  message(WARN "Skipping ${PROJECT_NAME} build in Jazzy environment")
   find_package(ament_cmake REQUIRED)
   ament_package()
   return()
