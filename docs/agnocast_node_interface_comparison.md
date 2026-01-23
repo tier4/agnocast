@@ -304,7 +304,7 @@ The following tables compare methods that are **directly defined** in each class
 |-----|:------------:|:--------------:|-------|
 | `create_wall_timer()` | ✓ | ✗ | |
 | `create_client<ServiceT>()` | ✓ | ✓ | Return type differs (rclcpp::Client vs. agnocast::Client) |
-| `create_service<ServiceT>()` | ✓ | ✓ | Return type differs (rclcpp::Servise vs. agnocast::Service) |
+| `create_service<ServiceT>()` | ✓ | ✓ | Return type differs (rclcpp::Service vs. agnocast::Service) |
 
 #### Graph API (ROS Network Discovery)
 
