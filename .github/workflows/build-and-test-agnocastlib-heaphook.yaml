@@ -13,7 +13,7 @@ env:
   RUST_TOOLCHAIN: "1.75.0"
 
 jobs:
-  build-and-test-agnocastlib-heaphook:
+  build-and-test-matrix:
     if: ${{ github.event_name == 'push' || github.event.label.name == 'run-build-test' }}
     strategy:
       fail-fast: false
@@ -247,3 +247,22 @@ jobs:
         source install/setup.bash
         # --packages-skip ros2agnocast: skip Python package with no tests (pytest fails on empty test suite)
         colcon test --merge-install --packages-skip ros2agnocast --event-handlers console_direct+ --return-code-on-test-failure --ctest-args -R "test_integration_agnocast_heaphook"
+
+  # Summary job that provides a single status check for branch protection rules.
+  # Matrix jobs report status as "job-name (matrix-value)", but branch protection
+  # requires an exact job name. This job uses the original name so existing branch
+  # protection rules continue to work without manual changes.
+  build-and-test-agnocastlib-heaphook:
+    if: ${{ always() && (github.event_name == 'push' || github.event.label.name == 'run-build-test') }}
+    needs: build-and-test-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix job results
+        run: |
+          if [ "${{ needs.build-and-test-matrix.result }}" = "success" ] || [ "${{ needs.build-and-test-matrix.result }}" = "skipped" ]; then
+            echo "All matrix jobs passed or were skipped"
+            exit 0
+          else
+            echo "One or more matrix jobs failed: ${{ needs.build-and-test-matrix.result }}"
+            exit 1
+          fi
