@@ -14,7 +14,7 @@
 
 ### Features
 
-**Multiple ROS domain support**: `cie_thread_configurator` can handle callback groups from multiple ROS domains. Use the `--domains` option to specify domain IDs you uses:
+**Multiple ROS domain support**: `cie_thread_configurator` can handle callback groups from multiple ROS domains. Use the `--domains` option to specify domain IDs you use:
 
 ```bash
 ros2 run cie_thread_configurator thread_configurator_node --prerun --domains 0,1
