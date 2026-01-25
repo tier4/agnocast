@@ -53,7 +53,7 @@ template <class F, class... Args>
 std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... args)
 {
   std::thread t(
-    [thread_name, func = std::forward<F>(f),
+    [thread_name = std::string(thread_name), func = std::forward<F>(f),
      captured_args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
       // Create isolated rclcpp context for publishing thread info
       rclcpp::InitOptions init_options;
