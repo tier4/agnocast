@@ -139,8 +139,16 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         ccache --show-stats
 
+    # NOTE: clang-tidy is skipped on Jazzy (Ubuntu 24.04) because it uses clang-tidy 18,
+    # which is significantly stricter than clang-tidy 14 on Humble (Ubuntu 22.04).
+    # Specifically, clang-tidy 18 has more aggressive checks for:
+    #   - misc-include-cleaner: flags transitive includes as errors
+    #   - misc-const-correctness: flags RAII types like std::lock_guard
+    #   - modernize-pass-by-value: stricter about pass-by-value patterns
+    # These produce many false positives with ROS/rclcpp code.
+    # Until we can align the checks across versions, we only run clang-tidy on Humble.
     - name: Run clang-tidy for agnocastlib
-      if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
+      if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true' && env.ROS_DISTRO == 'humble'
       run: |
         set -euo pipefail
         export FILES=($(echo "${{ steps.check_diff.outputs.changed_files }}" | grep -E '^src/agnocastlib/.*\.(cpp|hpp)$' | grep -v '/test/' || true))
