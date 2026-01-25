@@ -90,8 +90,6 @@ jobs:
         sudo rosdep init
         rosdep update
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
-        # Export PYTHONPATH to GITHUB_ENV so it persists across steps
-        echo "PYTHONPATH=$PYTHONPATH" >> "$GITHUB_ENV"
 
     - name: Cache ccache
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
@@ -112,11 +110,18 @@ jobs:
         ccache --max-size=1G
         ccache --zero-stats
 
-    - name: Verify ROS Python packages
+    - name: Setup ROS Python packages for system Python
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
-        source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        echo "PYTHONPATH=$PYTHONPATH"
+        # Get the ROS Python site-packages path
+        ROS_PYTHON_PATH=$(python3 -c "import sys; print(f'/opt/ros/${{ env.ROS_DISTRO }}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
+        # Get the system site-packages path
+        SYSTEM_PYTHON_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")
+        echo "ROS Python path: $ROS_PYTHON_PATH"
+        echo "System Python path: $SYSTEM_PYTHON_PATH"
+        # Symlink ROS Python packages to system path so CMake's execute_process can find them
+        sudo ln -sf "$ROS_PYTHON_PATH/ament_package" "$SYSTEM_PYTHON_PATH/ament_package"
+        # Verify ament_package is now importable without PYTHONPATH
         python3 -c "import ament_package; print('ament_package found at:', ament_package.__file__)"
 
     - name: Build src
