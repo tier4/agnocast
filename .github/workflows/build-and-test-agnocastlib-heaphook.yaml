@@ -110,6 +110,13 @@ jobs:
         ccache --max-size=1G
         ccache --zero-stats
 
+    # Symlink ROS Python packages to system path so CMake's execute_process can find them.
+    # Why this is needed:
+    #   - Humble: CMake's execute_process() somehow inherits PYTHONPATH correctly
+    #   - Jazzy: CMake's execute_process() does NOT inherit PYTHONPATH, so Python
+    #     subprocess fails to import ament_package
+    #   - Root cause: CMake invokes /usr/bin/python3 directly without passing
+    #     environment variables. Why Humble works despite this is unclear.
     - name: Setup ROS Python packages for system Python
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
