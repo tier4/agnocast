@@ -10,13 +10,22 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  ROS_DISTRO: humble
   RUST_TOOLCHAIN: "1.75.0"
 
 jobs:
   build-and-test-agnocastlib-heaphook:
     if: ${{ github.event_name == 'push' || github.event.label.name == 'run-build-test' }}
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ros_distro: humble
+            os: ubuntu-22.04
+          - ros_distro: jazzy
+            os: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    env:
+      ROS_DISTRO: ${{ matrix.ros_distro }}
 
     steps:
     - name: Set PR fetch depth
@@ -87,11 +96,11 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.ccache
-        key: ${{ runner.os }}-ccache-${{ github.ref }}-${{ github.sha }}
+        key: ${{ runner.os }}-${{ env.ROS_DISTRO }}-ccache-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-ccache-${{ github.ref }}-
-          ${{ runner.os }}-ccache-refs/heads/main-
-          ${{ runner.os }}-ccache-
+          ${{ runner.os }}-${{ env.ROS_DISTRO }}-ccache-${{ github.ref }}-
+          ${{ runner.os }}-${{ env.ROS_DISTRO }}-ccache-refs/heads/main-
+          ${{ runner.os }}-${{ env.ROS_DISTRO }}-ccache-
 
     - name: Configure ccache
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
@@ -142,7 +151,7 @@ jobs:
       run: |
         gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" --txt > coverage.txt
         coverage_text=$(<coverage.txt)
-        gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '```\n'"$coverage_text"'\n```')"
+        gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '## Coverage Report (${{ env.ROS_DISTRO }})\n```\n'"$coverage_text"'\n```')"
 
     # ===== agnocast_heaphook =====
 
