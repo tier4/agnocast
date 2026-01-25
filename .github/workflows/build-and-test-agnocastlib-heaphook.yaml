@@ -90,6 +90,8 @@ jobs:
         sudo rosdep init
         rosdep update
         rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+        # Export PYTHONPATH to GITHUB_ENV so it persists across steps
+        echo "PYTHONPATH=$PYTHONPATH" >> "$GITHUB_ENV"
 
     - name: Cache ccache
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
@@ -109,6 +111,13 @@ jobs:
         ccache --version
         ccache --max-size=1G
         ccache --zero-stats
+
+    - name: Verify ROS Python packages
+      if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
+      run: |
+        source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
+        echo "PYTHONPATH=$PYTHONPATH"
+        python3 -c "import ament_package; print('ament_package found at:', ament_package.__file__)"
 
     - name: Build src
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
