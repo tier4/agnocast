@@ -172,12 +172,15 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # --gcov-ignore-parse-errors: workaround for GCC Bug 68080 where gcov produces
-        # negative branch counts in template-heavy C++ code (e.g., "branch 10 taken -1").
-        # This occurs on Jazzy (Ubuntu 24.04, GCC 13) but not Humble (Ubuntu 22.04, GCC 11)
-        # because newer GCC versions have different optimization/template instantiation behavior
-        # that triggers this bug more frequently, and newer gcovr versions are stricter about it.
-        gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" --gcov-ignore-parse-errors=negative_hits.warn --txt > coverage.txt
+        # Jazzy (Ubuntu 24.04, GCC 13) needs --gcov-ignore-parse-errors=negative_hits.warn
+        # as a workaround for GCC Bug 68080 where gcov produces negative branch counts
+        # in template-heavy C++ code (e.g., "branch 10 taken -1"). This doesn't occur on
+        # Humble (Ubuntu 22.04, GCC 11), and older gcovr doesn't support this flag syntax.
+        GCOVR_EXTRA_ARGS=""
+        if [ "${{ env.ROS_DISTRO }}" = "jazzy" ]; then
+          GCOVR_EXTRA_ARGS="--gcov-ignore-parse-errors=negative_hits.warn"
+        fi
+        gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" $GCOVR_EXTRA_ARGS --txt > coverage.txt
         coverage_text=$(<coverage.txt)
         gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '## Coverage Report (${{ env.ROS_DISTRO }})\n```\n'"$coverage_text"'\n```')"
 
