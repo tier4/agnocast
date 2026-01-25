@@ -76,7 +76,7 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
       message->thread_name = thread_name;
       publisher->publish(*message);
 
-      context->shutdown("Publishing is finished.");
+      context->shutdown("Thread info published successfully.");
 
       std::apply(std::move(func), std::move(captured_args));
     });
