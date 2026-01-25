@@ -99,6 +99,7 @@ agnocast::CallbackIsolatedExecutor executor;
 ## System Requirements
 
 Before running, set the message queue limit:
+
 ```bash
 sudo sysctl -w fs.mqueue.msg_max=256  # temporary
 # or add to /etc/sysctl.conf for permanent
@@ -118,6 +119,7 @@ echo 'file agnocast_main.c +p' > /sys/kernel/debug/dynamic_debug/control
 ## Resource Cleanup
 
 If shared memory or message queues leak:
+
 ```bash
 rm /dev/shm/agnocast@*
 rm /dev/mqueue/agnocast@*

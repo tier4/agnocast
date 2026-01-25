@@ -89,8 +89,8 @@ NodeBase::NodeBase(
 
   // rclcpp 28+ (Jazzy) requires context argument in CallbackGroup constructor.
 #if RCLCPP_VERSION_MAJOR >= 28
-  default_callback_group_ = std::make_shared<rclcpp::CallbackGroup>(
-    rclcpp::CallbackGroupType::MutuallyExclusive, context_);
+  default_callback_group_ =
+    std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive, context_);
 #else
   default_callback_group_ =
     std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);

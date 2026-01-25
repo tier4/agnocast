@@ -134,7 +134,8 @@ void MultiThreadedAgnocastExecutor::ros2_spin()
 
     // rclcpp 28+ (Jazzy) changed entity collection to work like the static executor.
     // Entities are collected once and not rebuilt unless explicitly triggered.
-    // We must trigger recollection after executing callbacks for timers/subscriptions to fire again.
+    // We must trigger recollection after executing callbacks for timers/subscriptions to fire
+    // again.
 #if RCLCPP_VERSION_MAJOR >= 28
     trigger_entity_recollect(true);
 #endif
