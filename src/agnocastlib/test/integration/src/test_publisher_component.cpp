@@ -1,7 +1,7 @@
+#include <cie_thread_configurator/cie_thread_configurator.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 
-#include <cie_thread_configurator/cie_thread_configurator.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #include <chrono>
