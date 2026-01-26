@@ -98,7 +98,7 @@ else
                                     exit 1
                                 fi
                             fi
-                            # Add a safety margin to account for bridge cleanup (max 1s).
+                            # Add a 2s safety margin to account for bridge cleanup (expected max ~1s).
                             sleep 2
                         done
                     done

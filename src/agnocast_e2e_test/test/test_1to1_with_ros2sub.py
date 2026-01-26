@@ -201,8 +201,12 @@ class Test1To1(unittest.TestCase):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_pub) as cm:
             proc_output = "".join(cm._output)
 
+            total_expected_count = EXPECT_INIT_PUB_NUM + EXPECT_PUB_NUM
+
+            self.assertGreater(total_expected_count, 0, "Expected publisher count must be greater than 0.")
+
             # The display order is not guaranteed, so the message order is not checked.
-            for i in range(EXPECT_INIT_PUB_NUM + EXPECT_PUB_NUM):
+            for i in range(total_expected_count):
                 self.assertEqual(proc_output.count(f"Publishing {i}."), 1)
             self.assertEqual(proc_output.count("All messages published. Shutting down."), 1)
 
@@ -213,15 +217,12 @@ class Test1To1(unittest.TestCase):
             start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
             total_expected_count = EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
 
-            verified_count = 0
-            
+            self.assertGreater(total_expected_count, 0, "Expected count must be greater than 0.")
+
             # The display order is not guaranteed, so the message order is not checked.
             for i in range(start_index, start_index + total_expected_count):
                 self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
-                verified_count += 1
             
-            self.assertEqual(verified_count, total_expected_count, 
-                             f"Loop check failed! Expected {total_expected_count} checks, but did {verified_count}.")
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
@@ -231,13 +232,10 @@ class Test1To1(unittest.TestCase):
             start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM
             total_expected_count = EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM
 
-            verified_count = 0
+            self.assertGreater(total_expected_count, 0, "Expected count must be greater than 0.")
 
             # The display order is not guaranteed, so the message order is not checked.
             for i in range(start_index, start_index + total_expected_count):
                 self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
-                verified_count += 1
 
-            self.assertEqual(verified_count, total_expected_count, 
-                             f"Loop check failed! Expected {total_expected_count} checks, but did {verified_count}.")
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
