@@ -34,7 +34,7 @@ void wait_and_handle_epoll_event(
 
   const uint32_t event_id = event.data.u32;
 
-  if (event_id & TIMER_EVENT_FLAG) {
+  if ((event_id & TIMER_EVENT_FLAG) != 0U) {
     // Timer event
     const uint32_t timer_id = event_id & ~TIMER_EVENT_FLAG;
     rclcpp::CallbackGroup::SharedPtr callback_group;

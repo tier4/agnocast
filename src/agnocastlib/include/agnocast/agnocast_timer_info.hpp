@@ -13,6 +13,8 @@
 namespace agnocast
 {
 
+constexpr int64_t NANOSECONDS_PER_SECOND = 1000000000;
+
 inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
