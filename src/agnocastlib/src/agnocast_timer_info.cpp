@@ -64,17 +64,14 @@ uint32_t register_timer(
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
     const int64_t now_ns = to_nanoseconds(now);
-    auto timer_info = std::make_shared<TimerInfo>(TimerInfo{
-      timer_fd,
-      std::move(callback),
-      {},  // initialized below
-      {},  // initialized below
-      period,
-      callback_group,
-      true  // need_epoll_update
-    });
+    auto timer_info = std::make_shared<TimerInfo>();
+    timer_info->timer_fd = timer_fd;
+    timer_info->callback = std::move(callback);
     timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
+    timer_info->period = period;
+    timer_info->callback_group = callback_group;
+    timer_info->need_epoll_update = true;
     id2_timer_info[timer_id] = std::move(timer_info);
   }
 
