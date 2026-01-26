@@ -65,13 +65,14 @@ void register_timer_info(
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
+  const int64_t now_ns = to_nanoseconds(now);
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
     auto timer_info = std::make_shared<TimerInfo>();
     timer_info->timer_fd = timer_fd;
     timer_info->timer = timer;
-    timer_info->next_call_time = now + period;
+    timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
     timer_info->callback_group = std::move(callback_group);
     timer_info->need_epoll_update = true;
@@ -102,27 +103,29 @@ void handle_timer_event(TimerInfo & timer_info)
       return;  // Timer object has been destroyed
     }
 
-    const auto now = std::chrono::steady_clock::now();
-
     timer->execute_callback();
 
-    // Update next_call_time
-    auto next_call_time = timer_info.next_call_time + timer_info.period;
+    const auto now = std::chrono::steady_clock::now();
+    const int64_t now_ns = to_nanoseconds(now);
+
+    const int64_t period_ns = timer_info.period.count();
+    int64_t next_call_time_ns =
+      timer_info.next_call_time_ns.load(std::memory_order_relaxed) + period_ns;
 
     // in case the timer has missed at least one cycle
-    if (next_call_time < now) {
-      if (timer_info.period.count() == 0) {
+    if (next_call_time_ns < now_ns) {
+      if (period_ns == 0) {
         // a timer with a period of zero is considered always ready
-        next_call_time = now;
+        next_call_time_ns = now_ns;
       } else {
         // move the next call time forward by as many periods as necessary
-        const auto time_ahead = now - next_call_time;
-        const auto periods_ahead =
-          1 + (time_ahead.count() - 1) / timer_info.period.count();
-        next_call_time += timer_info.period * periods_ahead;
+        const int64_t now_ahead = now_ns - next_call_time_ns;
+        // rounding up without overflow
+        const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
+        next_call_time_ns += periods_ahead * period_ns;
       }
     }
-    timer_info.next_call_time = next_call_time;
+    timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
   }
 }
 

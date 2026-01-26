@@ -24,7 +24,7 @@ struct TimerInfo
 {
   int timer_fd;
   std::weak_ptr<TimerBase> timer;
-  std::chrono::steady_clock::time_point next_call_time;
+  std::atomic<int64_t> next_call_time_ns;
   std::chrono::nanoseconds period;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   bool need_epoll_update = true;
