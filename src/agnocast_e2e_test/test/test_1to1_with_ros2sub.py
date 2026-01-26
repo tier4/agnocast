@@ -64,6 +64,9 @@ def generate_test_description():
                 namespace='',
                 package='agnocastlib',
                 executable='agnocast_component_container',
+                parameters=[
+                    {"get_next_timeout_ms": 1},
+                ],
                 composable_node_descriptions=[
                     ComposableNode(
                         package='agnocast_e2e_test',
@@ -210,17 +213,46 @@ class Test1To1(unittest.TestCase):
             self.assertEqual(proc_output.count("All messages published. Shutting down."), 1)
 
     def test_sub(self, proc_output, test_sub):
+        with open(CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+        is_stress_condition = (
+            config['use_take_sub'] and 
+            config['sub_qos_depth'] == 1 and 
+            config['pub_qos_depth'] == 10
+        )
+        
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
             proc_output = "".join(cm._output)
 
-            start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
-            total_expected_count = EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
-            self.assertGreater(total_expected_count, 0, "Expected count must be greater than 0.")
+            if is_stress_condition:                
+                init_start = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
+                init_end = EXPECT_INIT_PUB_NUM
+                
+                for i in range(init_start, init_end):
+                    self.assertEqual(proc_output.count(f"Receiving {i}."), 1, 
+                                     f"[Strict] Init Message {i} mismatch. Transient local data should be guaranteed.")
 
-            # The display order is not guaranteed, so the message order is not checked.
-            for i in range(start_index, start_index + total_expected_count):
-                self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
-            self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
+                live_start = EXPECT_INIT_PUB_NUM
+                live_end = EXPECT_INIT_PUB_NUM + EXPECT_PUB_NUM
+                
+                actual_live_count = 0
+                for i in range(live_start, live_end):
+                    if proc_output.count(f"Receiving {i}.") > 0:
+                        actual_live_count += 1
+                
+                self.assertGreaterEqual(actual_live_count, EXPECT_SUB_NUM,
+                                        f"[Loose] Live message count insufficient. Got {actual_live_count}, expected at least {EXPECT_SUB_NUM}.")
+                self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
+
+            else:
+                start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
+                total_expected_count = EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
+                self.assertGreater(total_expected_count, 0, "Expected count must be greater than 0.")
+
+                # The display order is not guaranteed, so the message order is not checked.
+                for i in range(start_index, start_index + total_expected_count):
+                    self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
+                self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:

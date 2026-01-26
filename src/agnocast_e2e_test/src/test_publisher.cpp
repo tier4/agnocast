@@ -16,14 +16,13 @@ class TestPublisher : public rclcpp::Node
   int64_t planned_sub_count_;
   size_t planned_pub_count_;
   bool is_ready_ = false;
+  bool is_waiting_ = false;
+  rclcpp::Time connection_detected_time_;
+
   bool forever_;
 
-  bool is_ready()
+  bool check_connection_counts()
   {
-    if (is_ready_) {
-      return true;
-    }
-
     const auto total_sub_count =
       publisher_->get_subscription_count() + publisher_->get_intra_subscription_count();
     if (
@@ -32,17 +31,36 @@ class TestPublisher : public rclcpp::Node
       return false;
     }
 
-    sleep(5);  // HACK: wait subscribing transient local messages
-    is_ready_ = true;
     return true;
   }
 
   void timer_callback()
   {
-    if (!is_ready()) {
+    if (is_ready_) {
+      publish_message();
       return;
     }
 
+    if (!is_waiting_) {
+      if (check_connection_counts()) {
+        connection_detected_time_ = this->now();
+        is_waiting_ = true;
+      }
+      return;
+    }
+
+    auto elapsed = this->now() - connection_detected_time_;
+    // HACK: wait subscribing transient local messages
+    if (elapsed < rclcpp::Duration::from_seconds(5.0)) {
+      return;
+    }
+
+    is_ready_ = true;
+    publish_message();
+  }
+
+  void publish_message()
+  {
     agnocast::ipc_shared_ptr<std_msgs::msg::Int64> message = publisher_->borrow_loaned_message();
     message->data = count_;
     publisher_->publish(std::move(message));
