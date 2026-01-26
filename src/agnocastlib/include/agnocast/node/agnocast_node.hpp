@@ -7,12 +7,14 @@
 #include "agnocast/node/agnocast_context.hpp"
 #include "agnocast/node/node_interfaces/node_base.hpp"
 #include "agnocast/node/node_interfaces/node_clock.hpp"
+#include "agnocast/node/node_interfaces/node_logging.hpp"
 #include "agnocast/node/node_interfaces/node_parameters.hpp"
 #include "agnocast/node/node_interfaces/node_services.hpp"
 #include "agnocast/node/node_interfaces/node_time_source.hpp"
 #include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "rclcpp/version.h"
 
 #include <algorithm>
 #include <chrono>
@@ -31,8 +33,16 @@ public:
   using SharedPtr = std::shared_ptr<Node>;
   using ParameterValue = rclcpp::ParameterValue;
   using OnSetParametersCallbackHandle = rclcpp::node_interfaces::OnSetParametersCallbackHandle;
-  using OnParametersSetCallbackType =
+  // rclcpp 28+ (Jazzy) renamed OnParametersSetCallbackType to OnSetParametersCallbackType
+  // and removed the old name from NodeParametersInterface (only kept as deprecated alias
+  // in OnSetParametersCallbackHandle). Humble uses rclcpp 16.x with the old name.
+#if RCLCPP_VERSION_MAJOR >= 28
+  using OnSetParametersCallbackType =
+    rclcpp::node_interfaces::NodeParametersInterface::OnSetParametersCallbackType;
+#else
+  using OnSetParametersCallbackType =
     rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType;
+#endif
 
   explicit Node(
     const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
@@ -100,6 +110,13 @@ public:
     return node_services_;
   }
 
+  // Non-const to align with rclcpp::Node API
+  // cppcheck-suppress functionConst
+  rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr get_node_logging_interface()
+  {
+    return node_logging_;
+  }
+
   const ParameterValue & declare_parameter(
     const std::string & name, const ParameterValue & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
@@ -115,7 +132,7 @@ public:
   }
 
   template <typename ParameterT>
-  ParameterT declare_parameter(
+  auto declare_parameter(
     const std::string & name, const ParameterT & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
   {
@@ -129,7 +146,7 @@ public:
   }
 
   template <typename ParameterT>
-  ParameterT declare_parameter(
+  auto declare_parameter(
     const std::string & name, const ParameterDescriptor & descriptor = ParameterDescriptor{},
     bool ignore_override = false)
   {
@@ -244,7 +261,7 @@ public:
   }
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
-    rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType callback)
+    OnSetParametersCallbackType callback)
   {
     return node_parameters_->add_on_set_parameters_callback(callback);
   }
@@ -322,6 +339,7 @@ private:
   node_interfaces::NodeClock::SharedPtr node_clock_;
   node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
   node_interfaces::NodeServices::SharedPtr node_services_;
+  node_interfaces::NodeLogging::SharedPtr node_logging_;
 };
 
 }  // namespace agnocast
