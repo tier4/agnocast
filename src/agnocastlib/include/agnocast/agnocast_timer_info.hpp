@@ -12,6 +12,8 @@
 namespace agnocast
 {
 
+constexpr int64_t NANOSECONDS_PER_SECOND = 1000000000;
+
 inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
@@ -38,6 +40,6 @@ void handle_timer_event(TimerInfo & timer_info);
 
 uint32_t register_timer(
   std::function<void()> callback, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr callback_group);
+  const rclcpp::CallbackGroup::SharedPtr & callback_group);
 
 }  // namespace agnocast

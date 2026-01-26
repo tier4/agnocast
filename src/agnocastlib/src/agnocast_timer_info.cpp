@@ -34,8 +34,8 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
     spec.it_interval.tv_sec = 0;
     spec.it_interval.tv_nsec = 1;
   } else {
-    spec.it_interval.tv_sec = period_count / 1000000000;
-    spec.it_interval.tv_nsec = period_count % 1000000000;
+    spec.it_interval.tv_sec = period_count / NANOSECONDS_PER_SECOND;
+    spec.it_interval.tv_nsec = period_count % NANOSECONDS_PER_SECOND;
   }
   spec.it_value = spec.it_interval;
 
@@ -52,10 +52,10 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 
 uint32_t register_timer(
   std::function<void()> callback, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr callback_group)
+  const rclcpp::CallbackGroup::SharedPtr & callback_group)
 {
   const uint32_t timer_id = next_timer_id.fetch_add(1);
-  if (timer_id & TIMER_EVENT_FLAG) {
+  if ((timer_id & TIMER_EVENT_FLAG) != 0U) {
     throw std::runtime_error("Timer ID overflow: too many timers created");
   }
   const int timer_fd = create_timer_fd(timer_id, period);
