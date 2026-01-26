@@ -1,6 +1,7 @@
 #include "agnocast/agnocast_timer_info.hpp"
 
 #include "agnocast/agnocast_epoll.hpp"
+#include "agnocast/agnocast_utils.hpp"
 
 #include <sys/timerfd.h>
 #include <unistd.h>
@@ -13,7 +14,7 @@ namespace agnocast
 {
 
 std::mutex id2_timer_info_mtx;
-std::unordered_map<uint32_t, TimerInfo> id2_timer_info;
+std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
@@ -27,8 +28,15 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 
   struct itimerspec spec = {};
   const auto period_count = period.count();
-  spec.it_interval.tv_sec = period_count / 1000000000;
-  spec.it_interval.tv_nsec = period_count % 1000000000;
+  if (period_count == 0) {
+    // Workaround: timerfd_settime() disarms the timer when both it_value and it_interval
+    // are zero. Use 1ns to keep the timer armed and achieve "always ready" semantics.
+    spec.it_interval.tv_sec = 0;
+    spec.it_interval.tv_nsec = 1;
+  } else {
+    spec.it_interval.tv_sec = period_count / 1000000000;
+    spec.it_interval.tv_nsec = period_count % 1000000000;
+  }
   spec.it_value = spec.it_interval;
 
   if (timerfd_settime(timer_fd, 0, &spec, nullptr) == -1) {
@@ -44,7 +52,11 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 
 uint32_t allocate_timer_id()
 {
-  return next_timer_id.fetch_add(1);
+  const uint32_t timer_id = next_timer_id.fetch_add(1);
+  if (timer_id & TIMER_EVENT_FLAG) {
+    throw std::runtime_error("Timer ID overflow: too many timers created");
+  }
+  return timer_id;
 }
 
 void register_timer_info(
@@ -56,13 +68,14 @@ void register_timer_info(
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    id2_timer_info[timer_id] = TimerInfo{
-      timer_fd,
-      timer,         // weak_ptr to Timer
-      now + period,  // next_call_time
-      period,       std::move(callback_group),
-      true  // need_epoll_update
-    };
+    auto timer_info = std::make_shared<TimerInfo>();
+    timer_info->timer_fd = timer_fd;
+    timer_info->timer = timer;
+    timer_info->next_call_time = now + period;
+    timer_info->period = period;
+    timer_info->callback_group = std::move(callback_group);
+    timer_info->need_epoll_update = true;
+    id2_timer_info[timer_id] = std::move(timer_info);
   }
 
   need_epoll_updates.store(true);
@@ -70,12 +83,15 @@ void register_timer_info(
 
 void handle_timer_event(TimerInfo & timer_info)
 {
+  // TODO(Koichi98): Add canceled check here
+
   // Read the number of expirations to clear the event
   uint64_t expirations = 0;
   const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
 
   if (ret == -1) {
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      RCLCPP_WARN(logger, "Failed to read timer fd: %s", strerror(errno));
       return;
     }
   }
@@ -86,23 +102,26 @@ void handle_timer_event(TimerInfo & timer_info)
       return;  // Timer object has been destroyed
     }
 
-    const auto actual_call_time = std::chrono::steady_clock::now();
-    TimerCallbackInfo callback_info{timer_info.next_call_time, actual_call_time};
+    const auto now = std::chrono::steady_clock::now();
 
-    timer->execute_callback(callback_info);
+    timer->execute_callback();
 
+    // Update next_call_time
     auto next_call_time = timer_info.next_call_time + timer_info.period;
-    const auto period = timer_info.period.count();
 
     // in case the timer has missed at least one cycle
-    if (next_call_time < actual_call_time) {
-      // move the next call time forward by as many periods as necessary
-      const auto now_ahead = (actual_call_time - next_call_time).count();
-      // rounding up without overflow
-      const auto periods_ahead = 1 + (now_ahead - 1) / period;
-      next_call_time += timer_info.period * periods_ahead;
+    if (next_call_time < now) {
+      if (timer_info.period.count() == 0) {
+        // a timer with a period of zero is considered always ready
+        next_call_time = now;
+      } else {
+        // move the next call time forward by as many periods as necessary
+        const auto time_ahead = now - next_call_time;
+        const auto periods_ahead =
+          1 + (time_ahead.count() - 1) / timer_info.period.count();
+        next_call_time += timer_info.period * periods_ahead;
+      }
     }
-
     timer_info.next_call_time = next_call_time;
   }
 }

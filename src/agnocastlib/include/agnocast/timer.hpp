@@ -12,8 +12,6 @@
 namespace agnocast
 {
 
-struct TimerCallbackInfo;
-
 class TimerBase
 {
 public:
@@ -31,7 +29,7 @@ public:
 
   bool is_steady() const { return true; }
 
-  virtual void execute_callback(TimerCallbackInfo & callback_info) = 0;
+  virtual void execute_callback() = 0;
 
   rclcpp::CallbackGroup::SharedPtr get_callback_group() const { return callback_group_; }
 
@@ -65,10 +63,10 @@ public:
   {
   }
 
-  void execute_callback(TimerCallbackInfo & callback_info) override
+  void execute_callback() override
   {
-    if constexpr (std::is_invocable_v<FunctorT, TimerCallbackInfo &>) {
-      callback_(callback_info);
+    if constexpr (std::is_invocable_v<FunctorT, TimerBase &>) {
+      callback_(*this);
     } else {
       callback_();
     }

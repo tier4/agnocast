@@ -13,11 +13,10 @@
 namespace agnocast
 {
 
-struct TimerCallbackInfo
+inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 {
-  std::chrono::steady_clock::time_point expected_call_time;
-  std::chrono::steady_clock::time_point actual_call_time;
-};
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
+}
 
 struct TimerInfo
 {
@@ -30,7 +29,7 @@ struct TimerInfo
 };
 
 extern std::mutex id2_timer_info_mtx;
-extern std::unordered_map<uint32_t, TimerInfo> id2_timer_info;
+extern std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 extern std::atomic<uint32_t> next_timer_id;
 
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period);
