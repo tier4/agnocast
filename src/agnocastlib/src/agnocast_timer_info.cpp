@@ -28,8 +28,15 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 
   struct itimerspec spec = {};
   const auto period_count = period.count();
-  spec.it_interval.tv_sec = period_count / 1000000000;
-  spec.it_interval.tv_nsec = period_count % 1000000000;
+  if (period_count == 0) {
+    // Workaround: timerfd_settime() disarms the timer when both it_value and it_interval
+    // are zero. Use 1ns to keep the timer armed and achieve "always ready" semantics.
+    spec.it_interval.tv_sec = 0;
+    spec.it_interval.tv_nsec = 1;
+  } else {
+    spec.it_interval.tv_sec = period_count / 1000000000;
+    spec.it_interval.tv_nsec = period_count % 1000000000;
+  }
   spec.it_value = spec.it_interval;
 
   if (timerfd_settime(timer_fd, 0, &spec, nullptr) == -1) {
