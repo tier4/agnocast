@@ -52,7 +52,7 @@ This reflects the current status, and support is expected to expand in the futur
 | Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
-The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
+ROS 2 Jazzy (Ubuntu 24.04) is now supported in the main branch and will be included in the v2.2.0 release.
 
 ---
 
@@ -64,8 +64,26 @@ Since ROS packages under `src/` such as `agnocastlib` are not yet distributed fr
 Therefore, to perform the source build, first check out the specific version as follows:
 
 ```bash
-git clone --branch v2.1.2 https://github.com/tier4/agnocast.git
+git clone --branch 2.1.2 https://github.com/tier4/agnocast.git
 cd agnocast
+```
+
+### System Configuration
+
+Agnocast requires increasing the system limit for the maximum number of messages in a queue.
+
+**Temporary setting (Current session only):**
+
+```bash
+sudo sysctl -w fs.mqueue.msg_max=256
+
+```
+
+**Permanent setting:**
+
+```bash
+echo "fs.mqueue.msg_max=256" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
 ```
 
 ### Setup
