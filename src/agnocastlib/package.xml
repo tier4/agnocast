@@ -30,6 +30,7 @@
   <depend>rosgraph_msgs</depend>
   <depend>message_filters</depend>
   <depend>sensor_msgs</depend>
+  <depend>ament_index_cpp</depend>
 
   <depend>cie_config_msgs</depend>
   <depend>cie_thread_configurator</depend>
