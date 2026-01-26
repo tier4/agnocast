@@ -24,6 +24,7 @@ struct TimerInfo
 {
   int timer_fd;
   std::weak_ptr<TimerBase> timer;
+  std::atomic<int64_t> last_call_time_ns;
   std::atomic<int64_t> next_call_time_ns;
   std::chrono::nanoseconds period;
   rclcpp::CallbackGroup::SharedPtr callback_group;

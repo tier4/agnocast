@@ -72,6 +72,7 @@ void register_timer_info(
     auto timer_info = std::make_shared<TimerInfo>();
     timer_info->timer_fd = timer_fd;
     timer_info->timer = timer;
+    timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
     timer_info->callback_group = std::move(callback_group);
@@ -103,10 +104,10 @@ void handle_timer_event(TimerInfo & timer_info)
       return;  // Timer object has been destroyed
     }
 
-    timer->execute_callback();
-
     const auto now = std::chrono::steady_clock::now();
     const int64_t now_ns = to_nanoseconds(now);
+
+    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
 
     const int64_t period_ns = timer_info.period.count();
     int64_t next_call_time_ns =
@@ -126,6 +127,8 @@ void handle_timer_event(TimerInfo & timer_info)
       }
     }
     timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
+
+    timer->execute_callback();
   }
 }
 
