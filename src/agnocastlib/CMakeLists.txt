@@ -26,6 +26,8 @@ find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(message_filters REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -247,6 +249,12 @@ if(BUILD_TESTING)
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )
 
+  # Unit tests for ExactTime synchronizer (separate executable due to mock conflicts)
+  ament_add_gmock(test_unit_exact_time_synchronizer
+    test/unit/test_exact_time_synchronizer.cpp)
+  target_include_directories(test_unit_exact_time_synchronizer PRIVATE include)
+  ament_target_dependencies(test_unit_exact_time_synchronizer sensor_msgs message_filters)
+
   # Integration tests
   ament_add_gmock(test_integration_${PROJECT_NAME}
     test/integration/test_agnocast_single_threaded_executor.cpp
@@ -289,10 +297,59 @@ if(BUILD_TESTING)
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin)
 
+  # Test components for ExactTime synchronizer integration tests
+  add_library(test_exact_time_publisher_component SHARED
+    test/integration/src/test_exact_time_publisher_component.cpp)
+  target_link_libraries(test_exact_time_publisher_component agnocast)
+  ament_target_dependencies(test_exact_time_publisher_component rclcpp rclcpp_components sensor_msgs message_filters)
+  rclcpp_components_register_node(test_exact_time_publisher_component
+    PLUGIN "agnocastlib_test::TestExactTimePublisherComponent"
+    EXECUTABLE test_exact_time_publisher_component_node)
+  install(TARGETS test_exact_time_publisher_component
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin)
+
+  add_library(test_exact_time_subscriber_component SHARED
+    test/integration/src/test_exact_time_subscriber_component.cpp)
+  target_link_libraries(test_exact_time_subscriber_component agnocast)
+  ament_target_dependencies(test_exact_time_subscriber_component rclcpp rclcpp_components sensor_msgs message_filters)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestMemberFunctionCallback"
+    EXECUTABLE test_member_function_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestFreeFunctionCallback"
+    EXECUTABLE test_free_function_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestLambda9ArgsCallback"
+    EXECUTABLE test_lambda_9args_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestStdFunctionCallback"
+    EXECUTABLE test_std_function_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestStdBindCallback"
+    EXECUTABLE test_std_bind_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestConnectInputCallback"
+    EXECUTABLE test_connect_input_callback_node)
+  rclcpp_components_register_node(test_exact_time_subscriber_component
+    PLUGIN "agnocastlib_test::TestSubscriberDirectCallback"
+    EXECUTABLE test_subscriber_direct_callback_node)
+  install(TARGETS test_exact_time_subscriber_component
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin)
+
   # Integration tests for ComponentManagerCallbackIsolated using launch_testing
   find_package(launch_testing_ament_cmake REQUIRED)
   add_launch_test(
     test/integration/test_agnocast_component_container_cie_launch.py
+    TIMEOUT 120
+  )
+
+  # Integration tests for ExactTime synchronizer using launch_testing
+  add_launch_test(
+    test/integration/test_exact_time_synchronizer_launch.py
     TIMEOUT 120
   )
 
