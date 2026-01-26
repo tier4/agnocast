@@ -64,7 +64,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                 if args.debug or not self.is_bridge_node(full_node_name):
                     ros2_pub_infos.append(info)
         except NotImplementedError:
-            pass # Count is handled separately if needed, but here we need infos for verbose
+            pass
 
         ros2_pub_count = len(ros2_pub_infos)
 
