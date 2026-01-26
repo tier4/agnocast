@@ -12,12 +12,6 @@
 namespace agnocast
 {
 
-// TODO(Koichi98): Add timer reference to allow callbacks to cancel/reset/modify the timer
-struct TimerCallbackInfo
-{
-  std::chrono::nanoseconds time_since_last_call;
-};
-
 inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
@@ -26,7 +20,7 @@ inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 struct TimerInfo
 {
   int timer_fd;
-  std::function<void(TimerCallbackInfo &)> callback;
+  std::function<void()> callback;
   std::atomic<int64_t> last_call_time_ns;
   std::atomic<int64_t> next_call_time_ns;
   std::chrono::nanoseconds period;
@@ -43,7 +37,7 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period);
 void handle_timer_event(TimerInfo & timer_info);
 
 uint32_t register_timer(
-  std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
+  std::function<void()> callback, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr callback_group);
 
 }  // namespace agnocast

@@ -302,19 +302,13 @@ public:
     std::chrono::nanoseconds period, Func && callback,
     rclcpp::CallbackGroup::SharedPtr group = nullptr)
   {
+    static_assert(std::is_invocable_v<Func>, "Callback must be callable with void()");
+
     if (!group) {
       group = node_base_->get_default_callback_group();
     }
 
-    if constexpr (std::is_invocable_v<Func, TimerCallbackInfo &>) {
-      return register_timer(std::forward<Func>(callback), period, group);
-    } else {
-      static_assert(
-        std::is_invocable_v<Func>,
-        "Callback must be callable with void() or void(TimerCallbackInfo&)");
-      auto wrapped = [cb = std::forward<Func>(callback)](TimerCallbackInfo &) { cb(); };
-      return register_timer(std::move(wrapped), period, group);
-    }
+    return register_timer(std::forward<Func>(callback), period, group);
   }
 
 private:

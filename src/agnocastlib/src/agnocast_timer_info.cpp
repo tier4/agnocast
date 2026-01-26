@@ -51,7 +51,7 @@ int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 }
 
 uint32_t register_timer(
-  std::function<void(TimerCallbackInfo &)> callback, std::chrono::nanoseconds period,
+  std::function<void()> callback, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   const uint32_t timer_id = next_timer_id.fetch_add(1);
@@ -102,8 +102,7 @@ void handle_timer_event(TimerInfo & timer_info)
     const auto now = std::chrono::steady_clock::now();
     const int64_t now_ns = to_nanoseconds(now);
 
-    const int64_t previous_ns =
-      timer_info.last_call_time_ns.exchange(now_ns, std::memory_order_relaxed);
+    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
 
     const int64_t period_ns = timer_info.period.count();
     int64_t next_call_time_ns =
@@ -125,9 +124,7 @@ void handle_timer_event(TimerInfo & timer_info)
     timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
 
     if (timer_info.callback) {
-      const int64_t since_last_call_ns = now_ns - previous_ns;
-      TimerCallbackInfo callback_info{std::chrono::nanoseconds(since_last_call_ns)};
-      timer_info.callback(callback_info);
+      timer_info.callback();
     }
   }
 }
