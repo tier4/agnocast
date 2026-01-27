@@ -67,11 +67,9 @@ void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
   int ret0 = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret0, 0);
-  int ret1 = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
-  KUNIT_ASSERT_EQ(test, ret1, 0);
 
-  // Act
+  // Act: Publisher-side handles do not participate in reference counting,
+  // so decrementing the publisher's rc should fail with -EINVAL.
   int ret_sut = decrement_message_entry_rc(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
@@ -83,7 +81,7 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
-  // Arrange
+  // Arrange: Publisher publishes a message, subscriber increments rc then decrements it.
   topic_local_id_t ret_publisher_id;
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
@@ -92,33 +90,6 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
   int ret = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
-
-  // Act
-  int ret_sut = decrement_message_entry_rc(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
-
-  // Assert
-  KUNIT_EXPECT_EQ(test, ret_sut, 0);
-  KUNIT_EXPECT_EQ(
-    test,
-    get_entry_rc(
-      TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id, ret_publisher_id),
-    0);
-}
-
-void test_case_decrement_rc_multi_reference(struct kunit * test)
-{
-  KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
-
-  // Arrange
-  topic_local_id_t ret_publisher_id;
-  uint64_t ret_addr;
-  setup_one_publisher(test, &ret_publisher_id, &ret_addr);
-
-  union ioctl_publish_msg_args publish_msg_args;
-  int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
-  KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const pid_t subscriber_pid = 1000;
   union ioctl_add_process_args add_process_args;
@@ -137,7 +108,7 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
     publish_msg_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret4, 0);
 
-  // Act
+  // Act: Subscriber decrements its last reference.
   int ret_sut = decrement_message_entry_rc(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id,
     publish_msg_args.ret_entry_id);
@@ -147,6 +118,78 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
   KUNIT_EXPECT_EQ(
     test,
     get_entry_rc(
-      TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id, ret_publisher_id),
+      TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id,
+      add_subscriber_args.ret_id),
+    0);
+}
+
+void test_case_decrement_rc_multi_reference(struct kunit * test)
+{
+  KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
+
+  // Arrange: Publisher publishes a message, two subscribers increment their rc.
+  topic_local_id_t ret_publisher_id;
+  uint64_t ret_addr;
+  setup_one_publisher(test, &ret_publisher_id, &ret_addr);
+
+  union ioctl_publish_msg_args publish_msg_args;
+  int ret1 = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+  KUNIT_ASSERT_EQ(test, ret1, 0);
+
+  // First subscriber
+  const pid_t subscriber_pid1 = 1000;
+  union ioctl_add_process_args add_process_args1;
+  int ret2 = add_process(subscriber_pid1, current->nsproxy->ipc_ns, &add_process_args1);
+  KUNIT_ASSERT_EQ(test, ret2, 0);
+
+  union ioctl_add_subscriber_args add_subscriber_args1;
+  int ret3 = add_subscriber(
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid1, QOS_DEPTH,
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, false, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
+    &add_subscriber_args1);
+  KUNIT_ASSERT_EQ(test, ret3, 0);
+
+  int ret4 = increment_message_entry_rc(
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args1.ret_id,
+    publish_msg_args.ret_entry_id);
+  KUNIT_ASSERT_EQ(test, ret4, 0);
+
+  // Second subscriber
+  const pid_t subscriber_pid2 = 1001;
+  union ioctl_add_process_args add_process_args2;
+  int ret5 = add_process(subscriber_pid2, current->nsproxy->ipc_ns, &add_process_args2);
+  KUNIT_ASSERT_EQ(test, ret5, 0);
+
+  union ioctl_add_subscriber_args add_subscriber_args2;
+  int ret6 = add_subscriber(
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid2, QOS_DEPTH,
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, false, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
+    &add_subscriber_args2);
+  KUNIT_ASSERT_EQ(test, ret6, 0);
+
+  int ret7 = increment_message_entry_rc(
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args2.ret_id,
+    publish_msg_args.ret_entry_id);
+  KUNIT_ASSERT_EQ(test, ret7, 0);
+
+  // Act: First subscriber decrements its reference.
+  int ret_sut = decrement_message_entry_rc(
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args1.ret_id,
+    publish_msg_args.ret_entry_id);
+
+  // Assert: First subscriber's rc is now 0, second subscriber's rc is still 1.
+  KUNIT_EXPECT_EQ(test, ret_sut, 0);
+  KUNIT_EXPECT_EQ(
+    test,
+    get_entry_rc(
+      TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id,
+      add_subscriber_args1.ret_id),
+    0);
+  KUNIT_EXPECT_EQ(
+    test,
+    get_entry_rc(
+      TOPIC_NAME, current->nsproxy->ipc_ns, publish_msg_args.ret_entry_id,
+      add_subscriber_args2.ret_id),
     1);
 }

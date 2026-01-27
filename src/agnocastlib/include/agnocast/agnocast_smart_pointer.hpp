@@ -10,10 +10,21 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+
+// Branch prediction hints for GCC/Clang; fallback to identity on other compilers
+#if defined(__GNUC__) || defined(__clang__)
+#define AGNOCAST_LIKELY(x) __builtin_expect(!!(x), 1)
+#define AGNOCAST_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define AGNOCAST_LIKELY(x) (!!(x))
+#define AGNOCAST_UNLIKELY(x) (!!(x))
+#endif
 
 namespace agnocast
 {
@@ -23,20 +34,53 @@ void decrement_rc(
   const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 void increment_rc(
   const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
+void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
+
+// Forward declaration for friend access
+template <typename MessageT, typename BridgeRequestPolicy>
+class BasicPublisher;
 
 template <typename T>
 class ipc_shared_ptr
 {
+  // Allow BasicPublisher to call invalidate_all_references()
+  template <typename MessageT, typename BridgeRequestPolicy>
+  friend class BasicPublisher;
+  // Control block for one-shot invalidation (publisher-side only).
+  // Shared among all copies so that invalidate_all_references() affects them all.
+  struct validity_control
+  {
+    std::atomic<uint32_t> valid{1U};
+  };
+
   T * ptr_ = nullptr;
   std::string topic_name_;
   topic_local_id_t pubsub_id_ = -1;
   int64_t entry_id_ = -1;
+  std::shared_ptr<validity_control> validity_;
 
   // Unimplemented operators. If these are called, a compile error is raised.
   bool operator==(const ipc_shared_ptr & r) const = delete;
   bool operator!=(const ipc_shared_ptr & r) const = delete;
+
+  // Check if this handle has been invalidated (publisher-side invalidation).
+  bool is_invalidated_() const noexcept
+  {
+    return validity_ && validity_->valid.load(std::memory_order_acquire) == 0U;
+  }
+
+  // Invalidates all references sharing this handle's control block (publisher-side only).
+  // After this call, any dereference (operator->, operator*) on copies will std::terminate(),
+  // and get()/operator bool() will return nullptr/false.
+  // Private: only BasicPublisher::publish() should call this.
+  void invalidate_all_references() noexcept
+  {
+    if (validity_) {
+      validity_->valid.store(0U, std::memory_order_release);
+    }
+  }
 
 public:
   using element_type = T;
@@ -48,11 +92,18 @@ public:
 
   ipc_shared_ptr() = default;
 
+  // Publisher-side constructor (entry_id not yet assigned => entry_id == -1).
+  // Creates validity_ control block for one-shot invalidation.
   explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id)
+  : ptr_(ptr),
+    topic_name_(topic_name),
+    pubsub_id_(pubsub_id),
+    validity_(ptr ? std::make_shared<validity_control>() : nullptr)
   {
   }
 
+  // Subscriber-side constructor (entry_id already assigned => entry_id != -1).
+  // Does not allocate validity_ control block to avoid overhead.
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
     const int64_t entry_id)
@@ -63,9 +114,15 @@ public:
   ~ipc_shared_ptr() { reset(); }
 
   ipc_shared_ptr(const ipc_shared_ptr & r)
-  : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
+  : ptr_(r.ptr_),
+    topic_name_(r.topic_name_),
+    pubsub_id_(r.pubsub_id_),
+    entry_id_(r.entry_id_),
+    validity_(r.validity_)
   {
-    if (ptr_ != nullptr) {
+    // Only call increment_rc for subscriber-side handles (entry_id != -1).
+    // Publisher-side handles (entry_id == -1) do not have kernel entries.
+    if (ptr_ != nullptr && entry_id_ != -1) {
       increment_rc(topic_name_, pubsub_id_, entry_id_);
     }
   }
@@ -78,7 +135,9 @@ public:
       topic_name_ = r.topic_name_;
       pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
-      if (ptr_ != nullptr) {
+      validity_ = r.validity_;
+      // Only call increment_rc for subscriber-side handles (entry_id != -1).
+      if (ptr_ != nullptr && entry_id_ != -1) {
         increment_rc(topic_name_, pubsub_id_, entry_id_);
       }
     }
@@ -86,7 +145,11 @@ public:
   }
 
   ipc_shared_ptr(ipc_shared_ptr && r)
-  : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
+  : ptr_(r.ptr_),
+    topic_name_(std::move(r.topic_name_)),
+    pubsub_id_(r.pubsub_id_),
+    entry_id_(r.entry_id_),
+    validity_(std::move(r.validity_))
   {
     r.ptr_ = nullptr;
   }
@@ -96,32 +159,60 @@ public:
     if (this != &r) {
       reset();
       ptr_ = r.ptr_;
-      topic_name_ = r.topic_name_;
+      topic_name_ = std::move(r.topic_name_);
       pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
+      validity_ = std::move(r.validity_);
 
       r.ptr_ = nullptr;
     }
     return *this;
   }
 
-  T & operator*() const noexcept { return *ptr_; }
+  T & operator*() const noexcept
+  {
+    if (AGNOCAST_UNLIKELY(is_invalidated_())) {
+      std::fprintf(
+        stderr,
+        "[agnocast] FATAL: Attempted to dereference an invalidated ipc_shared_ptr.\n"
+        "The message has already been published and this handle is no longer valid.\n"
+        "Do not access message data after calling publish(). Please rewrite your application.\n");
+      std::terminate();
+    }
+    return *ptr_;
+  }
 
-  T * operator->() const noexcept { return ptr_; }
+  T * operator->() const noexcept
+  {
+    if (AGNOCAST_UNLIKELY(is_invalidated_())) {
+      std::fprintf(
+        stderr,
+        "[agnocast] FATAL: Attempted to access an invalidated ipc_shared_ptr.\n"
+        "The message has already been published and this handle is no longer valid.\n"
+        "Do not access message data after calling publish(). Please rewrite your application.\n");
+      std::terminate();
+    }
+    return ptr_;
+  }
 
-  operator bool() const noexcept { return ptr_; }
+  operator bool() const noexcept { return ptr_ != nullptr && !is_invalidated_(); }
 
-  T * get() const noexcept { return ptr_; }
+  T * get() const noexcept { return is_invalidated_() ? nullptr : ptr_; }
 
   void reset()
   {
     if (ptr_ == nullptr) return;
 
-    // Do not call decrement_rc() when entry_id is -1 since there is no corresponding
-    // entry_node in kmod. This happens when reset() is called after borrow_loaned_message()
-    // without calling publish() (i.e., the borrowed message was never published).
     if (entry_id_ != -1) {
+      // Subscriber side: decrement kernel reference count.
       decrement_rc(topic_name_, pubsub_id_, entry_id_);
+    } else if (
+      validity_ && validity_.use_count() == 1 &&
+      validity_->valid.load(std::memory_order_acquire) == 1U) {
+      // Publisher side, last reference, not published: delete the memory.
+      // This handles the case where borrow_loaned_message() was called but publish() was not.
+      decrement_borrowed_publisher_num();
+      delete ptr_;
     }
 
     ptr_ = nullptr;

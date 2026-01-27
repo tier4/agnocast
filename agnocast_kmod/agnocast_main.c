@@ -29,8 +29,9 @@ static DEFINE_MUTEX(global_mutex);
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
 
-// Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
-#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
+// Maximum number of referencing subscribers per entry.
+// Publisher-side handles do not participate in reference counting.
+#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY MAX_SUBSCRIBER_NUM
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
@@ -570,9 +571,9 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->topic.current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  new_node->referencing_ids[0] = pub_info->id;
-  new_node->reference_count[0] = 1;
-  for (int i = 1; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  // Publisher-side handles do not participate in reference counting.
+  // Initialize all slots as empty; subscribers will add their references via increment_rc.
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
     new_node->referencing_ids[i] = -1;
     new_node->reference_count[i] = 0;
   }
@@ -1653,6 +1654,8 @@ int remove_publisher(
     return -ENODATA;
   }
 
+  // Publisher-side handles do not participate in reference counting, so we don't need
+  // to remove publisher references. Just clean up entries that have no subscriber references.
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
   struct rb_node * next_node;
@@ -1663,13 +1666,6 @@ int remove_publisher(
     node = next_node;
 
     if (en->publisher_id != publisher_id) continue;
-
-    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-      if (en->referencing_ids[i] == publisher_id) {
-        remove_reference_by_index(en, i);
-        break;
-      }
-    }
 
     if (!is_referenced(en)) {
       pub_info->entries_num--;
@@ -2602,6 +2598,8 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 
     const topic_local_id_t publisher_id = pub_info->id;
 
+    // Publisher-side handles do not participate in reference counting, so we don't need
+    // to remove publisher references. Just clean up entries that have no subscriber references.
     struct rb_root * root = &wrapper->topic.entries;
     struct rb_node * node = rb_first(root);
     while (node) {
@@ -2609,12 +2607,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
       node = rb_next(node);
 
       if (en->publisher_id != publisher_id) continue;
-
-      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-        if (en->referencing_ids[i] == publisher_id) {
-          remove_reference_by_index(en, i);
-        }
-      }
 
       if (!is_referenced(en)) {
         pub_info->entries_num--;
