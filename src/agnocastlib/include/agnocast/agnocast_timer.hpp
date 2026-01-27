@@ -20,17 +20,13 @@ public:
   virtual ~TimerBase();
 
   void cancel();
-
   bool is_canceled() const;
-
-  void reset();
 
   std::chrono::nanoseconds time_until_trigger() const;
 
   bool is_steady() const { return true; }
 
   virtual void execute_callback() = 0;
-
   rclcpp::CallbackGroup::SharedPtr get_callback_group() const { return callback_group_; }
 
   uint32_t get_timer_id() const { return timer_id_; }

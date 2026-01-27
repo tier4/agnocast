@@ -138,13 +138,12 @@ void unregister_timer_info(uint32_t timer_id)
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
     auto it = id2_timer_info.find(timer_id);
     if (it == id2_timer_info.end()) {
-      return;  // Already unregistered or never registered
+      return;
     }
     timer_info = std::move(it->second);
     id2_timer_info.erase(it);
   }
 
-  // Close the timer fd (this also removes it from any epoll instances)
   if (timer_info->timer_fd >= 0) {
     close(timer_info->timer_fd);
   }
