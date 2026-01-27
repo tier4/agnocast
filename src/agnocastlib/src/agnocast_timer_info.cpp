@@ -72,6 +72,13 @@ void setup_time_jump_callback(TimerInfo & timer_info, rclcpp::Clock::SharedPtr c
 
 }  // namespace
 
+TimerInfo::~TimerInfo()
+{
+  if (timer_fd >= 0) {
+    close(timer_fd);
+  }
+}
+
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 {
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -116,7 +123,7 @@ uint32_t allocate_timer_id()
 
 void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group)
+  const rclcpp::CallbackGroup::SharedPtr & callback_group)
 {
   register_timer_info_with_clock(timer_id, timer, period, callback_group, nullptr);
 }
@@ -136,7 +143,7 @@ void register_timer_info_with_clock(
     timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
-    timer_info->callback_group = std::move(callback_group);
+    timer_info->callback_group = callback_group;
     timer_info->need_epoll_update = true;
     timer_info->clock = clock;
 
@@ -196,6 +203,12 @@ void handle_timer_event(TimerInfo & timer_info)
 
     timer->execute_callback();
   }
+}
+
+void unregister_timer_info(uint32_t timer_id)
+{
+  std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  id2_timer_info.erase(timer_id);
 }
 
 }  // namespace agnocast

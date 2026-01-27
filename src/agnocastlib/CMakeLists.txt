@@ -31,7 +31,7 @@ find_package(ament_index_cpp REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
-  src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_epoll.cpp src/agnocast_timer_info.cpp src/agnocast_executor.cpp
+  src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_epoll.cpp src/agnocast_timer_info.cpp src/agnocast_timer.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp
   src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
@@ -271,7 +271,7 @@ if(BUILD_TESTING)
   add_library(test_publisher_component SHARED
     test/integration/src/test_publisher_component.cpp)
   target_link_libraries(test_publisher_component agnocast)
-  ament_target_dependencies(test_publisher_component rclcpp rclcpp_components std_msgs)
+  ament_target_dependencies(test_publisher_component rclcpp rclcpp_components std_msgs cie_thread_configurator)
   rclcpp_components_register_node(test_publisher_component
     PLUGIN "agnocastlib_test::TestPublisherComponent"
     EXECUTABLE test_publisher_component_node)

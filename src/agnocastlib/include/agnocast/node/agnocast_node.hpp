@@ -329,8 +329,7 @@ public:
 
     const uint32_t timer_id = allocate_timer_id();
 
-    auto timer =
-      std::make_shared<WallTimer<Func>>(timer_id, period, group, std::forward<Func>(callback));
+    auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
 
     register_timer_info(timer_id, timer, period, group);
 
@@ -364,7 +363,7 @@ public:
     const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(period);
 
     auto timer = std::make_shared<GenericTimer<CallbackT>>(
-      timer_id, period_ns, group, clock, std::forward<CallbackT>(callback));
+      timer_id, period_ns, clock, std::forward<CallbackT>(callback));
 
     register_timer_info_with_clock(timer_id, timer, period_ns, group, clock);
 
