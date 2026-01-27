@@ -69,32 +69,29 @@ class NodeInfoAgnocastVerb(VerbExtension):
             lib.free_agnocast_topic_info_ret.restype = None
 
             def is_topic_bridged(topic_name):
-                """Check if a topic has any bridge node as publisher or subscriber."""
                 topic_name_bytes = topic_name.encode('utf-8')
 
                 # Check Agnocast subscribers
                 sub_count = ctypes.c_int()
                 sub_array = lib.get_agnocast_sub_nodes(topic_name_bytes, ctypes.byref(sub_count))
                 
-                if sub_count.value > 0 and sub_array: 
-                    for i in range(sub_count.value):
-                        if sub_array[i].is_bridge:
-                            lib.free_agnocast_topic_info_ret(sub_array)
-                            return True
-
-                    lib.free_agnocast_topic_info_ret(sub_array)
+                try:
+                    if any(sub_array[i].is_bridge for i in range(sub_count.value)):
+                        return True
+                finally:
+                    if sub_count.value > 0 and sub_array:
+                        lib.free_agnocast_topic_info_ret(sub_array)
 
                 # Check Agnocast publishers
                 pub_count = ctypes.c_int()
                 pub_array = lib.get_agnocast_pub_nodes(topic_name_bytes, ctypes.byref(pub_count))
                 
-                if pub_count.value > 0 and pub_array:
-                    for i in range(pub_count.value):
-                        if pub_array[i].is_bridge:
-                            lib.free_agnocast_topic_info_ret(pub_array)
-                            return True
-                        
-                    lib.free_agnocast_topic_info_ret(pub_array)
+                try:
+                    if any(pub_array[i].is_bridge for i in range(pub_count.value)):
+                        return True
+                finally:
+                    if pub_count.value > 0 and pub_array:
+                        lib.free_agnocast_topic_info_ret(pub_array)
 
                 return False
 
