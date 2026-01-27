@@ -168,34 +168,33 @@ void BridgeManager::activate_bridge(const MqMsgBridge & req, const std::string &
                           : get_agnocast_publisher_count(topic_name).count;
 
   if (peer_count <= 0) {
-    RCLCPP_INFO(
-      logger_, "No peers for '%s'. Skipping bridge creation.", topic_name_with_direction.c_str());
     return;
   }
 
-  rclcpp::QoS target_qos = rclcpp::QoS(10);
   try {
-    target_qos = is_r2a ? get_subscriber_qos(topic_name, req.target.target_id)
-                        : get_publisher_qos(topic_name, req.target.target_id);
+    rclcpp::QoS target_qos = is_r2a ? get_subscriber_qos(topic_name, req.target.target_id)
+                                    : get_publisher_qos(topic_name, req.target.target_id);
+
+    auto bridge = loader_.create(req, topic_name_with_direction, container_node_, target_qos);
+
+    if (!bridge) {
+      RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
+      shutdown_requested_ = true;
+      return;
+    }
+
+    active_bridges_[topic_name_with_direction] = bridge;
+
+    auto cast_bridge = std::static_pointer_cast<agnocast::BridgeBase>(bridge);
+
+    auto callback_group = cast_bridge->get_callback_group();
+    if (callback_group) {
+      executor_->add_callback_group(
+        callback_group, container_node_->get_node_base_interface(), true);
+    }
+
   } catch (const std::exception &) {
     return;
-  }
-
-  auto bridge = loader_.create(req, topic_name_with_direction, container_node_, target_qos);
-
-  if (!bridge) {
-    RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
-    shutdown_requested_ = true;
-    return;
-  }
-
-  active_bridges_[topic_name_with_direction] = bridge;
-
-  auto cast_bridge = std::static_pointer_cast<agnocast::BridgeBase>(bridge);
-
-  auto callback_group = cast_bridge->get_callback_group();
-  if (callback_group) {
-    executor_->add_callback_group(callback_group, container_node_->get_node_base_interface(), true);
   }
 }
 
