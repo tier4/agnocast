@@ -18,7 +18,8 @@ public:
   virtual ~TimerBase();
 
   // TODO: The following methods are planned to be added for rclcpp API compatibility:
-  // void cancel(), bool is_canceled(), void reset(), std::chrono::nanoseconds time_until_trigger(), etc.
+  // void cancel(), bool is_canceled(), void reset(), std::chrono::nanoseconds time_until_trigger(),
+  // etc.
 
   bool is_steady() const { return true; }
 
