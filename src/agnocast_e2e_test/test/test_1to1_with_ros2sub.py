@@ -212,7 +212,7 @@ class Test1To1(unittest.TestCase):
                 self.assertEqual(proc_output.count(f"Publishing {i}."), 1)
             self.assertEqual(proc_output.count("All messages published. Shutting down."), 1)
 
-    def test_sub(self, proc_output, test_sub):        
+    def test_sub(self, proc_output, test_sub):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_sub) as cm:
             proc_output = "".join(cm._output)
 
