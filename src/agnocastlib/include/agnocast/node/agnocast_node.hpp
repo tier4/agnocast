@@ -329,10 +329,9 @@ public:
 
     const uint32_t timer_id = allocate_timer_id();
 
-    auto timer =
-      std::make_shared<WallTimer<Func>>(timer_id, period, group, std::forward<Func>(callback));
+    auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
 
-    register_timer_info(timer_id, timer, period);
+    register_timer_info(timer_id, timer, period, group);
 
     return timer;
   }

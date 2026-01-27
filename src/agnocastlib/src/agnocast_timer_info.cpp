@@ -60,7 +60,8 @@ uint32_t allocate_timer_id()
 }
 
 void register_timer_info(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period)
+  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
+  rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
@@ -71,6 +72,7 @@ void register_timer_info(
     auto timer_info = std::make_shared<TimerInfo>();
     timer_info->timer_fd = timer_fd;
     timer_info->timer = timer;
+    timer_info->callback_group = std::move(callback_group);
     timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
