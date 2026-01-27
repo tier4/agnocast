@@ -337,6 +337,40 @@ public:
     return timer;
   }
 
+  /// Create a timer using the node's clock (ROS_TIME by default, supports simulation time)
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    return create_timer(period, std::forward<CallbackT>(callback), group, get_clock());
+  }
+
+  /// Create a timer with explicit clock specification
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group, rclcpp::Clock::SharedPtr clock)
+  {
+    static_assert(
+      std::is_invocable_v<CallbackT, TimerBase &> || std::is_invocable_v<CallbackT>,
+      "Callback must be callable with void() or void(TimerBase&)");
+
+    if (!group) {
+      group = node_base_->get_default_callback_group();
+    }
+
+    const uint32_t timer_id = allocate_timer_id();
+    const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(period);
+
+    auto timer = std::make_shared<GenericTimer<CallbackT>>(
+      timer_id, period_ns, group, clock, std::forward<CallbackT>(callback));
+
+    register_timer_info_with_clock(timer_id, timer, period_ns, group, clock);
+
+    return timer;
+  }
+
 private:
   // ParsedArguments must be stored to keep rcl_arguments_t alive
   ParsedArguments local_args_;

@@ -17,6 +17,61 @@ std::mutex id2_timer_info_mtx;
 std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
+namespace
+{
+
+int64_t get_current_time_ns(const rclcpp::Clock::SharedPtr & clock)
+{
+  if (clock) {
+    return clock->now().nanoseconds();
+  }
+  return to_nanoseconds(std::chrono::steady_clock::now());
+}
+
+void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
+{
+  if (!timer_info.clock) {
+    return;
+  }
+
+  const int64_t now_ns = timer_info.clock->now().nanoseconds();
+  const int64_t period_ns = timer_info.period.count();
+
+  if (jump.delta.nanoseconds < 0) {
+    // Backward jump: reset timer to fire after one period from now
+    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+    timer_info.next_call_time_ns.store(now_ns + period_ns, std::memory_order_relaxed);
+  } else {
+    // Forward jump: adjust next fire time if we're behind
+    const int64_t next_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
+    if (next_ns < now_ns && period_ns > 0) {
+      const int64_t periods_missed = (now_ns - next_ns) / period_ns + 1;
+      timer_info.next_call_time_ns.store(
+        next_ns + periods_missed * period_ns, std::memory_order_relaxed);
+    }
+  }
+}
+
+void setup_time_jump_callback(TimerInfo & timer_info, rclcpp::Clock::SharedPtr clock)
+{
+  if (!clock || clock->get_clock_type() != RCL_ROS_TIME) {
+    return;
+  }
+
+  rcl_jump_threshold_t threshold;
+  threshold.on_clock_change = true;
+  threshold.min_forward.nanoseconds = 1;   // React to any forward jump
+  threshold.min_backward.nanoseconds = 1;  // React to any backward jump
+
+  // Capture timer_info by pointer (the TimerInfo is managed by shared_ptr in the map)
+  timer_info.jump_handler = clock->create_jump_callback(
+    nullptr,  // No pre-jump callback
+    [&timer_info](const rcl_time_jump_t & jump) { handle_post_time_jump(timer_info, jump); },
+    threshold);
+}
+
+}  // namespace
+
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 {
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -63,9 +118,15 @@ void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   rclcpp::CallbackGroup::SharedPtr callback_group)
 {
+  register_timer_info_with_clock(timer_id, timer, period, callback_group, nullptr);
+}
+
+void register_timer_info_with_clock(
+  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
+  rclcpp::CallbackGroup::SharedPtr callback_group, rclcpp::Clock::SharedPtr clock)
+{
   const int timer_fd = create_timer_fd(timer_id, period);
-  const auto now = std::chrono::steady_clock::now();
-  const int64_t now_ns = to_nanoseconds(now);
+  const int64_t now_ns = get_current_time_ns(clock);
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
@@ -77,6 +138,11 @@ void register_timer_info(
     timer_info->period = period;
     timer_info->callback_group = std::move(callback_group);
     timer_info->need_epoll_update = true;
+    timer_info->clock = clock;
+
+    // Set up time jump callback for ROS_TIME clocks
+    setup_time_jump_callback(*timer_info, clock);
+
     id2_timer_info[timer_id] = std::move(timer_info);
   }
 
@@ -104,8 +170,8 @@ void handle_timer_event(TimerInfo & timer_info)
       return;  // Timer object has been destroyed
     }
 
-    const auto now = std::chrono::steady_clock::now();
-    const int64_t now_ns = to_nanoseconds(now);
+    // Use clock-based time if available, otherwise use steady_clock
+    const int64_t now_ns = get_current_time_ns(timer_info.clock);
 
     timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
 
