@@ -228,6 +228,10 @@ class Test1To1(unittest.TestCase):
         with launch_testing.asserts.assertSequentialStdout(proc_output, process=test_ros2_sub) as cm:
             proc_output = "".join(cm._output)
 
+            # [Note: ROS 2 Transient Local behavior with depth mismatch]
+            # In ROS 2, "depth" defines the queue size, not a limit on the total number of received messages.
+            # Therefore, when both are Transient Local and the Publisher's depth is significantly larger than the Subscriber's,
+            # the subscriber may receive multiple messages due to the burst transmission of history data.
             actual_init_count = sum(
                 1 for i in range(EXPECT_INIT_PUB_NUM)
                 if proc_output.count(f"Receiving {i}.") > 0
