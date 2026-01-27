@@ -9,14 +9,20 @@ using namespace std::chrono_literals;
 
 class TestPublisher : public rclcpp::Node
 {
+  enum class State {
+    WaitingForConnection,      // Waiting for subscriber connections
+    WaitingForTransientLocal,  // Waiting for transient local messages (5 seconds)
+    Publishing                 // Normal publishing
+  };
+
   rclcpp::TimerBase::SharedPtr timer_;
   agnocast::Publisher<std_msgs::msg::Int64>::SharedPtr publisher_;
   int64_t count_;
   int64_t target_pub_num_;
   int64_t planned_sub_count_;
   size_t planned_pub_count_;
-  bool is_ready_ = false;
-  bool is_waiting_ = false;
+
+  State state_ = State::WaitingForConnection;
   rclcpp::Time connection_detected_time_;
 
   bool forever_;
@@ -36,27 +42,26 @@ class TestPublisher : public rclcpp::Node
 
   void timer_callback()
   {
-    if (is_ready_) {
-      publish_message();
-      return;
-    }
+    switch (state_) {
+      case State::WaitingForConnection:
+        if (check_connection_counts()) {
+          connection_detected_time_ = this->now();
+          state_ = State::WaitingForTransientLocal;
+        }
+        break;
 
-    if (!is_waiting_) {
-      if (check_connection_counts()) {
-        connection_detected_time_ = this->now();
-        is_waiting_ = true;
-      }
-      return;
-    }
+      case State::WaitingForTransientLocal:
+        // HACK: wait subscribing transient local messages
+        if ((this->now() - connection_detected_time_) >= rclcpp::Duration::from_seconds(5.0)) {
+          state_ = State::Publishing;
+          publish_message();
+        }
+        break;
 
-    auto elapsed = this->now() - connection_detected_time_;
-    // HACK: wait subscribing transient local messages
-    if (elapsed < rclcpp::Duration::from_seconds(5.0)) {
-      return;
+      case State::Publishing:
+        publish_message();
+        break;
     }
-
-    is_ready_ = true;
-    publish_message();
   }
 
   void publish_message()
