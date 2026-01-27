@@ -65,10 +65,10 @@ void register_timer_info(
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
-  const int64_t now_ns = to_nanoseconds(now);
 
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+    const int64_t now_ns = to_nanoseconds(now);
     auto timer_info = std::make_shared<TimerInfo>();
     timer_info->timer_fd = timer_fd;
     timer_info->timer = timer;
