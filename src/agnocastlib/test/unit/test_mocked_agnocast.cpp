@@ -13,6 +13,12 @@ using namespace agnocast;
 int decrement_rc_mock_called_count = 0;
 int increment_rc_mock_called_count = 0;
 int publish_core_mock_called_count = 0;
+uint32_t mock_borrowed_publisher_num = 0;
+
+extern "C" uint32_t agnocast_get_borrowed_publisher_num()
+{
+  return mock_borrowed_publisher_num;
+}
 
 namespace agnocast
 {
@@ -23,6 +29,18 @@ void decrement_rc(const std::string &, const topic_local_id_t, const int64_t)
 void increment_rc(const std::string &, const topic_local_id_t, const int64_t)
 {
   increment_rc_mock_called_count++;
+}
+
+void decrement_borrowed_publisher_num()
+{
+  if (mock_borrowed_publisher_num > 0) {
+    mock_borrowed_publisher_num--;
+  }
+}
+
+void increment_borrowed_publisher_num()
+{
+  mock_borrowed_publisher_num++;
 }
 topic_local_id_t initialize_publisher(
   const std::string &, const std::string &, const rclcpp::QoS &, const bool)
@@ -55,6 +73,7 @@ protected:
       agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qos);
 
     publish_core_mock_called_count = 0;
+    mock_borrowed_publisher_num = 0;
   }
 
   void TearDown() override { rclcpp::shutdown(); }
@@ -391,8 +410,9 @@ TEST_F(AgnocastCallbackInfoTest, get_erased_callback_normal)
   // Arrange
   bool callback_called = false;
   int data = 0;
+  // Use subscriber-side constructor (4 args with entry_id) to avoid publisher-side delete behavior.
   agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id)};
+    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id, /*entry_id=*/1)};
   auto int_callback = [&](const agnocast::ipc_shared_ptr<int> & /*unused_arg*/) {
     callback_called = true;
   };
@@ -409,8 +429,9 @@ TEST_F(AgnocastCallbackInfoTest, get_erased_callback_invalid_type)
 {
   // Arrange
   int data = 0;
+  // Use subscriber-side constructor (4 args with entry_id) to avoid publisher-side delete behavior.
   agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id)};
+    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id, /*entry_id=*/1)};
   auto float_callback = [&](agnocast::ipc_shared_ptr<float> /*unused_arg*/) {};
 
   // Act & Assert
