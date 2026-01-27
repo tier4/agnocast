@@ -107,9 +107,8 @@ def generate_test_description():
                             {
                                 "qos_depth": config['sub_qos_depth'],
                                 "transient_local": config['sub_transient_local'] if config['pub_transient_local'] else False,
-                                "sub_num": EXPECT_INIT_ROS2_SUB_NUM + EXPECT_ROS2_SUB_NUM,
                                 "forever": FOREVER,
-                                "start_id": EXPECT_INIT_PUB_NUM - EXPECT_INIT_ROS2_SUB_NUM
+                                "target_end_id": (EXPECT_INIT_PUB_NUM + EXPECT_SUB_NUM) - 1
                             }
                         ],
                     )

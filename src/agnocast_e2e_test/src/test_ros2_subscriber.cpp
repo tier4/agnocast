@@ -7,25 +7,14 @@ using std::placeholders::_1;
 class TestROS2Subscriber : public rclcpp::Node
 {
   rclcpp::Subscription<std_msgs::msg::Int64>::SharedPtr sub_;
-  int64_t count_;
-  int64_t sub_num_;
   bool forever_;
-  int64_t start_id_;
+  int64_t target_end_id_;
 
   void callback(const std_msgs::msg::Int64 & message)
   {
     RCLCPP_INFO(this->get_logger(), "Receiving %ld.", message.data);
 
-    // Filter out old messages that might linger in the DDS buffer.
-    // Standard DDS implementations may deliver intermediate messages (e.g., ID 2)
-    // before the latest one (e.g., ID 9) overwrites them, even with Depth=1.
-    // This ensures that "noise" does not consume the expected reception count.
-    if (message.data < start_id_) {
-      return;
-    }
-
-    count_++;
-    if (count_ == sub_num_) {
+    if (message.data >= target_end_id_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
       std::cout << std::flush;
 
@@ -41,21 +30,18 @@ public:
   {
     this->declare_parameter<int64_t>("qos_depth", 10);
     this->declare_parameter<bool>("transient_local", true);
-    this->declare_parameter<int64_t>("sub_num", 10);
     this->declare_parameter<bool>("forever", false);
-    this->declare_parameter("start_id", 0);
+    this->declare_parameter<int64_t>("target_end_id", 0);
     int64_t qos_depth = this->get_parameter("qos_depth").as_int();
     bool transient_local = this->get_parameter("transient_local").as_bool();
     forever_ = this->get_parameter("forever").as_bool();
-    start_id_ = this->get_parameter("start_id").as_int();
+    target_end_id_ = this->get_parameter("target_end_id").as_int();
 
     rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth));
     if (transient_local) {
       qos.transient_local();
     }
 
-    count_ = 0;
-    sub_num_ = this->get_parameter("sub_num").as_int();
     sub_ = this->create_subscription<std_msgs::msg::Int64>(
       "/test_topic", qos, std::bind(&TestROS2Subscriber::callback, this, _1));
   }
