@@ -113,7 +113,7 @@ public:
       count_++;
     }
 
-    timer_ = this->create_wall_timer(10ms, std::bind(&TestPublisher::timer_callback, this));
+    timer_ = this->create_wall_timer(100ms, std::bind(&TestPublisher::timer_callback, this));
   }
 };
 
