@@ -1,6 +1,6 @@
 #pragma once
 
-#include "agnocast/timer.hpp"
+#include "agnocast/agnocast_timer.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <atomic>
@@ -27,7 +27,6 @@ struct TimerInfo
   std::atomic<int64_t> last_call_time_ns;
   std::atomic<int64_t> next_call_time_ns;
   std::chrono::nanoseconds period;
-  rclcpp::CallbackGroup::SharedPtr callback_group;
   bool need_epoll_update = true;
 };
 
@@ -42,7 +41,8 @@ void handle_timer_event(TimerInfo & timer_info);
 uint32_t allocate_timer_id();
 
 void register_timer_info(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group);
+  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period);
+
+void unregister_timer_info(uint32_t timer_id);
 
 }  // namespace agnocast

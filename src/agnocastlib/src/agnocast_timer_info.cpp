@@ -60,8 +60,7 @@ uint32_t allocate_timer_id()
 }
 
 void register_timer_info(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group)
+  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
@@ -75,7 +74,6 @@ void register_timer_info(
     timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
-    timer_info->callback_group = std::move(callback_group);
     timer_info->need_epoll_update = true;
     id2_timer_info[timer_id] = std::move(timer_info);
   }
@@ -129,6 +127,26 @@ void handle_timer_event(TimerInfo & timer_info)
     timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
 
     timer->execute_callback();
+  }
+}
+
+void unregister_timer_info(uint32_t timer_id)
+{
+  std::shared_ptr<TimerInfo> timer_info;
+
+  {
+    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+    auto it = id2_timer_info.find(timer_id);
+    if (it == id2_timer_info.end()) {
+      return;  // Already unregistered or never registered
+    }
+    timer_info = std::move(it->second);
+    id2_timer_info.erase(it);
+  }
+
+  // Close the timer fd (this also removes it from any epoll instances)
+  if (timer_info->timer_fd >= 0) {
+    close(timer_info->timer_fd);
   }
 }
 

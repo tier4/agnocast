@@ -17,7 +17,7 @@ class TimerBase
 public:
   RCLCPP_SMART_PTR_DEFINITIONS_NOT_COPYABLE(TimerBase)
 
-  virtual ~TimerBase() = default;
+  virtual ~TimerBase();
 
   void cancel();
 

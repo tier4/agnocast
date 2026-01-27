@@ -75,7 +75,8 @@ void prepare_epoll_impl(
         continue;
       }
 
-      if (!validate_callback_group(timer_info.callback_group)) {
+      auto timer = timer_info.timer.lock();
+      if (!timer || !validate_callback_group(timer->get_callback_group())) {
         continue;
       }
 

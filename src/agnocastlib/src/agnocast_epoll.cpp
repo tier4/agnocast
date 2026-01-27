@@ -49,7 +49,11 @@ void wait_and_handle_epoll_event(
         exit(EXIT_FAILURE);
       }
       timer_info = it->second;
-      callback_group = timer_info->callback_group;
+      auto timer = timer_info->timer.lock();
+      if (!timer) {
+        return;  // Timer object has been destroyed
+      }
+      callback_group = timer->get_callback_group();
     }
 
     // Create a callable that handles the timer event
