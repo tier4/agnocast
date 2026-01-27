@@ -12,6 +12,10 @@ class TopicInfoRet(ctypes.Structure):
         ("node_name", ctypes.c_char * 256),
         ("qos_depth", ctypes.c_uint32),
         ("qos_is_transient_local", ctypes.c_bool),
+        # Agnocast does not natively support reliability configuration,
+        # but this field is required to pass the QoS profile to the ROS 2 bridge.
+        ("qos_is_reliable", ctypes.c_bool),
+        ("is_bridge", ctypes.c_bool),
     ]
 
 def service_name_from_request_topic(topic_name):
@@ -40,14 +44,6 @@ class NodeInfoAgnocastVerb(VerbExtension):
             help='Show additional debug information (e.g., whether topic is bridged)')
 
     def main(self, *, args):
-        import re
-
-        def is_bridge_node(node_name):
-            """Check if the node is an agnocast bridge node (agnocast_bridge_node_<PID>)."""
-            # Extract just the node name from full path like "/agnocast_bridge_node_12345"
-            name = node_name.rstrip("/").rpartition("/")[2] if node_name != "/" else node_name
-            return bool(re.match(r'^agnocast_bridge_node_\d+$', name))
-
         node_name = args.node_name
 
         with NodeStrategy(None) as node:
@@ -79,23 +75,25 @@ class NodeInfoAgnocastVerb(VerbExtension):
                 # Check Agnocast subscribers
                 sub_count = ctypes.c_int()
                 sub_array = lib.get_agnocast_sub_nodes(topic_name_bytes, ctypes.byref(sub_count))
-                for i in range(sub_count.value):
-                    if is_bridge_node(sub_array[i].node_name.decode('utf-8')):
-                        if sub_count.value != 0 and sub_array is not None:
+                
+                if sub_count.value > 0 and sub_array: 
+                    for i in range(sub_count.value):
+                        if sub_array[i].is_bridge:
                             lib.free_agnocast_topic_info_ret(sub_array)
-                        return True
-                if sub_count.value != 0 and sub_array is not None:
+                            return True
+
                     lib.free_agnocast_topic_info_ret(sub_array)
 
                 # Check Agnocast publishers
                 pub_count = ctypes.c_int()
                 pub_array = lib.get_agnocast_pub_nodes(topic_name_bytes, ctypes.byref(pub_count))
-                for i in range(pub_count.value):
-                    if is_bridge_node(pub_array[i].node_name.decode('utf-8')):
-                        if pub_count.value != 0 and pub_array is not None:
+                
+                if pub_count.value > 0 and pub_array:
+                    for i in range(pub_count.value):
+                        if pub_array[i].is_bridge:
                             lib.free_agnocast_topic_info_ret(pub_array)
-                        return True
-                if pub_count.value != 0 and pub_array is not None:
+                            return True
+                        
                     lib.free_agnocast_topic_info_ret(pub_array)
 
                 return False

@@ -11,6 +11,10 @@ class TopicInfoRet(ctypes.Structure):
         ("node_name", ctypes.c_char * 256),
         ("qos_depth", ctypes.c_uint32),
         ("qos_is_transient_local", ctypes.c_bool),
+        # Agnocast does not natively support reliability configuration,
+        # but this field is required to pass the QoS profile to the ROS 2 bridge.
+        ("qos_is_reliable", ctypes.c_bool),
+        ("is_bridge", ctypes.c_bool),
     ]
 
 class TopicInfoAgnocastVerb(VerbExtension):
@@ -43,25 +47,17 @@ class TopicInfoAgnocastVerb(VerbExtension):
         namespace = namespace if namespace else "/"
         return namespace, node_name
 
-    def is_bridge_node(self, node_name):
-        """Check if the node is an agnocast bridge node (agnocast_bridge_node_<PID>)."""
-        import re
-        # node_name can be full name like "/agnocast_bridge_node_12345" or just "agnocast_bridge_node_12345"
-        _, name = self.split_full_node_name(node_name)
-        return bool(re.match(r'^agnocast_bridge_node_\d+$', name))
-
-    def print_publishers_info(self, node, topic_name, topic_types, pub_topic_info_rets, args, line_end):
+    def print_publishers_info(self, node, topic_name, topic_types, pub_topic_info_rets, args, line_end, bridge_node_names):
         # Filter out bridge nodes unless debug mode
         if not args.debug:
-            pub_topic_info_rets = [p for p in pub_topic_info_rets if not self.is_bridge_node(p['node_name'])]
+            pub_topic_info_rets = [p for p in pub_topic_info_rets if not p['is_bridge']]
         agnocast_pub_count = len(pub_topic_info_rets)
         
         # Count ROS 2 publishers excluding bridge nodes (unless debug mode)
         ros2_pub_infos = []
         try:
             for info in node.get_publishers_info_by_topic(topic_name):
-                full_node_name = f"{info.node_namespace.rstrip('/')}/{info.node_name.lstrip('/')}"
-                if args.debug or not self.is_bridge_node(full_node_name):
+                if args.debug or info.node_name not in bridge_node_names:
                     ros2_pub_infos.append(info)
         except NotImplementedError:
             pass
@@ -103,18 +99,17 @@ class TopicInfoAgnocastVerb(VerbExtension):
             except NotImplementedError as e:
                 return str(e)
 
-    def print_subscribers_info(self, node, topic_name, topic_types, sub_topic_info_rets, args, line_end):
+    def print_subscribers_info(self, node, topic_name, topic_types, sub_topic_info_rets, args, line_end, bridge_node_names):
         # Filter out bridge nodes unless debug mode
         if not args.debug:
-            sub_topic_info_rets = [s for s in sub_topic_info_rets if not self.is_bridge_node(s['node_name'])]
+            sub_topic_info_rets = [s for s in sub_topic_info_rets if not s['is_bridge']]
         agnocast_sub_count = len(sub_topic_info_rets)
         
         # Count ROS 2 subscribers excluding bridge nodes (unless debug mode)
         ros2_sub_infos = []
         try:
             for info in node.get_subscriptions_info_by_topic(topic_name):
-                full_node_name = f"{info.node_namespace.rstrip('/')}/{info.node_name.lstrip('/')}"
-                if args.debug or not self.is_bridge_node(full_node_name):
+                if args.debug or info.node_name not in bridge_node_names:
                     ros2_sub_infos.append(info)
         except NotImplementedError:
             pass
@@ -178,6 +173,7 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "node_name": sub_topic_info_ret_array[i].node_name.decode('utf-8'),
                     "qos_depth": sub_topic_info_ret_array[i].qos_depth,
                     "qos_is_transient_local": sub_topic_info_ret_array[i].qos_is_transient_local,
+                    "is_bridge": sub_topic_info_ret_array[i].is_bridge,
                 })
             if sub_topic_info_ret_count.value != 0 and sub_topic_info_ret_array is not None:
                 lib.free_agnocast_topic_info_ret(sub_topic_info_ret_array)
@@ -191,9 +187,17 @@ class TopicInfoAgnocastVerb(VerbExtension):
                     "node_name": pub_topic_info_ret_array[i].node_name.decode('utf-8'),
                     "qos_depth": pub_topic_info_ret_array[i].qos_depth,
                     "qos_is_transient_local": pub_topic_info_ret_array[i].qos_is_transient_local,
+                    "is_bridge": pub_topic_info_ret_array[i].is_bridge,
                 })
             if pub_topic_info_ret_count.value != 0 and pub_topic_info_ret_array is not None:
                 lib.free_agnocast_topic_info_ret(pub_topic_info_ret_array)
+
+            # get bridge node names
+            bridge_node_names = set()
+            for info in sub_topic_info_rets + pub_topic_info_rets:
+                if info['is_bridge']:
+                    _, name = self.split_full_node_name(info['node_name'])
+                    bridge_node_names.add(name)
 
             # get ros2 topic list
             topic_names_and_types = get_topic_names_and_types(node=node, include_hidden_topics=True)
@@ -220,10 +224,10 @@ class TopicInfoAgnocastVerb(VerbExtension):
             type_str = topic_types[0] if len(topic_types) == 1 else topic_types
             print('Type: %s' % type_str, end=line_end)
 
-            print_publishers_info_ret = self.print_publishers_info(node, topic_name, type_str, pub_topic_info_rets, args, line_end)
+            print_publishers_info_ret = self.print_publishers_info(node, topic_name, type_str, pub_topic_info_rets, args, line_end, bridge_node_names)
             if print_publishers_info_ret:
                 return print_publishers_info_ret
-            print_subscribers_info_ret = self.print_subscribers_info(node, topic_name, type_str, sub_topic_info_rets, args, line_end)
+            print_subscribers_info_ret = self.print_subscribers_info(node, topic_name, type_str, sub_topic_info_rets, args, line_end, bridge_node_names)
             if print_subscribers_info_ret:
                 return print_subscribers_info_ret
             ########################################################################
