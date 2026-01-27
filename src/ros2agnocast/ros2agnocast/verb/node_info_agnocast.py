@@ -178,7 +178,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
                     topic_types = '; '.join([', '.join(topic['types']) for topic in matching_topics])
                     print(f"    {agnocast_sub}: {topic_types} {get_agnocast_label(agnocast_sub)}")
                 else:
-                    print(f"    {agnocast_sub}: <UNKNOWN> (No publisher){get_agnocast_label(agnocast_sub)}")
+                    print(f"    {agnocast_sub}: <UNKNOWN> {get_agnocast_label(agnocast_sub)}")
 
             # ======== Publishers ========
             print("  Publishers:")
