@@ -14,7 +14,7 @@ class TestROS2Subscriber : public rclcpp::Node
   {
     RCLCPP_INFO(this->get_logger(), "Receiving %ld.", message.data);
 
-    if (message.data >= target_end_id_) {
+    if (message.data == target_end_id_) {
       RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
       std::cout << std::flush;
 
