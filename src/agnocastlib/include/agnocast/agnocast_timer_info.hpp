@@ -3,6 +3,8 @@
 #include "agnocast/agnocast_timer.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <unistd.h>
+
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -22,7 +24,14 @@ inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
 
 struct TimerInfo
 {
-  int timer_fd;
+  ~TimerInfo()
+  {
+    if (timer_fd >= 0) {
+      close(timer_fd);
+    }
+  }
+
+  int timer_fd = -1;
   std::weak_ptr<TimerBase> timer;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   std::atomic<int64_t> last_call_time_ns;

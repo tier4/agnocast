@@ -72,10 +72,10 @@ void register_timer_info(
     auto timer_info = std::make_shared<TimerInfo>();
     timer_info->timer_fd = timer_fd;
     timer_info->timer = timer;
-    timer_info->callback_group = std::move(callback_group);
     timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
     timer_info->period = period;
+    timer_info->callback_group = callback_group;
     timer_info->need_epoll_update = true;
     id2_timer_info[timer_id] = std::move(timer_info);
   }
@@ -134,21 +134,8 @@ void handle_timer_event(TimerInfo & timer_info)
 
 void unregister_timer_info(uint32_t timer_id)
 {
-  std::shared_ptr<TimerInfo> timer_info;
-
-  {
-    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    auto it = id2_timer_info.find(timer_id);
-    if (it == id2_timer_info.end()) {
-      return;
-    }
-    timer_info = std::move(it->second);
-    id2_timer_info.erase(it);
-  }
-
-  if (timer_info->timer_fd >= 0) {
-    close(timer_info->timer_fd);
-  }
+  std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+  id2_timer_info.erase(timer_id);
 }
 
 }  // namespace agnocast
