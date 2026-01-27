@@ -63,7 +63,7 @@ class ipc_shared_ptr
     std::atomic<uint32_t> ref_count{1U};
     std::atomic<uint32_t> valid{1U};
 
-    void increment() noexcept { ref_count.fetch_add(1, std::memory_order_relaxed); }
+    void increment() noexcept { ref_count.fetch_add(1, std::memory_order_acquire); }
 
     // Returns true if this was the last reference (i.e., previous count was 1).
     bool decrement_and_check() noexcept
