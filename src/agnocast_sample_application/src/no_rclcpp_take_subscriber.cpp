@@ -5,7 +5,7 @@
 
 using namespace std::chrono_literals;
 
-class NoRclcppTakeListener : public agnocast::Node
+class NoRclcppTakeSubscriber : public agnocast::Node
 {
   agnocast::PollingSubscriber<agnocast_sample_interfaces::msg::DynamicSizeArray>::SharedPtr sub_;
   agnocast::TimerBase::SharedPtr timer_;
@@ -21,14 +21,14 @@ class NoRclcppTakeListener : public agnocast::Node
   }
 
 public:
-  explicit NoRclcppTakeListener() : agnocast::Node("no_rclcpp_take_listener")
+  explicit NoRclcppTakeSubscriber() : agnocast::Node("no_rclcpp_take_subscriber")
   {
     sub_ = this->create_subscription<agnocast_sample_interfaces::msg::DynamicSizeArray>(
       "/my_topic", rclcpp::QoS(rclcpp::KeepLast(1)));
 
-    timer_ = this->create_wall_timer(100ms, std::bind(&NoRclcppTakeListener::timer_callback, this));
+    timer_ = this->create_wall_timer(1s, std::bind(&NoRclcppTakeSubscriber::timer_callback, this));
 
-    RCLCPP_INFO(get_logger(), "NoRclcppTakeListener started");
+    RCLCPP_INFO(get_logger(), "NoRclcppTakeSubscriber started");
   }
 };
 
@@ -36,7 +36,7 @@ int main(int argc, char ** argv)
 {
   agnocast::init(argc, argv);
   agnocast::AgnocastOnlySingleThreadedExecutor executor;
-  auto node = std::make_shared<NoRclcppTakeListener>();
+  auto node = std::make_shared<NoRclcppTakeSubscriber>();
   executor.add_node(node);
   executor.spin();
   return 0;

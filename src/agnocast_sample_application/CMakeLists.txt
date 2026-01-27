@@ -54,7 +54,7 @@ target_include_directories(no_rclcpp_talker PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
-add_executable(no_rclcpp_take_listener src/no_rclcpp_take_listener.cpp)
+add_executable(no_rclcpp_take_listener src/no_rclcpp_take_subscriber.cpp)
 ament_target_dependencies(no_rclcpp_take_listener agnocastlib agnocast_sample_interfaces)
 target_include_directories(no_rclcpp_take_listener PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
