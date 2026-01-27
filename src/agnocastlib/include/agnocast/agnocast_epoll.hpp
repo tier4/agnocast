@@ -23,12 +23,6 @@ void wait_and_handle_epoll_event(
 
 template <class ValidateFn>
 void prepare_epoll_impl(
-  int epoll_fd, pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables,
-  ValidateFn && validate_callback_group);
-
-template <class ValidateFn>
-void prepare_epoll_impl(
   const int epoll_fd, const pid_t my_pid, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables,
   ValidateFn && validate_callback_group)
@@ -75,13 +69,13 @@ void prepare_epoll_impl(
 
     for (auto & it : id2_timer_info) {
       const uint32_t timer_id = it.first;
-      TimerInfo & timer_info = it.second;
+      TimerInfo & timer_info = *it.second;
 
       if (!timer_info.need_epoll_update) {
         continue;
       }
 
-      if (!validate_callback_group(timer_info.callback_group)) {
+      if (!timer_info.timer.lock() || !validate_callback_group(timer_info.callback_group)) {
         continue;
       }
 
@@ -110,7 +104,7 @@ void prepare_epoll_impl(
   const bool all_timers_updated = [&]() {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
     return std::none_of(id2_timer_info.begin(), id2_timer_info.end(), [](const auto & it) {
-      return it.second.need_epoll_update;
+      return it.second->need_epoll_update;
     });
   }();
 
