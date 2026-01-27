@@ -51,22 +51,10 @@ public:
     const std::string & node_name, const std::string & namespace_,
     const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
-  std::string get_name() const
-  {
-    return node_base_->get_name();
-  }
-  rclcpp::Logger get_logger() const
-  {
-    return logger_;
-  }
-  std::string get_namespace() const
-  {
-    return node_base_->get_namespace();
-  }
-  std::string get_fully_qualified_name() const
-  {
-    return node_base_->get_fully_qualified_name();
-  }
+  std::string get_name() const { return node_base_->get_name(); }
+  rclcpp::Logger get_logger() const { return logger_; }
+  std::string get_namespace() const { return node_base_->get_namespace(); }
+  std::string get_fully_qualified_name() const { return node_base_->get_fully_qualified_name(); }
 
   rclcpp::CallbackGroup::SharedPtr create_callback_group(
     rclcpp::CallbackGroupType group_type, bool automatically_add_to_executor_with_node = true)
@@ -284,20 +272,11 @@ public:
     node_parameters_->remove_on_set_parameters_callback(handler);
   }
 
-  rclcpp::Clock::SharedPtr get_clock()
-  {
-    return node_clock_->get_clock();
-  }
+  rclcpp::Clock::SharedPtr get_clock() { return node_clock_->get_clock(); }
 
-  rclcpp::Clock::ConstSharedPtr get_clock() const
-  {
-    return node_clock_->get_clock();
-  }
+  rclcpp::Clock::ConstSharedPtr get_clock() const { return node_clock_->get_clock(); }
 
-  rclcpp::Time now() const
-  {
-    return node_clock_->get_clock()->now();
-  }
+  rclcpp::Time now() const { return node_clock_->get_clock()->now(); }
 
   template <typename MessageT>
   typename agnocast::Publisher<MessageT>::SharedPtr create_publisher(
