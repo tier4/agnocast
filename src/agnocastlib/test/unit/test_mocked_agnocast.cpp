@@ -384,6 +384,107 @@ TEST_F(AgnocastSmartPointerTest, bool_operator_false)
 }
 
 // =========================================
+// Publisher-side invalidation tests
+// =========================================
+
+class AgnocastInvalidationTest : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    rclcpp::init(0, nullptr);
+    dummy_tn = "/dummy";
+    node = std::make_shared<rclcpp::Node>("dummy_node");
+    dummy_publisher =
+      agnocast::create_publisher<std_msgs::msg::Int32>(node.get(), dummy_tn, dummy_qos);
+
+    publish_core_mock_called_count = 0;
+    mock_borrowed_publisher_num = 0;
+  }
+
+  void TearDown() override { rclcpp::shutdown(); }
+
+  std::shared_ptr<rclcpp::Node> node;
+  agnocast::Publisher<std_msgs::msg::Int32>::SharedPtr dummy_publisher;
+  std::string dummy_tn;
+  rclcpp::QoS dummy_qos{10};
+};
+
+TEST_F(AgnocastInvalidationTest, dereference_after_publish_terminates)
+{
+  // Arrange: Borrow a message, make a copy, then publish.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy = message;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: Dereferencing the copy after publish should call std::terminate().
+  EXPECT_DEATH(*copy, "invalidated ipc_shared_ptr");
+}
+
+TEST_F(AgnocastInvalidationTest, arrow_operator_after_publish_terminates)
+{
+  // Arrange: Borrow a message, make a copy, then publish.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy = message;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: Using arrow operator on the copy after publish should call std::terminate().
+  EXPECT_DEATH(copy->data, "invalidated ipc_shared_ptr");
+}
+
+TEST_F(AgnocastInvalidationTest, get_returns_nullptr_after_publish)
+{
+  // Arrange: Borrow a message, make a copy, then publish.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy = message;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: get() should return nullptr after invalidation.
+  EXPECT_EQ(copy.get(), nullptr);
+}
+
+TEST_F(AgnocastInvalidationTest, bool_operator_returns_false_after_publish)
+{
+  // Arrange: Borrow a message, make a copy, then publish.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy = message;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: bool operator should return false after invalidation.
+  EXPECT_FALSE(static_cast<bool>(copy));
+}
+
+TEST_F(AgnocastInvalidationTest, multiple_copies_all_invalidated)
+{
+  // Arrange: Borrow a message, make multiple copies, then publish.
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy1 = message;
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy2 = message;
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy3 = copy1;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: All copies should be invalidated.
+  EXPECT_EQ(copy1.get(), nullptr);
+  EXPECT_EQ(copy2.get(), nullptr);
+  EXPECT_EQ(copy3.get(), nullptr);
+  EXPECT_FALSE(static_cast<bool>(copy1));
+  EXPECT_FALSE(static_cast<bool>(copy2));
+  EXPECT_FALSE(static_cast<bool>(copy3));
+}
+
+TEST_F(AgnocastInvalidationTest, copy_of_copy_invalidated)
+{
+  // Arrange: Create a chain of copies: original -> copy1 -> copy2
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> message = dummy_publisher->borrow_loaned_message();
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy1 = message;
+  agnocast::ipc_shared_ptr<std_msgs::msg::Int32> copy2 = copy1;
+  dummy_publisher->publish(std::move(message));
+
+  // Act & Assert: Dereferencing copy2 (copy of copy) should also terminate.
+  EXPECT_DEATH(*copy2, "invalidated ipc_shared_ptr");
+}
+
+// =========================================
 // CallbackInfo tests
 // =========================================
 
