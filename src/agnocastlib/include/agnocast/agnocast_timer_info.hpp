@@ -56,6 +56,6 @@ void unregister_timer_info(uint32_t timer_id);
 
 void register_timer_info_with_clock(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group, rclcpp::Clock::SharedPtr clock);
+  const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock);
 
 }  // namespace agnocast

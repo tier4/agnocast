@@ -52,7 +52,7 @@ void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
   }
 }
 
-void setup_time_jump_callback(TimerInfo & timer_info, rclcpp::Clock::SharedPtr clock)
+void setup_time_jump_callback(TimerInfo & timer_info, const rclcpp::Clock::SharedPtr & clock)
 {
   if (!clock || clock->get_clock_type() != RCL_ROS_TIME) {
     return;
@@ -130,7 +130,7 @@ void register_timer_info(
 
 void register_timer_info_with_clock(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group, rclcpp::Clock::SharedPtr clock)
+  const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const int64_t now_ns = get_current_time_ns(clock);

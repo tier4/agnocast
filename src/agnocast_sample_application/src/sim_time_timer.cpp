@@ -62,13 +62,12 @@ private:
 
 int main(int argc, char * argv[])
 {
-  rclcpp::init(argc, argv);
+  agnocast::init(argc, argv);
 
-  agnocast::SingleThreadedAgnocastExecutor executor;
+  agnocast::AgnocastOnlySingleThreadedExecutor executor;
   auto node = std::make_shared<SimTimeTimerNode>();
-  executor.add_node(node->get_node_base_interface());
+  executor.add_node(node);
   executor.spin();
 
-  rclcpp::shutdown();
   return 0;
 }
