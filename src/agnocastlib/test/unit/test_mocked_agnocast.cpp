@@ -10,8 +10,7 @@
 
 using namespace agnocast;
 
-int decrement_rc_mock_called_count = 0;
-int increment_rc_mock_called_count = 0;
+int release_subscriber_reference_mock_called_count = 0;
 int publish_core_mock_called_count = 0;
 uint32_t mock_borrowed_publisher_num = 0;
 
@@ -22,13 +21,9 @@ extern "C" uint32_t agnocast_get_borrowed_publisher_num()
 
 namespace agnocast
 {
-void decrement_rc(const std::string &, const topic_local_id_t, const int64_t)
+void release_subscriber_reference(const std::string &, const topic_local_id_t, const int64_t)
 {
-  decrement_rc_mock_called_count++;
-}
-void increment_rc(const std::string &, const topic_local_id_t, const int64_t)
-{
-  increment_rc_mock_called_count++;
+  release_subscriber_reference_mock_called_count++;
 }
 
 void decrement_borrowed_publisher_num()
@@ -42,6 +37,7 @@ void increment_borrowed_publisher_num()
 {
   mock_borrowed_publisher_num++;
 }
+
 topic_local_id_t initialize_publisher(
   const std::string &, const std::string &, const rclcpp::QoS &, const bool)
 {
@@ -165,8 +161,7 @@ protected:
     dummy_pubsub_id = 1;
     dummy_entry_id = 2;
 
-    decrement_rc_mock_called_count = 0;
-    increment_rc_mock_called_count = 0;
+    release_subscriber_reference_mock_called_count = 0;
   }
 
   std::string dummy_tn;
@@ -183,7 +178,8 @@ TEST_F(AgnocastSmartPointerTest, reset_normal)
   sut.reset();
 
   // Assert
-  EXPECT_EQ(decrement_rc_mock_called_count, 1);
+  // Last reference destroyed, so release_subscriber_reference is called once.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 1);
   EXPECT_EQ(nullptr, sut.get());
 }
 
@@ -196,7 +192,7 @@ TEST_F(AgnocastSmartPointerTest, reset_nullptr)
   sut.reset();
 
   // Assert
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
 }
 
 TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
@@ -208,8 +204,8 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_normal)
   agnocast::ipc_shared_ptr<int> sut2 = sut;
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 1);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  // Copy does not trigger any ioctl - reference counting is done in userspace.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
   EXPECT_EQ(sut.get(), sut2.get());
   EXPECT_EQ(sut.get_topic_name(), sut2.get_topic_name());
   EXPECT_EQ(sut.get_entry_id(), sut2.get_entry_id());
@@ -222,8 +218,7 @@ TEST_F(AgnocastSmartPointerTest, copy_constructor_empty)
 
   // Act & Assert
   EXPECT_NO_THROW(agnocast::ipc_shared_ptr<int> sut2{sut});
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
 }
 
 TEST_F(AgnocastSmartPointerTest, copy_assignment_normal)
@@ -242,8 +237,8 @@ TEST_F(AgnocastSmartPointerTest, copy_assignment_normal)
   sut2 = sut;
 
   // Assert
-  EXPECT_EQ(decrement_rc_mock_called_count, 1);
-  EXPECT_EQ(increment_rc_mock_called_count, 1);
+  // sut2's old reference is released (was the only reference), then copy happens (no ioctl).
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 1);
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
   EXPECT_EQ(dummy_pubsub_id, sut2.get_pubsub_id());
@@ -260,8 +255,8 @@ TEST_F(AgnocastSmartPointerTest, copy_assignment_self)
   sut = sut;
 
   // Assert
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
+  // Self-assignment is a no-op.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
   EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(dummy_tn, sut.get_topic_name());
   EXPECT_EQ(dummy_pubsub_id, sut.get_pubsub_id());
@@ -277,8 +272,8 @@ TEST_F(AgnocastSmartPointerTest, copy_assignment_empty)
   sut = agnocast::ipc_shared_ptr<int>();
 
   // Assert
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
+  // Both are empty, no ioctl calls.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
 }
 
 TEST_F(AgnocastSmartPointerTest, move_constructor_normal)
@@ -291,8 +286,8 @@ TEST_F(AgnocastSmartPointerTest, move_constructor_normal)
   agnocast::ipc_shared_ptr<int> sut2 = std::move(sut);
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  // Move transfers ownership, no ioctl calls.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
@@ -310,8 +305,8 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_normal)
   sut2 = std::move(sut);
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  // sut2 was empty, so reset does nothing. Move transfers ownership, no ioctl calls.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
@@ -331,8 +326,8 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_self)
 #pragma GCC diagnostic pop
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  // Self-assignment is a no-op.
+  EXPECT_EQ(release_subscriber_reference_mock_called_count, 0);
   EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(dummy_tn, sut.get_topic_name());
   EXPECT_EQ(dummy_entry_id, sut.get_entry_id());

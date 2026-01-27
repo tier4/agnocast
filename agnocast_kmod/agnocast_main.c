@@ -104,8 +104,9 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
+  // Per-subscriber boolean flag: if ID is present, subscriber is holding a reference.
+  // When subscriber releases the reference, the ID is removed from this array.
   topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
-  uint8_t reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -422,34 +423,33 @@ static void remove_reference_by_index(struct entry_node * en, int index)
 {
   for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1; i++) {
     en->referencing_ids[i] = en->referencing_ids[i + 1];
-    en->reference_count[i] = en->reference_count[i + 1];
   }
 
   en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = -1;
-  en->reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = 0;
-  return;
 }
 
-static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
+// Add subscriber reference to entry (set boolean flag to true).
+// Called when subscriber first receives/takes the message.
+static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    // Already referenced by this subscriber - no-op
     if (en->referencing_ids[i] == id) {
-      en->reference_count[i]++;
       return 0;
     }
 
-    if (en->reference_count[i] == 0) {
+    // Empty slot found - add reference
+    if (en->referencing_ids[i] == -1) {
       en->referencing_ids[i] = id;
-      en->reference_count[i] = 1;
       return 0;
     }
   }
 
   dev_warn(
     agnocast_device,
-    "Unreachable. The number of referencing publisher and subscribers reached the upper bound "
+    "Unreachable. The number of referencing subscribers reached the upper bound "
     "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
-    "(increment_sub_rc)\n",
+    "(add_subscriber_reference)\n",
     MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
 
   return -ENOBUFS;
@@ -476,6 +476,8 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
+// Add subscriber reference to message entry (set boolean flag to true).
+// Called when subscriber first receives/takes the message.
 int increment_message_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
   const int64_t entry_id)
@@ -498,7 +500,7 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  // Incrementing reference count is allowed only for subscribers
+  // Adding reference is allowed only for subscribers
   if (!find_subscriber_info(wrapper, pubsub_id)) {
     dev_warn(
       agnocast_device,
@@ -507,7 +509,7 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  int ret = increment_sub_rc(en, pubsub_id);
+  int ret = add_subscriber_reference(en, pubsub_id);
   if (ret < 0) {
     return ret;
   }
@@ -515,6 +517,8 @@ int increment_message_entry_rc(
   return 0;
 }
 
+// Release subscriber reference from message entry (set boolean flag to false).
+// Called when subscriber's last ipc_shared_ptr reference is destroyed.
 int decrement_message_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
   const int64_t entry_id)
@@ -537,21 +541,17 @@ int decrement_message_entry_rc(
     return -EINVAL;
   }
 
-  // decrement reference_count
+  // Remove subscriber reference
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
     if (en->referencing_ids[i] == pubsub_id) {
-      en->reference_count[i]--;
-      if (en->reference_count[i] == 0) {
-        remove_reference_by_index(en, i);
-      }
-
+      remove_reference_by_index(en, i);
       return 0;
     }
   }
 
   dev_warn(
     agnocast_device,
-    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+    "Try to release reference of Subscriber (pubsub_id=%d) for message entry "
     "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
     pubsub_id, topic_name, entry_id);
 
@@ -572,10 +572,10 @@ static int insert_message_entry(
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   // Publisher-side handles do not participate in reference counting.
-  // Initialize all slots as empty; subscribers will add their references via increment_rc.
+  // Initialize all reference slots as empty (-1 means no subscriber is holding a reference).
+  // Subscribers will add their references when they receive/take the message.
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
     new_node->referencing_ids[i] = -1;
-    new_node->reference_count[i] = 0;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
@@ -848,10 +848,9 @@ static int release_msgs_to_meet_depth(
   // HACK:
   //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
   //   if there are more messages to release, qos_depth is temporarily not met.
-  //   However, it is rare for the reference_count of more than MAX_RELEASE_NUM messages
-  //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
-  //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
-  //   system behavior.
+  //   However, it is rare for more than MAX_RELEASE_NUM messages that are out of qos_depth to be
+  //   unreferenced at a specific time. If this happens, as long as the publisher's qos_depth is
+  //   greater than the subscriber's qos_depth, this has little effect on system behavior.
   while (num_search_entries > 0 && ioctl_ret->ret_released_num < MAX_RELEASE_NUM) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
@@ -1011,7 +1010,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = increment_sub_rc(en, subscriber_id);
+    int ret = add_subscriber_reference(en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -1127,7 +1126,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    int ret = increment_sub_rc(candidate_en, subscriber_id);
+    int ret = add_subscriber_reference(candidate_en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -1933,23 +1932,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(combined_buf);
     if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
-    struct ioctl_update_entry_args entry_args;
-    if (copy_from_user(
-          &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
-      goto return_EFAULT;
-    if (entry_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
-    char * topic_name_buf = kmalloc(entry_args.topic_name.len + 1, GFP_KERNEL);
-    if (!topic_name_buf) goto return_ENOMEM;
-    if (copy_from_user(
-          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len)) {
-      kfree(topic_name_buf);
-      goto return_EFAULT;
-    }
-    topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret =
-      increment_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
-    kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
     struct ioctl_update_entry_args entry_args;
     if (copy_from_user(
@@ -2403,6 +2385,8 @@ bool is_in_topic_entries(
   return true;
 }
 
+// Returns 1 if subscriber is holding a reference to the entry, 0 otherwise.
+// Returns -1 if topic or entry not found.
 int get_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const int64_t entry_id,
   const topic_local_id_t pubsub_id)
@@ -2419,11 +2403,11 @@ int get_entry_rc(
 
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
     if (en->referencing_ids[i] == pubsub_id) {
-      return en->reference_count[i];
+      return 1;  // Subscriber is holding a reference
     }
   }
 
-  return 0;
+  return 0;  // Subscriber is not holding a reference
 }
 
 int64_t get_latest_received_entry_id(

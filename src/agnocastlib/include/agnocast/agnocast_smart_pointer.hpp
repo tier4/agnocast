@@ -30,9 +30,7 @@ namespace agnocast
 {
 
 // These are cut out of the class for information hiding.
-void decrement_rc(
-  const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
-void increment_rc(
+void release_subscriber_reference(
   const std::string & topic_name, const topic_local_id_t pubsub_id, const int64_t entry_id);
 void decrement_borrowed_publisher_num();
 
@@ -103,11 +101,15 @@ public:
   }
 
   // Subscriber-side constructor (entry_id already assigned => entry_id != -1).
-  // Does not allocate validity_ control block to avoid overhead.
+  // Creates validity_ for reference counting (use_count() tracks subscriber references).
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
     const int64_t entry_id)
-  : ptr_(ptr), topic_name_(topic_name), pubsub_id_(pubsub_id), entry_id_(entry_id)
+  : ptr_(ptr),
+    topic_name_(topic_name),
+    pubsub_id_(pubsub_id),
+    entry_id_(entry_id),
+    validity_(ptr ? std::make_shared<validity_control>() : nullptr)
   {
   }
 
@@ -120,11 +122,8 @@ public:
     entry_id_(r.entry_id_),
     validity_(r.validity_)
   {
-    // Only call increment_rc for subscriber-side handles (entry_id != -1).
-    // Publisher-side handles (entry_id == -1) do not have kernel entries.
-    if (ptr_ != nullptr && entry_id_ != -1) {
-      increment_rc(topic_name_, pubsub_id_, entry_id_);
-    }
+    // Reference counting is handled by validity_.use_count() for both publisher and subscriber.
+    // No ioctl needed on copy - only when the last reference is destroyed.
   }
 
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
@@ -136,10 +135,7 @@ public:
       pubsub_id_ = r.pubsub_id_;
       entry_id_ = r.entry_id_;
       validity_ = r.validity_;
-      // Only call increment_rc for subscriber-side handles (entry_id != -1).
-      if (ptr_ != nullptr && entry_id_ != -1) {
-        increment_rc(topic_name_, pubsub_id_, entry_id_);
-      }
+      // Reference counting is handled by validity_.use_count() - no ioctl needed on copy.
     }
     return *this;
   }
@@ -204,8 +200,10 @@ public:
     if (ptr_ == nullptr) return;
 
     if (entry_id_ != -1) {
-      // Subscriber side: decrement kernel reference count.
-      decrement_rc(topic_name_, pubsub_id_, entry_id_);
+      // Subscriber side: notify kmod only when the last reference is destroyed.
+      if (validity_ && validity_.use_count() == 1) {
+        release_subscriber_reference(topic_name_, pubsub_id_, entry_id_);
+      }
     } else if (
       validity_ && validity_.use_count() == 1 &&
       validity_->valid.load(std::memory_order_acquire) == 1U) {
@@ -216,6 +214,7 @@ public:
     }
 
     ptr_ = nullptr;
+    validity_.reset();
   }
 };
 

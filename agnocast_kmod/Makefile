@@ -13,7 +13,6 @@ else
 	  agnocast_kunit/agnocast_kunit_add_publisher.o \
 	  agnocast_kunit/agnocast_kunit_remove_subscriber.o \
 	  agnocast_kunit/agnocast_kunit_remove_publisher.o \
-	  agnocast_kunit/agnocast_kunit_increment_rc.o \
 	  agnocast_kunit/agnocast_kunit_decrement_rc.o \
 	  agnocast_kunit/agnocast_kunit_publish_msg.o \
 	  agnocast_kunit/agnocast_kunit_receive_msg.o \

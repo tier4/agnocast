@@ -10,7 +10,6 @@
 #include "agnocast_kunit/agnocast_kunit_get_publisher_qos.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_num.h"
 #include "agnocast_kunit/agnocast_kunit_get_subscriber_qos.h"
-#include "agnocast_kunit/agnocast_kunit_increment_rc.h"
 #include "agnocast_kunit/agnocast_kunit_publish_msg.h"
 #include "agnocast_kunit/agnocast_kunit_receive_msg.h"
 #include "agnocast_kunit/agnocast_kunit_remove_bridge.h"
@@ -29,7 +28,6 @@ struct kunit_case agnocast_test_cases[] = {
   TEST_CASES_ADD_PUBLISHER,
   TEST_CASES_REMOVE_SUBSCRIBER,
   TEST_CASES_REMOVE_PUBLISHER,
-  TEST_CASES_INCREMENT_RC,
   TEST_CASES_DECREMENT_RC,
   TEST_CASES_RECEIVE_MSG,
   TEST_CASES_PUBLISH_MSG,
