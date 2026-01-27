@@ -17,6 +17,13 @@ std::mutex id2_timer_info_mtx;
 std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
+TimerInfo::~TimerInfo()
+{
+  if (timer_fd >= 0) {
+    close(timer_fd);
+  }
+}
+
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
 {
   int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -61,7 +68,7 @@ uint32_t allocate_timer_id()
 
 void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  rclcpp::CallbackGroup::SharedPtr callback_group)
+  const rclcpp::CallbackGroup::SharedPtr & callback_group)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
   const auto now = std::chrono::steady_clock::now();
