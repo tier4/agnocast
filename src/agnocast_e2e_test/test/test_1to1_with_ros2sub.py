@@ -222,7 +222,7 @@ class Test1To1(unittest.TestCase):
 
             # The display order is not guaranteed, so the message order is not checked.
             for i in range(start_index, start_index + total_expected_count):
-                self.assertEqual(proc_output.count(f"Receiving {i}."), 1, f"Message {i} count mismatch")
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
 
     def test_ros2_sub(self, proc_output, test_ros2_sub):
@@ -233,11 +233,9 @@ class Test1To1(unittest.TestCase):
                 1 for i in range(EXPECT_INIT_PUB_NUM)
                 if proc_output.count(f"Receiving {i}.") > 0
             )
-            self.assertGreaterEqual(actual_init_count, EXPECT_INIT_ROS2_SUB_NUM,
-                f"Init msg check failed! Expected at least {EXPECT_INIT_ROS2_SUB_NUM} messages from Init range, but got {actual_init_count}.")
+            self.assertGreaterEqual(actual_init_count, EXPECT_INIT_ROS2_SUB_NUM)
 
             self.assertGreater(EXPECT_ROS2_SUB_NUM, 0, "Expected live message count must be greater than 0.")
             for i in range(EXPECT_INIT_PUB_NUM, EXPECT_INIT_PUB_NUM + EXPECT_ROS2_SUB_NUM):
-                self.assertEqual(proc_output.count(f"Receiving {i}."), 1, 
-                        f"Live msg check failed! Expected specific message {i} not received.")
+                self.assertEqual(proc_output.count(f"Receiving {i}."), 1)
             self.assertEqual(proc_output.count("All messages received. Shutting down."), 1)
