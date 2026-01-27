@@ -2,7 +2,6 @@
 
 #include "rclcpp/macros.hpp"
 
-#include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -18,11 +17,11 @@ public:
 
   virtual ~TimerBase();
 
-  void cancel();
-  bool is_canceled() const;
-  void reset();
-
-  std::chrono::nanoseconds time_until_trigger() const;
+  // TODO: The following methods are planned to be added for rclcpp API compatibility:
+  // void cancel();
+  // bool is_canceled();
+  // void reset();
+  // std::chrono::nanoseconds time_until_trigger();
 
   bool is_steady() const { return true; }
 
@@ -36,7 +35,6 @@ protected:
 
   uint32_t timer_id_;
   std::chrono::nanoseconds period_;
-  std::atomic<bool> canceled_{false};
 };
 
 template <typename FunctorT>
