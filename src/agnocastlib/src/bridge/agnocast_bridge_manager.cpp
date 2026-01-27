@@ -154,14 +154,34 @@ BridgeManager::BridgeKernelResult BridgeManager::try_add_bridge_to_kernel(
   return BridgeKernelResult{AddBridgeResult::ERROR, 0, false, false};
 }
 
-void BridgeManager::activate_bridge(
-  const MqMsgBridge & req, const std::string & topic_name_with_direction)
+void BridgeManager::activate_bridge(const MqMsgBridge & req, const std::string & topic_name)
 {
+  bool is_r2a = (req.direction == BridgeDirection::ROS2_TO_AGNOCAST);
+  std::string_view suffix = is_r2a ? SUFFIX_R2A : SUFFIX_A2R;
+  std::string topic_name_with_direction = topic_name + std::string(suffix);
+
   if (active_bridges_.count(topic_name_with_direction) != 0U) {
     return;
   }
 
-  auto bridge = loader_.create(req, topic_name_with_direction, container_node_);
+  int peer_count = is_r2a ? get_agnocast_subscriber_count(topic_name).count
+                          : get_agnocast_publisher_count(topic_name).count;
+
+  if (peer_count <= 0) {
+    RCLCPP_INFO(
+      logger_, "No peers for '%s'. Skipping bridge creation.", topic_name_with_direction.c_str());
+    return;
+  }
+
+  rclcpp::QoS target_qos = rclcpp::QoS(10);
+  try {
+    target_qos = is_r2a ? get_subscriber_qos(topic_name, req.target.target_id)
+                        : get_publisher_qos(topic_name, req.target.target_id);
+  } catch (const std::exception &) {
+    return;
+  }
+
+  auto bridge = loader_.create(req, topic_name_with_direction, container_node_, target_qos);
 
   if (!bridge) {
     RCLCPP_ERROR(logger_, "Failed to create bridge for '%s'", topic_name_with_direction.c_str());
@@ -210,15 +230,13 @@ void BridgeManager::process_managed_bridge(
   }
 
   bool is_r2a = (req->direction == BridgeDirection::ROS2_TO_AGNOCAST);
-  std::string_view suffix = is_r2a ? SUFFIX_R2A : SUFFIX_A2R;
-
   auto [status, owner_pid, kernel_has_r2a, kernel_has_a2r] =
     try_add_bridge_to_kernel(topic_name, is_r2a);
   bool is_active_in_owner = is_r2a ? kernel_has_r2a : kernel_has_a2r;
 
   switch (status) {
     case AddBridgeResult::SUCCESS:
-      activate_bridge(*req, topic_name + std::string(suffix));
+      activate_bridge(*req, topic_name);
       break;
 
     case AddBridgeResult::EXIST:
