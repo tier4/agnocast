@@ -164,10 +164,9 @@ void BridgeManager::activate_bridge(const MqMsgBridge & req, const std::string &
     return;
   }
 
-  int peer_count = is_r2a ? get_agnocast_subscriber_count(topic_name).count
-                          : get_agnocast_publisher_count(topic_name).count;
-
-  if (peer_count <= 0) {
+  if (
+    (is_r2a ? get_agnocast_subscriber_count(topic_name).count
+            : get_agnocast_publisher_count(topic_name).count) <= 0) {
     return;
   }
 
