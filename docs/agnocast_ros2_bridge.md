@@ -45,6 +45,17 @@ Agnocast supports three bridge modes controlled by the `AGNOCAST_BRIDGE_MODE` en
 - Values are **case-insensitive** (e.g., `Standard`, `OFF`, `Performance` are valid).
 - If an unknown value is provided, it falls back to **Standard** mode with a warning.
 
+### Standard Mode vs Performance Mode
+
+Standard Mode and Performance Mode have distinct trade-offs regarding resource usage, isolation, and setup complexity.
+
+| Feature | Standard Mode | Performance Mode |
+| :--- | :--- | :--- |
+| **Architecture** | **Distributed**: 1 Bridge Manager per Agnocast process. | **Centralized**: 1 Global Bridge Manager for all processes. |
+| **Resource Usage** | **High**: Increases linearly with the number of processes (CPU/RAM overhead). | **Low**: Minimal overhead. Efficient for systems with many nodes. |
+| **Isolation & Safety** | **High**: Bridges are isolated. If one bridge crashes, others are unaffected. | **Low**: Shared process. A crash in the manager affects all bridged topics. |
+| **Setup** | **Easy**: No preparation needed. Works dynamically. | **Complex**: Requires pre-compiled plugins (`BUILD_GENERIC_BRIDGE=ON`). |
+
 ### Standard Mode (Default)
 
 Each Agnocast process spawns its own bridge manager as a forked child process. This provides process isolation and is suitable for most use cases.
@@ -226,12 +237,3 @@ flowchart LR
     AgPubExt --> AgSub
     R2Pub --> ExtSub
 ```
-
-### QoS Settings Summary
-
-| Bridge | Internal Component | Depth | Reliability | Durability |
-|--------|-------------------|-------|-------------|------------|
-| R2A | ROS 2 Subscription | inherited | inherited | inherited |
-| R2A | Agnocast Publisher | 10 | - | TransientLocal |
-| A2R | Agnocast Subscription | inherited | inherited | inherited |
-| A2R | ROS 2 Publisher | 10 | Reliable | TransientLocal |
