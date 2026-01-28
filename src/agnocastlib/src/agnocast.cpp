@@ -421,7 +421,7 @@ struct initialize_agnocast_result initialize_agnocast(
   }
 
   if (should_spawn_bridge) {
-    bridge_manager_pid =
+    STANDARD_BRIDGE_MANAGER_PID =
       spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
   }
 

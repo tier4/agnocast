@@ -281,7 +281,7 @@ void send_bridge_request(
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
-  std::string mq_name = create_mq_name_for_bridge(bridge_manager_pid);
+  std::string mq_name = create_mq_name_for_bridge(STANDARD_BRIDGE_MANAGER_PID);
   send_mq_message(mq_name, msg, BRIDGE_MQ_MESSAGE_SIZE, logger);
 }
 
