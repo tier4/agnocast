@@ -31,7 +31,9 @@ static DEFINE_MUTEX(global_mutex);
 
 // Maximum number of referencing subscribers per entry.
 // Publisher-side handles do not participate in reference counting.
-#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY MAX_SUBSCRIBER_NUM
+#define MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY MAX_SUBSCRIBER_NUM
+// Deprecated alias kept for backward compatibility; prefer MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY.
+#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
