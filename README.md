@@ -169,10 +169,10 @@ Configuration for the Agnocast bridge manager. The mode can be specified using s
 | **Performance** | `performance`, `2` | Single global bridge manager. |
 | **Off** | `off`, `0` | Bridge disabled. |
 
-> **Note:**
->
-> - Values are **case-insensitive** (e.g., `Standard`, `OFF`, `Performance` are valid).
-> - If an unknown value is provided, it falls back to **Standard** mode with a warning.
+**Note:**
+
+- Values are **case-insensitive** (e.g., `Standard`, `OFF`, `Performance` are valid).
+- If an unknown value is provided, it falls back to **Standard** mode with a warning.
 
 #### Usage
 
@@ -199,7 +199,7 @@ Performance mode requires pre-compiled bridge plugins. Build with:
 BUILD_GENERIC_BRIDGE=ON colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
-For detailed information, see [Bridge Documentation](./docs/bridge.md).
+For detailed information, see [Bridge Documentation](./docs/agnocast_ros2_bridge.md).
 
 ---
 
@@ -349,4 +349,4 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [ros2 command extension](./docs/ros2_command_extension.md)
 - [agnocast::Node and rclcpp::Node interface comparison](./docs/agnocast_node_interface_comparison.md)
 - [Callback Isolated Executor for Agnocast](./docs/callback_isolated_executor_for_agnocast.md)
-- [Agnocast-ROS 2 Bridge](./docs/bridge.md)
+- [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)

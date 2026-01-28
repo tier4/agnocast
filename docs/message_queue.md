@@ -80,24 +80,5 @@ The Bridge Manager message queue is named using the process ID:
 
 | Mode | Message Queue Name | Description |
 |------|-------------------|-------------|
-| Standard | `/agnocast_bridge_manager@{pid}` | `{pid}` is the Bridge Manager's PID |
+| Standard | `/agnocast_bridge_manager@{pid}` | `{pid}` is the PID of the bridge manager's parent process |
 | Performance | `/agnocast_bridge_manager@-1` | Uses virtual PID `-1` for the global manager |
-
-### Delegation in Standard Mode
-
-When multiple Agnocast processes request bridges for the same topic, only one Bridge Manager owns the bridge (enforced by the kernel module). If a non-owner Bridge Manager receives a request for an already-owned topic, it delegates the request to the owner's message queue.
-
-```mermaid
-sequenceDiagram
-    participant A as Process A<br/>(owner)
-    participant B as Process B<br/>(non-owner)
-
-    Note over A: owns bridge for /topic
-    Note over B: requests bridge for /topic
-
-    B->>A: delegation (via MQ)
-    
-    Note over A: Creates bridge
-```
-
-For detailed information, see [Bridge Documentation](./docs/bridge.md).
