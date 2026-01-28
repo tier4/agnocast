@@ -88,8 +88,8 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
     } else {
       RCLCPP_WARN(
         node->get_logger(),
-        "Timeout waiting for subscriber to connect for thread '%s'. "
-        "NonRosThreadInfo will not be published.",
+        "No subscriber for NonRosThreadInfo (thread '%s'). "
+        "Please run thread_configurator_node if you want to configure thread scheduling.",
         thread_name.c_str());
     }
 
