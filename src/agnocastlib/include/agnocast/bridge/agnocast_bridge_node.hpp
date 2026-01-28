@@ -108,7 +108,6 @@ public:
     rclcpp::SubscriptionOptions ros_opts;
     ros_opts.ignore_local_publications = true;
     ros_opts.callback_group = ros_cb_group_;
-    auto pub_ptr = agnocast_pub_;
 
     // The ROS subscription acts as a proxy for the requesting Agnocast subscriber.
     // sub_qos applies the Agnocast subscriber's settings (e.g. history depth)
