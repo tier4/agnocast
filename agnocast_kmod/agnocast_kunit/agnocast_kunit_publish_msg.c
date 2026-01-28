@@ -216,6 +216,7 @@ void test_case_publish_msg_referenced_node_not_released(struct kunit * test)
   // Assert: entry1 is not released because subscriber holds a reference
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret2.ret_released_num, 0);
+  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret2.ret_subscriber_num, 1);
   KUNIT_EXPECT_EQ(
     test,
     is_in_topic_entries(topic_name, current->nsproxy->ipc_ns, ioctl_publish_msg_ret1.ret_entry_id),
