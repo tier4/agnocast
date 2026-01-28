@@ -145,7 +145,6 @@ void register_timer_info_with_clock(
   timer_info->need_epoll_update = true;
   timer_info->clock = clock;
 
-  // Set up time jump callback for ROS_TIME clocks
   setup_time_jump_callback(*timer_info, clock);
 
   {

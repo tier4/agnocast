@@ -34,7 +34,6 @@ struct TimerInfo
 
   // Clock-based timer support (nullptr means steady_clock)
   rclcpp::Clock::SharedPtr clock;
-  // Time Jump handler for ROS_TIME
   rclcpp::JumpHandler::SharedPtr jump_handler;
 };
 
