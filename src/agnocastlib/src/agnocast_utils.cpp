@@ -4,9 +4,6 @@
 
 namespace agnocast
 {
-
-extern int agnocast_fd;
-
 rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
 
 void validate_ld_preload()
