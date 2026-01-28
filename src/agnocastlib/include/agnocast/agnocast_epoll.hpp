@@ -16,6 +16,7 @@ struct AgnocastExecutable;
 extern std::atomic<bool> need_epoll_updates;
 
 constexpr uint32_t TIMER_EVENT_FLAG = 0x80000000;
+constexpr uint32_t CLOCK_EVENT_FLAG = 0x40000000;  // For clock_eventfd events (ROS_TIME timers)
 
 void wait_and_handle_epoll_event(
   int epoll_fd, pid_t my_pid, int timeout_ms, std::mutex & ready_agnocast_executables_mutex,
@@ -79,6 +80,7 @@ void prepare_epoll_impl(
         continue;
       }
 
+      // Register timerfd
       struct epoll_event ev = {};
       ev.events = EPOLLIN;
       ev.data.u32 = timer_id | TIMER_EVENT_FLAG;
@@ -87,6 +89,19 @@ void prepare_epoll_impl(
         RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
+      }
+
+      // Register clock_eventfd for ROS_TIME timers (for simulation time support)
+      if (timer_info.clock_eventfd >= 0) {
+        struct epoll_event clock_ev = {};
+        clock_ev.events = EPOLLIN;
+        clock_ev.data.u32 = timer_id | CLOCK_EVENT_FLAG;
+
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.clock_eventfd, &clock_ev) == -1) {
+          RCLCPP_ERROR(logger, "epoll_ctl failed for clock_eventfd: %s", strerror(errno));
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
       }
 
       timer_info.need_epoll_update = false;

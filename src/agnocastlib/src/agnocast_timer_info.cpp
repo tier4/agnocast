@@ -3,6 +3,7 @@
 #include "agnocast/agnocast_epoll.hpp"
 #include "agnocast/agnocast_utils.hpp"
 
+#include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
 
@@ -51,6 +52,13 @@ void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
         next_ns + periods_missed * period_ns, std::memory_order_relaxed);
     }
   }
+
+  // Wake up epoll to check if timer should fire
+  if (timer_info.clock_eventfd >= 0) {
+    const uint64_t val = 1;
+    // Ignore write errors (e.g., if eventfd counter overflows)
+    [[maybe_unused]] auto _ = write(timer_info.clock_eventfd, &val, sizeof(val));
+  }
 }
 
 void setup_time_jump_callback(TimerInfo & timer_info, const rclcpp::Clock::SharedPtr & clock)
@@ -74,6 +82,9 @@ TimerInfo::~TimerInfo()
 {
   if (timer_fd >= 0) {
     close(timer_fd);
+  }
+  if (clock_eventfd >= 0) {
+    close(clock_eventfd);
   }
 }
 
@@ -136,6 +147,17 @@ void register_timer_info(
   timer_info->need_epoll_update = true;
   timer_info->clock = clock;
 
+  // Create eventfd for ROS_TIME timers to wake epoll on clock updates
+  if (clock->get_clock_type() == RCL_ROS_TIME) {
+    timer_info->clock_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (timer_info->clock_eventfd == -1) {
+      close(timer_fd);
+      throw std::runtime_error(
+        "eventfd creation failed for timer_id=" + std::to_string(timer_id) + ": " +
+        std::strerror(errno));
+    }
+  }
+
   setup_time_jump_callback(*timer_info, clock);
 
   {
@@ -146,11 +168,51 @@ void register_timer_info(
   need_epoll_updates.store(true);
 }
 
+// Check if timer is ready and execute callback if so
+// Returns true if callback was executed
+bool check_and_execute_timer(TimerInfo & timer_info)
+{
+  auto timer = timer_info.timer.lock();
+  if (!timer) {
+    return false;  // Timer object has been destroyed
+  }
+
+  const int64_t now_ns = timer_info.clock->now().nanoseconds();
+  const int64_t next_call_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
+  const int64_t period_ns = timer_info.period.count();
+
+  // Check if timer is ready (for simulation time support)
+  if (now_ns < next_call_ns) {
+    return false;  // Not ready yet
+  }
+
+  // Update timing
+  timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+
+  int64_t new_next_call_ns = next_call_ns + period_ns;
+
+  // In case the timer has missed at least one cycle
+  if (new_next_call_ns < now_ns) {
+    if (period_ns == 0) {
+      // A timer with a period of zero is considered always ready
+      new_next_call_ns = now_ns;
+    } else {
+      // Move the next call time forward by as many periods as necessary
+      const int64_t now_ahead = now_ns - new_next_call_ns;
+      // Rounding up without overflow
+      const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
+      new_next_call_ns += periods_ahead * period_ns;
+    }
+  }
+  timer_info.next_call_time_ns.store(new_next_call_ns, std::memory_order_relaxed);
+
+  timer->execute_callback();
+  return true;
+}
+
 void handle_timer_event(TimerInfo & timer_info)
 {
-  // TODO(Koichi98): Add canceled check here
-
-  // Read the number of expirations to clear the event
+  // Read the number of expirations to clear the timerfd event
   uint64_t expirations = 0;
   const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
 
@@ -162,35 +224,25 @@ void handle_timer_event(TimerInfo & timer_info)
   }
 
   if (expirations > 0) {
-    auto timer = timer_info.timer.lock();
-    if (!timer) {
-      return;  // Timer object has been destroyed
+    check_and_execute_timer(timer_info);
+  }
+}
+
+void handle_clock_event(TimerInfo & timer_info)
+{
+  // Read eventfd to clear the event
+  uint64_t val = 0;
+  const ssize_t ret = read(timer_info.clock_eventfd, &val, sizeof(val));
+
+  if (ret == -1) {
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      RCLCPP_WARN(logger, "Failed to read clock eventfd: %s", strerror(errno));
+      return;
     }
+  }
 
-    const int64_t now_ns = timer_info.clock->now().nanoseconds();
-
-    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
-
-    const int64_t period_ns = timer_info.period.count();
-    int64_t next_call_time_ns =
-      timer_info.next_call_time_ns.load(std::memory_order_relaxed) + period_ns;
-
-    // in case the timer has missed at least one cycle
-    if (next_call_time_ns < now_ns) {
-      if (period_ns == 0) {
-        // a timer with a period of zero is considered always ready
-        next_call_time_ns = now_ns;
-      } else {
-        // move the next call time forward by as many periods as necessary
-        const int64_t now_ahead = now_ns - next_call_time_ns;
-        // rounding up without overflow
-        const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
-        next_call_time_ns += periods_ahead * period_ns;
-      }
-    }
-    timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
-
-    timer->execute_callback();
+  if (val > 0) {
+    check_and_execute_timer(timer_info);
   }
 }
 

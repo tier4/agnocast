@@ -20,6 +20,7 @@ struct TimerInfo
   ~TimerInfo();
 
   int timer_fd = -1;
+  int clock_eventfd = -1;  // eventfd to wake epoll on clock updates (ROS_TIME only)
   std::weak_ptr<TimerBase> timer;
   rclcpp::CallbackGroup::SharedPtr callback_group;
   std::atomic<int64_t> last_call_time_ns;
@@ -38,6 +39,8 @@ extern std::atomic<uint32_t> next_timer_id;
 int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period);
 
 void handle_timer_event(TimerInfo & timer_info);
+
+void handle_clock_event(TimerInfo & timer_info);
 
 uint32_t allocate_timer_id();
 
