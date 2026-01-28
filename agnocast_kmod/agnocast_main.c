@@ -32,8 +32,6 @@ static DEFINE_MUTEX(global_mutex);
 // Maximum number of referencing subscribers per entry.
 // Publisher-side handles do not participate in reference counting.
 #define MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY MAX_SUBSCRIBER_NUM
-// Deprecated alias kept for backward compatibility; prefer MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY.
-#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
@@ -108,7 +106,7 @@ struct entry_node
   uint64_t msg_virtual_address;
   // Per-subscriber boolean flag: if ID is present, subscriber is holding a reference.
   // When subscriber releases the reference, the ID is removed from this array.
-  topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
+  topic_local_id_t referencing_ids[MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY];
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -423,18 +421,18 @@ static bool is_referenced(struct entry_node * en)
 
 static void remove_reference_by_index(struct entry_node * en, int index)
 {
-  for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1; i++) {
+  for (int i = index; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY - 1; i++) {
     en->referencing_ids[i] = en->referencing_ids[i + 1];
   }
 
-  en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = -1;
+  en->referencing_ids[MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY - 1] = -1;
 }
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
 static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
     // Already referenced by this subscriber - no-op
     if (en->referencing_ids[i] == id) {
       return 0;
@@ -450,9 +448,9 @@ static int add_subscriber_reference(struct entry_node * en, const topic_local_id
   dev_warn(
     agnocast_device,
     "Unreachable. The number of referencing subscribers reached the upper bound "
-    "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
+    "(MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY=%d), so no new subscriber can reference. "
     "(add_subscriber_reference)\n",
-    MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
+    MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY);
 
   return -ENOBUFS;
 }
@@ -544,7 +542,7 @@ int release_message_entry_reference(
   }
 
   // Remove subscriber reference
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
     if (en->referencing_ids[i] == pubsub_id) {
       remove_reference_by_index(en, i);
       return 0;
@@ -576,7 +574,7 @@ static int insert_message_entry(
   // Publisher-side handles do not participate in reference counting.
   // Initialize all reference slots as empty (-1 means no subscriber is holding a reference).
   // Subscribers will add their references when they receive/take the message.
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
     new_node->referencing_ids[i] = -1;
   }
 
@@ -1593,7 +1591,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
       if (en->referencing_ids[i] == subscriber_id) {
         remove_reference_by_index(en, i);
         break;
@@ -2406,7 +2404,7 @@ int get_entry_rc(
     return -1;
   }
 
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
     if (en->referencing_ids[i] == pubsub_id) {
       return 1;  // Subscriber is holding a reference
     }
@@ -2541,7 +2539,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+      for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
         if (en->referencing_ids[i] == subscriber_id) {
           remove_reference_by_index(en, i);
         }
