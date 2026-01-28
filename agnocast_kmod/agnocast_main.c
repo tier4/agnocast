@@ -519,14 +519,14 @@ int increment_message_entry_rc(
 
 // Release subscriber reference from message entry (set boolean flag to false).
 // Called when subscriber's last ipc_shared_ptr reference is destroyed.
-int decrement_message_entry_rc(
+int release_message_entry_reference(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
   const int64_t entry_id)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
+      agnocast_device, "Topic (topic_name=%s) not found. (release_message_entry_reference)\n",
       topic_name);
     return -EINVAL;
   }
@@ -536,7 +536,7 @@ int decrement_message_entry_rc(
     dev_warn(
       agnocast_device,
       "Message entry (topic_name=%s entry_id=%lld) not found. "
-      "(decrement_message_entry_rc)\n",
+      "(release_message_entry_reference)\n",
       topic_name, entry_id);
     return -EINVAL;
   }
@@ -552,7 +552,7 @@ int decrement_message_entry_rc(
   dev_warn(
     agnocast_device,
     "Try to release reference of Subscriber (pubsub_id=%d) for message entry "
-    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+    "(topic_name=%s entry_id=%lld), but it is not found. (release_message_entry_reference)\n",
     pubsub_id, topic_name, entry_id);
 
   return -EINVAL;
@@ -1932,7 +1932,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(combined_buf);
     if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       goto return_EFAULT;
-  } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
+  } else if (cmd == AGNOCAST_RELEASE_SUB_REF_CMD) {
     struct ioctl_update_entry_args entry_args;
     if (copy_from_user(
           &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
@@ -1946,8 +1946,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       goto return_EFAULT;
     }
     topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret =
-      decrement_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
+    ret = release_message_entry_reference(
+      topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
     kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;

@@ -291,8 +291,8 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
 
   // Release all subscriber references so entries become eligible for GC
   for (int i = 0; i < MAX_RELEASE_NUM + 1; i++) {
-    int ret =
-      decrement_message_entry_rc(topic_name, current->nsproxy->ipc_ns, subscriber_id, entry_ids[i]);
+    int ret = release_message_entry_reference(
+      topic_name, current->nsproxy->ipc_ns, subscriber_id, entry_ids[i]);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 

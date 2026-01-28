@@ -1,4 +1,4 @@
-#include "agnocast_kunit_decrement_rc.h"
+#include "agnocast_kunit_release_sub_ref.h"
 
 #include "../agnocast.h"
 
@@ -31,14 +31,14 @@ static void setup_one_publisher(
   *ret_publisher_id = add_publisher_args.ret_id;
 }
 
-void test_case_decrement_rc_no_topic(struct kunit * test)
+void test_case_release_sub_ref_no_topic(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
   KUNIT_EXPECT_EQ(
-    test, decrement_message_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, 0, 0), -EINVAL);
+    test, release_message_entry_reference(TOPIC_NAME, current->nsproxy->ipc_ns, 0, 0), -EINVAL);
 }
 
-void test_case_decrement_rc_no_message(struct kunit * test)
+void test_case_release_sub_ref_no_message(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
@@ -48,13 +48,14 @@ void test_case_decrement_rc_no_message(struct kunit * test)
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
   // Act
-  int ret = decrement_message_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, 0);
+  int ret =
+    release_message_entry_reference(TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, 0);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
-void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
+void test_case_release_sub_ref_no_pubsub_id(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
@@ -69,19 +70,19 @@ void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret0, 0);
 
   // Act: Publisher-side handles do not participate in reference counting,
-  // so decrementing the publisher's rc should fail with -EINVAL.
-  int ret_sut = decrement_message_entry_rc(
+  // so releasing the publisher's reference should fail with -EINVAL.
+  int ret_sut = release_message_entry_reference(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret_sut, -EINVAL);
 }
 
-void test_case_decrement_rc_last_reference(struct kunit * test)
+void test_case_release_sub_ref_last_reference(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
-  // Arrange: Publisher publishes a message, subscriber increments rc then decrements it.
+  // Arrange: Publisher publishes a message, subscriber adds reference then releases it.
   topic_local_id_t ret_publisher_id;
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
@@ -108,8 +109,8 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
     publish_msg_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret4, 0);
 
-  // Act: Subscriber decrements its last reference.
-  int ret_sut = decrement_message_entry_rc(
+  // Act: Subscriber releases its reference.
+  int ret_sut = release_message_entry_reference(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id,
     publish_msg_args.ret_entry_id);
 
@@ -123,11 +124,11 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
     0);
 }
 
-void test_case_decrement_rc_multi_reference(struct kunit * test)
+void test_case_release_sub_ref_multi_reference(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
-  // Arrange: Publisher publishes a message, two subscribers increment their rc.
+  // Arrange: Publisher publishes a message, two subscribers add references.
   topic_local_id_t ret_publisher_id;
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
@@ -173,12 +174,12 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
     publish_msg_args.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret7, 0);
 
-  // Act: First subscriber decrements its reference.
-  int ret_sut = decrement_message_entry_rc(
+  // Act: First subscriber releases its reference.
+  int ret_sut = release_message_entry_reference(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args1.ret_id,
     publish_msg_args.ret_entry_id);
 
-  // Assert: First subscriber's rc is now 0, second subscriber's rc is still 1.
+  // Assert: First subscriber's reference is now released, second subscriber still has reference.
   KUNIT_EXPECT_EQ(test, ret_sut, 0);
   KUNIT_EXPECT_EQ(
     test,

@@ -10,8 +10,8 @@ void release_subscriber_reference(
   entry_args.topic_name = {topic_name.c_str(), topic_name.size()};
   entry_args.pubsub_id = pubsub_id;
   entry_args.entry_id = entry_id;
-  if (ioctl(agnocast_fd, AGNOCAST_DECREMENT_RC_CMD, &entry_args) < 0) {
-    RCLCPP_ERROR(logger, "AGNOCAST_DECREMENT_RC_CMD failed: %s", strerror(errno));
+  if (ioctl(agnocast_fd, AGNOCAST_RELEASE_SUB_REF_CMD, &entry_args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_RELEASE_SUB_REF_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
