@@ -53,7 +53,6 @@ void SignalHandler::register_shutdown_event(int eventfd)
   std::lock_guard<std::mutex> lock(eventfds_mutex_);
   size_t count = eventfd_count_.load();
 
-  // Find empty slot (-1 = empty)
   for (size_t i = 0; i < count; ++i) {
     if (eventfds_[i].load() == -1) {
       eventfds_[i].store(eventfd);
@@ -75,7 +74,7 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
   size_t count = eventfd_count_.load();
   for (size_t i = 0; i < count; ++i) {
     if (eventfds_[i].load() == eventfd) {
-      eventfds_[i].store(-1);  // -1 = empty
+      eventfds_[i].store(-1);
       return;
     }
   }
@@ -92,7 +91,7 @@ void SignalHandler::notify_all_executors()
   uint64_t val = 1;
   for (size_t i = 0; i < MAX_EXECUTORS_NUM; ++i) {
     int fd = eventfds_[i].load();
-    if (fd >= 0) {  // -1 = empty
+    if (fd >= 0) {
       [[maybe_unused]] auto ret = write(fd, &val, sizeof(val));
     }
   }
