@@ -135,21 +135,21 @@ void register_timer_info_with_clock(
   const int timer_fd = create_timer_fd(timer_id, period);
   const int64_t now_ns = get_current_time_ns(clock);
 
+  auto timer_info = std::make_shared<TimerInfo>();
+  timer_info->timer_fd = timer_fd;
+  timer_info->timer = timer;
+  timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+  timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
+  timer_info->period = period;
+  timer_info->callback_group = callback_group;
+  timer_info->need_epoll_update = true;
+  timer_info->clock = clock;
+
+  // Set up time jump callback for ROS_TIME clocks
+  setup_time_jump_callback(*timer_info, clock);
+
   {
     std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
-    auto timer_info = std::make_shared<TimerInfo>();
-    timer_info->timer_fd = timer_fd;
-    timer_info->timer = timer;
-    timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
-    timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
-    timer_info->period = period;
-    timer_info->callback_group = callback_group;
-    timer_info->need_epoll_update = true;
-    timer_info->clock = clock;
-
-    // Set up time jump callback for ROS_TIME clocks
-    setup_time_jump_callback(*timer_info, clock);
-
     id2_timer_info[timer_id] = std::move(timer_info);
   }
 
