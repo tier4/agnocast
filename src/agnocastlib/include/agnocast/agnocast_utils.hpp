@@ -11,8 +11,6 @@ namespace agnocast
 extern rclcpp::Logger logger;
 extern int agnocast_fd;
 
-enum class BridgeMode : int { Off = 0, Standard = 1, Performance = 2 };
-
 inline void validate_qos(const rclcpp::QoS & qos)
 {
   if (qos.history() == rclcpp::HistoryPolicy::KeepAll) {
@@ -42,8 +40,6 @@ inline void validate_qos(const rclcpp::QoS & qos)
       "Agnocast does not support liveliness_lease_duration QoS policy. It will be ignored.");
   }
 }
-
-BridgeMode get_bridge_mode();
 
 void validate_ld_preload();
 std::string create_mq_name_for_agnocast_publish(
