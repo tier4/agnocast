@@ -8,7 +8,7 @@
 namespace agnocast
 {
 
-inline pid_t STANDARD_BRIDGE_MANAGER_PID = 0;
+inline pid_t standard_bridge_manager_pid = 0;
 inline constexpr pid_t PERFORMANCE_BRIDGE_VIRTUAL_PID = -1;
 
 inline constexpr size_t SHARED_LIB_PATH_BUFFER_SIZE = 4096;  // Linux PATH_MAX is 4096
