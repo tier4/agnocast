@@ -196,7 +196,6 @@ class BasicTakeSubscription : public SubscriptionBase
       actual_qos, true, options.ignore_local_publications, false, node->get_fully_qualified_name());
 
     id_ = add_subscriber_args.ret_id;
-
     BridgeRequestPolicy::template request_bridge<MessageT>(topic_name_, id_);
 
     return actual_qos;
