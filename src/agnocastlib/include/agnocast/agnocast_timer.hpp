@@ -76,7 +76,6 @@ protected:
   FunctorT callback_;
 };
 
-/// Wall timer using steady clock. Inherits from GenericTimer for rclcpp API alignment.
 template <typename FunctorT>
 class WallTimer : public GenericTimer<FunctorT>
 {

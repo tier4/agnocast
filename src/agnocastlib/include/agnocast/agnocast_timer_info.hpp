@@ -15,11 +15,6 @@ namespace agnocast
 
 constexpr int64_t NANOSECONDS_PER_SECOND = 1000000000;
 
-inline int64_t to_nanoseconds(const std::chrono::steady_clock::time_point & tp)
-{
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
-}
-
 struct TimerInfo
 {
   ~TimerInfo();
@@ -32,7 +27,6 @@ struct TimerInfo
   std::chrono::nanoseconds period;
   bool need_epoll_update = true;
 
-  // Clock-based timer support (nullptr means steady_clock)
   rclcpp::Clock::SharedPtr clock;
   rclcpp::JumpHandler::SharedPtr jump_handler;
 };
@@ -49,8 +43,7 @@ uint32_t allocate_timer_id();
 
 void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr & callback_group,
-  rclcpp::Clock::SharedPtr clock = nullptr);
+  const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock);
 
 void unregister_timer_info(uint32_t timer_id);
 

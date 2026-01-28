@@ -17,23 +17,8 @@ std::mutex id2_timer_info_mtx;
 std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
-namespace
-{
-
-int64_t get_current_time_ns(const rclcpp::Clock::SharedPtr & clock)
-{
-  if (clock) {
-    return clock->now().nanoseconds();
-  }
-  return to_nanoseconds(std::chrono::steady_clock::now());
-}
-
 void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
 {
-  if (!timer_info.clock) {
-    return;
-  }
-
   const int64_t now_ns = timer_info.clock->now().nanoseconds();
   const int64_t period_ns = timer_info.period.count();
 
@@ -54,7 +39,7 @@ void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
 
 void setup_time_jump_callback(TimerInfo & timer_info, const rclcpp::Clock::SharedPtr & clock)
 {
-  if (!clock || clock->get_clock_type() != RCL_ROS_TIME) {
+  if (clock->get_clock_type() != RCL_ROS_TIME) {
     return;
   }
 
@@ -69,8 +54,6 @@ void setup_time_jump_callback(TimerInfo & timer_info, const rclcpp::Clock::Share
     [&timer_info](const rcl_time_jump_t & jump) { handle_post_time_jump(timer_info, jump); },
     threshold);
 }
-
-}  // namespace
 
 TimerInfo::~TimerInfo()
 {
@@ -126,7 +109,7 @@ void register_timer_info(
   const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
-  const int64_t now_ns = get_current_time_ns(clock);
+  const int64_t now_ns = clock->now().nanoseconds();
 
   auto timer_info = std::make_shared<TimerInfo>();
   timer_info->timer_fd = timer_fd;
@@ -169,8 +152,7 @@ void handle_timer_event(TimerInfo & timer_info)
       return;  // Timer object has been destroyed
     }
 
-    // Use clock-based time if available, otherwise use steady_clock
-    const int64_t now_ns = get_current_time_ns(timer_info.clock);
+    const int64_t now_ns = timer_info.clock->now().nanoseconds();
 
     timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
 

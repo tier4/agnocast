@@ -331,7 +331,7 @@ public:
 
     auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
 
-    register_timer_info(timer_id, timer, period, group);
+    register_timer_info(timer_id, timer, period, group, timer->get_clock());
 
     return timer;
   }
