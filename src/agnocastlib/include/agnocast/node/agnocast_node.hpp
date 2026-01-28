@@ -336,7 +336,6 @@ public:
     return timer;
   }
 
-  /// Create a timer using the node's clock (ROS_TIME by default, supports simulation time)
   template <typename DurationRepT, typename DurationT, typename CallbackT>
   typename GenericTimer<CallbackT>::SharedPtr create_timer(
     std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
@@ -345,7 +344,6 @@ public:
     return create_timer(period, std::forward<CallbackT>(callback), group, get_clock());
   }
 
-  /// Create a timer with explicit clock specification
   template <typename DurationRepT, typename DurationT, typename CallbackT>
   typename GenericTimer<CallbackT>::SharedPtr create_timer(
     std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
@@ -365,7 +363,7 @@ public:
     auto timer = std::make_shared<GenericTimer<CallbackT>>(
       timer_id, period_ns, clock, std::forward<CallbackT>(callback));
 
-    register_timer_info_with_clock(timer_id, timer, period_ns, group, clock);
+    register_timer_info(timer_id, timer, period_ns, group, clock);
 
     return timer;
   }

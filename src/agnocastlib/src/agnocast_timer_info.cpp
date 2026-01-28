@@ -123,13 +123,6 @@ uint32_t allocate_timer_id()
 
 void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr & callback_group)
-{
-  register_timer_info_with_clock(timer_id, timer, period, callback_group, nullptr);
-}
-
-void register_timer_info_with_clock(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
