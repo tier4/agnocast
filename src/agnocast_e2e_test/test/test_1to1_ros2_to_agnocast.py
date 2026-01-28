@@ -153,7 +153,7 @@ class Test1To1WithRos2Pub(unittest.TestCase):
 
                 # Startup timing determines which node logs the warning, so we scan the full log output.
                 full_log = "".join([
-                    line.text.decode() if isinstance(line.text, bytes) else line.text 
+                    line.text.decode() if isinstance(line.text, bytes) else line.text
                     for line in proc_output
                 ])
                 self.assertIn("incompatible QoS", full_log)

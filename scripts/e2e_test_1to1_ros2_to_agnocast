@@ -70,7 +70,7 @@ else
     PUB_QOS_DEPTH=(1 10)
     PUB_TRANSIENT_LOCAL=(true false)
     # Agnocast Subscriber (Sink)
-    sub_qos_depth=(1 10)
+    SUB_QOS_DEPTH=(1 10)
     SUB_TRANSIENT_LOCAL=(true false)
     
     USE_TAKE_SUB=(true false)
@@ -79,7 +79,7 @@ else
     for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
         for pub_qos_depth in ${PUB_QOS_DEPTH[@]}; do
             for pub_transient_local in ${PUB_TRANSIENT_LOCAL[@]}; do
-                for sub_qos_depth in ${sub_qos_depth[@]}; do
+                for sub_qos_depth in ${SUB_QOS_DEPTH[@]}; do
                     for sub_transient_local in ${SUB_TRANSIENT_LOCAL[@]}; do
                         for use_take_sub in ${USE_TAKE_SUB[@]}; do
                             COUNT=$((COUNT + 1))
