@@ -7,11 +7,11 @@
 namespace agnocast
 {
 
-class BridgeIpcEventLoop : public IpcEventLoopBase
+class StandardBridgeIpcEventLoop : public IpcEventLoopBase
 {
 public:
-  explicit BridgeIpcEventLoop(const rclcpp::Logger & logger);
-  ~BridgeIpcEventLoop() override = default;
+  explicit StandardBridgeIpcEventLoop(const rclcpp::Logger & logger);
+  ~StandardBridgeIpcEventLoop() override = default;
 };
 
 }  // namespace agnocast

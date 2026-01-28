@@ -207,7 +207,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 
     auto bridge_mode = get_bridge_mode();
     if (bridge_mode == BridgeMode::Standard) {
-      BridgeManager manager(target_pid);
+      StandardBridgeManager manager(target_pid);
       manager.run();
     } else if (bridge_mode == BridgeMode::Performance) {
       {

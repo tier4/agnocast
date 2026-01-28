@@ -11,14 +11,14 @@
 namespace agnocast
 {
 
-class BridgeManager
+class StandardBridgeManager
 {
 public:
-  explicit BridgeManager(pid_t target_pid);
-  ~BridgeManager();
+  explicit StandardBridgeManager(pid_t target_pid);
+  ~StandardBridgeManager();
 
-  BridgeManager(const BridgeManager &) = delete;
-  BridgeManager & operator=(const BridgeManager &) = delete;
+  StandardBridgeManager(const StandardBridgeManager &) = delete;
+  StandardBridgeManager & operator=(const StandardBridgeManager &) = delete;
 
   void run();
 
@@ -42,8 +42,8 @@ private:
   const pid_t target_pid_;
   rclcpp::Logger logger_;
 
-  BridgeIpcEventLoop event_loop_;
-  BridgeLoader loader_;
+  StandardBridgeIpcEventLoop event_loop_;
+  StandardBridgeLoader loader_;
 
   bool is_parent_alive_ = true;
   bool shutdown_requested_ = false;

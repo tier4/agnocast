@@ -10,7 +10,7 @@
 namespace agnocast
 {
 
-BridgeIpcEventLoop::BridgeIpcEventLoop(const rclcpp::Logger & logger)
+StandardBridgeIpcEventLoop::StandardBridgeIpcEventLoop(const rclcpp::Logger & logger)
 : IpcEventLoopBase(
     logger,
     // 1. MQ Name
