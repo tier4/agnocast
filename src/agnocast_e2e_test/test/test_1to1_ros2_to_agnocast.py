@@ -144,8 +144,18 @@ class Test1To1WithRos2Pub(unittest.TestCase):
             expected_total = EXPECT_INIT_SUB_NUM + EXPECT_SUB_NUM
             start_index = EXPECT_INIT_PUB_NUM - EXPECT_INIT_SUB_NUM
             
+            # The R2A bridge's ROS 2 Subscriber inherits QoS settings from the Agnocast Subscriber.
+            # Consequently, incompatible settings (e.g., Volatile Pub vs. Transient Local Sub) result in no communication.
+            # This check confirms that the connection is correctly rejected.
             if expected_total == 0:
                 self.assertEqual(output.count("Receiving"), 0)
+
+                # Startup timing determines which node logs the warning, so we scan the full log output.
+                full_log = "".join([
+                    line.text.decode() if isinstance(line.text, bytes) else line.text 
+                    for line in proc_output
+                ])
+                self.assertIn("incompatible QoS", full_log)
             else:
                 for i in range(start_index, start_index + expected_total):
                     self.assertEqual(output.count(f"Receiving {i}."), 1)
