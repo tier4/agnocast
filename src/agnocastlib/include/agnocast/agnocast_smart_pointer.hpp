@@ -116,7 +116,6 @@ public:
   topic_local_id_t get_pubsub_id() const { return control_ ? control_->pubsub_id : -1; }
   int64_t get_entry_id() const { return control_ ? control_->entry_id : ENTRY_ID_NOT_ASSIGNED; }
 
-
   ipc_shared_ptr() = default;
 
   // Publisher-side constructor (entry_id not yet assigned).
