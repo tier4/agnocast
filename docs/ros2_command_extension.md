@@ -42,7 +42,7 @@ Agnocast Subscription count: 1
 For more details, use `--verbose` or `-v`.
 
 ```bash
-$ ros2 topic info_agnocast -v /my_topic
+$ ros2 topic info_agnocast /my_topic -v
 Type: agnocast_sample_interfaces/msg/DynamicSizeArray
 
 ROS 2 Publisher count: 0
