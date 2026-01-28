@@ -67,7 +67,7 @@ uint32_t allocate_timer_id()
 }
 
 void register_timer_info(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
+  uint32_t timer_id, const std::shared_ptr<TimerBase> & timer, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr & callback_group)
 {
   const int timer_fd = create_timer_fd(timer_id, period);
