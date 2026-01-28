@@ -80,18 +80,20 @@ void prepare_epoll_impl(
         continue;
       }
 
-      // Register timerfd
-      struct epoll_event ev = {};
-      ev.events = EPOLLIN;
-      ev.data.u32 = timer_id | TIMER_EVENT_FLAG;
+      // Register timerfd for non-ROS_TIME timers (wall clock based)
+      if (timer_info.timer_fd >= 0) {
+        struct epoll_event ev = {};
+        ev.events = EPOLLIN;
+        ev.data.u32 = timer_id | TIMER_EVENT_FLAG;
 
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
-        RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
+          RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
+          close(agnocast_fd);
+          exit(EXIT_FAILURE);
+        }
       }
 
-      // Register clock_eventfd for ROS_TIME timers (for simulation time support)
+      // Register clock_eventfd for ROS_TIME timers (simulation time support)
       if (timer_info.clock_eventfd >= 0) {
         struct epoll_event clock_ev = {};
         clock_ev.events = EPOLLIN;

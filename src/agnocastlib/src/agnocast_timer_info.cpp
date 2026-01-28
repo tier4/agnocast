@@ -20,44 +20,54 @@ std::atomic<uint32_t> next_timer_id{0};
 
 void handle_pre_time_jump(TimerInfo & timer_info)
 {
-  // Save current time before the jump
   const int64_t now_ns = timer_info.clock->now().nanoseconds();
-  timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+  if (now_ns == 0) {
+    // No time credit if clock is uninitialized
+    return;
+  }
+  // Source of time may be changing, save elapsed duration pre jump
+  // so the timer only waits the remainder in the new epoch (if clock_change occurs)
+  const int64_t next_call_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
+  timer_info.time_credit.store(next_call_ns - now_ns, std::memory_order_relaxed);
 }
 
 void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
 {
   const int64_t now_ns = timer_info.clock->now().nanoseconds();
+  const int64_t last_call_ns = timer_info.last_call_time_ns.load(std::memory_order_relaxed);
+  const int64_t next_call_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
   const int64_t period_ns = timer_info.period.count();
 
   if (
     jump.clock_change == RCL_ROS_TIME_ACTIVATED || jump.clock_change == RCL_ROS_TIME_DEACTIVATED) {
-    // ROS time activated or deactivated: reset timer based on saved last_call_time
+    // ROS time activated or deactivated
     if (now_ns == 0) {
-      timer_info.next_call_time_ns.store(period_ns, std::memory_order_relaxed);
-    } else {
-      const int64_t last_ns = timer_info.last_call_time_ns.load(std::memory_order_relaxed);
-      timer_info.next_call_time_ns.store(last_ns + period_ns, std::memory_order_relaxed);
+      // Can't apply time credit if clock is uninitialized
+      return;
     }
-  } else if (jump.delta.nanoseconds < 0) {
-    // Backward jump: reset timer to fire after one period from now
-    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
-    timer_info.next_call_time_ns.store(now_ns + period_ns, std::memory_order_relaxed);
-  } else {
-    // Forward jump: adjust next fire time if we're behind
-    const int64_t next_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
-    if (next_ns < now_ns && period_ns > 0) {
-      const int64_t periods_missed = (now_ns - next_ns) / period_ns + 1;
+    const int64_t time_credit = timer_info.time_credit.exchange(0, std::memory_order_relaxed);
+    if (time_credit != 0) {
+      // Set times in new epoch so timer only waits the remainder of the period
       timer_info.next_call_time_ns.store(
-        next_ns + periods_missed * period_ns, std::memory_order_relaxed);
+        now_ns - time_credit + period_ns, std::memory_order_relaxed);
+      timer_info.last_call_time_ns.store(now_ns - time_credit, std::memory_order_relaxed);
     }
-  }
-
-  // Wake up epoll to check if timer should fire
-  if (timer_info.clock_eventfd >= 0) {
-    const uint64_t val = 1;
-    // Ignore write errors (e.g., if eventfd counter overflows)
-    [[maybe_unused]] auto _ = write(timer_info.clock_eventfd, &val, sizeof(val));
+  } else if (next_call_ns <= now_ns) {
+    // Post forward jump and timer is ready - wake up epoll
+    timer_info.time_credit.store(0, std::memory_order_relaxed);  // Clear unused time_credit
+    if (timer_info.clock_eventfd >= 0) {
+      const uint64_t val = 1;
+      [[maybe_unused]] auto _ = write(timer_info.clock_eventfd, &val, sizeof(val));
+    }
+  } else if (now_ns < last_call_ns) {
+    // Post backwards time jump that went further back than 1 period
+    // Next callback should happen after 1 period
+    timer_info.time_credit.store(0, std::memory_order_relaxed);  // Clear unused time_credit
+    timer_info.next_call_time_ns.store(now_ns + period_ns, std::memory_order_relaxed);
+    timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+  } else {
+    // Other cases (small forward jump where timer is not ready)
+    timer_info.time_credit.store(0, std::memory_order_relaxed);  // Clear unused time_credit
   }
 }
 
@@ -134,11 +144,10 @@ void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
 {
-  const int timer_fd = create_timer_fd(timer_id, period);
+  const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
   const int64_t now_ns = clock->now().nanoseconds();
 
   auto timer_info = std::make_shared<TimerInfo>();
-  timer_info->timer_fd = timer_fd;
   timer_info->timer = timer;
   timer_info->last_call_time_ns.store(now_ns, std::memory_order_relaxed);
   timer_info->next_call_time_ns.store(now_ns + period.count(), std::memory_order_relaxed);
@@ -147,15 +156,17 @@ void register_timer_info(
   timer_info->need_epoll_update = true;
   timer_info->clock = clock;
 
-  // Create eventfd for ROS_TIME timers to wake epoll on clock updates
-  if (clock->get_clock_type() == RCL_ROS_TIME) {
+  if (is_ros_time) {
+    // ROS_TIME timers use clock_eventfd only (no wall clock timerfd)
     timer_info->clock_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (timer_info->clock_eventfd == -1) {
-      close(timer_fd);
       throw std::runtime_error(
         "eventfd creation failed for timer_id=" + std::to_string(timer_id) + ": " +
         std::strerror(errno));
     }
+  } else {
+    // Non-ROS_TIME timers use wall clock timerfd
+    timer_info->timer_fd = create_timer_fd(timer_id, period);
   }
 
   setup_time_jump_callback(*timer_info, clock);
