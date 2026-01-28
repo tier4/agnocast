@@ -17,12 +17,28 @@ std::mutex id2_timer_info_mtx;
 std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 std::atomic<uint32_t> next_timer_id{0};
 
+void handle_pre_time_jump(TimerInfo & timer_info)
+{
+  // Save current time before the jump
+  const int64_t now_ns = timer_info.clock->now().nanoseconds();
+  timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+}
+
 void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
 {
   const int64_t now_ns = timer_info.clock->now().nanoseconds();
   const int64_t period_ns = timer_info.period.count();
 
-  if (jump.delta.nanoseconds < 0) {
+  if (
+    jump.clock_change == RCL_ROS_TIME_ACTIVATED || jump.clock_change == RCL_ROS_TIME_DEACTIVATED) {
+    // ROS time activated or deactivated: reset timer based on saved last_call_time
+    if (now_ns == 0) {
+      timer_info.next_call_time_ns.store(period_ns, std::memory_order_relaxed);
+    } else {
+      const int64_t last_ns = timer_info.last_call_time_ns.load(std::memory_order_relaxed);
+      timer_info.next_call_time_ns.store(last_ns + period_ns, std::memory_order_relaxed);
+    }
+  } else if (jump.delta.nanoseconds < 0) {
     // Backward jump: reset timer to fire after one period from now
     timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
     timer_info.next_call_time_ns.store(now_ns + period_ns, std::memory_order_relaxed);
@@ -45,12 +61,11 @@ void setup_time_jump_callback(TimerInfo & timer_info, const rclcpp::Clock::Share
 
   rcl_jump_threshold_t threshold;
   threshold.on_clock_change = true;
-  threshold.min_forward.nanoseconds = 1;   // React to any forward jump
-  threshold.min_backward.nanoseconds = 1;  // React to any backward jump
+  threshold.min_forward.nanoseconds = 1;
+  threshold.min_backward.nanoseconds = -1;
 
-  // Capture timer_info by pointer (the TimerInfo is managed by shared_ptr in the map)
   timer_info.jump_handler = clock->create_jump_callback(
-    nullptr,  // No pre-jump callback
+    [&timer_info]() { handle_pre_time_jump(timer_info); },
     [&timer_info](const rcl_time_jump_t & jump) { handle_post_time_jump(timer_info, jump); },
     threshold);
 }
