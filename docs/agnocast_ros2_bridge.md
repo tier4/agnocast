@@ -199,8 +199,8 @@ flowchart LR
     AgPub --> AgSub
 ```
 
-> **Note:** <br/>
- In the R2A Bridge, the internal ROS 2 subscription inherits the QoS settings from the external Agnocast subscriber. <br/>
+> [!WARNING]
+> In the R2A Bridge, the internal ROS 2 subscription inherits the QoS settings from the external Agnocast subscriber. <br/>
  Please ensure you avoid a QoS mismatch (specifically, a **Volatile Publisher vs. Transient Local Subscriber** scenario) during ROS 2 communication.
 
 **A2R Bridge (AgnocastToRosBridge)**:
