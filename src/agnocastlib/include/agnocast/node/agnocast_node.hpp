@@ -331,7 +331,46 @@ public:
 
     auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
 
-    register_timer_info(timer_id, timer, period, group);
+    register_timer_info(timer_id, timer, period, group, timer->get_clock());
+
+    return timer;
+  }
+
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    return create_timer(period, std::forward<CallbackT>(callback), group, get_clock());
+  }
+
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group, rclcpp::Clock::SharedPtr clock)
+  {
+    static_assert(
+      std::is_invocable_v<CallbackT, TimerBase &> || std::is_invocable_v<CallbackT>,
+      "Callback must be callable with void() or void(TimerBase&)");
+
+    if (clock->get_clock_type() == RCL_ROS_TIME) {
+      throw std::runtime_error(
+        "create_timer with RCL_ROS_TIME is not yet supported. "
+        "Simulation time (use_sim_time=true) requires additional implementation. "
+        "Use create_wall_timer for wall clock timers.");
+    }
+
+    if (!group) {
+      group = node_base_->get_default_callback_group();
+    }
+
+    const uint32_t timer_id = allocate_timer_id();
+    const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(period);
+
+    auto timer = std::make_shared<GenericTimer<CallbackT>>(
+      timer_id, period_ns, clock, std::forward<CallbackT>(callback));
+
+    register_timer_info(timer_id, timer, period_ns, group, clock);
 
     return timer;
   }
