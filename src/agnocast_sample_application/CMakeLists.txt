@@ -66,6 +66,12 @@ target_include_directories(server PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_executable(sim_time_timer src/sim_time_timer.cpp)
+ament_target_dependencies(sim_time_timer rclcpp agnocastlib)
+target_include_directories(sim_time_timer PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
 add_library(listener_component SHARED src/minimal_subscriber.cpp)
 ament_target_dependencies(listener_component rclcpp rclcpp_components agnocastlib agnocast_sample_interfaces)
 target_include_directories(listener_component PRIVATE ${agnocastlib_INCLUDE_DIRS})
@@ -111,6 +117,9 @@ install(TARGETS client
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS server
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS sim_time_timer
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

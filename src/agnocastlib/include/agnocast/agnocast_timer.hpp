@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rclcpp/clock.hpp"
 #include "rclcpp/macros.hpp"
 
 #include <chrono>
@@ -21,7 +22,9 @@ public:
   // void cancel(), bool is_canceled(), void reset(), std::chrono::nanoseconds time_until_trigger(),
   // etc.
 
-  bool is_steady() const { return true; }
+  virtual bool is_steady() const { return true; }
+
+  virtual rclcpp::Clock::SharedPtr get_clock() const { return nullptr; }
 
   virtual void execute_callback() = 0;
 
@@ -58,6 +61,44 @@ public:
 protected:
   RCLCPP_DISABLE_COPY(WallTimer)
 
+  FunctorT callback_;
+};
+
+template <typename FunctorT>
+class GenericTimer : public TimerBase
+{
+public:
+  RCLCPP_SMART_PTR_DEFINITIONS(GenericTimer)
+
+  GenericTimer(
+    uint32_t timer_id, std::chrono::nanoseconds period, rclcpp::Clock::SharedPtr clock,
+    FunctorT && callback)
+  : TimerBase(timer_id, period),
+    clock_(std::move(clock)),
+    callback_(std::forward<FunctorT>(callback))
+  {
+  }
+
+  void execute_callback() override
+  {
+    if constexpr (std::is_invocable_v<FunctorT, TimerBase &>) {
+      callback_(*this);
+    } else {
+      callback_();
+    }
+  }
+
+  bool is_steady() const override
+  {
+    return clock_ ? (clock_->get_clock_type() == RCL_STEADY_TIME) : true;
+  }
+
+  rclcpp::Clock::SharedPtr get_clock() const override { return clock_; }
+
+protected:
+  RCLCPP_DISABLE_COPY(GenericTimer)
+
+  rclcpp::Clock::SharedPtr clock_;
   FunctorT callback_;
 };
 
