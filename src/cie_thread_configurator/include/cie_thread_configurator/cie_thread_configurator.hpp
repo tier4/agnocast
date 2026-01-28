@@ -8,6 +8,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
@@ -69,6 +70,23 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
     auto publisher = node->create_publisher<cie_config_msgs::msg::NonRosThreadInfo>(
       "/cie_thread_configurator/non_ros_thread_info", rclcpp::QoS(1000).keep_all());
     auto tid = static_cast<pid_t>(syscall(SYS_gettid));
+
+    // Wait for subscriber to connect before publishing (timeout: 1 second)
+    constexpr int max_subscriber_wait_iterations = 100;  // 100 * 10ms = 1 second
+    int wait_count = 0;
+    while (publisher->get_subscription_count() == 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      if (++wait_count >= max_subscriber_wait_iterations) {
+        RCLCPP_WARN(
+          node->get_logger(),
+          "Timeout waiting for subscriber to connect for thread '%s'. "
+          "NonRosThreadInfo will not be published.",
+          thread_name.c_str());
+        context->shutdown("Timeout waiting for subscriber.");
+        std::apply(std::move(func), std::move(captured_args));
+        return;
+      }
+    }
 
     auto message = std::make_shared<cie_config_msgs::msg::NonRosThreadInfo>();
     message->thread_id = tid;
