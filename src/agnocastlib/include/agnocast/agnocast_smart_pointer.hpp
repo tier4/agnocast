@@ -36,6 +36,9 @@ void decrement_borrowed_publisher_num();
 
 extern int agnocast_fd;
 
+// Sentinel value indicating entry_id has not been assigned (publisher-side, before publish).
+constexpr int64_t ENTRY_ID_NOT_ASSIGNED = -1;
+
 // Forward declaration for friend access
 template <typename MessageT, typename BridgeRequestPolicy>
 class BasicPublisher;
@@ -111,7 +114,7 @@ public:
 
   const std::string get_topic_name() const { return control_ ? control_->topic_name : ""; }
   topic_local_id_t get_pubsub_id() const { return control_ ? control_->pubsub_id : -1; }
-  int64_t get_entry_id() const { return control_ ? control_->entry_id : -1; }
+  int64_t get_entry_id() const { return control_ ? control_->entry_id : ENTRY_ID_NOT_ASSIGNED; }
 
   // Deprecated: This method is unused and kept only for backward compatibility.
   [[deprecated("set_entry_id() is unused and will be removed in a future release")]]
@@ -122,14 +125,15 @@ public:
 
   ipc_shared_ptr() = default;
 
-  // Publisher-side constructor (entry_id not yet assigned => entry_id == -1).
+  // Publisher-side constructor (entry_id not yet assigned).
   // Creates control block for reference counting and one-shot invalidation.
   explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
-  : ptr_(ptr), control_(ptr ? new control_block(topic_name, pubsub_id, -1) : nullptr)
+  : ptr_(ptr),
+    control_(ptr ? new control_block(topic_name, pubsub_id, ENTRY_ID_NOT_ASSIGNED) : nullptr)
   {
   }
 
-  // Subscriber-side constructor (entry_id already assigned => entry_id != -1).
+  // Subscriber-side constructor (entry_id already assigned).
   // Creates control block for reference counting.
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
@@ -225,7 +229,7 @@ public:
     const bool was_last = control_->decrement_and_check();
 
     if (was_last) {
-      if (control_->entry_id != -1) {
+      if (control_->entry_id != ENTRY_ID_NOT_ASSIGNED) {
         // Subscriber side: notify kmod that all references are released.
         release_subscriber_reference(control_->topic_name, control_->pubsub_id, control_->entry_id);
       } else if (control_->valid.load(std::memory_order_acquire) == 1U) {
