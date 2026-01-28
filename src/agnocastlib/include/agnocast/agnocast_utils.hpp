@@ -8,10 +8,6 @@
 namespace agnocast
 {
 
-inline constexpr std::string_view SUFFIX_R2A = "_R2A";
-inline constexpr std::string_view SUFFIX_A2R = "_A2R";
-inline constexpr size_t SUFFIX_LEN = SUFFIX_R2A.length();
-
 extern rclcpp::Logger logger;
 extern int agnocast_fd;
 
