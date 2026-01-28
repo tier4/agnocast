@@ -1,4 +1,4 @@
-#include "agnocast/bridge/agnocast_bridge_manager.hpp"
+#include "agnocast/bridge/agnocast_standard_bridge_manager.hpp"
 
 #include "agnocast/agnocast_utils.hpp"
 #include "agnocast/bridge/agnocast_bridge_utils.hpp"
@@ -15,7 +15,7 @@ namespace agnocast
 
 BridgeManager::BridgeManager(pid_t target_pid)
 : target_pid_(target_pid),
-  logger_(rclcpp::get_logger("agnocast_bridge_manager")),
+  logger_(rclcpp::get_logger("agnocast_standard_bridge_manager")),
   event_loop_(logger_),
   loader_(logger_)
 {
