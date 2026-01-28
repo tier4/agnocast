@@ -73,7 +73,7 @@ class ipc_shared_ptr
     {
     }
 
-    void increment() noexcept { ref_count.fetch_add(1, std::memory_order_acquire); }
+    void increment() noexcept { ref_count.fetch_add(1, std::memory_order_relaxed); }
 
     // Returns true if this was the last reference (i.e., previous count was 1).
     bool decrement_and_check() noexcept
