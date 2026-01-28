@@ -69,8 +69,9 @@ void test_case_release_sub_ref_no_pubsub_id(struct kunit * test)
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret0, 0);
 
-  // Act: Publisher-side handles do not participate in reference counting,
-  // so releasing the publisher's reference should fail with -EINVAL.
+  // Act: Attempt to release a reference using the publisher's local ID.
+  // This should fail with -EINVAL because only subscriber IDs are tracked
+  // in the referencing_ids array for reference counting, not publisher IDs.
   int ret_sut = release_message_entry_reference(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
