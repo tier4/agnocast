@@ -74,26 +74,26 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
     // Wait for subscriber to connect before publishing (timeout: 1 second)
     constexpr int max_subscriber_wait_iterations = 100;  // 100 * 10ms = 1 second
     int wait_count = 0;
-    while (publisher->get_subscription_count() == 0) {
+    while (publisher->get_subscription_count() == 0 &&
+           wait_count < max_subscriber_wait_iterations) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      if (++wait_count >= max_subscriber_wait_iterations) {
-        RCLCPP_WARN(
-          node->get_logger(),
-          "Timeout waiting for subscriber to connect for thread '%s'. "
-          "NonRosThreadInfo will not be published.",
-          thread_name.c_str());
-        context->shutdown("Timeout waiting for subscriber.");
-        std::apply(std::move(func), std::move(captured_args));
-        return;
-      }
+      ++wait_count;
     }
 
-    auto message = std::make_shared<cie_config_msgs::msg::NonRosThreadInfo>();
-    message->thread_id = tid;
-    message->thread_name = thread_name;
-    publisher->publish(*message);
+    if (publisher->get_subscription_count() > 0) {
+      auto message = std::make_shared<cie_config_msgs::msg::NonRosThreadInfo>();
+      message->thread_id = tid;
+      message->thread_name = thread_name;
+      publisher->publish(*message);
+    } else {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Timeout waiting for subscriber to connect for thread '%s'. "
+        "NonRosThreadInfo will not be published.",
+        thread_name.c_str());
+    }
 
-    context->shutdown("Thread info published successfully.");
+    context->shutdown("cie_thread_client finished.");
 
     std::apply(std::move(func), std::move(captured_args));
   });
