@@ -112,6 +112,9 @@ public:
   const std::string get_topic_name() const { return control_ ? control_->topic_name : ""; }
   topic_local_id_t get_pubsub_id() const { return control_ ? control_->pubsub_id : -1; }
   int64_t get_entry_id() const { return control_ ? control_->entry_id : -1; }
+
+  // Deprecated: This method is unused and kept only for backward compatibility.
+  [[deprecated("set_entry_id() is unused and will be removed in a future release")]]
   void set_entry_id(const int64_t entry_id)
   {
     if (control_) control_->entry_id = entry_id;
