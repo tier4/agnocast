@@ -27,16 +27,6 @@ Buffer::Buffer(rclcpp::Clock::SharedPtr clock, tf2::Duration cache_time)
   jump_handler_ = clock_->create_jump_callback(nullptr, post_jump_cb, jump_threshold);
 }
 
-inline tf2::Duration from_rclcpp(const rclcpp::Duration & rclcpp_duration)
-{
-  return tf2::Duration(std::chrono::nanoseconds(rclcpp_duration.nanoseconds()));
-}
-
-inline rclcpp::Duration to_rclcpp(const tf2::Duration & duration)
-{
-  return rclcpp::Duration(std::chrono::nanoseconds(duration));
-}
-
 geometry_msgs::msg::TransformStamped Buffer::lookupTransform(
   const std::string & target_frame, const std::string & source_frame,
   const tf2::TimePoint & lookup_time, const tf2::Duration timeout) const
@@ -77,8 +67,8 @@ void conditionally_append_timeout_info(
   if (errstr) {
     std::stringstream ss;
     ss << ". canTransform returned after "
-       << tf2::durationToSec(from_rclcpp(current_time - start_time)) << " timeout was "
-       << tf2::durationToSec(from_rclcpp(timeout)) << ".";
+       << tf2::durationToSec(tf2_ros::fromRclcpp(current_time - start_time)) << " timeout was "
+       << tf2::durationToSec(tf2_ros::fromRclcpp(timeout)) << ".";
     (*errstr) += ss.str();
   }
 }
@@ -91,7 +81,7 @@ bool Buffer::canTransform(
     return false;
   }
 
-  rclcpp::Duration rclcpp_timeout(to_rclcpp(timeout));
+  rclcpp::Duration rclcpp_timeout(tf2_ros::toRclcpp(timeout));
 
   // poll for transform if timeout is set
   rclcpp::Time start_time = clock_->now();
@@ -119,7 +109,7 @@ bool Buffer::canTransform(
     return false;
   }
 
-  rclcpp::Duration rclcpp_timeout(to_rclcpp(timeout));
+  rclcpp::Duration rclcpp_timeout(tf2_ros::toRclcpp(timeout));
 
   // poll for transform if timeout is set
   rclcpp::Time start_time = clock_->now();

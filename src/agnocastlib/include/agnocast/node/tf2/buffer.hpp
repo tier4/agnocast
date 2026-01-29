@@ -18,17 +18,6 @@
 namespace agnocast
 {
 
-// Helper functions to convert between rclcpp and tf2 time types (same as tf2_ros)
-inline tf2::TimePoint fromRclcpp(const rclcpp::Time & time)
-{
-  return tf2::TimePoint(std::chrono::nanoseconds(time.nanoseconds()));
-}
-
-inline tf2::Duration fromRclcpp(const rclcpp::Duration & duration)
-{
-  return tf2::Duration(std::chrono::nanoseconds(duration.nanoseconds()));
-}
-
 /// This class inherits from tf2::BufferCore for transform storage and computation,
 /// and tf2_ros::BufferInterface for synchronous operations.
 class Buffer : public tf2::BufferCore, public tf2_ros::BufferInterface
@@ -67,7 +56,8 @@ public:
     const std::string & target_frame, const std::string & source_frame, const rclcpp::Time & time,
     const rclcpp::Duration timeout = rclcpp::Duration::from_nanoseconds(0)) const
   {
-    return lookupTransform(target_frame, source_frame, fromRclcpp(time), fromRclcpp(timeout));
+    return lookupTransform(
+      target_frame, source_frame, tf2_ros::fromRclcpp(time), tf2_ros::fromRclcpp(timeout));
   }
 
   /// \brief Get the transform between two frames by frame ID assuming fixed frame.
@@ -98,8 +88,8 @@ public:
     const rclcpp::Duration timeout = rclcpp::Duration::from_nanoseconds(0)) const
   {
     return lookupTransform(
-      target_frame, fromRclcpp(target_time), source_frame, fromRclcpp(source_time), fixed_frame,
-      fromRclcpp(timeout));
+      target_frame, tf2_ros::fromRclcpp(target_time), source_frame,
+      tf2_ros::fromRclcpp(source_time), fixed_frame, tf2_ros::fromRclcpp(timeout));
   }
 
   /// \brief Test if a transform is possible
@@ -122,7 +112,8 @@ public:
     const rclcpp::Duration timeout = rclcpp::Duration::from_nanoseconds(0),
     std::string * errstr = NULL) const
   {
-    return canTransform(target_frame, source_frame, fromRclcpp(time), fromRclcpp(timeout), errstr);
+    return canTransform(
+      target_frame, source_frame, tf2_ros::fromRclcpp(time), tf2_ros::fromRclcpp(timeout), errstr);
   }
 
   /// \brief Test if a transform is possible
@@ -153,8 +144,8 @@ public:
     std::string * errstr = NULL) const
   {
     return canTransform(
-      target_frame, fromRclcpp(target_time), source_frame, fromRclcpp(source_time), fixed_frame,
-      fromRclcpp(timeout), errstr);
+      target_frame, tf2_ros::fromRclcpp(target_time), source_frame,
+      tf2_ros::fromRclcpp(source_time), fixed_frame, tf2_ros::fromRclcpp(timeout), errstr);
   }
 
   /// \brief Get the clock used by this buffer
