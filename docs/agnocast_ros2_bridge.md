@@ -159,16 +159,15 @@ Bridges are not always active. The activation conditions differ between Standard
 
 | Mode | Bridge Creation (Start) | Bridge Destruction (Stop) | Behavior Summary |
 | :--- | :--- | :--- | :--- |
-| Standard | Local Agnocast endpoint exists. (Checks via kernel module) | Local Agnocast endpoint removed. (Count becomes 0) | Eager: Bridges are created immediately when an Agnocast node starts, regardless of whether a ROS 2 counterpart exists. |
-| Performance | Local Agnocast endpoint AND External ROS 2 endpoint exist. (Checks via kernel & ROS graph) | Local Agnocast endpoint removed OR External ROS 2 endpoint removed. | Lazy: Bridges are only created when there is an active pair of sender/receiver across the domains, reducing unnecessary overhead. |
+| Standard |Agnocast endpoint exists. | Agnocast endpoint removed. | Eager: Bridges are created immediately when an Agnocast node starts, regardless of whether a ROS 2 counterpart exists. |
+| Performance | Agnocast endpoint and External ROS 2 endpoint exist. | Agnocast endpoint removed or External ROS 2 endpoint removed. | Lazy: Bridges are only created when there is an active pair of sender/receiver across the domains, reducing unnecessary overhead. |
 
 ## QoS Behavior
 
-The internal QoS is fixed to maximize compatibility, ensuring connectivity regardless of the external QoS settings.
-
 ### Bridge Internal Structure
 
-Each bridge direction creates a pair of internal publisher and subscriber:
+Each bridge direction creates a pair of internal publisher and subscriber.
+The internal publisher's QoS is fixed to maximize compatibility, ensuring connectivity regardless of the external QoS settings.
 
 **R2A Bridge (RosToAgnocastBridge)**:
 
