@@ -26,6 +26,7 @@ setup(
         'ros2topic.verb': [
             'list_agnocast = ros2agnocast.verb.list_agnocast:ListAgnocastVerb',
             'info_agnocast = ros2agnocast.verb.topic_info_agnocast:TopicInfoAgnocastVerb',
+            'echo_agnocast = ros2agnocast.verb.echo_agnocast:EchoAgnocastVerb',
         ],
         'ros2node.verb': [
             'list_agnocast = ros2agnocast.verb.node_list_agnocast:ListAgnocastVerb',
