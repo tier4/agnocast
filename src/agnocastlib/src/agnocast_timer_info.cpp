@@ -176,18 +176,23 @@ void register_timer_info(
   timer_info->need_epoll_update = true;
   timer_info->clock = clock;
 
-  // All timers use timerfd for wall clock based firing
-  timer_info->timer_fd = create_timer_fd(timer_id, period);
-
   if (is_ros_time) {
-    // ROS_TIME timers also use clock_eventfd for simulation time support
+    // ROS_TIME timers use clock_eventfd for simulation time support
     timer_info->clock_eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (timer_info->clock_eventfd == -1) {
-      close(timer_info->timer_fd);
       throw std::runtime_error(
         "eventfd creation failed for timer_id=" + std::to_string(timer_id) + ": " +
         std::strerror(errno));
     }
+
+    // Only create timerfd if ros_time is not active (system time mode)
+    // If ros_time is already active, timer will be driven by clock_eventfd
+    if (!clock->ros_time_is_active()) {
+      timer_info->timer_fd = create_timer_fd(timer_id, period);
+    }
+  } else {
+    // Non-ROS_TIME timers always use timerfd
+    timer_info->timer_fd = create_timer_fd(timer_id, period);
   }
 
   setup_time_jump_callback(*timer_info, clock);
