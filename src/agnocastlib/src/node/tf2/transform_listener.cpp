@@ -26,11 +26,20 @@ TransformListener::TransformListener(
 void TransformListener::subscription_callback(
   agnocast::ipc_shared_ptr<tf2_msgs::msg::TFMessage> && msg, bool is_static)
 {
-  for (const auto & transform : msg->transforms) {
+  const tf2_msgs::msg::TFMessage & msg_in = *msg;
+  // TODO(tfoote) find a way to get the authority
+  std::string authority = "Authority undetectable";
+  for (size_t i = 0u; i < msg_in.transforms.size(); i++) {
     try {
-      buffer_.setTransform(transform, kDefaultAuthority, is_static);
+      buffer_.setTransform(msg_in.transforms[i], authority, is_static);
     } catch (const tf2::TransformException & ex) {
-      RCLCPP_ERROR(rclcpp::get_logger("agnocast.tf2"), "Failed to set transform: %s", ex.what());
+      // /\todo Use error reporting
+      std::string temp = ex.what();
+      RCLCPP_ERROR(
+        rclcpp::get_logger("tf2_listener"),
+        "Failure to set received transform from %s to %s with error: %s\n",
+        msg_in.transforms[i].child_frame_id.c_str(), msg_in.transforms[i].header.frame_id.c_str(),
+        temp.c_str());
     }
   }
 }

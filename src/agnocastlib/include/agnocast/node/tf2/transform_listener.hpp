@@ -52,8 +52,6 @@ private:
   tf2::BufferCore & buffer_;
   agnocast::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_subscription_;
   agnocast::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_static_subscription_;
-
-  static constexpr const char * kDefaultAuthority = "default_authority";
 };
 
 }  // namespace agnocast
