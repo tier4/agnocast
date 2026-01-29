@@ -96,6 +96,12 @@ NodeBase::NodeBase(
     std::make_shared<rclcpp::CallbackGroup>(rclcpp::CallbackGroupType::MutuallyExclusive);
 #endif
   callback_groups_.push_back(default_callback_group_);
+
+  // Initialize notify_guard_condition for executor compatibility
+  // This is needed when ComponentManager calls exec->add_node(get_node_base_interface())
+  if (context_) {
+    notify_guard_condition_ = std::make_unique<rclcpp::GuardCondition>(context_);
+  }
 }
 
 const char * NodeBase::get_name() const
@@ -200,7 +206,12 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
-  throw std::runtime_error("notify_guard_condition is not available in agnocast::Node.");
+  if (!notify_guard_condition_) {
+    throw std::runtime_error(
+      "notify_guard_condition is not available. "
+      "This agnocast::Node was created without a valid context.");
+  }
+  return *notify_guard_condition_;
 }
 
 bool NodeBase::get_use_intra_process_default() const
