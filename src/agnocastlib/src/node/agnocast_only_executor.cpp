@@ -97,12 +97,10 @@ bool AgnocastOnlyExecutor::validate_callback_group(
     exit(EXIT_FAILURE);
   }
 
-  // If no callback groups have been explicitly added, accept all
   if (added_callback_groups_.empty()) {
     return true;
   }
 
-  // Only accept callback groups that have been added to this executor
   return added_callback_groups_.find(group) != added_callback_groups_.end();
 }
 
