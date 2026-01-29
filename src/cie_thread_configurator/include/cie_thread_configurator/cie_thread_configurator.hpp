@@ -85,7 +85,13 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
       message->thread_id = tid;
       message->thread_name = thread_name;
       publisher->publish(*message);
-      publisher->wait_for_all_acked(std::chrono::milliseconds(500));
+      const bool all_acked = publisher->wait_for_all_acked(std::chrono::milliseconds(500));
+      if (!all_acked) {
+        RCLCPP_WARN(
+          node->get_logger(),
+          "Timed out waiting for NonRosThreadInfo acknowledgment (thread '%s').",
+          thread_name.c_str());
+      }
     } else {
       RCLCPP_WARN(
         node->get_logger(),
