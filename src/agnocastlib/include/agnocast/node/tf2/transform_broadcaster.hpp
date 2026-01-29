@@ -2,6 +2,7 @@
 #define AGNOCAST__NODE__TF2__TRANSFORM_BROADCASTER_HPP_
 
 #include "agnocast/agnocast.hpp"
+#include "tf2_ros/qos.hpp"
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
@@ -12,24 +13,14 @@
 namespace agnocast
 {
 
-/// \brief Default QoS for dynamic transform broadcasting (matches tf2_ros::DynamicBroadcasterQoS)
-inline rclcpp::QoS DynamicBroadcasterQoS(size_t depth = 100)
-{
-  return rclcpp::QoS(depth);
-}
-
-/// \brief Broadcasts dynamic transforms via Agnocast zero-copy IPC.
-///
-/// This class provides an easy way to publish coordinate frame transform information
-/// using Agnocast's zero-copy shared memory transport, avoiding DDS overhead.
+/// \brief This class provides an easy way to publish coordinate frame transform information
+/// using Agnocast's zero-copy shared memory transport.
 class TransformBroadcaster
 {
 public:
-  /// \brief Constructor
-  /// \param node Reference to an agnocast::Node
-  /// \param qos QoS settings for the publisher (default: depth=100)
+  /// \brief Node Constructor
   explicit TransformBroadcaster(
-    agnocast::Node & node, const rclcpp::QoS & qos = DynamicBroadcasterQoS());
+    agnocast::Node & node, const rclcpp::QoS & qos = tf2_ros::DynamicBroadcasterQoS());
 
   /// \brief Send a single TransformStamped message
   ///
