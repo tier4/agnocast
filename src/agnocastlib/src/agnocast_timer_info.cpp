@@ -57,7 +57,7 @@ void handle_post_time_jump(TimerInfo & timer_info, const rcl_time_jump_t & jump)
   } else if (jump.clock_change == RCL_ROS_TIME_DEACTIVATED) {
     // ROS time deactivated: recreate timerfd (back to system time)
     if (timer_info.timer_fd < 0) {
-      timer_info.timer_fd = create_timer_fd(timer_info.timer_id, timer_info.period);
+      timer_info.timer_fd = create_timer_fd(timer_info.timer_id, timer_info.period, RCL_ROS_TIME);
       timer_info.need_epoll_update = true;
       need_epoll_updates.store(true);
     }
@@ -117,9 +117,14 @@ TimerInfo::~TimerInfo()
   }
 }
 
-int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period)
+int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period, rcl_clock_type_t clock_type)
 {
-  int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+  // Use CLOCK_MONOTONIC for STEADY_TIME, CLOCK_REALTIME for others (SYSTEM_TIME, ROS_TIME)
+  // This matches rclcpp's behavior where:
+  // - RCL_STEADY_TIME uses monotonic clock
+  // - RCL_SYSTEM_TIME and RCL_ROS_TIME use system clock
+  const int clockid = (clock_type == RCL_STEADY_TIME) ? CLOCK_MONOTONIC : CLOCK_REALTIME;
+  int timer_fd = timerfd_create(clockid, TFD_NONBLOCK | TFD_CLOEXEC);
   if (timer_fd == -1) {
     throw std::runtime_error(
       "timerfd_create failed for timer_id=" + std::to_string(timer_id) + ": " +
@@ -177,7 +182,7 @@ void register_timer_info(
   timer_info->clock = clock;
 
   // All timers use timerfd for wall clock based firing
-  timer_info->timer_fd = create_timer_fd(timer_id, period);
+  timer_info->timer_fd = create_timer_fd(timer_id, period, clock->get_clock_type());
 
   if (is_ros_time) {
     // ROS_TIME timers also use clock_eventfd for simulation time support

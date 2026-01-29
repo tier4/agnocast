@@ -39,7 +39,8 @@ extern std::mutex id2_timer_info_mtx;
 extern std::unordered_map<uint32_t, std::shared_ptr<TimerInfo>> id2_timer_info;
 extern std::atomic<uint32_t> next_timer_id;
 
-int create_timer_fd(uint32_t timer_id, std::chrono::nanoseconds period);
+int create_timer_fd(
+  uint32_t timer_id, std::chrono::nanoseconds period, rcl_clock_type_t clock_type);
 
 void handle_timer_event(TimerInfo & timer_info);
 
