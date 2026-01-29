@@ -20,6 +20,8 @@ PUB_NUM = int(QOS_DEPTH / 2)
 TIMEOUT = float(os.environ.get('STRESS_TEST_TIMEOUT', 8.0))
 FOREVER = True if (os.environ.get('STRESS_TEST_TIMEOUT')) else False
 
+BRIDGE_MODE = os.environ.get('AGNOCAST_BRIDGE_MODE', 'off').lower()
+IS_STANDARD_BRIDGE = (BRIDGE_MODE == '1' or BRIDGE_MODE == 'STANDARD' or BRIDGE_MODE == 'standard')
 
 def generate_test_description():
     pub_i = 0
@@ -42,7 +44,7 @@ def generate_test_description():
                                     "transient_local": False,
                                     "init_pub_num": 0,
                                     "pub_num": PUB_NUM,
-                                    "planned_pub_count": 1,
+                                    "planned_pub_count": 2,
                                     "planned_sub_count": 1,
                                     "forever": FOREVER,
                                 }
@@ -61,7 +63,7 @@ def generate_test_description():
                                     "transient_local": False,
                                     "init_pub_num": 0,
                                     "pub_num": PUB_NUM,
-                                    "planned_pub_count": 1, # Number of ROS 2 inside the bridge.
+                                    "planned_pub_count": 1 if IS_STANDARD_BRIDGE else 0, # Number of ROS 2 inside the bridge.
                                     "planned_sub_count": 2, # Number of external Agnocast.
                                     "forever": FOREVER,
                                 }
