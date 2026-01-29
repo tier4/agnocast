@@ -19,6 +19,7 @@ struct TimerInfo
 {
   ~TimerInfo();
 
+  uint32_t timer_id = 0;
   int timer_fd = -1;
   int clock_eventfd = -1;  // eventfd to wake epoll on clock updates (ROS_TIME only)
   std::weak_ptr<TimerBase> timer;

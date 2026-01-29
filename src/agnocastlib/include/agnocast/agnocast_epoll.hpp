@@ -80,16 +80,18 @@ void prepare_epoll_impl(
         continue;
       }
 
-      // Register timerfd for non-ROS_TIME timers (wall clock based)
+      // Register timerfd (wall clock based firing)
       if (timer_info.timer_fd >= 0) {
         struct epoll_event ev = {};
         ev.events = EPOLLIN;
         ev.data.u32 = timer_id | TIMER_EVENT_FLAG;
 
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.timer_fd, &ev) == -1) {
-          RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
+          if (errno != EEXIST) {  // EEXIST means already registered, which is fine
+            RCLCPP_ERROR(logger, "epoll_ctl failed for timer: %s", strerror(errno));
+            close(agnocast_fd);
+            exit(EXIT_FAILURE);
+          }
         }
       }
 
@@ -100,9 +102,11 @@ void prepare_epoll_impl(
         clock_ev.data.u32 = timer_id | CLOCK_EVENT_FLAG;
 
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_info.clock_eventfd, &clock_ev) == -1) {
-          RCLCPP_ERROR(logger, "epoll_ctl failed for clock_eventfd: %s", strerror(errno));
-          close(agnocast_fd);
-          exit(EXIT_FAILURE);
+          if (errno != EEXIST) {  // EEXIST means already registered, which is fine
+            RCLCPP_ERROR(logger, "epoll_ctl failed for clock_eventfd: %s", strerror(errno));
+            close(agnocast_fd);
+            exit(EXIT_FAILURE);
+          }
         }
       }
 
