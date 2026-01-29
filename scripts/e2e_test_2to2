@@ -12,7 +12,7 @@ usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -h, --help      Show this help message"
-    echo "  -s, --single    Run only one test case using current config file"
+    echo "  -s, --single    Run only one test case (Native mode, current config)"
     echo "  -c, --continue  Continue running tests even if one fails"
     exit 0
 }
@@ -52,52 +52,61 @@ source install/setup.bash
 CONFIG_FILE=src/agnocast_e2e_test/test/config_test_2to2.yaml
 show_config() {
     echo "----------------------------------------------" | sudo tee /dev/kmsg
+    echo "Test Mode: $TEST_MODE" | sudo tee /dev/kmsg
     cat $CONFIG_FILE | sudo tee /dev/kmsg
     echo "----------------------------------------------" | sudo tee /dev/kmsg
 }
 
 FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
+    export TEST_MODE="native"
     show_config
-    launch_test src/agnocast_e2e_test/test/test_2to2.py
+    launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:=native
     if [ $? -ne 0 ]; then
         echo "Test failed" | sudo tee /dev/kmsg
         exit 1
     fi
 else
+    TEST_MODES=("native" "r2a" "a2r")
     CONTAINER_LAYOUT=("PPSS" "PP|SS" "P|PSS" "PPS|S" "P|P|SS" "P|PS|S" "PP|S|S" "P|P|S|S")
 
-    COUNT=0
-    for layout in "${CONTAINER_LAYOUT[@]}"; do
-        COUNT=$((COUNT + 1))
+    TOTAL_TESTS=$((${#TEST_MODES[@]} * ${#CONTAINER_LAYOUT[@]}))
+    CURRENT_COUNT=0
 
-        IFS='|' read -ra containers <<<"$layout"
-        for i in {0..3}; do # 4 containers
-            if [ "$i" -lt "${#containers[@]}" ]; then
-                list=$(echo "${containers[$i]}" | sed 's/./\L&,/g; s/,$//') # PPSS" -> "p,p,s,s"
-            else
-                list=""
+    for mode in "${TEST_MODES[@]}"; do
+        export TEST_MODE=$mode
+
+        for layout in "${CONTAINER_LAYOUT[@]}"; do
+            CURRENT_COUNT=$((CURRENT_COUNT + 1))
+
+            IFS='|' read -ra containers <<<"$layout"
+            for i in {0..3}; do # 4 containers
+                if [ "$i" -lt "${#containers[@]}" ]; then
+                    list=$(echo "${containers[$i]}" | sed 's/./\L&,/g; s/,$//') # PPSS" -> "p,p,s,s"
+                else
+                    list=""
+                fi
+                sed -i "s|^container$i:.*|container$i: [$list]|" "$CONFIG_FILE"
+            done
+
+            echo "====================== $CURRENT_COUNT / $TOTAL_TESTS (Mode: $mode) ======================" | sudo tee /dev/kmsg
+            show_config
+            launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:=$mode
+
+            if [ $? -ne 0 ]; then
+                echo "Test failed at Mode: $mode, Layout: $layout" | sudo tee /dev/kmsg
+                if [ "$CONTINUE_ON_FAILURE" = true ]; then
+                    FAILURE_COUNT=$((FAILURE_COUNT + 1))
+                else
+                    exit 1
+                fi
             fi
-            sed -i "s|^container$i:.*|container$i: [$list]|" "$CONFIG_FILE"
         done
-
-        echo "====================== $COUNT / 8 ======================" | sudo tee /dev/kmsg
-        show_config
-        launch_test src/agnocast_e2e_test/test/test_2to2.py
-
-        if [ $? -ne 0 ]; then
-            echo "Test failed" | sudo tee /dev/kmsg
-            if [ "$CONTINUE_ON_FAILURE" = true ]; then
-                FAILURE_COUNT=$((FAILURE_COUNT + 1))
-            else
-                exit 1
-            fi
-        fi
     done
 fi
 
 if [ "$FAILURE_COUNT" -gt 0 ]; then
-    echo "$FAILURE_COUNT / $COUNT tests failed" | sudo tee /dev/kmsg
+    echo "$FAILURE_COUNT / $TOTAL_TESTS tests failed" | sudo tee /dev/kmsg
     exit 1
 else
     echo "All tests passed!!" | sudo tee /dev/kmsg
