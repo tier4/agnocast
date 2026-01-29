@@ -2,7 +2,8 @@
 
 ## Overview
 
-The Agnocast Bridge enables communication between Agnocast nodes and ROS 2 nodes. It automatically forwards messages bidirectionally while preventing message circulation (echo-back):
+The Agnocast Bridge enables communication between Agnocast nodes and ROS 2 nodes. It automatically forwards messages bidirectionally.
+Message circulation (echo-back) is automatically prevented by the bridge's internal logic. No additional configuration or constraints are required.
 
 - **R2A (ROS 2 → Agnocast)**: Forwards messages from ROS 2 publishers to Agnocast subscribers
 - **A2R (Agnocast → ROS 2)**: Forwards messages from Agnocast publishers to ROS 2 subscribers
@@ -36,25 +37,26 @@ Agnocast supports three bridge modes controlled by the `AGNOCAST_BRIDGE_MODE` en
 
 | Mode | Value | Description |
 |------|-------|-------------|
-| **Off** | `0` or `off` | Bridge disabled; no ROS 2 interoperability |
-| **Standard** | `1` or `standard` | One bridge manager per Agnocast process (default) |
-| **Performance** | `2` or `performance` | Single global bridge manager for all processes |
+| Off | `0` or `off` | Bridge disabled; no ROS 2 interoperability |
+| Standard | `1` or `standard` | One bridge manager per Agnocast process (default) |
+| Performance | `2` or `performance` | Single global bridge manager for all processes |
 
 **Note:**
 
-- Values are **case-insensitive** (e.g., `Standard`, `OFF`, `Performance` are valid).
-- If an unknown value is provided, it falls back to **Standard** mode with a warning.
+- Values are case-insensitive (e.g., `Standard`, `OFF`, `Performance` are valid).
+- If an unknown value is provided, it falls back to Standard mode with a warning.
 
 ### Standard Mode vs Performance Mode
 
 Standard Mode and Performance Mode have distinct trade-offs regarding resource usage, isolation, and setup complexity.
 
-| Feature | Standard Mode | Performance Mode |
+| Feature | [Standard Mode](#standard-mode-default) | [Performance Mode](#performance-mode) |
 | :--- | :--- | :--- |
-| **Architecture** | **Distributed**: 1 Bridge Manager per Agnocast process. | **Centralized**: 1 Global Bridge Manager for all processes. |
-| **Resource Usage** | **High**: Increases linearly with the number of processes (CPU/RAM overhead). | **Low**: Minimal overhead. Efficient for systems with many nodes. |
-| **Isolation & Safety** | **High**: Bridges are isolated. If one bridge crashes, others are unaffected. | **Low**: Shared process. A crash in the manager affects all bridged topics. |
-| **Setup** | **Easy**: No preparation needed. Works dynamically. | **Complex**: Requires pre-compiled plugins (`BUILD_GENERIC_BRIDGE=ON`). |
+| Architecture | Distributed: 1 Bridge Manager per Agnocast process. | Centralized: 1 Global Bridge Manager for all processes. |
+| Resource Usage | High: Increases linearly with the number of processes. | Low: Minimal overhead. Efficient for systems with many nodes. |
+| Activation Strategy | Eager: Starts immediately regardless of ROS 2 status. | Lazy: Starts only when a counterpart exists ([See Conditions](#bridge-activation-conditions)). |
+| Isolation & Safety | High: Bridges are isolated. If one bridge crashes, others are unaffected. | Low: Shared process. A crash in the manager affects all bridged topics. |
+| Setup | Easy: No preparation needed. Works dynamically. | Complex: Requires pre-compiled plugins ([See Build](#performance-mode-build)). |
 
 ### Standard Mode (Default)
 
@@ -148,39 +150,21 @@ When `BUILD_GENERIC_BRIDGE=ON` is set, the build system automatically:
 2. Generates R2A and A2R bridge plugins for each message type
 3. Installs plugins to `lib/agnocastlib/bridge_plugins/`
 
+> [!NOTE]
+> Since plugins are generated at build time, any new custom message types added after the build will not be supported in Performance Mode until agnocastlib is rebuilt.
+
 ## Bridge Activation Conditions
 
-Bridges are **not** always active. The activation conditions differ between Standard mode and Performance mode.
+Bridges are not always active. The activation conditions differ between Standard mode and Performance mode.
 
-### Standard Mode
-
-In Standard mode, the bridge is activated when an Agnocast endpoint sends a bridge request. The bridge manager checks endpoint existence via the kernel module.
-
-| Bridge Direction | Activation Condition |
-|------------------|---------------------|
-| R2A (ROS 2 → Agnocast) | Agnocast subscriber exists (checked via kernel) |
-| A2R (Agnocast → ROS 2) | Agnocast publisher exists (checked via kernel) |
-
-**Removal conditions**:
-
-- R2A: Removed when Agnocast subscriber count becomes 0
-- A2R: Removed when Agnocast publisher count becomes 0
-
-### Performance Mode
-
-In Performance mode, the bridge manager additionally checks for external ROS 2 endpoints before creating a bridge.
-
-| Bridge Direction | Activation Condition |
-|------------------|---------------------|
-| R2A (ROS 2 → Agnocast) | Agnocast subscriber exists **AND** external ROS 2 publisher exists |
-| A2R (Agnocast → ROS 2) | Agnocast publisher exists **AND** external ROS 2 subscriber exists |
-
-**Removal conditions**:
-
-- R2A: Removed when Agnocast subscriber count becomes 0 **OR** no external ROS 2 publisher exists
-- A2R: Removed when Agnocast publisher count becomes 0 **OR** no external ROS 2 subscriber exists
+| Mode | Bridge Creation (Start) | Bridge Destruction (Stop) | Behavior Summary |
+| :--- | :--- | :--- | :--- |
+| Standard | Local Agnocast endpoint exists. (Checks via kernel module) | Local Agnocast endpoint removed. (Count becomes 0) | Eager: Bridges are created immediately when an Agnocast node starts, regardless of whether a ROS 2 counterpart exists. |
+| Performance | Local Agnocast endpoint AND External ROS 2 endpoint exist. (Checks via kernel & ROS graph) | Local Agnocast endpoint removed OR External ROS 2 endpoint removed. | Lazy: Bridges are only created when there is an active pair of sender/receiver across the domains, reducing unnecessary overhead. |
 
 ## QoS Behavior
+
+The internal QoS is fixed to maximize compatibility, ensuring connectivity regardless of the external QoS settings.
 
 ### Bridge Internal Structure
 
