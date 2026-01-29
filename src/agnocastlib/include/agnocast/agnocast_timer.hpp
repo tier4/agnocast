@@ -39,32 +39,6 @@ protected:
 };
 
 template <typename FunctorT>
-class WallTimer : public TimerBase
-{
-public:
-  RCLCPP_SMART_PTR_DEFINITIONS(WallTimer)
-
-  WallTimer(uint32_t timer_id, std::chrono::nanoseconds period, FunctorT && callback)
-  : TimerBase(timer_id, period), callback_(std::forward<FunctorT>(callback))
-  {
-  }
-
-  void execute_callback() override
-  {
-    if constexpr (std::is_invocable_v<FunctorT, TimerBase &>) {
-      callback_(*this);
-    } else {
-      callback_();
-    }
-  }
-
-protected:
-  RCLCPP_DISABLE_COPY(WallTimer)
-
-  FunctorT callback_;
-};
-
-template <typename FunctorT>
 class GenericTimer : public TimerBase
 {
 public:
@@ -100,6 +74,23 @@ protected:
 
   rclcpp::Clock::SharedPtr clock_;
   FunctorT callback_;
+};
+
+template <typename FunctorT>
+class WallTimer : public GenericTimer<FunctorT>
+{
+public:
+  RCLCPP_SMART_PTR_DEFINITIONS(WallTimer)
+
+  WallTimer(uint32_t timer_id, std::chrono::nanoseconds period, FunctorT && callback)
+  : GenericTimer<FunctorT>(
+      timer_id, period, std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME),
+      std::forward<FunctorT>(callback))
+  {
+  }
+
+protected:
+  RCLCPP_DISABLE_COPY(WallTimer)
 };
 
 }  // namespace agnocast

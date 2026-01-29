@@ -1,6 +1,7 @@
-#include "agnocast/bridge/agnocast_bridge_loader.hpp"
+#include "agnocast/bridge/agnocast_standard_bridge_loader.hpp"
 
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <dlfcn.h>
 #include <elf.h>
@@ -14,18 +15,18 @@
 namespace agnocast
 {
 
-BridgeLoader::BridgeLoader(const rclcpp::Logger & logger) : logger_(logger)
+StandardBridgeLoader::StandardBridgeLoader(const rclcpp::Logger & logger) : logger_(logger)
 {
 }
 
-BridgeLoader::~BridgeLoader()
+StandardBridgeLoader::~StandardBridgeLoader()
 {
   cached_factories_.clear();
 }
 
-std::shared_ptr<void> BridgeLoader::create(
+std::shared_ptr<void> StandardBridgeLoader::create(
   const MqMsgBridge & req, const std::string & topic_name_with_direction,
-  const rclcpp::Node::SharedPtr & node)
+  const rclcpp::Node::SharedPtr & node, const rclcpp::QoS & qos)
 {
   auto [entry_func, lib_handle] = resolve_factory_function(req, topic_name_with_direction);
 
@@ -37,15 +38,15 @@ std::shared_ptr<void> BridgeLoader::create(
     return nullptr;
   }
 
-  return create_bridge_instance(entry_func, lib_handle, node, req.target);
+  return create_bridge_instance(entry_func, lib_handle, node, req.target, qos);
 }
 
-std::shared_ptr<void> BridgeLoader::create_bridge_instance(
+std::shared_ptr<void> StandardBridgeLoader::create_bridge_instance(
   BridgeFn entry_func, const std::shared_ptr<void> & lib_handle,
-  const rclcpp::Node::SharedPtr & node, const BridgeTargetInfo & target)
+  const rclcpp::Node::SharedPtr & node, const BridgeTargetInfo & target, const rclcpp::QoS & qos)
 {
   try {
-    auto bridge_resource = entry_func(node, target);
+    auto bridge_resource = entry_func(node, target, qos);
     if (!bridge_resource) {
       return nullptr;
     }
@@ -66,7 +67,7 @@ std::shared_ptr<void> BridgeLoader::create_bridge_instance(
   }
 }
 
-std::pair<void *, uintptr_t> BridgeLoader::load_library(
+std::pair<void *, uintptr_t> StandardBridgeLoader::load_library(
   const char * lib_path, const char * symbol_name)
 {
   void * handle = nullptr;
@@ -89,7 +90,7 @@ std::pair<void *, uintptr_t> BridgeLoader::load_library(
   return {handle, map->l_addr};
 }
 
-std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_function(
+std::pair<BridgeFn, std::shared_ptr<void>> StandardBridgeLoader::resolve_factory_function(
   const MqMsgBridge & req, const std::string & topic_name_with_direction)
 {
   if (auto it = cached_factories_.find(topic_name_with_direction); it != cached_factories_.end()) {
@@ -156,7 +157,7 @@ std::pair<BridgeFn, std::shared_ptr<void>> BridgeLoader::resolve_factory_functio
   return {entry_func, lib_handle_ptr};
 }
 
-bool BridgeLoader::is_address_in_library_code_segment(void * handle, uintptr_t addr)
+bool StandardBridgeLoader::is_address_in_library_code_segment(void * handle, uintptr_t addr)
 {
   struct link_map * lm = nullptr;
   if (dlinfo(handle, RTLD_DI_LINKMAP, &lm) != 0 || lm == nullptr) {

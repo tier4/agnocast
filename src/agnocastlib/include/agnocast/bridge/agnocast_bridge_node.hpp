@@ -108,7 +108,6 @@ public:
     rclcpp::SubscriptionOptions ros_opts;
     ros_opts.ignore_local_publications = true;
     ros_opts.callback_group = ros_cb_group_;
-    auto pub_ptr = agnocast_pub_;
 
     // The ROS subscription acts as a proxy for the requesting Agnocast subscriber.
     // sub_qos applies the Agnocast subscriber's settings (e.g. history depth)
@@ -180,20 +179,18 @@ public:
 
 template <typename MessageT>
 std::shared_ptr<void> start_ros_to_agno_node(
-  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info, const rclcpp::QoS & qos)
 {
   std::string topic_name(static_cast<const char *>(info.topic_name));
-  return std::make_shared<RosToAgnocastBridge<MessageT>>(
-    node, topic_name, get_subscriber_qos(topic_name, info.target_id));
+  return std::make_shared<RosToAgnocastBridge<MessageT>>(node, topic_name, qos);
 }
 
 template <typename MessageT>
 std::shared_ptr<void> start_agno_to_ros_node(
-  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info, const rclcpp::QoS & qos)
 {
   std::string topic_name(static_cast<const char *>(info.topic_name));
-  return std::make_shared<AgnocastToRosBridge<MessageT>>(
-    node, topic_name, get_publisher_qos(topic_name, info.target_id));
+  return std::make_shared<AgnocastToRosBridge<MessageT>>(node, topic_name, qos);
 }
 
 template <typename MsgStruct>
@@ -283,7 +280,7 @@ void send_bridge_request(
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
-  std::string mq_name = create_mq_name_for_bridge(bridge_manager_pid);
+  std::string mq_name = create_mq_name_for_bridge(standard_bridge_manager_pid);
   send_mq_message(mq_name, msg, BRIDGE_MQ_MESSAGE_SIZE, logger);
 }
 
