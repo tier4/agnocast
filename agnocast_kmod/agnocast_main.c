@@ -2197,6 +2197,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           &topic_info_pub_args, (union ioctl_topic_info_args __user *)arg,
           sizeof(topic_info_pub_args)))
       return -EFAULT;
+    if (topic_info_pub_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
     char * topic_name_buf = kmalloc(topic_info_pub_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) return -ENOMEM;
     if (copy_from_user(
