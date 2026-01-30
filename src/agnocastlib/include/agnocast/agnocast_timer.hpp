@@ -25,7 +25,7 @@ public:
 
   virtual bool is_steady() const { return true; }
 
-  virtual rclcpp::Clock::SharedPtr get_clock() const { return nullptr; }
+  virtual rclcpp::Clock::SharedPtr get_clock() const = 0;
 
   virtual void execute_callback() = 0;
 
