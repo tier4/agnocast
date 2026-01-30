@@ -353,13 +353,6 @@ public:
       std::is_invocable_v<CallbackT, TimerBase &> || std::is_invocable_v<CallbackT>,
       "Callback must be callable with void() or void(TimerBase&)");
 
-    if (clock->get_clock_type() == RCL_ROS_TIME) {
-      throw std::runtime_error(
-        "create_timer with RCL_ROS_TIME is not yet supported. "
-        "Simulation time (use_sim_time=true) requires additional implementation. "
-        "Use create_wall_timer for wall clock timers.");
-    }
-
     if (!group) {
       group = node_base_->get_default_callback_group();
     }

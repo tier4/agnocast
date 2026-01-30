@@ -70,6 +70,12 @@ void register_timer_info(
   uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
 {
+  if (clock->get_clock_type() != RCL_STEADY_TIME) {
+    throw std::runtime_error(
+      "Only RCL_STEADY_TIME is currently supported. "
+      "RCL_SYSTEM_TIME and RCL_ROS_TIME are not yet implemented.");
+  }
+
   const int timer_fd = create_timer_fd(timer_id, period);
   const int64_t now_ns = clock->now().nanoseconds();
 
