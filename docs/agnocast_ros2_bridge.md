@@ -63,24 +63,25 @@ Standard Mode and Performance Mode have distinct trade-offs regarding resource u
 Each Agnocast process spawns its own bridge manager as a forked child process. This provides process isolation and is suitable for most use cases.
 
 ```mermaid
-flowchart LR
-    subgraph GroupA [Process A]
-        direction TB
+flowchart TB    
+    subgraph ParentB ["Parent Process B"]
+        ProcB[Agnocast Processe B]
+    end
+
+    subgraph ParentA ["Parent Process A"]
         ProcA[Agnocast Process A]
-        BMA[Standard Bridge Manager A]
-        
-        ProcA ---> BMA
+    end
+    
+    subgraph ChildB ["Child Process B"]
+        BMB[Bridge Manager B]
     end
 
-    subgraph GroupB [Process B]
-        direction TB
-        ProcB[Agnocast Process B]
-        BMB[Standard Bridge Manager B]
-        
-        ProcB ---> BMB
+    subgraph ChildA ["Child Process A"]
+        BMA[Bridge Manager A]
     end
-
-    GroupA ~~~ GroupB
+    
+    ProcA --> BMA
+    ProcB --> BMB
 ```
 
 ### Performance Mode
