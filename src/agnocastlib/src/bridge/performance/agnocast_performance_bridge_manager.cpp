@@ -196,6 +196,14 @@ void PerformanceBridgeManager::check_and_remove_request_cache()
 
     remove_invalid_requests(topic_name, requests);
 
+    // Update ROS 2 subscriber count for topics with A2R requests
+    for (const auto & [id, msg] : requests) {
+      if (msg.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
+        update_ros2_subscriber_num(container_node_.get(), topic_name);
+        break;
+      }
+    }
+
     if (requests.empty()) {
       cache_it = request_cache_.erase(cache_it);
     } else {
