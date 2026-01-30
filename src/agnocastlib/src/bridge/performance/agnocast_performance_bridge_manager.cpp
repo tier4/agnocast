@@ -171,6 +171,10 @@ void PerformanceBridgeManager::check_and_remove_bridges()
   while (a2r_it != active_a2r_bridges_.end()) {
     const std::string & topic_name = a2r_it->first;
     auto result = get_agnocast_publisher_count(topic_name);
+    if (!update_ros2_subscriber_num(container_node_.get(), topic_name)) {
+      RCLCPP_ERROR(
+        logger_, "Failed to update ROS 2 subscriber count for topic '%s'.", topic_name.c_str());
+    }
     bool is_demanded_by_ros2 = has_external_ros2_subscriber(container_node_.get(), topic_name);
     if (result.count == -1) {
       RCLCPP_ERROR(
@@ -195,14 +199,6 @@ void PerformanceBridgeManager::check_and_remove_request_cache()
     auto & requests = cache_it->second;
 
     remove_invalid_requests(topic_name, requests);
-
-    // Update ROS 2 subscriber count for topics with A2R requests
-    for (const auto & [id, msg] : requests) {
-      if (msg.direction == BridgeDirection::AGNOCAST_TO_ROS2) {
-        update_ros2_subscriber_num(container_node_.get(), topic_name);
-        break;
-      }
-    }
 
     if (requests.empty()) {
       cache_it = request_cache_.erase(cache_it);
