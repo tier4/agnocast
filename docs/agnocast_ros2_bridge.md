@@ -65,7 +65,7 @@ Each Agnocast process spawns its own bridge manager as a forked child process. T
 ```mermaid
 flowchart TB    
     subgraph ParentB ["Parent Process B"]
-        ProcB[Agnocast Processe B]
+        ProcB[Agnocast Process B]
     end
 
     subgraph ParentA ["Parent Process A"]
