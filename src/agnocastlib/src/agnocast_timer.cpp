@@ -7,7 +7,7 @@ namespace agnocast
 
 TimerBase::~TimerBase()
 {
-  unregister_timer_info(timer_id_);
+  remove_timer(timer_id_);
 }
 
 }  // namespace agnocast

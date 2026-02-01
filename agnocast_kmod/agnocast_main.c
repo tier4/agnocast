@@ -2056,8 +2056,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(
           &get_subscriber_num_args, (union ioctl_get_subscriber_num_args __user *)arg,
           sizeof(get_subscriber_num_args)))
-      goto return_EFAULT;
-    if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) goto return_EINVAL;
+      return -EFAULT;
+    if (get_subscriber_num_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
     char * topic_name_buf = kmalloc(get_subscriber_num_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) return -ENOMEM;
     if (copy_from_user(
