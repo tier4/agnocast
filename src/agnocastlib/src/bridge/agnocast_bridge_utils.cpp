@@ -50,12 +50,11 @@ SubscriberCountResult get_agnocast_subscriber_count(const std::string & topic_na
 {
   union ioctl_get_subscriber_num_args args = {};
   args.topic_name = {topic_name.c_str(), topic_name.size()};
-  args.include_ros2 = false;
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
     return {-1, false};
   }
-  return {static_cast<int>(args.ret_subscriber_num), args.ret_bridge_exist};
+  return {static_cast<int>(args.ret_other_process_subscriber_num), args.ret_a2r_bridge_exist};
 }
 
 PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name)
@@ -95,6 +94,21 @@ bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string &
   return std::any_of(subscribers.begin(), subscribers.end(), [&self_name](const auto & info) {
     return info.node_name() != self_name;
   });
+}
+
+bool update_ros2_subscriber_num(const std::string & topic_name, const rclcpp::Node * container_node_)
+{
+  size_t ros2_count = container_node_->count_subscribers(topic_name);
+
+  struct ioctl_set_ros2_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  args.ros2_subscriber_num = static_cast<uint32_t>(ros2_count);
+
+  if (ioctl(agnocast_fd, AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
 }
 
 }  // namespace agnocast

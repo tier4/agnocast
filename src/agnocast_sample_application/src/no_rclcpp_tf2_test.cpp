@@ -30,7 +30,7 @@ public:
     publish_static_transform();
 
     // Create a timer to periodically publish dynamic transforms and test lookups
-    timer_id_ = create_wall_timer(100ms, [this]() { timer_callback(); });
+    timer_ = create_wall_timer(100ms, [this]() { timer_callback(); });
   }
 
 private:
@@ -132,7 +132,7 @@ private:
   std::shared_ptr<agnocast::TransformListener> listener_;
   std::shared_ptr<agnocast::TransformBroadcaster> broadcaster_;
   std::shared_ptr<agnocast::StaticTransformBroadcaster> static_broadcaster_;
-  uint32_t timer_id_;
+  agnocast::TimerBase::SharedPtr timer_;
   int callback_count_ = 0;
 };
 

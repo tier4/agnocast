@@ -16,8 +16,9 @@
 #define AGNOCAST__NODE__TF2__TRANSFORM_LISTENER_HPP_
 
 #include "agnocast/agnocast.hpp"
+#include "agnocast/node/tf2/buffer.hpp"
+#include "agnocast/node/tf2/create_timer_agnocast.hpp"
 
-#include "tf2/buffer_core.h"
 #include "tf2_msgs/msg/tf_message.hpp"
 
 #include <memory>
@@ -41,19 +42,24 @@ inline rclcpp::QoS StaticListenerQoS(size_t depth = 100)
 /// \brief Listens for transforms via Agnocast zero-copy IPC.
 ///
 /// This class subscribes to /tf and /tf_static topics using Agnocast's
-/// zero-copy shared memory transport, and populates a tf2::BufferCore
+/// zero-copy shared memory transport, and populates an agnocast::Buffer
 /// with the received transforms.
+///
+/// The constructor automatically configures the buffer for use with Agnocast:
+/// - Sets using_dedicated_thread to true (required for timeout-based lookups)
+/// - Sets the CreateTimerInterface to CreateTimerAgnocast (required for waitForTransform)
 class TransformListener
 {
 public:
-  /// \brief Constructor with tf2::BufferCore
+  /// \brief Constructor with agnocast::Buffer
   ///
-  /// \param buffer The buffer to populate with received transforms
+  /// \param buffer The buffer to populate with received transforms.
+  ///        The buffer will be automatically configured for Agnocast use.
   /// \param node Reference to an agnocast::Node
   /// \param qos QoS for /tf subscription (default: depth=100)
   /// \param static_qos QoS for /tf_static subscription (default: depth=100, transient_local)
   TransformListener(
-    tf2::BufferCore & buffer, agnocast::Node & node,
+    agnocast::Buffer & buffer, agnocast::Node & node,
     const rclcpp::QoS & qos = DynamicListenerQoS(),
     const rclcpp::QoS & static_qos = StaticListenerQoS());
 
@@ -64,7 +70,7 @@ private:
   void subscription_callback(
     agnocast::ipc_shared_ptr<tf2_msgs::msg::TFMessage> && msg, bool is_static);
 
-  tf2::BufferCore & buffer_;
+  agnocast::Buffer & buffer_;
   agnocast::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_subscription_;
   agnocast::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_static_subscription_;
 

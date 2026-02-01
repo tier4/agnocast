@@ -56,7 +56,7 @@ struct MqMsgPerformanceBridge
   BridgeDirection direction;
 };
 
-constexpr int64_t BRIDGE_MQ_MAX_MESSAGES = 10;
+constexpr int64_t BRIDGE_MQ_MAX_MESSAGES = 100;
 constexpr int64_t BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgBridge);
 constexpr int64_t PERFORMANCE_BRIDGE_MQ_MESSAGE_SIZE = sizeof(MqMsgPerformanceBridge);
 constexpr mode_t BRIDGE_MQ_PERMS = 0600;

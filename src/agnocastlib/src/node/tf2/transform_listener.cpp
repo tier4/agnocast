@@ -20,10 +20,14 @@ namespace agnocast
 {
 
 TransformListener::TransformListener(
-  tf2::BufferCore & buffer, agnocast::Node & node, const rclcpp::QoS & qos,
+  agnocast::Buffer & buffer, agnocast::Node & node, const rclcpp::QoS & qos,
   const rclcpp::QoS & static_qos)
 : buffer_(buffer)
 {
+  // Configure buffer for Agnocast use (similar to tf2_ros::TransformListener with spin_thread=true)
+  buffer_.setUsingDedicatedThread(true);
+  buffer_.setCreateTimerInterface(std::make_shared<CreateTimerAgnocast>());
+
   // Subscribe to /tf (dynamic transforms)
   tf_subscription_ = node.create_subscription<tf2_msgs::msg::TFMessage>(
     "/tf", qos, [this](agnocast::ipc_shared_ptr<tf2_msgs::msg::TFMessage> && msg) {

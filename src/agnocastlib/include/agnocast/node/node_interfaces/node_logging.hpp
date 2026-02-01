@@ -14,7 +14,7 @@ public:
   using SharedPtr = std::shared_ptr<NodeLogging>;
   using WeakPtr = std::weak_ptr<NodeLogging>;
 
-  explicit NodeLogging(rclcpp::Logger logger);
+  explicit NodeLogging(const rclcpp::Logger & logger);
 
   virtual ~NodeLogging() = default;
 

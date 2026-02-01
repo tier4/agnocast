@@ -34,5 +34,6 @@ PublisherCountResult get_agnocast_publisher_count(const std::string & topic_name
 SubscriberCountResult get_agnocast_subscriber_count(const std::string & topic_name);
 bool has_external_ros2_publisher(const rclcpp::Node * node, const std::string & topic_name);
 bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string & topic_name);
+bool update_ros2_subscriber_num(const std::string & topic_name, const rclcpp::Node * container_node_);
 
 }  // namespace agnocast
