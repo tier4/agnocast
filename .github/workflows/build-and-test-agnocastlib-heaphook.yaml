@@ -100,7 +100,7 @@ jobs:
       if: steps.check_diff_cpp.outputs.cpp_changed == 'true' || steps.check_diff_heaphook.outputs.heaphook_changed == 'true'
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
-        colcon build --cmake-args -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+        colcon build --symlink-install --cmake-args -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 
     # NOTE: clang-tidy is skipped on Jazzy (Ubuntu 24.04) because it uses clang-tidy 18,
     # which is significantly stricter than clang-tidy 14 on Humble (Ubuntu 22.04).
