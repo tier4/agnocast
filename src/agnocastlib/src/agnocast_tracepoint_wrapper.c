@@ -22,8 +22,10 @@
 # pragma warning(disable: 4100)
 #endif
 
-void TRACEPOINT(
-  agnocast_publisher_init,
+// In Jazzy, TRACEPOINT macro is for calling tracepoints, not defining function names.
+// We need to define the functions explicitly with ros_trace_ prefix.
+
+void ros_trace_agnocast_publisher_init(
   const void * publisher_handle,
   const void * node_handle,
   const char * topic_name,
@@ -37,8 +39,7 @@ void TRACEPOINT(
     queue_depth);
 }
 
-void TRACEPOINT(
-  agnocast_subscription_init,
+void ros_trace_agnocast_subscription_init(
   const void * subscription_handle,
   const void * node_handle,
   const void * callback,
@@ -60,8 +61,7 @@ void TRACEPOINT(
     pid_ciid);
 }
 
-void TRACEPOINT(
-  agnocast_publish,
+void ros_trace_agnocast_publish(
   const void * publisher_handle,
   const void * message,
   const int64_t entry_id)
@@ -73,8 +73,7 @@ void TRACEPOINT(
     entry_id);
 }
 
-void TRACEPOINT(
-  agnocast_create_callable,
+void ros_trace_agnocast_create_callable(
   const void * callable,
   const void * message,
   const int64_t entry_id,
@@ -88,8 +87,7 @@ void TRACEPOINT(
     pid_ciid);
 }
 
-void TRACEPOINT(
-  agnocast_callable_start,
+void ros_trace_agnocast_callable_start(
   const void * callable)
 {
   CONDITIONAL_TP(
@@ -97,8 +95,7 @@ void TRACEPOINT(
     callable);
 }
 
-void TRACEPOINT(
-  agnocast_callable_end,
+void ros_trace_agnocast_callable_end(
   const void * callable)
 {
   CONDITIONAL_TP(
@@ -106,8 +103,7 @@ void TRACEPOINT(
     callable);
 }
 
-void TRACEPOINT(
-  agnocast_take,
+void ros_trace_agnocast_take(
   const void * subscription_handle,
   const void * message,
   const int64_t entry_id)
@@ -119,8 +115,7 @@ void TRACEPOINT(
     entry_id);
 }
 
-void TRACEPOINT(
-  agnocast_construct_executor,
+void ros_trace_agnocast_construct_executor(
   const void * executor_addr,
   const char * executor_type_name)
 {

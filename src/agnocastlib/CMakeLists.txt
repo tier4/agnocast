@@ -22,6 +22,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(tracetools REQUIRED)
 find_package(LTTngUST REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -104,6 +105,7 @@ if(BUILD_TESTING)
     test/unit/test_agnocast_executors.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_unit_${PROJECT_NAME} std_msgs)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )
@@ -116,6 +118,7 @@ if(BUILD_TESTING)
     test/integration/src/node_for_executor_test.cpp)
   target_include_directories(test_integration_${PROJECT_NAME} PRIVATE test/integration/include)
   target_link_libraries(test_integration_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_integration_${PROJECT_NAME} std_msgs)
   set_tests_properties(test_integration_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
     TIMEOUT 120
