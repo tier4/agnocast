@@ -1,6 +1,7 @@
 #include "agnocast.h"
 #include "agnocast_memory_allocator.h"
 
+#include <linux/atomic.h>
 #include <linux/device.h>
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
@@ -98,7 +99,7 @@ struct topic_wrapper
   const struct ipc_namespace *
     ipc_ns;  // For use in separating topic namespaces when using containers.
   char * key;
-  struct mutex topic_mutex;  // Per-topic lock for topic_struct operations
+  struct rw_semaphore topic_rwsem;  // Per-topic rwsem: read for receive, write for publish/modify
   struct topic_struct topic;
   struct hlist_node node;
 };
@@ -109,8 +110,8 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  topic_local_id_t referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
-  uint8_t reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];
+  atomic_t reference_counts[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];  // indexed by pubsub_id
+  atomic_t total_ref_count;  // number of unique pubsub referencing this entry
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -202,7 +203,7 @@ static int add_topic(
     return -ENOMEM;
   }
 
-  mutex_init(&(*wrapper)->topic_mutex);
+  init_rwsem(&(*wrapper)->topic_rwsem);
   (*wrapper)->topic.entries = RB_ROOT;
   hash_init((*wrapper)->topic.pub_info_htable);
   hash_init((*wrapper)->topic.sub_info_htable);
@@ -419,46 +420,53 @@ static int insert_publisher_info(
 
 static bool is_referenced(struct entry_node * en)
 {
-  // The referencing_ids array is always populated starting from the smallest index.
-  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing.
-  return (en->referencing_ids[0] != -1);
+  return atomic_read(&en->total_ref_count) > 0;
 }
 
-static void remove_reference_by_index(struct entry_node * en, int index)
+// Atomically increment reference count for a pubsub_id
+// Returns 0 on success
+static int increment_rc(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = index; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1; i++) {
-    en->referencing_ids[i] = en->referencing_ids[i + 1];
-    en->reference_count[i] = en->reference_count[i + 1];
+  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (increment_rc)\n", id);
+    return -EINVAL;
   }
 
-  en->referencing_ids[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = -1;
-  en->reference_count[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY - 1] = 0;
-  return;
+  // If this is the first reference from this pubsub, increment total_ref_count
+  if (atomic_inc_return(&en->reference_counts[id]) == 1) {
+    atomic_inc(&en->total_ref_count);
+  }
+  return 0;
 }
 
-static int increment_sub_rc(struct entry_node * en, const topic_local_id_t id)
+// Atomically decrement reference count for a pubsub_id
+// Returns true if the reference was completely removed (count reached 0)
+static bool decrement_rc(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-    if (en->referencing_ids[i] == id) {
-      en->reference_count[i]++;
-      return 0;
-    }
-
-    if (en->reference_count[i] == 0) {
-      en->referencing_ids[i] = id;
-      en->reference_count[i] = 1;
-      return 0;
-    }
+  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (decrement_rc)\n", id);
+    return false;
   }
 
-  dev_warn(
-    agnocast_device,
-    "Unreachable. The number of referencing publisher and subscribers reached the upper bound "
-    "(MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY=%d), so no new subscriber can reference. "
-    "(increment_sub_rc)\n",
-    MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY);
+  // If count reaches 0, decrement total_ref_count
+  if (atomic_dec_and_test(&en->reference_counts[id])) {
+    atomic_dec(&en->total_ref_count);
+    return true;
+  }
+  return false;
+}
 
-  return -ENOBUFS;
+// Remove all references from a specific pubsub_id
+static void remove_all_references(struct entry_node * en, const topic_local_id_t id)
+{
+  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+    return;
+  }
+
+  int old_count = atomic_xchg(&en->reference_counts[id], 0);
+  if (old_count > 0) {
+    atomic_dec(&en->total_ref_count);
+  }
 }
 
 static struct entry_node * find_message_entry(
@@ -499,7 +507,7 @@ int increment_message_entry_rc(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
@@ -522,10 +530,10 @@ int increment_message_entry_rc(
     goto unlock_all;
   }
 
-  ret = increment_sub_rc(en, pubsub_id);
+  ret = increment_rc(en, pubsub_id);
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -548,7 +556,7 @@ int decrement_message_entry_rc(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
@@ -561,28 +569,21 @@ int decrement_message_entry_rc(
     goto unlock_all;
   }
 
-  // decrement reference_count
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-    if (en->referencing_ids[i] == pubsub_id) {
-      en->reference_count[i]--;
-      if (en->reference_count[i] == 0) {
-        remove_reference_by_index(en, i);
-      }
-
-      goto unlock_all;
-    }
+  // Atomically decrement reference count
+  if (atomic_read(&en->reference_counts[pubsub_id]) == 0) {
+    dev_warn(
+      agnocast_device,
+      "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
+      "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
+      pubsub_id, topic_name, entry_id);
+    ret = -EINVAL;
+    goto unlock_all;
   }
 
-  dev_warn(
-    agnocast_device,
-    "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
-    "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
-    pubsub_id, topic_name, entry_id);
-
-  ret = -EINVAL;
+  decrement_rc(en, pubsub_id);
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -601,12 +602,15 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->topic.current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  new_node->referencing_ids[0] = pub_info->id;
-  new_node->reference_count[0] = 1;
-  for (int i = 1; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-    new_node->referencing_ids[i] = -1;
-    new_node->reference_count[i] = 0;
+
+  // Initialize all reference counts to 0
+  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+    atomic_set(&new_node->reference_counts[i], 0);
   }
+  atomic_set(&new_node->total_ref_count, 0);
+
+  // Publisher references its own entry
+  increment_rc(new_node, pub_info->id);
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -951,7 +955,7 @@ int publish_msg(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_write(&wrapper->topic_rwsem);
 
   struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
@@ -1002,7 +1006,7 @@ int publish_msg(
   ioctl_ret->ret_subscriber_num = subscriber_num;
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_write(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1073,7 +1077,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = increment_sub_rc(en, subscriber_id);
+    int ret = increment_rc(en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -1105,7 +1109,7 @@ int receive_msg(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1137,7 +1141,7 @@ int receive_msg(
   sub_info->need_mmap_update = false;
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1159,7 +1163,7 @@ int take_msg(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1210,7 +1214,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    ret = increment_sub_rc(candidate_en, subscriber_id);
+    ret = increment_rc(candidate_en, subscriber_id);
     if (ret < 0) {
       goto unlock_all;
     }
@@ -1235,7 +1239,7 @@ int take_msg(
   sub_info->need_mmap_update = false;
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1264,7 +1268,7 @@ int get_subscriber_num(
     return 0;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   uint32_t inter_count = 0;
   uint32_t intra_count = 0;
@@ -1297,7 +1301,7 @@ int get_subscriber_num(
   ioctl_ret->ret_same_process_subscriber_num = intra_count;
   ioctl_ret->ret_ros2_subscriber_num = wrapper->topic.ros2_subscriber_num;
 
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
   up_read(&global_htables_rwsem);
 
   return 0;
@@ -1312,9 +1316,9 @@ int set_ros2_subscriber_num(
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (wrapper) {
-    mutex_lock(&wrapper->topic_mutex);
+    down_write(&wrapper->topic_rwsem);
     wrapper->topic.ros2_subscriber_num = count;
-    mutex_unlock(&wrapper->topic_mutex);
+    up_write(&wrapper->topic_rwsem);
   } else {
     ret = -ENOENT;
   }
@@ -1339,7 +1343,7 @@ int get_publisher_num(
     return 0;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   ioctl_ret->ret_publisher_num = get_size_pub_info_htable(wrapper);
 
@@ -1353,7 +1357,7 @@ int get_publisher_num(
     }
   }
 
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
   up_read(&global_htables_rwsem);
 
   return 0;
@@ -1545,7 +1549,7 @@ static int get_topic_subscriber_info(
     return 0;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   uint32_t subscriber_num = 0;
   struct subscriber_info * sub_info;
@@ -1599,7 +1603,7 @@ static int get_topic_subscriber_info(
   topic_info_args->ret_topic_info_ret_num = subscriber_num;
 
 unlock:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1619,7 +1623,7 @@ static int get_topic_publisher_info(
     return 0;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
@@ -1673,7 +1677,7 @@ static int get_topic_publisher_info(
   topic_info_args->ret_topic_info_ret_num = publisher_num;
 
 unlock:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1694,7 +1698,7 @@ int get_subscriber_qos(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1711,7 +1715,7 @@ int get_subscriber_qos(
   args->ret_is_reliable = sub_info->qos_is_reliable;
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1732,7 +1736,7 @@ int get_publisher_qos(
     goto unlock_rwsem;
   }
 
-  mutex_lock(&wrapper->topic_mutex);
+  down_read(&wrapper->topic_rwsem);
 
   const struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
@@ -1748,7 +1752,7 @@ int get_publisher_qos(
   args->ret_is_transient_local = pub_info->qos_is_transient_local;
 
 unlock_all:
-  mutex_unlock(&wrapper->topic_mutex);
+  up_read(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1789,12 +1793,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-      if (en->referencing_ids[i] == subscriber_id) {
-        remove_reference_by_index(en, i);
-        break;
-      }
-    }
+    remove_all_references(en, subscriber_id);
 
     if (is_referenced(en)) continue;
 
@@ -1873,12 +1872,7 @@ int remove_publisher(
 
     if (en->publisher_id != publisher_id) continue;
 
-    for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-      if (en->referencing_ids[i] == publisher_id) {
-        remove_reference_by_index(en, i);
-        break;
-      }
-    }
+    remove_all_references(en, publisher_id);
 
     if (!is_referenced(en)) {
       pub_info->entries_num--;
@@ -2641,13 +2635,11 @@ int get_entry_rc(
     return -1;
   }
 
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-    if (en->referencing_ids[i] == pubsub_id) {
-      return en->reference_count[i];
-    }
+  if (pubsub_id < 0 || pubsub_id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+    return -1;
   }
 
-  return 0;
+  return atomic_read(&en->reference_counts[pubsub_id]);
 }
 
 int64_t get_latest_received_entry_id(
@@ -2776,11 +2768,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-        if (en->referencing_ids[i] == subscriber_id) {
-          remove_reference_by_index(en, i);
-        }
-      }
+      remove_all_references(en, subscriber_id);
 
       if (is_referenced(en)) continue;
 
@@ -2830,11 +2818,7 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 
       if (en->publisher_id != publisher_id) continue;
 
-      for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-        if (en->referencing_ids[i] == publisher_id) {
-          remove_reference_by_index(en, i);
-        }
-      }
+      remove_all_references(en, publisher_id);
 
       if (!is_referenced(en)) {
         pub_info->entries_num--;
@@ -3002,7 +2986,7 @@ static struct kprobe kp_do_exit = {
 void agnocast_init_mutexes(void)
 {
   // global_htables_rwsem is statically initialized via DECLARE_RWSEM
-  // topic_mutex is initialized per-topic in add_topic()
+  // topic_rwsem is initialized per-topic in add_topic()
 }
 
 void agnocast_init_device(void)
