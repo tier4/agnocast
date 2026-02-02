@@ -28,12 +28,9 @@ namespace agnocast::node_interfaces
 
 /// \brief Implementation of NodeTimersInterface for Agnocast.
 ///
-/// This class provides timer management for agnocast::Node, implementing the
-/// rclcpp::node_interfaces::NodeTimersInterface to allow compatibility with
-/// libraries that expect this interface (e.g., tf2_ros::CreateTimerROS).
-///
-/// Timers added through this interface are executed by the executor's
-/// ros2_spin() thread, not by agnocast's internal timer mechanism.
+/// This class implements rclcpp::node_interfaces::NodeTimersInterface for API
+/// compatibility. Note that add_timer() throws an exception because rclcpp::Timer
+/// requires DDS infrastructure. Use agnocast::Node::create_wall_timer() instead.
 class NodeTimers : public rclcpp::node_interfaces::NodeTimersInterface
 {
 public:

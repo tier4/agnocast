@@ -17,7 +17,6 @@
 
 #include "agnocast/agnocast.hpp"
 #include "agnocast/node/tf2/buffer.hpp"
-#include "agnocast/node/tf2/create_timer_agnocast.hpp"
 
 #include "tf2_msgs/msg/tf_message.hpp"
 
@@ -47,7 +46,6 @@ inline rclcpp::QoS StaticListenerQoS(size_t depth = 100)
 ///
 /// The constructor automatically configures the buffer for use with Agnocast:
 /// - Sets using_dedicated_thread to true (required for timeout-based lookups)
-/// - Sets the CreateTimerInterface to CreateTimerAgnocast (required for waitForTransform)
 class TransformListener
 {
 public:

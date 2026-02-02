@@ -26,14 +26,10 @@
 
 #include "tf2/buffer_core.h"
 #include "tf2/time.h"
-#include "tf2_ros/async_buffer_interface.h"
 #include "tf2_ros/buffer_interface.h"
-#include "tf2_ros/create_timer_interface.h"
 
 #include <memory>
-#include <mutex>
 #include <string>
-#include <unordered_map>
 
 namespace agnocast
 {
@@ -57,8 +53,7 @@ inline tf2::Duration fromRclcpp(const rclcpp::Duration & duration)
 ///
 /// This implementation is aligned with tf2_ros::Buffer.
 class Buffer : public tf2::BufferCore,
-               public tf2_ros::BufferInterface,
-               public tf2_ros::AsyncBufferInterface
+               public tf2_ros::BufferInterface
 {
 public:
   using tf2::BufferCore::lookupTransform;
@@ -154,39 +149,6 @@ public:
       fromRclcpp(timeout), errstr);
   }
 
-  // ========== Asynchronous waitForTransform ==========
-
-  /// \brief Wait for a transform between two frames to become available.
-  ///
-  /// Before this method can be called, a tf2_ros::CreateTimerInterface must be registered
-  /// by first calling setCreateTimerInterface.
-  ///
-  /// \param target_frame The frame into which to transform.
-  /// \param source_frame The frame from which to transform.
-  /// \param time The time at which to transform.
-  /// \param timeout Duration after which waiting will be stopped.
-  /// \param callback The function to be called when the transform becomes available or a timeout
-  ///   occurs. In the case of timeout, an exception will be set on the future.
-  /// \return A future to the requested transform.
-  tf2_ros::TransformStampedFuture waitForTransform(
-    const std::string & target_frame, const std::string & source_frame,
-    const tf2::TimePoint & time, const tf2::Duration & timeout,
-    tf2_ros::TransformReadyCallback callback) override;
-
-  /// \brief Wait for a transform between two frames to become available (rclcpp overload).
-  tf2_ros::TransformStampedFuture waitForTransform(
-    const std::string & target_frame, const std::string & source_frame,
-    const rclcpp::Time & time, const rclcpp::Duration & timeout,
-    tf2_ros::TransformReadyCallback callback)
-  {
-    return waitForTransform(
-      target_frame, source_frame, fromRclcpp(time), fromRclcpp(timeout), callback);
-  }
-
-  /// \brief Cancel the future to make sure the callback of requested transform is clean.
-  /// \param ts_future The future to the requested transform.
-  void cancel(const tf2_ros::TransformStampedFuture & ts_future) override;
-
   // ========== Configuration ==========
 
   /// \brief Get the clock used by this buffer
@@ -202,16 +164,6 @@ public:
   /// \brief Check if a dedicated thread is being used for TF updates.
   bool isUsingDedicatedThread() const { return using_dedicated_thread_; }
 
-  /// \brief Set the CreateTimerInterface for async operations.
-  ///
-  /// This must be called before using waitForTransform.
-  ///
-  /// \param create_timer_interface The timer interface for creating timers
-  void setCreateTimerInterface(tf2_ros::CreateTimerInterface::SharedPtr create_timer_interface)
-  {
-    timer_interface_ = create_timer_interface;
-  }
-
 private:
   rclcpp::Clock::SharedPtr clock_;
 
@@ -221,27 +173,11 @@ private:
   /// \brief Reference to a jump handler registered to the clock
   rclcpp::JumpHandler::SharedPtr jump_handler_;
 
-  /// \brief Interface for creating timers (for async operations)
-  tf2_ros::CreateTimerInterface::SharedPtr timer_interface_;
-
   /// \brief Callback for time jumps (clears buffer on backward jumps or clock changes)
   void onTimeJump(const rcl_time_jump_t & jump);
 
   /// \brief Check if dedicated thread is present, log error if not
   bool checkAndErrorDedicatedThreadPresent(std::string * errstr) const;
-
-  /// \brief A map from active timers to BufferCore request handles
-  mutable std::unordered_map<tf2_ros::TimerHandle, tf2::TransformableRequestHandle>
-    timer_to_request_map_;
-
-  /// \brief A mutex on the timer_to_request_map_ data
-  mutable std::mutex timer_to_request_map_mutex_;
-
-  /// \brief Timer callback for async waitForTransform timeout
-  void timerCallback(
-    const tf2_ros::TimerHandle & timer_handle,
-    std::shared_ptr<std::promise<geometry_msgs::msg::TransformStamped>> promise,
-    tf2_ros::TransformStampedFuture future, tf2_ros::TransformReadyCallback callback);
 
   /// \brief Wait for transform to become available (polling-based, for sync operations)
   /// \return true if transform became available, false on timeout

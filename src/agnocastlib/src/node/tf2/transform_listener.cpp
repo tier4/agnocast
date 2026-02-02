@@ -26,7 +26,6 @@ TransformListener::TransformListener(
 {
   // Configure buffer for Agnocast use (similar to tf2_ros::TransformListener with spin_thread=true)
   buffer_.setUsingDedicatedThread(true);
-  buffer_.setCreateTimerInterface(std::make_shared<CreateTimerAgnocast>());
 
   // Subscribe to /tf (dynamic transforms)
   tf_subscription_ = node.create_subscription<tf2_msgs::msg::TFMessage>(
