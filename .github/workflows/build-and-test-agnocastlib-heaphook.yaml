@@ -122,8 +122,7 @@ jobs:
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         source install/setup.bash
-        # --packages-skip ros2agnocast: skip Python package with no tests (pytest fails on empty test suite)
-        colcon test --packages-skip ros2agnocast --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
+        colcon test --packages-select agnocastlib --event-handlers console_direct+ --ctest-args -R "test_unit_agnocastlib|test_integration_agnocastlib"
 
     - name: Display coverage report in PR comment
       if: steps.check_diff_cpp.outputs.cpp_changed == 'true'
@@ -189,8 +188,7 @@ jobs:
       run: |
         source /opt/ros/${{ env.ROS_DISTRO }}/setup.bash
         source install/setup.bash
-        # --packages-skip ros2agnocast: skip Python package with no tests (pytest fails on empty test suite)
-        colcon test --packages-skip ros2agnocast --event-handlers console_direct+ --ctest-args -R "test_integration_agnocast_heaphook"
+        colcon test --packages-select agnocastlib --event-handlers console_direct+ --ctest-args -R "test_integration_agnocast_heaphook"
 
   # Summary job that provides a single status check for branch protection rules.
   # Matrix jobs report status as "job-name (matrix-value)", but branch protection
