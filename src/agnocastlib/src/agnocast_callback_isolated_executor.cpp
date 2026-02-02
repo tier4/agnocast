@@ -1,14 +1,15 @@
 #include <agnocast/agnocast.hpp>
 #include <agnocast/agnocast_callback_isolated_executor.hpp>
 #include <agnocast/agnocast_single_threaded_executor.hpp>
+#include <cie_thread_configurator/cie_thread_configurator.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace agnocast
 {
 
 CallbackIsolatedAgnocastExecutor::CallbackIsolatedAgnocastExecutor(
-  const rclcpp::ExecutorOptions & options)
-: rclcpp::Executor(options)
+  const rclcpp::ExecutorOptions & options, int next_exec_timeout_ms)
+: rclcpp::Executor(options), next_exec_timeout_ms_(next_exec_timeout_ms)
 {
 }
 
@@ -16,7 +17,9 @@ void CallbackIsolatedAgnocastExecutor::spin()
 {
   if (spinning.exchange(true)) {
     RCLCPP_ERROR(logger, "spin() called while already spinning");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 
@@ -59,17 +62,45 @@ void CallbackIsolatedAgnocastExecutor::spin()
     }
   }  // guard mutex_
 
-  for (auto [group, node] : groups_and_nodes) {
-    auto executor = std::make_shared<SingleThreadedAgnocastExecutor>();
-    executor->dedicate_to_callback_group(group, node);
+  std::mutex client_publisher_mutex;
+  auto client_publisher = cie_thread_configurator::create_client_publisher();
+  threads.reserve(groups_and_nodes.size());
 
-    threads.emplace_back([executor]() {
-      auto tid = std::this_thread::get_id();
-      RCLCPP_INFO(
-        rclcpp::get_logger("agnocast"), "Thread ID: %zu", std::hash<std::thread::id>{}(tid));
-      executor->spin();
-    });
-  }
+  {
+    std::lock_guard<std::mutex> guard{weak_child_executors_mutex_};
+    for (auto & [group, node] : groups_and_nodes) {
+      std::shared_ptr<rclcpp::Executor> executor;
+      auto agnocast_topics = agnocast::get_agnocast_topics_by_group(group);
+      auto callback_group_id =
+        cie_thread_configurator::create_callback_group_id(group, node, agnocast_topics);
+
+      if (agnocast_topics.empty()) {
+        executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+        std::static_pointer_cast<rclcpp::executors::SingleThreadedExecutor>(executor)
+          ->add_callback_group(group, node);
+      } else {
+        executor = std::make_shared<SingleThreadedAgnocastExecutor>(
+          rclcpp::ExecutorOptions{}, next_exec_timeout_ms_);
+        std::static_pointer_cast<SingleThreadedAgnocastExecutor>(executor)
+          ->dedicate_to_callback_group(group, node);
+      }
+
+      weak_child_executors_.push_back(executor);
+
+      threads.emplace_back([executor, callback_group_id = std::move(callback_group_id),
+                            &client_publisher, &client_publisher_mutex]() {
+        auto tid = static_cast<pid_t>(syscall(SYS_gettid));
+
+        {
+          std::lock_guard<std::mutex> lock{client_publisher_mutex};
+          cie_thread_configurator::publish_callback_group_info(
+            client_publisher, tid, callback_group_id);
+        }
+
+        executor->spin();
+      });
+    }
+  }  // guard weak_child_executors_mutex_
 
   for (auto & thread : threads) {
     if (thread.joinable()) {
@@ -101,7 +132,9 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
     if (n->callback_group_in_node(group_ptr)) {
       RCLCPP_ERROR(
         logger, "Callback group already exists in node: %s", n->get_fully_qualified_name());
-      close(agnocast_fd);
+      if (agnocast_fd != -1) {
+        close(agnocast_fd);
+      }
       exit(EXIT_FAILURE);
     }
   }
@@ -110,7 +143,9 @@ void CallbackIsolatedAgnocastExecutor::add_callback_group(
 
   if (!insert_info.second) {
     RCLCPP_ERROR(logger, "Callback group already exists in the executor");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -196,7 +231,9 @@ void CallbackIsolatedAgnocastExecutor::remove_callback_group(
     weak_groups_to_nodes_.erase(it);
   } else {
     RCLCPP_ERROR(logger, "Callback group not found in the executor");
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -232,7 +269,9 @@ void CallbackIsolatedAgnocastExecutor::add_node(
   if (!insert_info.second) {
     RCLCPP_ERROR(
       logger, "Node already exists in the executor: %s", node_ptr->get_fully_qualified_name());
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -258,7 +297,9 @@ void CallbackIsolatedAgnocastExecutor::remove_node(
   } else {
     RCLCPP_ERROR(
       logger, "Node not found in the executor: %s", node_ptr->get_fully_qualified_name());
-    close(agnocast_fd);
+    if (agnocast_fd != -1) {
+      close(agnocast_fd);
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -266,6 +307,18 @@ void CallbackIsolatedAgnocastExecutor::remove_node(
 void CallbackIsolatedAgnocastExecutor::remove_node(rclcpp::Node::SharedPtr node_ptr, bool notify)
 {
   remove_node(node_ptr->get_node_base_interface(), notify);
+}
+
+void CallbackIsolatedAgnocastExecutor::cancel()
+{
+  spinning.store(false);
+  std::lock_guard<std::mutex> guard{weak_child_executors_mutex_};
+  for (auto & weak_child_executor : weak_child_executors_) {
+    if (auto child_executor = weak_child_executor.lock()) {
+      child_executor->cancel();
+    }
+  }
+  weak_child_executors_.clear();
 }
 
 }  // namespace agnocast

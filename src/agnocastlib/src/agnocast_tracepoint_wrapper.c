@@ -47,7 +47,7 @@ void ros_trace_agnocast_subscription_init(
   const char * function_symbol,
   const char * topic_name,
   const size_t queue_depth,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 {
   CONDITIONAL_TP(
     agnocast_subscription_init,
@@ -58,33 +58,29 @@ void ros_trace_agnocast_subscription_init(
     function_symbol,
     topic_name,
     queue_depth,
-    pid_ciid);
+    pid_callback_info_id);
 }
 
 void ros_trace_agnocast_publish(
   const void * publisher_handle,
-  const void * message,
   const int64_t entry_id)
 {
   CONDITIONAL_TP(
     agnocast_publish,
     publisher_handle,
-    message,
     entry_id);
 }
 
 void ros_trace_agnocast_create_callable(
   const void * callable,
-  const void * message,
   const int64_t entry_id,
-  const uint64_t pid_ciid)
+  const uint64_t pid_callback_info_id)
 {
   CONDITIONAL_TP(
     agnocast_create_callable,
     callable,
-    message,
     entry_id,
-    pid_ciid);
+    pid_callback_info_id);
 }
 
 void ros_trace_agnocast_callable_start(

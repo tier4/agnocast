@@ -9,6 +9,8 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
 {
   RCLCPP_DISABLE_COPY(CallbackIsolatedAgnocastExecutor)
 
+  const int next_exec_timeout_ms_;
+
   // Nodes associated with this AgnocastCallbackIsolatedExecutor, appended by add_node() and removed
   // by remove_node()
   std::set<
@@ -24,6 +26,13 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
     std::owner_less<rclcpp::CallbackGroup::WeakPtr>>
     weak_groups_to_nodes_ RCPPUTILS_TSA_GUARDED_BY(mutex_);
 
+  // Mutex to protect weak_child_executors_
+  mutable std::mutex weak_child_executors_mutex_;
+
+  // Child executors created during spin()
+  std::vector<rclcpp::Executor::WeakPtr> weak_child_executors_
+    RCPPUTILS_TSA_GUARDED_BY(weak_child_executors_mutex_);
+
   std::vector<rclcpp::CallbackGroup::WeakPtr> get_manually_added_callback_groups_internal() const
     RCPPUTILS_TSA_REQUIRES(mutex_);
 
@@ -34,10 +43,14 @@ class CallbackIsolatedAgnocastExecutor : public rclcpp::Executor
 public:
   RCLCPP_PUBLIC
   explicit CallbackIsolatedAgnocastExecutor(
-    const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions());
+    const rclcpp::ExecutorOptions & options = rclcpp::ExecutorOptions(),
+    int next_exec_timeout_ms = 50);
 
   RCLCPP_PUBLIC
   void spin() override;
+
+  RCLCPP_PUBLIC
+  void cancel();
 
   RCLCPP_PUBLIC
   void add_callback_group(

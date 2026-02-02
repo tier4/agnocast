@@ -8,6 +8,8 @@
 namespace agnocast
 {
 
+struct AgnocastExecutable;
+
 // Base class for a type-erased object
 class AnyObject
 {
@@ -46,6 +48,9 @@ struct CallbackInfo
     message_creator;
   bool need_epoll_update = true;
 };
+
+std::vector<std::string> get_agnocast_topics_by_group(
+  const rclcpp::CallbackGroup::SharedPtr & group);
 
 extern std::mutex id2_callback_info_mtx;
 extern std::unordered_map<uint32_t, CallbackInfo> id2_callback_info;
@@ -102,5 +107,11 @@ uint32_t register_callback(
 
   return callback_info_id;
 }
+
+void receive_message(
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  [[maybe_unused]] const pid_t my_pid,               // for CARET
+  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
 }  // namespace agnocast

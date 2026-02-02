@@ -12,6 +12,11 @@
 #define TOPIC_NAME_BUFFER_SIZE 256
 #define NODE_NAME_BUFFER_SIZE 256
 
+constexpr const char * AGNOCAST_DEVICE_NOT_FOUND_MSG =
+  "Failed to open /dev/agnocast: Device not found. "
+  "Please ensure the agnocast kernel module is installed. "
+  "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.\n";
+
 struct name_info
 {
   const char * ptr;
@@ -39,6 +44,8 @@ struct topic_info_ret
   char node_name[NODE_NAME_BUFFER_SIZE];
   uint32_t qos_depth;
   bool qos_is_transient_local;
+  bool qos_is_reliable;
+  bool is_bridge;
 };
 
 union ioctl_topic_info_args {

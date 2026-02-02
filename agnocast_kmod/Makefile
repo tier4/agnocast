@@ -11,12 +11,21 @@ else
 	  agnocast_kunit/agnocast_kunit_add_process.o \
 	  agnocast_kunit/agnocast_kunit_add_subscriber.o \
 	  agnocast_kunit/agnocast_kunit_add_publisher.o \
+	  agnocast_kunit/agnocast_kunit_remove_subscriber.o \
+	  agnocast_kunit/agnocast_kunit_remove_publisher.o \
 	  agnocast_kunit/agnocast_kunit_increment_rc.o \
 	  agnocast_kunit/agnocast_kunit_decrement_rc.o \
 	  agnocast_kunit/agnocast_kunit_publish_msg.o \
 	  agnocast_kunit/agnocast_kunit_receive_msg.o \
 	  agnocast_kunit/agnocast_kunit_take_msg.o \
+	  agnocast_kunit/agnocast_kunit_get_process_num.o \
+	  agnocast_kunit/agnocast_kunit_get_publisher_num.o \
+	  agnocast_kunit/agnocast_kunit_get_publisher_qos.o \
 	  agnocast_kunit/agnocast_kunit_get_subscriber_num.o \
+	  agnocast_kunit/agnocast_kunit_get_subscriber_qos.o \
+	  agnocast_kunit/agnocast_kunit_add_bridge.o \
+	  agnocast_kunit/agnocast_kunit_remove_bridge.o \
+	  agnocast_kunit/agnocast_kunit_set_ros2_subscriber_num.o \
 	  agnocast_kunit/agnocast_kunit_do_exit.o
 	ccflags-y += -DKUNIT_BUILD -fprofile-arcs -ftest-coverage
   else
