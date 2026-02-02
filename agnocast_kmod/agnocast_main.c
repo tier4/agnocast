@@ -1956,8 +1956,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       return -EFAULT;
     }
     topic_name_buf[entry_args.topic_name.len] = '\0';
+    mutex_lock(&global_mutex);
     ret = release_message_entry_reference(
       topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
+    mutex_unlock(&global_mutex);
     kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
