@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -107,7 +108,6 @@ public:
     rclcpp::SubscriptionOptions ros_opts;
     ros_opts.ignore_local_publications = true;
     ros_opts.callback_group = ros_cb_group_;
-    auto pub_ptr = agnocast_pub_;
 
     // The ROS subscription acts as a proxy for the requesting Agnocast subscriber.
     // sub_qos applies the Agnocast subscriber's settings (e.g. history depth)
@@ -179,20 +179,18 @@ public:
 
 template <typename MessageT>
 std::shared_ptr<void> start_ros_to_agno_node(
-  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info, const rclcpp::QoS & qos)
 {
   std::string topic_name(static_cast<const char *>(info.topic_name));
-  return std::make_shared<RosToAgnocastBridge<MessageT>>(
-    node, topic_name, get_subscriber_qos(topic_name, info.target_id));
+  return std::make_shared<RosToAgnocastBridge<MessageT>>(node, topic_name, qos);
 }
 
 template <typename MessageT>
 std::shared_ptr<void> start_agno_to_ros_node(
-  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info)
+  rclcpp::Node::SharedPtr node, const BridgeTargetInfo & info, const rclcpp::QoS & qos)
 {
   std::string topic_name(static_cast<const char *>(info.topic_name));
-  return std::make_shared<AgnocastToRosBridge<MessageT>>(
-    node, topic_name, get_publisher_qos(topic_name, info.target_id));
+  return std::make_shared<AgnocastToRosBridge<MessageT>>(node, topic_name, qos);
 }
 
 template <typename MsgStruct>
@@ -201,7 +199,11 @@ void send_mq_message(
   const rclcpp::Logger & logger)
 {
   struct mq_attr attr = {};
-  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  int64_t max_messages = BRIDGE_MQ_MAX_MESSAGES;
+  if (get_bridge_mode() == BridgeMode::Performance) {
+    max_messages = PERFORMANCE_BRIDGE_MQ_MAX_MESSAGES;
+  }
+  attr.mq_maxmsg = max_messages;
   attr.mq_msgsize = msg_size_limit;
 
   mqd_t mq =
@@ -244,6 +246,26 @@ void send_bridge_request(
     return;
   }
 
+  std::error_code ec;
+  auto self_path = std::filesystem::read_symlink("/proc/self/exe", ec);
+
+  bool is_self_executable = false;
+  if (!ec) {
+    std::filesystem::path factory_lib_path(info.dli_fname);
+    if (std::filesystem::equivalent(factory_lib_path, self_path, ec)) {
+      is_self_executable = true;
+    } else if (ec) {
+      RCLCPP_WARN(
+        logger, "Filesystem check error for '%s' vs '%s': %s", info.dli_fname, self_path.c_str(),
+        ec.message().c_str());
+    }
+  }
+
+  const char * symbol_to_send = MAIN_EXECUTABLE_SYMBOL;
+  if (!is_self_executable && info.dli_sname != nullptr) {
+    symbol_to_send = info.dli_sname;
+  }
+
   MqMsgBridge msg = {};
   msg.direction = direction;
   msg.target.target_id = id;
@@ -253,13 +275,12 @@ void send_bridge_request(
     static_cast<char *>(msg.factory.shared_lib_path), SHARED_LIB_PATH_BUFFER_SIZE, "%s",
     info.dli_fname);
   snprintf(
-    static_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s",
-    info.dli_sname ? info.dli_sname : MAIN_EXECUTABLE_SYMBOL);
+    static_cast<char *>(msg.factory.symbol_name), SYMBOL_NAME_BUFFER_SIZE, "%s", symbol_to_send);
   auto base_addr = reinterpret_cast<uintptr_t>(info.dli_fbase);
   msg.factory.fn_offset = reinterpret_cast<uintptr_t>(fn_current) - base_addr;
   msg.factory.fn_offset_reverse = reinterpret_cast<uintptr_t>(fn_reverse) - base_addr;
 
-  std::string mq_name = create_mq_name_for_bridge(bridge_manager_pid);
+  std::string mq_name = create_mq_name_for_bridge(standard_bridge_manager_pid);
   send_mq_message(mq_name, msg, BRIDGE_MQ_MESSAGE_SIZE, logger);
 }
 

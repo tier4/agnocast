@@ -31,6 +31,7 @@ The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/doc
   - [Setup](#setup)
   - [Build](#build)
   - [Run](#run)
+  - [Bridge Feature](#bridge-feature)
 - [For Developers](#for-developers)
   - [Clone the repository](#clone-the-repository-1)
   - [Setup pre-commit](#setup-pre-commit)
@@ -52,7 +53,7 @@ This reflects the current status, and support is expected to expand in the futur
 | Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
-The ROS 2 Jazzy–compatible release is scheduled for late February 2026.
+ROS 2 Jazzy (Ubuntu 24.04) is now supported in the main branch and will be included in the v2.2.0 release.
 
 ---
 
@@ -64,8 +65,26 @@ Since ROS packages under `src/` such as `agnocastlib` are not yet distributed fr
 Therefore, to perform the source build, first check out the specific version as follows:
 
 ```bash
-git clone --branch v2.1.2 https://github.com/tier4/agnocast.git
+git clone --branch 2.1.2 https://github.com/tier4/agnocast.git
 cd agnocast
+```
+
+### System Configuration
+
+Agnocast requires increasing the system limit for the maximum number of messages in a queue.
+
+**Temporary setting (Current session only):**
+
+```bash
+sudo sysctl -w fs.mqueue.msg_max=256
+
+```
+
+**Permanent setting:**
+
+```bash
+echo "fs.mqueue.msg_max=256" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
 ```
 
 ### Setup
@@ -135,6 +154,52 @@ Stop applications and unload kernel module.
 ```bash
 sudo modprobe -r agnocast
 ```
+
+### Bridge Feature
+
+The Agnocast Bridge enables communication between Agnocast nodes and standard ROS 2 nodes by automatically forwarding messages between shared memory (Agnocast) and DDS (ROS 2).
+
+#### Bridge Modes
+
+Configuration for the Agnocast bridge manager. The mode can be specified using strings (case-insensitive) or integers.
+
+| Mode | Accepted Values | Description |
+| :--- | :--- | :--- |
+| **Standard** (Default) | `standard`, `1` | One bridge manager per process. Used if the variable is unset or invalid. |
+| **Performance** | `performance`, `2` | Single global bridge manager. |
+| **Off** | `off`, `0` | Bridge disabled. |
+
+**Note:**
+
+- Values are **case-insensitive** (e.g., `Standard`, `OFF`, `Performance` are valid).
+- If an unknown value is provided, it falls back to **Standard** mode with a warning.
+
+#### Usage
+
+```bash
+# Standard mode (Default)
+export AGNOCAST_BRIDGE_MODE=standard
+# OR
+export AGNOCAST_BRIDGE_MODE=1
+
+# Performance mode
+export AGNOCAST_BRIDGE_MODE=performance
+# OR
+export AGNOCAST_BRIDGE_MODE=2
+
+# Disable bridge
+export AGNOCAST_BRIDGE_MODE=off
+```
+
+### Performance Mode Setup
+
+Performance mode requires pre-compiled bridge plugins. Build with:
+
+```bash
+BUILD_GENERIC_BRIDGE=ON colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+```
+
+For detailed information, see [Bridge Documentation](./docs/agnocast_ros2_bridge.md).
 
 ---
 
@@ -283,3 +348,5 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [How to set environment variables](./docs/how_to_set_environment_variables.md)
 - [ros2 command extension](./docs/ros2_command_extension.md)
 - [agnocast::Node and rclcpp::Node interface comparison](./docs/agnocast_node_interface_comparison.md)
+- [Callback Isolated Executor for Agnocast](./docs/callback_isolated_executor_for_agnocast.md)
+- [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)

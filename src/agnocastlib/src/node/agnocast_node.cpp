@@ -23,6 +23,8 @@ Node::Node(
     options.enable_topic_statistics());
   logger_ = rclcpp::get_logger(node_base_->get_name());
 
+  node_logging_ = std::make_shared<node_interfaces::NodeLogging>(logger_);
+
   node_topics_ = std::make_shared<node_interfaces::NodeTopics>(node_base_);
 
   node_parameters_ = std::make_shared<node_interfaces::NodeParameters>(
@@ -31,6 +33,8 @@ Node::Node(
   node_clock_ = std::make_shared<node_interfaces::NodeClock>(RCL_ROS_TIME);
 
   node_time_source_ = std::make_shared<node_interfaces::NodeTimeSource>(node_clock_, this);
+
+  node_services_ = std::make_shared<node_interfaces::NodeServices>(node_base_);
 }
 
 }  // namespace agnocast

@@ -3,9 +3,12 @@
 #include <linux/ipc_namespace.h>
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+/* Maximum number of entries that can be received at one ioctl. This value is heuristically set to
+ * balance the number of calling ioctl and the overhead of copying data between user and kernel
+ * space. */
+#define MAX_RECEIVE_NUM 10
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
@@ -87,8 +90,9 @@ union ioctl_receive_msg_args {
   struct
   {
     uint16_t ret_entry_num;
-    int64_t ret_entry_ids[MAX_QOS_DEPTH];
-    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
+    bool ret_call_again;
+    int64_t ret_entry_ids[MAX_RECEIVE_NUM];
+    uint64_t ret_entry_addrs[MAX_RECEIVE_NUM];
     struct publisher_shm_info ret_pub_shm_info;
   };
 };
@@ -126,15 +130,14 @@ union ioctl_take_msg_args {
 };
 
 union ioctl_get_subscriber_num_args {
+  struct name_info topic_name;
   struct
   {
-    struct name_info topic_name;
-    bool include_ros2;
-  };
-  struct
-  {
-    uint32_t ret_subscriber_num;
-    bool ret_bridge_exist;
+    uint32_t ret_other_process_subscriber_num;
+    uint32_t ret_same_process_subscriber_num;
+    uint32_t ret_ros2_subscriber_num;
+    bool ret_a2r_bridge_exist;
+    bool ret_r2a_bridge_exist;
   };
 };
 
@@ -275,6 +278,7 @@ struct topic_info_ret
   uint32_t qos_depth;
   bool qos_is_transient_local;
   bool qos_is_reliable;
+  bool is_bridge;
 };
 
 union ioctl_topic_info_args {
@@ -345,7 +349,7 @@ int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret);
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns, const bool include_ros2,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
   union ioctl_get_subscriber_num_args * ioctl_ret);
 
 int get_publisher_num(

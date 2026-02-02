@@ -1,6 +1,8 @@
 #pragma once
 
 #include "agnocast/agnocast_mq.hpp"
+#include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_utils.hpp"
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -48,7 +50,7 @@ public:
 
 protected:
   rclcpp::Logger logger_;
-  virtual void handle_signal(int signo);
+  virtual void handle_signal();
 
 private:
   int epoll_fd_ = -1;
@@ -123,16 +125,16 @@ inline bool IpcEventLoopBase::spin_once(int timeout_ms)
       };
       ssize_t s = read(signal_fd_, &fdsi, sizeof(struct signalfd_siginfo));
       if (s == sizeof(struct signalfd_siginfo)) {
-        handle_signal(fdsi.ssi_signo);
+        handle_signal();
       }
     }
   }
   return true;
 }
 
-inline void IpcEventLoopBase::handle_signal(int signo)
+inline void IpcEventLoopBase::handle_signal()
 {
-  if ((signo == SIGTERM || signo == SIGINT) && signal_cb_) {
+  if (signal_cb_) {
     signal_cb_();
   }
 }
@@ -178,7 +180,11 @@ inline void IpcEventLoopBase::setup_epoll()
 inline mqd_t IpcEventLoopBase::create_and_open_mq(const std::string & name) const
 {
   struct mq_attr attr = {};
-  attr.mq_maxmsg = BRIDGE_MQ_MAX_MESSAGES;
+  int64_t max_messages = BRIDGE_MQ_MAX_MESSAGES;
+  if (get_bridge_mode() == BridgeMode::Performance) {
+    max_messages = PERFORMANCE_BRIDGE_MQ_MAX_MESSAGES;
+  }
+  attr.mq_maxmsg = max_messages;
   attr.mq_msgsize = mq_msg_size_;
 
   mqd_t fd =

@@ -37,6 +37,7 @@ union ioctl_publish_msg_args publish_core(
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> & opened_mqs);
 uint32_t get_subscription_count_core(const std::string & topic_name);
+uint32_t get_intra_subscription_count_core(const std::string & topic_name);
 void increment_borrowed_publisher_num();
 void decrement_borrowed_publisher_num();
 
@@ -104,6 +105,8 @@ class BasicPublisher
             options.qos_overriding_options, node_parameters, topic_name_, qos,
             rclcpp::detail::PublisherQosParametersTraits{})
         : qos;
+
+    validate_qos(actual_qos);
 
     id_ =
       initialize_publisher(topic_name_, node->get_fully_qualified_name(), actual_qos, is_bridge);
@@ -191,14 +194,19 @@ public:
     message.reset();
   }
 
-  // Returns the total subscriber count (Agnocast + ROS 2).
+  // Returns the inter-process subscriber count (Agnocast + ROS 2).
   // Note: ROS 2 subscriber count is updated by the Bridge Manager periodically.
   // TODO(Koichi98): It just returns the number of Agnocast subscribers for performance bridge.
-  // TODO(Koichi98): Define get_intra_subscription_count separately to align with rclcpp.
   uint32_t get_subscription_count() const { return get_subscription_count_core(topic_name_); }
 
   // Returns the GID of this publisher which is unique across both Agnocast and ROS 2 publishers.
   const rmw_gid_t & get_gid() const { return gid_; }
+  // Returns the number of Agnocast intra-process subscribers only; ROS 2 subscribers are not
+  // included.
+  uint32_t get_intra_subscription_count() const
+  {
+    return get_intra_subscription_count_core(topic_name_);
+  }
 
   const char * get_topic_name() const { return topic_name_.c_str(); }
 };
