@@ -3,8 +3,8 @@
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
 #include "agnocast/agnocast_version.hpp"
-#include "agnocast/bridge/agnocast_bridge_manager.hpp"
-#include "agnocast/bridge/agnocast_performance_bridge_manager.hpp"
+#include "agnocast/bridge/performance/agnocast_performance_bridge_manager.hpp"
+#include "agnocast/bridge/standard/agnocast_standard_bridge_manager.hpp"
 
 #include <dlfcn.h>
 #include <sys/types.h>
@@ -207,7 +207,7 @@ void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 
     auto bridge_mode = get_bridge_mode();
     if (bridge_mode == BridgeMode::Standard) {
-      BridgeManager manager(target_pid);
+      StandardBridgeManager manager(target_pid);
       manager.run();
     } else if (bridge_mode == BridgeMode::Performance) {
       {
@@ -421,7 +421,7 @@ struct initialize_agnocast_result initialize_agnocast(
   }
 
   if (should_spawn_bridge) {
-    bridge_manager_pid =
+    standard_bridge_manager_pid =
       spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
   }
 
