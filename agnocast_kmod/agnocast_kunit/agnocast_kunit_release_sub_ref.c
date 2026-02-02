@@ -12,6 +12,8 @@ static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 static const uint32_t QOS_DEPTH = 1;
 static const bool IS_BRIDGE = false;
 
+static topic_local_id_t subscriber_ids_buf[64];
+
 static void setup_one_publisher(
   struct kunit * test, topic_local_id_t * ret_publisher_id, uint64_t * ret_addr)
 {
@@ -66,7 +68,8 @@ void test_case_release_sub_ref_no_pubsub_id(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret0 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf,
+    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret0, 0);
 
   // Act: Attempt to release a reference using the publisher's local ID.
@@ -90,7 +93,8 @@ void test_case_release_sub_ref_last_reference(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf,
+    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   const pid_t subscriber_pid = 1000;
@@ -136,7 +140,8 @@ void test_case_release_sub_ref_multi_reference(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf,
+    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   // First subscriber
