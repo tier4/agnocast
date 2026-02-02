@@ -65,7 +65,8 @@ void test_case_decrement_rc_no_pubsub_id(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret0 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret0, 0);
   int ret1 = decrement_message_entry_rc(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
@@ -90,7 +91,8 @@ void test_case_decrement_rc_last_reference(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   // Act
@@ -117,7 +119,8 @@ void test_case_decrement_rc_multi_reference(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const pid_t subscriber_pid = 1000;
