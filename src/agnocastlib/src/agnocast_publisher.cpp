@@ -2,8 +2,7 @@
 
 #include <sys/types.h>
 
-#include <algorithm>
-#include <vector>
+#include <array>
 
 namespace agnocast
 {
@@ -68,11 +67,8 @@ union ioctl_publish_msg_args publish_core(
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> & opened_mqs)
 {
-  // Allocate buffer for subscriber IDs
-  // Use size based on current opened_mqs count + some margin for new subscribers
-  const uint32_t buffer_size =
-    std::max(static_cast<uint32_t>(opened_mqs.size() + 16), static_cast<uint32_t>(64));
-  std::vector<topic_local_id_t> subscriber_ids_buffer(buffer_size);
+  // Reuse thread-local buffer for subscriber IDs to avoid repeated heap allocations
+  static thread_local std::array<topic_local_id_t, MAX_SUBSCRIBER_NUM> subscriber_ids_buffer;
 
   union ioctl_publish_msg_args publish_msg_args = {};
   publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};
@@ -80,7 +76,7 @@ union ioctl_publish_msg_args publish_core(
   publish_msg_args.msg_virtual_address = msg_virtual_address;
   publish_msg_args.subscriber_ids_buffer_addr =
     reinterpret_cast<uint64_t>(subscriber_ids_buffer.data());
-  publish_msg_args.subscriber_ids_buffer_size = buffer_size;
+  publish_msg_args.subscriber_ids_buffer_size = MAX_SUBSCRIBER_NUM;
 
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_msg_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
