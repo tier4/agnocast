@@ -80,7 +80,7 @@ static uint64_t setup_one_entry(
   union ioctl_publish_msg_args publish_msg_args;
   int ret = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, subscriber_ids_buf,
-    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
+    &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(

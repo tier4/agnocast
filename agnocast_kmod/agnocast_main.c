@@ -890,7 +890,7 @@ static int release_msgs_to_meet_depth(
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
   const uint64_t msg_virtual_address, topic_local_id_t * subscriber_ids_out,
-  uint32_t subscriber_ids_buffer_size, union ioctl_publish_msg_args * ioctl_ret)
+  union ioctl_publish_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
@@ -937,14 +937,6 @@ int publish_msg(
     if (sub_info->is_take_sub) continue;
     if (sub_info->ignore_local_publications && (sub_info->pid == pub_info->pid)) {
       continue;
-    }
-    if (subscriber_num >= subscriber_ids_buffer_size) {
-      dev_warn(
-        agnocast_device,
-        "subscriber_ids buffer is too small (size=%u). Some subscribers will not be notified. "
-        "(publish_msg)\n",
-        subscriber_ids_buffer_size);
-      break;
     }
     subscriber_ids_out[subscriber_num] = sub_info->id;
     subscriber_num++;
@@ -2025,12 +2017,11 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     // Save user buffer address before it gets overwritten by union output
     uint64_t user_subscriber_ids_addr = publish_msg_args.subscriber_ids_buffer_addr;
-    uint32_t user_buffer_size = publish_msg_args.subscriber_ids_buffer_size;
 
     mutex_lock(&global_mutex);
     ret = publish_msg(
       topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
-      subscriber_ids_buf, user_buffer_size, &publish_msg_args);
+      subscriber_ids_buf, &publish_msg_args);
     mutex_unlock(&global_mutex);
     kfree(topic_name_buf);
 
