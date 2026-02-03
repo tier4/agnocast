@@ -28,6 +28,10 @@ find_package(cie_thread_configurator REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -39,9 +43,10 @@ add_library(agnocast SHARED
   src/node/agnocast_only_executor.cpp src/node/agnocast_only_single_threaded_executor.cpp src/node/agnocast_only_multi_threaded_executor.cpp
   src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp src/node/node_interfaces/node_clock.cpp src/node/node_interfaces/node_time_source.cpp src/node/node_interfaces/node_services.cpp src/node/node_interfaces/node_logging.cpp
   src/bridge/standard/agnocast_standard_bridge_ipc_event_loop.cpp src/bridge/standard/agnocast_standard_bridge_loader.cpp src/bridge/standard/agnocast_standard_bridge_manager.cpp src/bridge/agnocast_bridge_utils.cpp
-  src/bridge/performance/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/performance/agnocast_performance_bridge_loader.cpp src/bridge/performance/agnocast_performance_bridge_manager.cpp)
+  src/bridge/performance/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/performance/agnocast_performance_bridge_loader.cpp src/bridge/performance/agnocast_performance_bridge_manager.cpp
+  src/node/tf2/buffer.cpp src/node/tf2/transform_listener.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp)
+ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp tf2 tf2_ros tf2_msgs geometry_msgs)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -318,5 +323,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(cie_thread_configurator cie_config_msgs)
+ament_export_dependencies(cie_thread_configurator cie_config_msgs tf2 tf2_ros tf2_msgs geometry_msgs)
 ament_package()
