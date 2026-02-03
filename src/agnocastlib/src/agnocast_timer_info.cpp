@@ -168,7 +168,7 @@ void register_timer_info(
   uint32_t timer_id, const std::shared_ptr<TimerBase> & timer, std::chrono::nanoseconds period,
   const rclcpp::CallbackGroup::SharedPtr & callback_group, const rclcpp::Clock::SharedPtr & clock)
 {
-const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
+  const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
   const int64_t now_ns = clock->now().nanoseconds();
 
   auto timer_info = std::make_shared<TimerInfo>();
@@ -193,11 +193,11 @@ const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
     // Only create timerfd if ros_time is not active (system time mode)
     // If ros_time is already active, timer will be driven by clock_eventfd
     if (!clock->ros_time_is_active()) {
-      timer_info->timer_fd = create_timer_fd(timer_id, period);
+      timer_info->timer_fd = create_timer_fd(timer_id, period, clock->get_clock_type());
     }
   } else {
     // Non-ROS_TIME timers always use timerfd
-    timer_info->timer_fd = create_timer_fd(timer_id, period);
+    timer_info->timer_fd = create_timer_fd(timer_id, period, clock->get_clock_type());
   }
 
   setup_time_jump_callback(*timer_info, clock);
@@ -210,47 +210,7 @@ const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
   need_epoll_updates.store(true);
 }
 
-// Check if timer is ready and execute callback if so
-// Returns true if callback was executed
-bool check_and_execute_timer(TimerInfo & timer_info)
-{
-  auto timer = timer_info.timer.lock();
-  if (!timer) {
-    return false;  // Timer object has been destroyed
-  }
-
-  const int64_t now_ns = timer_info.clock->now().nanoseconds();
-  const int64_t next_call_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
-  const int64_t period_ns = timer_info.period.count();
-
-  // Check if timer is ready (for simulation time support)
-  if (now_ns < next_call_ns) {
-    return false;  // Not ready yet
-  }
-
-  // Update timing
-  timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
-
-  int64_t new_next_call_ns = next_call_ns + period_ns;
-
-  // In case the timer has missed at least one cycle
-  if (new_next_call_ns < now_ns) {
-    if (period_ns == 0) {
-      // A timer with a period of zero is considered always ready
-      new_next_call_ns = now_ns;
-    } else {
-      // Move the next call time forward by as many periods as necessary
-      const int64_t now_ahead = now_ns - new_next_call_ns;
-      // Rounding up without overflow
-      const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
-      new_next_call_ns += periods_ahead * period_ns;
-    }
-  }
-  timer_info.next_call_time_ns.store(new_next_call_ns, std::memory_order_relaxed);
-
-  timer->execute_callback();
-  return true;
-}
+bool check_and_execute_timer(TimerInfo & timer_info);
 
 void handle_timer_event(TimerInfo & timer_info)
 {
@@ -286,6 +246,48 @@ void handle_clock_event(TimerInfo & timer_info)
   if (val > 0) {
     check_and_execute_timer(timer_info);
   }
+}
+
+// Check if timer is ready and execute callback if so
+// Returns true if callback was executed
+bool check_and_execute_timer(TimerInfo & timer_info)
+{
+  auto timer = timer_info.timer.lock();
+  if (!timer) {
+    return false;  // Timer object has been destroyed
+  }
+
+  const int64_t now_ns = timer_info.clock->now().nanoseconds();
+  const int64_t next_call_ns = timer_info.next_call_time_ns.load(std::memory_order_relaxed);
+  const int64_t period_ns = timer_info.period.count();
+
+  // Check if timer is ready (for simulation time support)
+  if (now_ns < next_call_ns) {
+    return false;  // Not ready yet
+  }
+
+  // Update timing
+  timer_info.last_call_time_ns.store(now_ns, std::memory_order_relaxed);
+
+  int64_t next_call_time_ns = next_call_ns + period_ns;
+
+  // in case the timer has missed at least one cycle
+  if (next_call_time_ns < now_ns) {
+    if (period_ns == 0) {
+      // a timer with a period of zero is considered always ready
+      next_call_time_ns = now_ns;
+    } else {
+      // move the next call time forward by as many periods as necessary
+      const int64_t now_ahead = now_ns - next_call_time_ns;
+      // rounding up without overflow
+      const int64_t periods_ahead = 1 + (now_ahead - 1) / period_ns;
+      next_call_time_ns += periods_ahead * period_ns;
+    }
+  }
+  timer_info.next_call_time_ns.store(next_call_time_ns, std::memory_order_relaxed);
+
+  timer->execute_callback();
+  return true;
 }
 
 void unregister_timer_info(uint32_t timer_id)
