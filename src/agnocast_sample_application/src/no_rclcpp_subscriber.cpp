@@ -3,6 +3,7 @@
 #include "rclcpp/time.hpp"
 
 #include <chrono>
+#include <rclcpp_components/register_node_macro.hpp>
 #include <iostream>
 
 using std::placeholders::_1;
@@ -53,7 +54,8 @@ class NoRclcppSubscriber : public agnocast::Node
   }
 
 public:
-  explicit NoRclcppSubscriber() : agnocast::Node("no_rclcpp_subscriber")
+  explicit NoRclcppSubscriber(const rclcpp::NodeOptions & options)
+  : agnocast::Node("no_rclcpp_subscriber", options)
   {
     declare_parameter("topic_name", rclcpp::ParameterValue(std::string("my_topic")));
     declare_parameter("qos.queue_size", rclcpp::ParameterValue(int64_t(1)));
@@ -110,12 +112,4 @@ public:
   }
 };
 
-int main(int argc, char ** argv)
-{
-  agnocast::init(argc, argv);
-  agnocast::AgnocastOnlySingleThreadedExecutor executor;
-  auto node = std::make_shared<NoRclcppSubscriber>();
-  executor.add_node(node);
-  executor.spin();
-  return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(NoRclcppSubscriber)

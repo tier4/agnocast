@@ -193,11 +193,11 @@ const bool is_ros_time = (clock->get_clock_type() == RCL_ROS_TIME);
     // Only create timerfd if ros_time is not active (system time mode)
     // If ros_time is already active, timer will be driven by clock_eventfd
     if (!clock->ros_time_is_active()) {
-      timer_info->timer_fd = create_timer_fd(timer_id, period);
+      timer_info->timer_fd = create_timer_fd(timer_id, period, clock->get_clock_type());
     }
   } else {
     // Non-ROS_TIME timers always use timerfd
-    timer_info->timer_fd = create_timer_fd(timer_id, period);
+    timer_info->timer_fd = create_timer_fd(timer_id, period, clock->get_clock_type());
   }
 
   setup_time_jump_callback(*timer_info, clock);
