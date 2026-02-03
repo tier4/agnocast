@@ -67,8 +67,8 @@ uint32_t allocate_timer_id()
 }
 
 void register_timer_info(
-  uint32_t timer_id, std::shared_ptr<TimerBase> timer, std::chrono::nanoseconds period,
-  const rclcpp::CallbackGroup::SharedPtr & callback_group, rclcpp::Clock::SharedPtr clock)
+  uint32_t timer_id, const std::shared_ptr<TimerBase> & timer, std::chrono::nanoseconds period,
+  const rclcpp::CallbackGroup::SharedPtr & callback_group, const rclcpp::Clock::SharedPtr & clock)
 {
   if (clock->get_clock_type() != RCL_STEADY_TIME) {
     throw std::runtime_error(
