@@ -1,8 +1,8 @@
 #pragma once
 
 #include "agnocast/agnocast_multi_threaded_executor.hpp"
-#include "agnocast/bridge/agnocast_standard_bridge_ipc_event_loop.hpp"
-#include "agnocast/bridge/agnocast_standard_bridge_loader.hpp"
+#include "agnocast/bridge/standard/agnocast_standard_bridge_ipc_event_loop.hpp"
+#include "agnocast/bridge/standard/agnocast_standard_bridge_loader.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
@@ -74,7 +74,6 @@ private:
   void check_should_exit();
 
   void remove_active_bridge(const std::string & topic_name_with_direction);
-  bool update_ros2_subscriber_num(const std::string & topic_name);
 
   static std::pair<std::string, std::string> extract_topic_info(const MqMsgBridge & req);
 };
