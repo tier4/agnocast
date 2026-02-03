@@ -86,6 +86,10 @@ private:
 
   const rcl_arguments_t * local_args_ = nullptr;
   const rcl_arguments_t * global_args_ = nullptr;
+
+  // Guard condition for executor notification
+  // This is required for compatibility with rclcpp::Executor::add_node()
+  std::unique_ptr<rclcpp::GuardCondition> notify_guard_condition_;
 };
 
 }  // namespace agnocast::node_interfaces
