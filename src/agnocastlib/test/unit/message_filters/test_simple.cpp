@@ -59,8 +59,8 @@ TEST(AgnocastSimpleFilter, callbackTypes)
   f.registerCallback<const MessageEvent<Msg const> &>(std::bind(&Helper::cb2, &h, _1));
 
   // Create a test message
-  Msg * raw_msg = new Msg();
-  auto msg = make_test_ipc_shared_ptr(const_cast<Msg const *>(raw_msg));
+  Msg const * raw_msg = new Msg const();
+  auto msg = make_test_ipc_shared_ptr(raw_msg);
 
   f.add(Filter::EventType(msg));
 
