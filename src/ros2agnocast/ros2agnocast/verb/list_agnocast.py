@@ -1,7 +1,15 @@
 import ctypes
+from enum import Enum
+from contextlib import contextmanager
 from ros2cli.node.strategy import NodeStrategy
 from ros2topic.api import get_topic_names_and_types
 from ros2topic.verb import VerbExtension
+
+class BridgeStatus(Enum):
+    NOT_BRIDGED = 0
+    PUBLISHER = 1
+    SUBSCRIBER = 2
+    PUBSUB = 3
 
 class TopicInfoRet(ctypes.Structure):
     _fields_ = [
@@ -32,32 +40,52 @@ class ListAgnocastVerb(VerbExtension):
             lib.free_agnocast_topic_info_ret.argtypes = [ctypes.POINTER(TopicInfoRet)]
             lib.free_agnocast_topic_info_ret.restype = None
 
-            def is_topic_bridged(topic_name):
-                topic_name_bytes = topic_name.encode('utf-8')
-
-                # Check Agnocast subscribers
-                sub_count = ctypes.c_int()
-                sub_array = lib.get_agnocast_sub_nodes(topic_name_bytes, ctypes.byref(sub_count))
-                
+            @contextmanager
+            def agnocast_info_array(lib_func, topic_name_bytes):
+                count = ctypes.c_int()
+                array = lib_func(topic_name_bytes, ctypes.byref(count))
                 try:
-                    if any(sub_array[i].is_bridge for i in range(sub_count.value)):
-                        return True
+                    yield array[:count.value] if array else []
                 finally:
-                    if sub_count.value > 0 and sub_array:
-                        lib.free_agnocast_topic_info_ret(sub_array)
+                    if array:
+                        lib.free_agnocast_topic_info_ret(array)
 
-                # Check Agnocast publishers
-                pub_count = ctypes.c_int()
-                pub_array = lib.get_agnocast_pub_nodes(topic_name_bytes, ctypes.byref(pub_count))
+            def get_bridge_status(topic_name):
+                name_b = topic_name.encode('utf-8')
                 
-                try:
-                    if any(pub_array[i].is_bridge for i in range(pub_count.value)):
-                        return True
-                finally:
-                    if pub_count.value > 0 and pub_array:
-                        lib.free_agnocast_topic_info_ret(pub_array)
+                has_sub_bridge = False
+                has_pub_bridge = False
 
-                return False
+                with agnocast_info_array(lib.get_agnocast_sub_nodes, name_b) as nodes:
+                    has_sub_bridge = any(n.is_bridge for n in nodes)
+                with agnocast_info_array(lib.get_agnocast_pub_nodes, name_b) as nodes:
+                    has_pub_bridge = any(n.is_bridge for n in nodes)
+
+                mapping = {
+                    (True, True):   BridgeStatus.PUBSUB,
+                    (True, False):  BridgeStatus.SUBSCRIBER,
+                    (False, True):  BridgeStatus.PUBLISHER,
+                    (False, False): BridgeStatus.NOT_BRIDGED,
+                }
+                
+                return mapping[(has_sub_bridge, has_pub_bridge)]
+            
+            def devide_ros2_topic_into_pubsub(topic_names):
+                pub_topics = []
+                sub_topics = []
+                for name in topic_names:
+                    pubs_info = node.get_publishers_info_by_topic(name)
+                    subs_info = node.get_subscriptions_info_by_topic(name)
+
+                    # Remove Agnocast bridge nodes from the list
+                    pubs_info = [info for info in pubs_info if not info.node_name.startswith("agnocast_bridge_node_")]
+                    subs_info = [info for info in subs_info if not info.node_name.startswith("agnocast_bridge_node_")]
+
+                    if pubs_info:
+                        pub_topics.append(name)
+                    if subs_info:
+                        sub_topics.append(name)
+                return pub_topics, sub_topics
             
             # Get Agnocast topics
             topic_count = ctypes.c_int()
@@ -73,12 +101,13 @@ class ListAgnocastVerb(VerbExtension):
             # Get ros2 topics
             ros2_topics_data = get_topic_names_and_types(node=node)
             ros2_topics = [name for name, _ in ros2_topics_data]
+            ros2_pub_topics, ros2_sub_topics = devide_ros2_topic_into_pubsub(ros2_topics)
 
             ########################################################################
             # Print topic list
             ########################################################################
             agnocast_topics_set = set(agnocast_topics)
-            ros2_topics_set = set(ros2_topics)
+            ros2_topics_set = set(ros2_pub_topics) | set(ros2_sub_topics)
 
             for topic in sorted(agnocast_topics_set | ros2_topics_set):
                 if topic in agnocast_topics_set and topic not in ros2_topics_set:
@@ -86,8 +115,24 @@ class ListAgnocastVerb(VerbExtension):
                 elif topic in ros2_topics_set and topic not in agnocast_topics_set:
                     suffix = ""
                 else:
-                    if is_topic_bridged(topic):
-                        suffix = " (Agnocast enabled, bridged)"
-                    else:
-                        suffix = " (ERROR: Agnocast ros2 mismatch)"
+                    match get_bridge_status(topic):
+                        case BridgeStatus.PUBSUB:
+                            suffix = " (Agnocast enabled, bridged)"
+                            print("debug: PUBSUB detected")
+                        case BridgeStatus.PUBLISHER:
+                            if topic in ros2_pub_topics:
+                                suffix = " (Agnocast enabled, bridged)"
+                                print("debug: PUBLISHER bridged detected")
+                            else:
+                                suffix = " (Agnocast enabled)"
+                                print("debug: PUBLISHER unbridged detected")
+                        case BridgeStatus.SUBSCRIBER:
+                            if topic in ros2_sub_topics:
+                                suffix = " (Agnocast enabled, bridged)"
+                                print("debug: SUBSCRIBER bridged detected")
+                            else:
+                                suffix = " (Agnocast enabled)"
+                                print("debug: SUBSCRIBER unbridged detected")
+                        case BridgeStatus.NOT_BRIDGED:
+                            suffix = " (WARN: Agnocast ros2 mismatch)"
                 print(f"{topic}{suffix}")
