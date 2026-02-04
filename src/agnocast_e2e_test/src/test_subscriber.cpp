@@ -23,7 +23,7 @@ class TestSubscriber : public rclcpp::Node
       if (received_end_count_ >= target_end_count_) {
         RCLCPP_INFO(this->get_logger(), "All messages received. Shutting down.");
         std::cout << std::flush;
-        sleep(3);
+        sleep(3);  // HACK: wait for other nodes in the same container
 
         if (!forever_) {
           rclcpp::shutdown();

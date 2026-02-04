@@ -184,6 +184,12 @@ void StandardBridgeManager::activate_bridge(const MqMsgBridge & req, const std::
       return;
     }
 
+    if (!is_r2a) {
+      if (!update_ros2_subscriber_num(container_node_.get(), topic_name)) {
+        RCLCPP_ERROR(
+          logger_, "Failed to update ROS 2 subscriber count for topic '%s'.", topic_name.c_str());
+      }
+    }
     active_bridges_[topic_name_with_direction] = bridge;
 
     auto cast_bridge = std::static_pointer_cast<agnocast::BridgeBase>(bridge);
