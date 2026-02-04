@@ -14,7 +14,7 @@ Agnocast message filters provide a message synchronization framework adapted fro
 
 ## Architecture
 
-```
+```text
 Publisher
   │
   ▼ (agnocast shared memory IPC)
@@ -149,7 +149,7 @@ Use real agnocast publishers with kernel module. Not run in CI.
 
 ## File Layout
 
-```
+```text
 src/agnocastlib/include/agnocast/message_filters/
 ├── message_event.hpp
 ├── parameter_adapter.hpp
