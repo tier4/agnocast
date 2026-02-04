@@ -10,6 +10,30 @@
 namespace agnocast
 {
 
+BridgeMode get_bridge_mode()
+{
+  const char * env_val = std::getenv("AGNOCAST_BRIDGE_MODE");
+  if (env_val == nullptr) {
+    return BridgeMode::Standard;
+  }
+
+  std::string val = env_val;
+  std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+
+  if (val == "0" || val == "off") {
+    return BridgeMode::Off;
+  }
+  if (val == "1" || val == "standard") {
+    return BridgeMode::Standard;
+  }
+  if (val == "2" || val == "performance") {
+    return BridgeMode::Performance;
+  }
+
+  RCLCPP_WARN(logger, "Unknown AGNOCAST_BRIDGE_MODE: %s. Fallback to STANDARD.", env_val);
+  return BridgeMode::Standard;
+}
+
 rclcpp::QoS get_subscriber_qos(const std::string & topic_name, topic_local_id_t subscriber_id)
 {
   struct ioctl_get_subscriber_qos_args get_subscriber_qos_args = {};
@@ -94,6 +118,25 @@ bool has_external_ros2_subscriber(const rclcpp::Node * node, const std::string &
   return std::any_of(subscribers.begin(), subscribers.end(), [&self_name](const auto & info) {
     return info.node_name() != self_name;
   });
+}
+
+bool update_ros2_subscriber_num(const rclcpp::Node * node, const std::string & topic_name)
+{
+  if (node == nullptr) {
+    return false;
+  }
+
+  size_t ros2_count = node->count_subscribers(topic_name);
+
+  struct ioctl_set_ros2_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  args.ros2_subscriber_num = static_cast<uint32_t>(ros2_count);
+
+  if (ioctl(agnocast_fd, AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
 }
 
 }  // namespace agnocast
