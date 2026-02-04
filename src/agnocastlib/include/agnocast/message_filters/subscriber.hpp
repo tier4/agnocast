@@ -149,6 +149,7 @@ public:
    * \param qos (optional) The rmw qos profile to use to subscribe.
    */
   Subscriber(
+    // cppcheck-suppress passedByValue  // shared_ptr by-value is intentional (shared ownership)
     NodePtr node, const std::string & topic,
     const rmw_qos_profile_t qos = rmw_qos_profile_default)  // NOLINT
   {
@@ -173,6 +174,7 @@ public:
    * \param options The subscription options to use to subscribe.
    */
   Subscriber(
+    // cppcheck-suppress passedByValue  // shared_ptr by-value is intentional (shared ownership)
     NodePtr node, const std::string & topic, const rmw_qos_profile_t qos,
     agnocast::SubscriptionOptions options)
   {
@@ -202,6 +204,7 @@ public:
    * \param topic The topic to subscribe to.
    * \param qos (optional) The rmw qos profile to use to subscribe.
    */
+  // cppcheck-suppress virtualCallInConstructor  // Subscriber is not intended to be derived
   void subscribe(
     NodePtr node, const std::string & topic,
     const rmw_qos_profile_t qos = rmw_qos_profile_default) override
@@ -220,6 +223,7 @@ public:
    * \param topic The topic to subscribe to.
    * \param qos (optional) The rmw qos profile to use to subscribe.
    */
+  // cppcheck-suppress virtualCallInConstructor  // Subscriber is not intended to be derived
   void subscribe(
     NodeType * node, const std::string & topic,
     const rmw_qos_profile_t qos = rmw_qos_profile_default) override
@@ -237,6 +241,7 @@ public:
    * \param qos The rmw qos profile to use to subscribe.
    * \param options The subscription options to use to subscribe.
    */
+  // cppcheck-suppress virtualCallInConstructor  // Subscriber is not intended to be derived
   void subscribe(
     NodePtr node, const std::string & topic, const rmw_qos_profile_t qos,
     agnocast::SubscriptionOptions options) override
@@ -256,6 +261,7 @@ public:
    * \param qos The rmw qos profile to use to subscribe.
    * \param options The subscription options to use to subscribe.
    */
+  // cppcheck-suppress virtualCallInConstructor  // Subscriber is not intended to be derived
   void subscribe(
     NodeType * node, const std::string & topic, const rmw_qos_profile_t qos,
     agnocast::SubscriptionOptions options) override
@@ -291,6 +297,7 @@ public:
   /**
    * \brief Force immediate unsubscription of this subscriber from its topic
    */
+  // cppcheck-suppress virtualCallInConstructor  // Subscriber is not intended to be derived
   void unsubscribe() override { sub_.reset(); }
 
   std::string getTopic() const { return topic_; }

@@ -40,9 +40,6 @@ public:
 
   void cb2(const MsgConstPtr &, const MsgConstPtr &) { ++count_; }
 
-  // cb9 is not a member function because std::bind supports at most 9 args
-  // (object pointer + 9 params = 10 exceeds the limit).
-
   int32_t count_;
 };
 

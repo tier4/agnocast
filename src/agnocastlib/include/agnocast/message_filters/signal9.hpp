@@ -82,12 +82,12 @@ public:
     typename A4::Parameter, typename A5::Parameter, typename A6::Parameter, typename A7::Parameter,
     typename A8::Parameter)>;
 
-  CallbackHelper9T(const Callback & cb) : callback_(cb) {}
+  explicit CallbackHelper9T(const Callback & cb) : callback_(cb) {}
 
-  virtual void call(
+  void call(
     const M0Event & e0, const M1Event & e1, const M2Event & e2, const M3Event & e3,
     const M4Event & e4, const M5Event & e5, const M6Event & e6, const M7Event & e7,
-    const M8Event & e8)
+    const M8Event & e8) override
   {
     callback_(
       A0::getParameter(e0), A1::getParameter(e1), A2::getParameter(e2), A3::getParameter(e3),

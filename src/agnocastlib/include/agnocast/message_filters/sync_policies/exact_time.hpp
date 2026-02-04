@@ -47,10 +47,11 @@ struct ExactTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
   using M8Event = typename Super::M8Event;
   using Tuple = Events;
 
-  ExactTime(uint32_t queue_size) : parent_(nullptr), queue_size_(queue_size) {}
+  explicit ExactTime(uint32_t queue_size) : parent_(nullptr), queue_size_(queue_size) {}
 
   ExactTime(const ExactTime & e) { *this = e; }
 
+  // cppcheck-suppress operatorEqVarError  // drop_signal_ is not copyable (contains std::mutex)
   ExactTime & operator=(const ExactTime & rhs)
   {
     parent_ = rhs.parent_;

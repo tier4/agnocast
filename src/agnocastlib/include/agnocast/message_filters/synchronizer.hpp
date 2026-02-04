@@ -175,7 +175,7 @@ public:
     init();
   }
 
-  Synchronizer(const Policy & policy) : Policy(policy) { init(); }
+  explicit Synchronizer(const Policy & policy) : Policy(policy) { init(); }
 
   ~Synchronizer() { disconnectAll(); }
 
@@ -315,8 +315,6 @@ private:
   {
     this->template add<i>(evt);
   }
-
-  uint32_t queue_size_;
 
   Signal signal_;
 

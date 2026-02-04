@@ -38,7 +38,7 @@ public:
 
   MessageEvent(const MessageEvent & rhs) = default;
 
-  MessageEvent(const ConstMessagePtr & message)
+  explicit MessageEvent(const ConstMessagePtr & message)
   : message_(message), receipt_time_(rclcpp::Clock().now())
   {
   }

@@ -36,9 +36,9 @@ public:
   using Callback = std::function<void(typename Adapter::Parameter)>;
   using Event = typename Adapter::Event;
 
-  CallbackHelper1T(const Callback & cb) : callback_(cb) {}
+  explicit CallbackHelper1T(const Callback & cb) : callback_(cb) {}
 
-  virtual void call(const MessageEvent<M const> & event)
+  void call(const MessageEvent<M const> & event) override
   {
     callback_(Adapter::getParameter(event));
   }
