@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.14)
 project(cie_config_msgs)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -20,6 +20,9 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-rosidl_generate_interfaces(${PROJECT_NAME} "msg/CallbackGroupInfo.msg")
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/CallbackGroupInfo.msg"
+  "msg/NonRosThreadInfo.msg"
+)
 
 ament_package()

@@ -26,20 +26,22 @@ find_package(LTTngUST REQUIRED)
 find_package(cie_config_msgs REQUIRED)
 find_package(cie_thread_configurator REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
-  src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_epoll.cpp src/agnocast_executor.cpp
+  src/agnocast_smart_pointer.cpp src/agnocast_callback_info.cpp src/agnocast_epoll.cpp src/agnocast_timer_info.cpp src/agnocast_timer.cpp src/agnocast_executor.cpp
   src/agnocast_single_threaded_executor.cpp src/agnocast_multi_threaded_executor.cpp
   src/agnocast_callback_isolated_executor.cpp
   src/agnocast_tracepoint_wrapper.c src/agnocast_client.cpp
   src/node/agnocast_node.cpp src/node/agnocast_arguments.cpp src/node/agnocast_context.cpp
   src/node/agnocast_only_executor.cpp src/node/agnocast_only_single_threaded_executor.cpp src/node/agnocast_only_multi_threaded_executor.cpp
   src/node/node_interfaces/node_base.cpp src/node/node_interfaces/node_parameters.cpp src/node/node_interfaces/node_topics.cpp src/node/node_interfaces/node_clock.cpp src/node/node_interfaces/node_time_source.cpp src/node/node_interfaces/node_services.cpp src/node/node_interfaces/node_logging.cpp
-  src/bridge/agnocast_bridge_ipc_event_loop.cpp src/bridge/agnocast_bridge_loader.cpp src/bridge/agnocast_bridge_manager.cpp src/bridge/agnocast_bridge_utils.cpp
-  src/bridge/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/agnocast_performance_bridge_loader.cpp src/bridge/agnocast_performance_bridge_manager.cpp)
+  src/bridge/standard/agnocast_standard_bridge_ipc_event_loop.cpp src/bridge/standard/agnocast_standard_bridge_loader.cpp src/bridge/standard/agnocast_standard_bridge_manager.cpp src/bridge/agnocast_bridge_utils.cpp
+  src/bridge/performance/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/performance/agnocast_performance_bridge_loader.cpp src/bridge/performance/agnocast_performance_bridge_manager.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs)
+ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -57,16 +59,16 @@ target_include_directories(agnocast PUBLIC
   ${LTTNGUST_INCLUDE_DIRS}
 )
 
-# Start of generic bridge plugin
+# Start of bridge plugin build
 
-if("$ENV{BUILD_GENERIC_BRIDGE}" STREQUAL "ON")
-  set(BUILD_GENERIC_BRIDGE ON)
+if("$ENV{AGNOCAST_BUILD_BRIDGE_PLUGINS}" STREQUAL "ON")
+  set(AGNOCAST_BUILD_BRIDGE_PLUGINS ON)
 else()
-  set(BUILD_GENERIC_BRIDGE OFF)
+  set(AGNOCAST_BUILD_BRIDGE_PLUGINS OFF)
 endif()
 
-if(BUILD_GENERIC_BRIDGE)
-  message(STATUS "BUILD_GENERIC_BRIDGE is ON. Generating bridge plugins...")
+if(AGNOCAST_BUILD_BRIDGE_PLUGINS)
+  message(STATUS "AGNOCAST_BUILD_BRIDGE_PLUGINS is ON. Generating bridge plugins...")
   set(MESSAGE_TYPES_FILE "${CMAKE_CURRENT_BINARY_DIR}/ros2_interfaces.txt")
   execute_process(
     COMMAND ros2 interface list -m
@@ -243,6 +245,7 @@ if(BUILD_TESTING)
     test/unit/test_node_topics.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_unit_${PROJECT_NAME} std_msgs)
   set_tests_properties(test_unit_${PROJECT_NAME} PROPERTIES
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )
@@ -268,7 +271,7 @@ if(BUILD_TESTING)
   add_library(test_publisher_component SHARED
     test/integration/src/test_publisher_component.cpp)
   target_link_libraries(test_publisher_component agnocast)
-  ament_target_dependencies(test_publisher_component rclcpp rclcpp_components std_msgs)
+  ament_target_dependencies(test_publisher_component rclcpp rclcpp_components std_msgs cie_thread_configurator)
   rclcpp_components_register_node(test_publisher_component
     PLUGIN "agnocastlib_test::TestPublisherComponent"
     EXECUTABLE test_publisher_component_node)

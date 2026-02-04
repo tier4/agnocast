@@ -166,15 +166,14 @@ union ioctl_take_msg_args {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 union ioctl_get_subscriber_num_args {
+  struct name_info topic_name;
   struct
   {
-    struct name_info topic_name;
-    bool include_ros2;
-  };
-  struct
-  {
-    uint32_t ret_subscriber_num;
-    bool ret_bridge_exist;
+    uint32_t ret_other_process_subscriber_num;
+    uint32_t ret_same_process_subscriber_num;
+    uint32_t ret_ros2_subscriber_num;
+    bool ret_a2r_bridge_exist;
+    bool ret_r2a_bridge_exist;
   };
 };
 #pragma GCC diagnostic pop
@@ -203,6 +202,7 @@ struct topic_info_ret
   uint32_t qos_depth;
   bool qos_is_transient_local;
   bool qos_is_reliable;
+  bool is_bridge;
 };
 
 #pragma GCC diagnostic push

@@ -4,6 +4,7 @@
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_service.hpp"
 #include "agnocast/agnocast_subscription.hpp"
+#include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/node/agnocast_arguments.hpp"
 #include "agnocast/node/agnocast_context.hpp"
 #include "agnocast/node/node_interfaces/node_base.hpp"
@@ -15,8 +16,10 @@
 #include "agnocast/node/node_interfaces/node_topics.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "rclcpp/version.h"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -32,8 +35,16 @@ public:
   using SharedPtr = std::shared_ptr<Node>;
   using ParameterValue = rclcpp::ParameterValue;
   using OnSetParametersCallbackHandle = rclcpp::node_interfaces::OnSetParametersCallbackHandle;
-  using OnParametersSetCallbackType =
+  // rclcpp 28+ (Jazzy) renamed OnParametersSetCallbackType to OnSetParametersCallbackType
+  // and removed the old name from NodeParametersInterface (only kept as deprecated alias
+  // in OnSetParametersCallbackHandle). Humble uses rclcpp 16.x with the old name.
+#if RCLCPP_VERSION_MAJOR >= 28
+  using OnSetParametersCallbackType =
+    rclcpp::node_interfaces::NodeParametersInterface::OnSetParametersCallbackType;
+#else
+  using OnSetParametersCallbackType =
     rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType;
+#endif
 
   explicit Node(
     const std::string & node_name, const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
@@ -123,7 +134,7 @@ public:
   }
 
   template <typename ParameterT>
-  ParameterT declare_parameter(
+  auto declare_parameter(
     const std::string & name, const ParameterT & default_value,
     const ParameterDescriptor & descriptor = ParameterDescriptor{}, bool ignore_override = false)
   {
@@ -137,7 +148,7 @@ public:
   }
 
   template <typename ParameterT>
-  ParameterT declare_parameter(
+  auto declare_parameter(
     const std::string & name, const ParameterDescriptor & descriptor = ParameterDescriptor{},
     bool ignore_override = false)
   {
@@ -252,7 +263,7 @@ public:
   }
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
-    rclcpp::node_interfaces::NodeParametersInterface::OnParametersSetCallbackType callback)
+    OnSetParametersCallbackType callback)
   {
     return node_parameters_->add_on_set_parameters_callback(callback);
   }
@@ -305,6 +316,21 @@ public:
       options);
   }
 
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const size_t qos_history_depth)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+  }
+
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos);
+  }
+
   template <typename ServiceT>
   typename agnocast::Client<ServiceT>::SharedPtr create_client(
     const std::string & service_name, const rclcpp::QoS & qos = rclcpp::ServicesQoS(),
@@ -321,6 +347,27 @@ public:
   {
     return std::make_shared<Service<ServiceT>>(
       this, service_name, std::forward<Func>(callback), qos, group);
+  
+  template <typename Func>
+  typename WallTimer<Func>::SharedPtr create_wall_timer(
+    std::chrono::nanoseconds period, Func && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    static_assert(
+      std::is_invocable_v<Func, TimerBase &> || std::is_invocable_v<Func>,
+      "Callback must be callable with void() or void(TimerBase&)");
+
+    if (!group) {
+      group = node_base_->get_default_callback_group();
+    }
+
+    const uint32_t timer_id = allocate_timer_id();
+
+    auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
+
+    register_timer_info(timer_id, timer, period, group);
+
+    return timer;
   }
 
 private:
