@@ -149,8 +149,7 @@ public:
       constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, is_bridge);
 
     {
-      uint64_t pid_callback_info_id =
-        (static_cast<uint64_t>(getpid()) << 32) | callback_info_id_;
+      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id_;
       TRACEPOINT(
         agnocast_subscription_init, static_cast<const void *>(this),
         static_cast<const void *>(
