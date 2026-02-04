@@ -69,6 +69,11 @@ char ** get_agnocast_topics(int * topic_count)
       topic_array = nullptr;
       break;
     }
+    std::string topic_name = agnocast_topic_buffer + i * TOPIC_NAME_BUFFER_SIZE;
+    if (is_service_topic(topic_name)) {
+      topic_array[i][0] = '\0';
+      continue;
+    }
     std::strcpy(topic_array[i], agnocast_topic_buffer + i * TOPIC_NAME_BUFFER_SIZE);
   }
 
