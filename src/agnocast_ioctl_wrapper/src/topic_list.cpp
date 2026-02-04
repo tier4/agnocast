@@ -43,16 +43,7 @@ char ** get_agnocast_topics(int * topic_count)
     return nullptr;
   }
 
-  std::vector<std::string> agnocast_topics;
-  agnocast_topics.reserve(topic_list_args.ret_topic_num);
-  for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
-    std::string topic_name = agnocast_topic_buffer + i * TOPIC_NAME_BUFFER_SIZE;
-    agnocast_topics.push_back(std::move(topic_name));
-    (*topic_count)++;
-  }
-
-  free(agnocast_topic_buffer);
-  close(fd);
+  *topic_count = topic_list_args.ret_topic_num;
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));
   if (topic_array == nullptr) {
@@ -60,16 +51,20 @@ char ** get_agnocast_topics(int * topic_count)
   }
 
   for (size_t i = 0; i < *topic_count; i++) {
-    topic_array[i] = static_cast<char *>(malloc((agnocast_topics[i].size() + 1) * sizeof(char)));
+    topic_array[i] = static_cast<char *>(malloc((TOPIC_NAME_BUFFER_SIZE + 1) * sizeof(char)));
     if (!topic_array[i]) {
       for (size_t j = 0; j < i; j++) {
         free(topic_array[j]);
       }
       free(topic_array);
-      return nullptr;
+      topic_array = nullptr;
+      break;
     }
-    std::strcpy(topic_array[i], agnocast_topics[i].c_str());
+    std::strcpy(topic_array[i], agnocast_topic_buffer + i * TOPIC_NAME_BUFFER_SIZE);
   }
+
+  free(agnocast_topic_buffer);
+  close(fd);
   return topic_array;
 }
 
