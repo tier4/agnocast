@@ -24,7 +24,8 @@ void increment_rc(const std::string &, const topic_local_id_t, const int64_t)
 {
   increment_rc_mock_called_count++;
 }
-topic_local_id_t initialize_publisher(const std::string &, const std::string &, const rclcpp::QoS &)
+topic_local_id_t initialize_publisher(
+  const std::string &, const std::string &, const rclcpp::QoS &, const bool)
 {
   return 0;  // Dummy value
 }
@@ -305,7 +306,10 @@ TEST_F(AgnocastSmartPointerTest, move_assignment_self)
   agnocast::ipc_shared_ptr<int> sut{ptr, dummy_tn, dummy_pubsub_id, dummy_entry_id};
 
   // Act
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wself-move"
   sut = std::move(sut);
+#pragma GCC diagnostic pop
 
   // Assert
   EXPECT_EQ(increment_rc_mock_called_count, 0);

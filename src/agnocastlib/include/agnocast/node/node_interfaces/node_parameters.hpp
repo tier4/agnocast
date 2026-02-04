@@ -7,9 +7,11 @@
 #include "rclcpp/node_interfaces/node_parameters.hpp"
 #include "rclcpp/node_interfaces/node_parameters_interface.hpp"
 #include "rclcpp/parameter.hpp"
+#include "rclcpp/version.h"
 
 #include <rcl/arguments.h>
 
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -20,12 +22,15 @@ namespace agnocast::node_interfaces
 {
 
 using rclcpp::node_interfaces::ParameterInfo;
+using rclcpp::node_interfaces::ParameterMutationRecursionGuard;
 
 class NodeParameters : public rclcpp::node_interfaces::NodeParametersInterface
 {
 public:
   using SharedPtr = std::shared_ptr<NodeParameters>;
   using WeakPtr = std::weak_ptr<NodeParameters>;
+  using CallbacksContainerType =
+    std::list<rclcpp::node_interfaces::OnSetParametersCallbackHandle::WeakPtr>;
 
   explicit NodeParameters(
     rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base,
@@ -75,20 +80,50 @@ public:
   rcl_interfaces::msg::ListParametersResult list_parameters(
     const std::vector<std::string> & prefixes, uint64_t depth) const override;
 
+  // rclcpp 28+ (Jazzy) renamed OnParametersSetCallbackType to OnSetParametersCallbackType
+  // and removed the old name from NodeParametersInterface. Humble uses rclcpp 16.x.
+#if RCLCPP_VERSION_MAJOR >= 28
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
+    OnSetParametersCallbackType callback) override;
+#else
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr add_on_set_parameters_callback(
     OnParametersSetCallbackType callback) override;
+#endif
 
   void remove_on_set_parameters_callback(
     const rclcpp::node_interfaces::OnSetParametersCallbackHandle * const handler) override;
+
+  // rclcpp 28+ (Jazzy) added pre/post set parameters callbacks to NodeParametersInterface.
+#if RCLCPP_VERSION_MAJOR >= 28
+  rclcpp::node_interfaces::PreSetParametersCallbackHandle::SharedPtr
+  add_pre_set_parameters_callback(PreSetParametersCallbackType callback) override;
+
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
+  add_post_set_parameters_callback(PostSetParametersCallbackType callback) override;
+
+  void remove_pre_set_parameters_callback(
+    const rclcpp::node_interfaces::PreSetParametersCallbackHandle * const handler) override;
+
+  void remove_post_set_parameters_callback(
+    const rclcpp::node_interfaces::PostSetParametersCallbackHandle * const handler) override;
+#endif
 
   const std::map<std::string, rclcpp::ParameterValue> & get_parameter_overrides() const override;
 
 private:
   rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_;
 
-  mutable std::mutex parameters_mutex_;
+  mutable std::recursive_mutex parameters_mutex_;
+
+  // There are times when we don't want to allow modifications to parameters
+  // (particularly when a set_parameter callback tries to call set_parameter,
+  // declare_parameter, etc).  In those cases, this will be set to false.
+  bool parameter_modification_enabled_{true};
+
   std::map<std::string, rclcpp::ParameterValue> parameter_overrides_;
   std::map<std::string, ParameterInfo> parameters_;
+
+  CallbacksContainerType on_parameters_set_callback_container_;
 
   bool allow_undeclared_ = false;
 };

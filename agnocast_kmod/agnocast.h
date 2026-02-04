@@ -3,9 +3,12 @@
 #include <linux/ipc_namespace.h>
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 4        // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16      // Maximum number of subscribers per topic
-#define MAX_QOS_DEPTH 10           // Maximum QoS depth for each publisher/subscriber
+#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+/* Maximum number of entries that can be received at one ioctl. This value is heuristically set to
+ * balance the number of calling ioctl and the overhead of copying data between user and kernel
+ * space. */
+#define MAX_RECEIVE_NUM 10
 #define MAX_RELEASE_NUM 3          // Maximum number of entries that can be released at one ioctl
 #define NODE_NAME_BUFFER_SIZE 256  // Maximum length of node name: 256 characters
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
@@ -48,6 +51,7 @@ union ioctl_add_subscriber_args {
     bool qos_is_reliable;
     bool is_take_sub;
     bool ignore_local_publications;
+    bool is_bridge;
   };
   struct
   {
@@ -62,6 +66,7 @@ union ioctl_add_publisher_args {
     struct name_info node_name;
     uint32_t qos_depth;
     bool qos_is_transient_local;
+    bool is_bridge;
   };
   struct
   {
@@ -85,8 +90,9 @@ union ioctl_receive_msg_args {
   struct
   {
     uint16_t ret_entry_num;
-    int64_t ret_entry_ids[MAX_QOS_DEPTH];
-    uint64_t ret_entry_addrs[MAX_QOS_DEPTH];
+    bool ret_call_again;
+    int64_t ret_entry_ids[MAX_RECEIVE_NUM];
+    uint64_t ret_entry_addrs[MAX_RECEIVE_NUM];
     struct publisher_shm_info ret_pub_shm_info;
   };
 };
@@ -125,12 +131,23 @@ union ioctl_take_msg_args {
 
 union ioctl_get_subscriber_num_args {
   struct name_info topic_name;
-  uint32_t ret_subscriber_num;
+  struct
+  {
+    uint32_t ret_other_process_subscriber_num;
+    uint32_t ret_same_process_subscriber_num;
+    uint32_t ret_ros2_subscriber_num;
+    bool ret_a2r_bridge_exist;
+    bool ret_r2a_bridge_exist;
+  };
 };
 
 union ioctl_get_publisher_num_args {
   struct name_info topic_name;
-  uint32_t ret_publisher_num;
+  struct
+  {
+    uint32_t ret_publisher_num;
+    bool ret_bridge_exist;
+  };
 };
 
 struct ioctl_get_exit_process_args
@@ -203,6 +220,17 @@ struct ioctl_remove_bridge_args
   bool is_r2a;
 };
 
+struct ioctl_get_process_num_args
+{
+  uint32_t ret_process_num;
+};
+
+struct ioctl_set_ros2_subscriber_num_args
+{
+  struct name_info topic_name;
+  uint32_t ros2_subscriber_num;
+};
+
 #define AGNOCAST_GET_VERSION_CMD _IOR(0xA6, 1, struct ioctl_get_version_args)
 #define AGNOCAST_ADD_PROCESS_CMD _IOWR(0xA6, 2, union ioctl_add_process_args)
 #define AGNOCAST_ADD_SUBSCRIBER_CMD _IOWR(0xA6, 3, union ioctl_add_subscriber_args)
@@ -221,6 +249,9 @@ struct ioctl_remove_bridge_args
 #define AGNOCAST_GET_PUBLISHER_NUM_CMD _IOWR(0xA6, 16, union ioctl_get_publisher_num_args)
 #define AGNOCAST_REMOVE_SUBSCRIBER_CMD _IOW(0xA6, 17, struct ioctl_remove_subscriber_args)
 #define AGNOCAST_REMOVE_PUBLISHER_CMD _IOW(0xA6, 18, struct ioctl_remove_publisher_args)
+#define AGNOCAST_GET_PROCESS_NUM_CMD _IOR(0xA6, 19, struct ioctl_get_process_num_args)
+#define AGNOCAST_SET_ROS2_SUBSCRIBER_NUM_CMD \
+  _IOW(0xA6, 25, struct ioctl_set_ros2_subscriber_num_args)
 
 // ================================================
 // ros2cli ioctls
@@ -247,6 +278,7 @@ struct topic_info_ret
   uint32_t qos_depth;
   bool qos_is_transient_local;
   bool qos_is_reliable;
+  bool is_bridge;
 };
 
 union ioctl_topic_info_args {
@@ -285,12 +317,12 @@ int add_subscriber(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t subscriber_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
   const bool qos_is_reliable, const bool is_take_sub, const bool ignore_local_publications,
-  union ioctl_add_subscriber_args * ioctl_ret);
+  const bool is_bridge, union ioctl_add_subscriber_args * ioctl_ret);
 
 int add_publisher(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const char * node_name,
   const pid_t publisher_pid, const uint32_t qos_depth, const bool qos_is_transient_local,
-  union ioctl_add_publisher_args * ioctl_ret);
+  const bool is_bridge, union ioctl_add_publisher_args * ioctl_ret);
 
 int increment_message_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
@@ -317,7 +349,7 @@ int add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret);
 
 int get_subscriber_num(
-  const char * topic_name, const struct ipc_namespace * ipc_ns,
+  const char * topic_name, const struct ipc_namespace * ipc_ns, const pid_t pid,
   union ioctl_get_subscriber_num_args * ioctl_ret);
 
 int get_publisher_num(
@@ -347,6 +379,11 @@ int add_bridge(
 
 int remove_bridge(
   const char * topic_name, const pid_t pid, bool is_r2a, const struct ipc_namespace * ipc_ns);
+
+int get_process_num(const struct ipc_namespace * ipc_ns);
+
+int set_ros2_subscriber_num(
+  const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t count);
 
 void process_exit_cleanup(const pid_t pid);
 

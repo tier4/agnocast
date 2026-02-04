@@ -11,20 +11,21 @@
 namespace agnocast
 {
 
-using BridgeFn = std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const BridgeTargetInfo &);
+using BridgeFn =
+  std::shared_ptr<void> (*)(rclcpp::Node::SharedPtr, const BridgeTargetInfo &, const rclcpp::QoS &);
 
-class BridgeLoader
+class StandardBridgeLoader
 {
 public:
-  explicit BridgeLoader(const rclcpp::Logger & logger);
-  ~BridgeLoader();
+  explicit StandardBridgeLoader(const rclcpp::Logger & logger);
+  ~StandardBridgeLoader();
 
-  BridgeLoader(const BridgeLoader &) = delete;
-  BridgeLoader & operator=(const BridgeLoader &) = delete;
+  StandardBridgeLoader(const StandardBridgeLoader &) = delete;
+  StandardBridgeLoader & operator=(const StandardBridgeLoader &) = delete;
 
   std::shared_ptr<void> create(
     const MqMsgBridge & req, const std::string & topic_name_with_direction,
-    const rclcpp::Node::SharedPtr & node);
+    const rclcpp::Node::SharedPtr & node, const rclcpp::QoS & qos);
 
 private:
   rclcpp::Logger logger_;
@@ -33,7 +34,7 @@ private:
 
   std::shared_ptr<void> create_bridge_instance(
     BridgeFn entry_func, const std::shared_ptr<void> & lib_handle,
-    const rclcpp::Node::SharedPtr & node, const BridgeTargetInfo & target);
+    const rclcpp::Node::SharedPtr & node, const BridgeTargetInfo & target, const rclcpp::QoS & qos);
   static std::pair<void *, uintptr_t> load_library(const char * lib_path, const char * symbol_name);
   std::pair<BridgeFn, std::shared_ptr<void>> resolve_factory_function(
     const MqMsgBridge & req, const std::string & topic_name_with_direction);
