@@ -151,17 +151,9 @@ public:
   /// \brief Get the clock used by this buffer
   rclcpp::Clock::SharedPtr getClock() const { return clock_; }
 
-  /// \brief Set whether a dedicated thread is being used for TF updates.
-  void setUsingDedicatedThread(bool value) { using_dedicated_thread_ = value; }
-
-  /// \brief Check if a dedicated thread is being used for TF updates.
-  bool isUsingDedicatedThread() const { return using_dedicated_thread_; }
-
 private:
   /// \brief A clock to use for time and sleeping
   rclcpp::Clock::SharedPtr clock_;
-
-  bool using_dedicated_thread_ = false;
 
   /// \brief Reference to a jump handler registered to the clock
   rclcpp::JumpHandler::SharedPtr jump_handler_;
