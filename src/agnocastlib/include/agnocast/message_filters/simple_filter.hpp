@@ -86,7 +86,7 @@ public:
   /**
    * \brief Get the name of this filter.  For debugging use.
    */
-  const std::string & getName() { return name_; }
+  const std::string & getName() const { return name_; }
 
 protected:
   /**
