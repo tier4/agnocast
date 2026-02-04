@@ -214,9 +214,8 @@ bool check_and_execute_timer(TimerInfo & timer_info);
 
 void handle_timer_event(TimerInfo & timer_info)
 {
-  // TODO(Koichi98): Add canceled check here
-
-  // Read the number of expirations to clear the event
+  // Read the number of expirations to clear the event (must always read to avoid spurious epoll
+  // wakeups, even if canceled; the canceled check is done in check_and_execute_timer)
   uint64_t expirations = 0;
   const ssize_t ret = read(timer_info.timer_fd, &expirations, sizeof(expirations));
 
@@ -257,6 +256,10 @@ bool check_and_execute_timer(TimerInfo & timer_info)
   auto timer = timer_info.timer.lock();
   if (!timer) {
     return false;  // Timer object has been destroyed
+  }
+
+  if (timer->is_canceled()) {
+    return false;
   }
 
   const int64_t now_ns = timer_info.clock->now().nanoseconds();
