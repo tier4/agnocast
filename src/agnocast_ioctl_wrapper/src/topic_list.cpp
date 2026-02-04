@@ -37,6 +37,11 @@ char ** get_agnocast_topics(int * topic_count)
   char * agnocast_topic_buffer =
     static_cast<char *>(malloc(MAX_TOPIC_NUM * TOPIC_NAME_BUFFER_SIZE));
 
+  if (agnocast_topic_buffer == nullptr) {
+    close(fd);
+    return nullptr;
+  }
+
   ioctl_topic_list_args topic_list_args = {};
   topic_list_args.topic_name_buffer_addr = reinterpret_cast<uint64_t>(agnocast_topic_buffer);
   if (ioctl(fd, AGNOCAST_GET_TOPIC_LIST_CMD, &topic_list_args) < 0) {
