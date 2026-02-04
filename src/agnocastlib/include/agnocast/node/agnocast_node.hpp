@@ -347,41 +347,42 @@ public:
   {
     return std::make_shared<Service<ServiceT>>(
       this, service_name, std::forward<Func>(callback), qos, group);
-  
-  template <typename Func>
-  typename WallTimer<Func>::SharedPtr create_wall_timer(
-    std::chrono::nanoseconds period, Func && callback,
-    rclcpp::CallbackGroup::SharedPtr group = nullptr)
-  {
-    static_assert(
-      std::is_invocable_v<Func, TimerBase &> || std::is_invocable_v<Func>,
-      "Callback must be callable with void() or void(TimerBase&)");
 
-    if (!group) {
-      group = node_base_->get_default_callback_group();
+    template <typename Func>
+    typename WallTimer<Func>::SharedPtr create_wall_timer(
+      std::chrono::nanoseconds period, Func && callback,
+      rclcpp::CallbackGroup::SharedPtr group = nullptr)
+    {
+      static_assert(
+        std::is_invocable_v<Func, TimerBase &> || std::is_invocable_v<Func>,
+        "Callback must be callable with void() or void(TimerBase&)");
+
+      if (!group) {
+        group = node_base_->get_default_callback_group();
+      }
+
+      const uint32_t timer_id = allocate_timer_id();
+
+      auto timer =
+        std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
+
+      register_timer_info(timer_id, timer, period, group);
+
+      return timer;
     }
 
-    const uint32_t timer_id = allocate_timer_id();
+  private:
+    // ParsedArguments must be stored to keep rcl_arguments_t alive
+    ParsedArguments local_args_;
 
-    auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
-
-    register_timer_info(timer_id, timer, period, group);
-
-    return timer;
-  }
-
-private:
-  // ParsedArguments must be stored to keep rcl_arguments_t alive
-  ParsedArguments local_args_;
-
-  rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
-  node_interfaces::NodeBase::SharedPtr node_base_;
-  node_interfaces::NodeParameters::SharedPtr node_parameters_;
-  node_interfaces::NodeTopics::SharedPtr node_topics_;
-  node_interfaces::NodeClock::SharedPtr node_clock_;
-  node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
-  node_interfaces::NodeServices::SharedPtr node_services_;
-  node_interfaces::NodeLogging::SharedPtr node_logging_;
-};
+    rclcpp::Logger logger_{rclcpp::get_logger("agnocast_node")};
+    node_interfaces::NodeBase::SharedPtr node_base_;
+    node_interfaces::NodeParameters::SharedPtr node_parameters_;
+    node_interfaces::NodeTopics::SharedPtr node_topics_;
+    node_interfaces::NodeClock::SharedPtr node_clock_;
+    node_interfaces::NodeTimeSource::SharedPtr node_time_source_;
+    node_interfaces::NodeServices::SharedPtr node_services_;
+    node_interfaces::NodeLogging::SharedPtr node_logging_;
+  };
 
 }  // namespace agnocast
