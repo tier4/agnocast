@@ -99,7 +99,7 @@ template <typename MessageT, typename BridgeRequestPolicy>
 class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
-  uint32_t callback_info_id_{0};
+  uint32_t callback_info_id_;
 
   template <typename NodeT, typename Func>
   rclcpp::QoS constructor_impl(
