@@ -59,7 +59,8 @@ char ** get_agnocast_topics(int * topic_count)
     return nullptr;
   }
 
-  for (size_t i = 0; i < *topic_count; i++) {
+  const size_t topic_count_size = static_cast<size_t>(*topic_count);
+  for (size_t i = 0; i < topic_count_size; i++) {
     topic_array[i] = static_cast<char *>(malloc((TOPIC_NAME_BUFFER_SIZE + 1) * sizeof(char)));
     if (!topic_array[i]) {
       for (size_t j = 0; j < i; j++) {
