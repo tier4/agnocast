@@ -71,6 +71,7 @@ void AgnocastOnlyMultiThreadedExecutor::agnocast_spin()
     }
 
     if (shutdown_detected) {
+      spinning_.store(false);
       return;
     }
   }
