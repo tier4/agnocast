@@ -87,6 +87,9 @@ class ListAgnocastVerb(VerbExtension):
                         sub_topics.append(name)
                 return pub_topics, sub_topics
             
+            def remove_service_topic(topic_names):
+                return [name for name in topic_names if not name.startswith('/AGNOCAST_SRV_')]
+            
             # Get Agnocast topics
             topic_count = ctypes.c_int()
             agnocast_topic_array = lib.get_agnocast_topics(ctypes.byref(topic_count))
@@ -97,6 +100,8 @@ class ListAgnocastVerb(VerbExtension):
                 agnocast_topics.append(topic_name)
             if topic_count.value != 0:
                 lib.free_agnocast_topics(agnocast_topic_array, topic_count)
+
+            agnocast_topics = remove_service_topic(agnocast_topics)
             
             # Get ros2 topics
             ros2_topics_data = get_topic_names_and_types(node=node)

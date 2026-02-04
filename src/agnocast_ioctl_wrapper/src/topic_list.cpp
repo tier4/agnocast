@@ -11,15 +11,6 @@
 
 extern "C" {
 
-bool is_service_topic(const std::string & topic_name)
-{
-  const std::string prefix = "/AGNOCAST_SRV_";
-  if (topic_name.size() < prefix.size()) {
-    return false;
-  }
-  return topic_name.compare(0, prefix.size(), prefix) == 0;
-}
-
 char ** get_agnocast_topics(int * topic_count)
 {
   *topic_count = 0;
@@ -56,11 +47,8 @@ char ** get_agnocast_topics(int * topic_count)
   agnocast_topics.reserve(topic_list_args.ret_topic_num);
   for (uint32_t i = 0; i < topic_list_args.ret_topic_num; i++) {
     std::string topic_name = agnocast_topic_buffer + i * TOPIC_NAME_BUFFER_SIZE;
-    // Filter out topics used for service/client.
-    if (!is_service_topic(topic_name)) {
-      agnocast_topics.push_back(std::move(topic_name));
-      (*topic_count)++;
-    }
+    agnocast_topics.push_back(std::move(topic_name));
+    (*topic_count)++;
   }
 
   free(agnocast_topic_buffer);
