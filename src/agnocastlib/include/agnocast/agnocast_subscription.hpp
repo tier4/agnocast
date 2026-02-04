@@ -176,8 +176,11 @@ public:
 
   ~BasicSubscription()
   {
-    // Remove from callback info map to prevent stale references on re-subscription.
-    // The fd is automatically removed from epoll when mq_close() is called in remove_mq().
+    // Remove from callback info map to prevent stale references on re-subscription and to avoid
+    // fd reuse conflicts. When mq_close() is called in remove_mq(), the OS may later reuse the
+    // same fd number for a new subscription. If the old entry remains in id2_callback_info,
+    // adding the new fd to epoll (EPOLL_CTL_ADD) can fail with EEXIST because epoll still
+    // associates that fd number with the stale entry.
     {
       std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
       id2_callback_info.erase(callback_info_id_);
