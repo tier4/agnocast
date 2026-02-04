@@ -17,8 +17,10 @@ extern std::atomic<bool> need_epoll_updates;
 
 constexpr uint32_t TIMER_EVENT_FLAG = 0x80000000;
 constexpr uint32_t CLOCK_EVENT_FLAG = 0x40000000;  // For clock_eventfd events (ROS_TIME timers)
+constexpr uint32_t SHUTDOWN_EVENT_FLAG = 0x20000000;
 
-void wait_and_handle_epoll_event(
+/// @return true if shutdown event detected, false otherwise
+bool wait_and_handle_epoll_event(
   int epoll_fd, pid_t my_pid, int timeout_ms, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
