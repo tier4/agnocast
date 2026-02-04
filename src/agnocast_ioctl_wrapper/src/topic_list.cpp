@@ -56,6 +56,7 @@ char ** get_agnocast_topics(int * topic_count)
 
   char ** topic_array = static_cast<char **>(malloc(*topic_count * sizeof(char *)));
   if (topic_array == nullptr) {
+    *topic_count = 0;
     return nullptr;
   }
 
