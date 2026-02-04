@@ -59,8 +59,9 @@ static void setup_one_entry(
   setup_one_publisher(test, publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args publish_msg_args;
-  int ret =
-    publish_msg(TOPIC_NAME, current->nsproxy->ipc_ns, *publisher_id, ret_addr, &publish_msg_args);
+  int ret = publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, *publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
 

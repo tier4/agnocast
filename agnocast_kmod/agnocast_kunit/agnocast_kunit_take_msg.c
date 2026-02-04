@@ -128,8 +128,10 @@ void test_case_take_msg_take_one(struct kunit * test)
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -168,12 +170,15 @@ void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kuni
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   const bool allow_same_message = true;
@@ -212,8 +217,10 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
@@ -261,8 +268,10 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
@@ -306,12 +315,15 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   const bool allow_same_message = true;
@@ -351,8 +363,10 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -394,14 +408,16 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
 
   for (uint32_t i = 0; i < qos_depth; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
+    topic_local_id_t subscriber_ids_buf[16];
     int ret = publish_msg(
-      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, &ioctl_publish_msg_ret);
+      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, subscriber_ids_buf, 16,
+      &ioctl_publish_msg_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
   int ret1 = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + qos_depth + 1,
-    &ioctl_publish_msg_ret);
+    subscriber_ids_buf, 16, &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const bool allow_same_message = true;
@@ -442,14 +458,17 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   for (uint32_t i = 0; i < qos_depth - 1; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
     int ret = publish_msg(
-      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+      TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+      &ioctl_publish_msg_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
   }
 
@@ -484,8 +503,10 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   topic_local_id_t subscriber_id;
@@ -523,18 +544,22 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret3;
   int ret3 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret3);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret3);
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   topic_local_id_t subscriber_id;
@@ -576,13 +601,16 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   topic_local_id_t subscriber_id;
@@ -623,13 +651,16 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
     test, publisher_pid, publisher_qos_depth, publisher_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
   int ret2 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret2);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   topic_local_id_t subscriber_id;
@@ -845,8 +876,10 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   uint64_t msg_addr = ret_addr;
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, &ioctl_publish_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   topic_local_id_t subscriber_id1;
   const pid_t subscriber_pid1 = 2000;

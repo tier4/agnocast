@@ -96,10 +96,12 @@ void test_case_publish_msg_no_topic(struct kunit * test)
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
   union ioctl_publish_msg_args ioctl_publish_ret;
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &ioctl_publish_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, subscriber_ids_buf, 16,
+    &ioctl_publish_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -116,10 +118,11 @@ void test_case_publish_msg_no_publisher(struct kunit * test)
   topic_local_id_t publisher_id = 0;
   uint64_t msg_virtual_address = 0x40000000000;
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address,
+    topic_name, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, subscriber_ids_buf, 16,
     &ioctl_publish_msg_ret);
 
   // Assert
@@ -134,10 +137,12 @@ void test_case_publish_msg_simple_publish_without_any_release(struct kunit * tes
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -159,18 +164,22 @@ void test_case_publish_msg_different_publisher_no_release(struct kunit * test)
   setup_one_publisher(test, &publisher_id2, &ret_addr2);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf1[16];
   int ret1 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id1, ret_addr1, &ioctl_publish_msg_ret1);
+    topic_name, current->nsproxy->ipc_ns, publisher_id1, ret_addr1, subscriber_ids_buf1, 16,
+    &ioctl_publish_msg_ret1);
   int ret2 = decrement_message_entry_rc(
     topic_name, current->nsproxy->ipc_ns, publisher_id1, ioctl_publish_msg_ret1.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
+  topic_local_id_t subscriber_ids_buf2[16];
 
   // Act
   int ret3 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id2, ret_addr2, &ioctl_publish_msg_ret2);
+    topic_name, current->nsproxy->ipc_ns, publisher_id2, ret_addr2, subscriber_ids_buf2, 16,
+    &ioctl_publish_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -195,15 +204,19 @@ void test_case_publish_msg_referenced_node_not_released(struct kunit * test)
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf1[16];
   int ret1 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf1, 16,
+    &ioctl_publish_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
+  topic_local_id_t subscriber_ids_buf2[16];
 
   // Act
   int ret2 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf2, 16,
+    &ioctl_publish_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -228,18 +241,22 @@ void test_case_publish_msg_single_release_return(struct kunit * test)
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
+  topic_local_id_t subscriber_ids_buf1[16];
   int ret1 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret1);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf1, 16,
+    &ioctl_publish_msg_ret1);
   int ret2 = decrement_message_entry_rc(
     topic_name, current->nsproxy->ipc_ns, publisher_id, ioctl_publish_msg_ret1.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret2;
+  topic_local_id_t subscriber_ids_buf2[16];
 
   // Act
   int ret3 = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, &ioctl_publish_msg_ret2);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + 1, subscriber_ids_buf2, 16,
+    &ioctl_publish_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -265,10 +282,12 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
   int64_t entry_ids[MAX_RELEASE_NUM + 1];
+  topic_local_id_t subscriber_ids_buf[16];
   for (int i = 0; i < MAX_RELEASE_NUM + 1; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
     int ret = publish_msg(
-      topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, &ioctl_publish_msg_ret);
+      topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, subscriber_ids_buf, 16,
+      &ioctl_publish_msg_ret);
     entry_ids[i] = ioctl_publish_msg_ret.ret_entry_id;
 
     KUNIT_ASSERT_EQ(test, ret, 0);
@@ -284,7 +303,8 @@ void test_case_publish_msg_excessive_release_count(struct kunit * test)
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -303,16 +323,18 @@ void test_case_publish_msg_ret_one_subscriber(struct kunit * test)
   setup_one_subscriber(test, &subscriber_id, ignore_local_publications);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_released_num, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_ids[0], subscriber_id);
+  KUNIT_EXPECT_EQ(test, subscriber_ids_buf[0], subscriber_id);
 }
 
 void test_case_publish_msg_ret_many_subscribers(struct kunit * test)
@@ -324,21 +346,25 @@ void test_case_publish_msg_ret_many_subscribers(struct kunit * test)
 
   bool ignore_local_publications = false;
 
-  for (int i = 0; i < MAX_SUBSCRIBER_NUM; i++) {
+  // Test with a reasonable number of subscribers for unit testing
+  const int test_subscriber_num = 32;
+  for (int i = 0; i < test_subscriber_num; i++) {
     topic_local_id_t subscriber_id;
     setup_one_subscriber(test, &subscriber_id, ignore_local_publications);
   }
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
+  topic_local_id_t subscriber_ids_buf[64];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 64,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_released_num, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, MAX_SUBSCRIBER_NUM);
+  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, test_subscriber_num);
 }
 
 void test_case_ignore_local_same_pid_enabled(struct kunit * test)
@@ -353,10 +379,12 @@ void test_case_ignore_local_same_pid_enabled(struct kunit * test)
     test, &publisher_id, &subscriber_id, ignore_local_publications, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret = {0};
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -375,15 +403,17 @@ void test_case_ignore_local_same_pid_disabled(struct kunit * test)
     test, &publisher_id, &subscriber_id, ignore_local_publications, &ret_addr);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret = {0};
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_ids[0], subscriber_id);
+  KUNIT_EXPECT_EQ(test, subscriber_ids_buf[0], subscriber_id);
 }
 
 void test_case_ignore_local_diff_pid_enabled(struct kunit * test)
@@ -398,15 +428,17 @@ void test_case_ignore_local_diff_pid_enabled(struct kunit * test)
   setup_one_subscriber(test, &subscriber_id, ignore_local_publications);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret = {0};
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_ids[0], subscriber_id);
+  KUNIT_EXPECT_EQ(test, subscriber_ids_buf[0], subscriber_id);
 }
 
 void test_case_ignore_local_diff_pid_disabled(struct kunit * test)
@@ -421,13 +453,15 @@ void test_case_ignore_local_diff_pid_disabled(struct kunit * test)
   setup_one_subscriber(test, &subscriber_id, ignore_local_publications);
 
   union ioctl_publish_msg_args ioctl_publish_msg_ret = {0};
+  topic_local_id_t subscriber_ids_buf[16];
 
   // Act
   int ret = publish_msg(
-    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, &ioctl_publish_msg_ret);
+    topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
+    &ioctl_publish_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 1);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_ids[0], subscriber_id);
+  KUNIT_EXPECT_EQ(test, subscriber_ids_buf[0], subscriber_id);
 }

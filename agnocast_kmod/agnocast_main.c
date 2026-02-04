@@ -889,7 +889,8 @@ static int release_msgs_to_meet_depth(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
+  const uint64_t msg_virtual_address, topic_local_id_t * subscriber_ids_out,
+  uint32_t subscriber_ids_buffer_size, union ioctl_publish_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
@@ -928,7 +929,7 @@ int publish_msg(
     return ret;
   }
 
-  int subscriber_num = 0;
+  uint32_t subscriber_num = 0;
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -937,7 +938,15 @@ int publish_msg(
     if (sub_info->ignore_local_publications && (sub_info->pid == pub_info->pid)) {
       continue;
     }
-    ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
+    if (subscriber_num >= subscriber_ids_buffer_size) {
+      dev_warn(
+        agnocast_device,
+        "subscriber_ids buffer is too small (size=%u). Some subscribers will not be notified. "
+        "(publish_msg)\n",
+        subscriber_ids_buffer_size);
+      break;
+    }
+    subscriber_ids_out[subscriber_num] = sub_info->id;
     subscriber_num++;
   }
   ioctl_ret->ret_subscriber_num = subscriber_num;
@@ -1287,10 +1296,11 @@ int get_topic_list(
       return -ENOBUFS;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
@@ -1327,10 +1337,11 @@ static int get_node_subscriber_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1370,10 +1381,11 @@ static int get_node_publisher_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -2013,6 +2025,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           &publish_msg_args, (union ioctl_publish_msg_args __user *)arg, sizeof(publish_msg_args)))
       return -EFAULT;
     if (publish_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
+    if (
+      publish_msg_args.subscriber_ids_buffer_size == 0 ||
+      publish_msg_args.subscriber_ids_buffer_size > MAX_SUBSCRIBER_NUM)
+      return -EINVAL;
     char * topic_name_buf = kmalloc(publish_msg_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) return -ENOMEM;
     if (copy_from_user(
@@ -2022,15 +2038,46 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       return -EFAULT;
     }
     topic_name_buf[publish_msg_args.topic_name.len] = '\0';
+
+    // Allocate kernel buffer for subscriber IDs
+    topic_local_id_t * subscriber_ids_buf =
+      kmalloc(publish_msg_args.subscriber_ids_buffer_size * sizeof(topic_local_id_t), GFP_KERNEL);
+    if (!subscriber_ids_buf) {
+      kfree(topic_name_buf);
+      return -ENOMEM;
+    }
+
+    // Save user buffer address before it gets overwritten by union output
+    uint64_t user_subscriber_ids_addr = publish_msg_args.subscriber_ids_buffer_addr;
+    uint32_t user_buffer_size = publish_msg_args.subscriber_ids_buffer_size;
+
     mutex_lock(&global_mutex);
     ret = publish_msg(
       topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
-      &publish_msg_args);
+      subscriber_ids_buf, user_buffer_size, &publish_msg_args);
     mutex_unlock(&global_mutex);
     kfree(topic_name_buf);
-    if (copy_to_user(
-          (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
-      return -EFAULT;
+
+    if (ret == 0) {
+      // Copy subscriber IDs to user buffer
+      if (publish_msg_args.ret_subscriber_num > 0) {
+        if (copy_to_user(
+              (topic_local_id_t __user *)user_subscriber_ids_addr, subscriber_ids_buf,
+              publish_msg_args.ret_subscriber_num * sizeof(topic_local_id_t))) {
+          kfree(subscriber_ids_buf);
+          return -EFAULT;
+        }
+      }
+      // Copy the result struct back to user
+      if (copy_to_user(
+            (union ioctl_publish_msg_args __user *)arg, &publish_msg_args,
+            sizeof(publish_msg_args))) {
+        kfree(subscriber_ids_buf);
+        return -EFAULT;
+      }
+    }
+    kfree(subscriber_ids_buf);
+    if (ret < 0) return ret;
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
     if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))

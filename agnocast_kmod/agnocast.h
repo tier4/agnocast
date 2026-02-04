@@ -3,8 +3,8 @@
 #include <linux/ipc_namespace.h>
 #include <linux/types.h>
 
-#define MAX_PUBLISHER_NUM 4    // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 16  // Maximum number of subscribers per topic
+#define MAX_PUBLISHER_NUM 4      // Maximum number of publishers per topic
+#define MAX_SUBSCRIBER_NUM 1000  // Maximum number of subscribers per topic
 /* Maximum number of entries that can be received at one ioctl. This value is heuristically set to
  * balance the number of calling ioctl and the overhead of copying data between user and kernel
  * space. */
@@ -103,12 +103,13 @@ union ioctl_publish_msg_args {
     struct name_info topic_name;
     topic_local_id_t publisher_id;
     uint64_t msg_virtual_address;
+    uint64_t subscriber_ids_buffer_addr;  // User-space buffer address for subscriber IDs
+    uint32_t subscriber_ids_buffer_size;  // Number of entries the buffer can hold
   };
   struct
   {
     int64_t ret_entry_id;
-    uint32_t ret_subscriber_num;
-    topic_local_id_t ret_subscriber_ids[MAX_SUBSCRIBER_NUM];
+    uint32_t ret_subscriber_num;  // Actual number of subscribers written to buffer
     uint32_t ret_released_num;
     uint64_t ret_released_addrs[MAX_RELEASE_NUM];
   };
@@ -338,7 +339,8 @@ int receive_msg(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret);
+  const uint64_t msg_virtual_address, topic_local_id_t * subscriber_ids_out,
+  uint32_t subscriber_ids_buffer_size, union ioctl_publish_msg_args * ioctl_ret);
 
 int take_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
