@@ -91,7 +91,7 @@ void SignalHandler::notify_all_executors()
   uint64_t val = 1;
   for (size_t i = 0; i < MAX_EXECUTORS_NUM; ++i) {
     int fd = eventfds_[i].load();
-    if (fd >= 0) {
+    if (fd != -1) {
       [[maybe_unused]] auto ret = write(fd, &val, sizeof(val));
     }
   }
