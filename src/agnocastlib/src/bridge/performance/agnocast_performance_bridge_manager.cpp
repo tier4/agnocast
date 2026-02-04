@@ -1,5 +1,5 @@
 
-#include "agnocast/bridge/agnocast_performance_bridge_manager.hpp"
+#include "agnocast/bridge/performance/agnocast_performance_bridge_manager.hpp"
 
 #include "agnocast/agnocast_ioctl.hpp"
 #include "agnocast/agnocast_mq.hpp"
@@ -29,8 +29,6 @@ PerformanceBridgeManager::PerformanceBridgeManager()
   rclcpp::InitOptions init_options{};
   init_options.shutdown_on_signal = false;
   rclcpp::init(0, nullptr, init_options);
-
-  RCLCPP_INFO(logger_, "Performance Bridge Manager initialized (PID: %d).", getpid());
 }
 
 PerformanceBridgeManager::~PerformanceBridgeManager()
@@ -54,9 +52,6 @@ void PerformanceBridgeManager::run()
 
   std::string proc_name = "agno_pbr_" + std::to_string(getpid());
   prctl(PR_SET_NAME, proc_name.c_str(), 0, 0, 0);
-
-  // TODO(yutarokobayashi): For debugging. Remove later.
-  RCLCPP_INFO(logger_, "Performance Bridge Manager started.");
 
   start_ros_execution();
 
@@ -112,9 +107,6 @@ void PerformanceBridgeManager::on_mq_request(int fd)
   topic_local_id_t target_id = msg->target.target_id;
   std::string message_type = static_cast<const char *>(msg->message_type);
 
-  // TODO(yutarokobayashi): For debugging. Remove later.
-  RCLCPP_INFO(logger_, "Processing MQ Request: %s (Target ID: %d)", topic_name.c_str(), target_id);
-
   request_cache_[topic_name][target_id] = *msg;
 
   create_bridge_if_needed(topic_name, request_cache_[topic_name], message_type, msg->direction);
@@ -122,7 +114,6 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
 void PerformanceBridgeManager::on_signal()
 {
-  RCLCPP_INFO(logger_, "Shutdown signal received.");
   shutdown_requested_ = true;
   if (executor_) {
     executor_->cancel();
@@ -169,8 +160,7 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    const int threshold = result.bridge_exist ? 1 : 0;
-    if (result.count <= threshold || !is_demanded_by_ros2) {
+    if (result.count <= 0 || !is_demanded_by_ros2) {
       r2a_it = active_r2a_bridges_.erase(r2a_it);
     } else {
       ++r2a_it;
@@ -190,10 +180,13 @@ void PerformanceBridgeManager::check_and_remove_bridges()
       return;
     }
 
-    const int threshold = result.bridge_exist ? 1 : 0;
-    if (result.count <= threshold || !is_demanded_by_ros2) {
+    if (result.count <= 0 || !is_demanded_by_ros2) {
       a2r_it = active_a2r_bridges_.erase(a2r_it);
     } else {
+      if (!update_ros2_subscriber_num(container_node_.get(), topic_name)) {
+        RCLCPP_ERROR(
+          logger_, "Failed to update ROS 2 subscriber count for topic '%s'.", topic_name.c_str());
+      }
       ++a2r_it;
     }
   }
@@ -238,8 +231,7 @@ bool PerformanceBridgeManager::should_create_bridge(
     }
 
     const auto stats = get_agnocast_subscriber_count(topic_name);
-    const int threshold = stats.bridge_exist ? 1 : 0;
-    if (stats.count == -1 || stats.count <= threshold) {
+    if (stats.count <= 0) {
       return false;
     }
 
@@ -250,8 +242,7 @@ bool PerformanceBridgeManager::should_create_bridge(
   }
 
   const auto stats = get_agnocast_publisher_count(topic_name);
-  const int threshold = stats.bridge_exist ? 1 : 0;
-  if (stats.count == -1 || stats.count <= threshold) {
+  if (stats.count <= 0) {
     return false;
   }
 
@@ -293,6 +284,10 @@ void PerformanceBridgeManager::create_bridge_if_needed(
       if (is_r2a) {
         active_r2a_bridges_[topic_name] = result.entity_handle;
       } else {
+        if (!update_ros2_subscriber_num(container_node_.get(), topic_name)) {
+          RCLCPP_ERROR(
+            logger_, "Failed to update ROS 2 subscriber count for topic '%s'.", topic_name.c_str());
+        }
         active_a2r_bridges_[topic_name] = result.entity_handle;
       }
 
@@ -332,9 +327,6 @@ void PerformanceBridgeManager::remove_invalid_requests(
       }
       ++req_it;
     } catch (...) {
-      // TODO(yutarokobayashi): For debugging. Remove later.
-      RCLCPP_INFO(
-        logger_, "Removed dead ID %d from cache for topic %s", target_id, topic_name.c_str());
       req_it = request_map.erase(req_it);
     }
   }
