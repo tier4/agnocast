@@ -55,7 +55,7 @@ bool wait_and_handle_epoll_event(
       }
       timer_info = it->second;
       if (!timer_info->timer.lock()) {
-        return;  // Timer object has been destroyed
+        return false;  // Timer object has been destroyed
       }
       callback_group = timer_info->callback_group;
     }

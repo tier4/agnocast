@@ -16,6 +16,7 @@ rclcpp::Logger logger = rclcpp::get_logger("agnocast_signal_handler");
 }
 
 std::atomic<bool> SignalHandler::installed_{false};
+std::atomic<bool> SignalHandler::shutdown_requested_{false};
 std::mutex SignalHandler::eventfds_mutex_;
 std::array<std::atomic<int>, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_{};
 std::atomic<size_t> SignalHandler::eventfd_count_{0};
@@ -83,6 +84,7 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
 void SignalHandler::signal_handler(int signum)
 {
   (void)signum;
+  shutdown_requested_.store(true);
   notify_all_executors();
 }
 
