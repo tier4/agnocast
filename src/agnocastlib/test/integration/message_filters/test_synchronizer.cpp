@@ -1,15 +1,16 @@
-#include <gtest/gtest.h>
-
-#include <chrono>
-#include <thread>
-
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/header.hpp>
-
 #include "agnocast/agnocast.hpp"
 #include "agnocast/message_filters/subscriber.hpp"
 #include "agnocast/message_filters/sync_policies/exact_time.hpp"
 #include "agnocast/message_filters/synchronizer.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <std_msgs/msg/header.hpp>
+
+#include <gtest/gtest.h>
+
+#include <chrono>
+#include <thread>
 
 using namespace agnocast::message_filters;
 using namespace agnocast::message_filters::sync_policies;
@@ -21,7 +22,7 @@ namespace message_filters
 {
 namespace message_traits
 {
-template<>
+template <>
 struct TimeStamp<std_msgs::msg::Header>
 {
   static rclcpp::Time value(const std_msgs::msg::Header & m)
@@ -109,9 +110,9 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSync9)
       const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
       const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
       const MsgConstPtr &) { ++h.count_; },
-    std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-    std::placeholders::_4, std::placeholders::_5, std::placeholders::_6,
-    std::placeholders::_7, std::placeholders::_8, std::placeholders::_9));
+    std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4,
+    std::placeholders::_5, std::placeholders::_6, std::placeholders::_7, std::placeholders::_8,
+    std::placeholders::_9));
 
   auto pub0 = agnocast::create_publisher<Msg>(node_.get(), "sync9_topic_0", rclcpp::QoS(10));
   auto pub1 = agnocast::create_publisher<Msg>(node_.get(), "sync9_topic_1", rclcpp::QoS(10));
@@ -164,10 +165,8 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSyncPartialThenComplete)
   Helper h;
   sync.registerCallback(&Helper::cb2, &h);
 
-  auto pub0 =
-    agnocast::create_publisher<Msg>(node_.get(), "sync_partial_topic_0", rclcpp::QoS(10));
-  auto pub1 =
-    agnocast::create_publisher<Msg>(node_.get(), "sync_partial_topic_1", rclcpp::QoS(10));
+  auto pub0 = agnocast::create_publisher<Msg>(node_.get(), "sync_partial_topic_0", rclcpp::QoS(10));
+  auto pub1 = agnocast::create_publisher<Msg>(node_.get(), "sync_partial_topic_1", rclcpp::QoS(10));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
@@ -210,10 +209,8 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSyncNoMatchThenMatch)
   Helper h;
   sync.registerCallback(&Helper::cb2, &h);
 
-  auto pub0 =
-    agnocast::create_publisher<Msg>(node_.get(), "sync_nomatch_topic_0", rclcpp::QoS(10));
-  auto pub1 =
-    agnocast::create_publisher<Msg>(node_.get(), "sync_nomatch_topic_1", rclcpp::QoS(10));
+  auto pub0 = agnocast::create_publisher<Msg>(node_.get(), "sync_nomatch_topic_0", rclcpp::QoS(10));
+  auto pub1 = agnocast::create_publisher<Msg>(node_.get(), "sync_nomatch_topic_1", rclcpp::QoS(10));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 

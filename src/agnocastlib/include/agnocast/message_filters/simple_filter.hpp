@@ -1,13 +1,13 @@
 #pragma once
 
-#include <functional>
-#include <memory>
-#include <string>
+#include "agnocast/message_filters/message_event.hpp"
+#include "agnocast/message_filters/signal1.hpp"
 
 #include <message_filters/connection.h>
 
-#include "agnocast/message_filters/message_event.hpp"
-#include "agnocast/message_filters/signal1.hpp"
+#include <functional>
+#include <memory>
+#include <string>
 
 namespace agnocast
 {
@@ -24,7 +24,7 @@ using ::message_filters::noncopyable;
  * simple filters do not have to duplicate it.  It also provides getName()/setName() for debugging
  * purposes.
  */
-template<class M>
+template <class M>
 class SimpleFilter : public noncopyable
 {
 public:
@@ -37,7 +37,7 @@ public:
    * \brief Register a callback to be called when this filter has passed
    * \param callback The callback to call
    */
-  template<typename C>
+  template <typename C>
   Connection registerCallback(const C & callback)
   {
     typename CallbackHelper1<M>::Ptr helper = signal_.addCallback(Callback(callback));
@@ -48,7 +48,7 @@ public:
    * \brief Register a callback to be called when this filter has passed
    * \param callback The callback to call
    */
-  template<typename P>
+  template <typename P>
   Connection registerCallback(const std::function<void(P)> & callback)
   {
     return Connection(std::bind(&Signal::removeCallback, &signal_, signal_.addCallback(callback)));
@@ -58,7 +58,7 @@ public:
    * \brief Register a callback to be called when this filter has passed
    * \param callback The callback to call
    */
-  template<typename P>
+  template <typename P>
   Connection registerCallback(void (*callback)(P))
   {
     typename CallbackHelper1<M>::Ptr helper =
@@ -70,7 +70,7 @@ public:
    * \brief Register a callback to be called when this filter has passed
    * \param callback The callback to call
    */
-  template<typename T, typename P>
+  template <typename T, typename P>
   Connection registerCallback(void (T::*callback)(P), T * t)
   {
     typename CallbackHelper1<M>::Ptr helper =
@@ -101,10 +101,7 @@ protected:
   /**
    * \brief Call all registered callbacks, passing them the specified message
    */
-  void signalMessage(const MessageEvent<M const> & event)
-  {
-    signal_.call(event);
-  }
+  void signalMessage(const MessageEvent<M const> & event) { signal_.call(event); }
 
 private:
   using Signal = Signal1<M>;

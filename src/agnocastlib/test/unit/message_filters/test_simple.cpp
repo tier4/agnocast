@@ -1,12 +1,12 @@
+#include "agnocast/message_filters/simple_filter.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+
 #include <gtest/gtest.h>
 
 #include <array>
 #include <functional>
 #include <memory>
-
-#include <rclcpp/rclcpp.hpp>
-
-#include "agnocast/message_filters/simple_filter.hpp"
 
 using namespace agnocast::message_filters;
 using namespace std::placeholders;
@@ -16,7 +16,7 @@ struct Msg
 };
 
 // Test helper to create ipc_shared_ptr for testing without kernel support
-template<typename T>
+template <typename T>
 agnocast::ipc_shared_ptr<T> make_test_ipc_shared_ptr(T * ptr)
 {
   // Create ipc_shared_ptr with dummy values for testing
@@ -27,10 +27,7 @@ struct Filter : public SimpleFilter<Msg>
 {
   using EventType = MessageEvent<Msg const>;
 
-  void add(const EventType & evt)
-  {
-    signalMessage(evt);
-  }
+  void add(const EventType & evt) { signalMessage(evt); }
 };
 
 using MsgPtr = agnocast::ipc_shared_ptr<Msg>;
@@ -39,25 +36,13 @@ using MsgConstPtr = agnocast::ipc_shared_ptr<Msg const>;
 class Helper
 {
 public:
-  Helper()
-  {
-    counts_.fill(0);
-  }
+  Helper() { counts_.fill(0); }
 
-  void cb0(const MsgConstPtr &)
-  {
-    ++counts_[0];
-  }
+  void cb0(const MsgConstPtr &) { ++counts_[0]; }
 
-  void cb1(MsgConstPtr)
-  {
-    ++counts_[1];
-  }
+  void cb1(MsgConstPtr) { ++counts_[1]; }
 
-  void cb2(const MessageEvent<Msg const> &)
-  {
-    ++counts_[2];
-  }
+  void cb2(const MessageEvent<Msg const> &) { ++counts_[2]; }
 
   // Note: const M& and M (value copy) are not supported in agnocast
   // as ipc_shared_ptr always points to read-only shared memory
@@ -101,4 +86,3 @@ TEST(AgnocastSimpleFilter, oldRegisterWithNewFilter)
   Helper h;
   f.registerCallback(std::bind(&Helper::cb0, &h, _1));
 }
-

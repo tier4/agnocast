@@ -1,6 +1,7 @@
+#include <sys/ioctl.h>
+
 #include <cstdarg>
 #include <cstdio>
-#include <sys/ioctl.h>
 
 // Simple ioctl mock for message_filters tests
 // This mock just returns success for all ioctl calls

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agnocast message filters provide a message synchronization framework adapted from the ROS 2 `message_filters` package (https://github.com/ros2/message_filters). The framework enables filtering, synchronizing, and routing messages delivered via agnocast's shared memory IPC, while maintaining API compatibility with the upstream ROS 2 implementation where possible.
+Agnocast message filters provide a message synchronization framework adapted from the ROS 2 `message_filters` package (<https://github.com/ros2/message_filters>). The framework enables filtering, synchronizing, and routing messages delivered via agnocast's shared memory IPC, while maintaining API compatibility with the upstream ROS 2 implementation where possible.
 
 ## Design Principles
 

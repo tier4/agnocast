@@ -1,10 +1,7 @@
 #pragma once
 
-#include <cassert>
-#include <map>
-#include <mutex>
-#include <string>
-#include <tuple>
+#include "agnocast/message_filters/signal9.hpp"
+#include "agnocast/message_filters/synchronizer.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -12,8 +9,11 @@
 #include <message_filters/message_traits.h>
 #include <message_filters/null_types.h>
 
-#include "agnocast/message_filters/signal9.hpp"
-#include "agnocast/message_filters/synchronizer.hpp"
+#include <cassert>
+#include <map>
+#include <mutex>
+#include <string>
+#include <tuple>
 
 namespace agnocast
 {
@@ -25,9 +25,9 @@ namespace sync_policies
 using ::message_filters::Connection;
 using ::message_filters::NullType;
 
-template<typename M0, typename M1, typename M2 = NullType, typename M3 = NullType,
-         typename M4 = NullType, typename M5 = NullType, typename M6 = NullType,
-         typename M7 = NullType, typename M8 = NullType>
+template <
+  typename M0, typename M1, typename M2 = NullType, typename M3 = NullType, typename M4 = NullType,
+  typename M5 = NullType, typename M6 = NullType, typename M7 = NullType, typename M8 = NullType>
 struct ExactTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
 {
   using Sync = Synchronizer<ExactTime>;
@@ -47,16 +47,9 @@ struct ExactTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
   using M8Event = typename Super::M8Event;
   using Tuple = Events;
 
-  ExactTime(uint32_t queue_size)
-  : parent_(nullptr)
-  , queue_size_(queue_size)
-  {
-  }
+  ExactTime(uint32_t queue_size) : parent_(nullptr), queue_size_(queue_size) {}
 
-  ExactTime(const ExactTime & e)
-  {
-    *this = e;
-  }
+  ExactTime(const ExactTime & e) { *this = e; }
 
   ExactTime & operator=(const ExactTime & rhs)
   {
@@ -68,12 +61,9 @@ struct ExactTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
     return *this;
   }
 
-  void initParent(Sync * parent)
-  {
-    parent_ = parent;
-  }
+  void initParent(Sync * parent) { parent_ = parent; }
 
-  template<int i>
+  template <int i>
   void add(const typename std::tuple_element<i, Events>::type & evt)
   {
     assert(parent_);
@@ -82,33 +72,32 @@ struct ExactTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    Tuple & t =
-      tuples_[mt::TimeStamp<typename std::tuple_element<i, Messages>::type>::value(
-        *evt.getMessage())];
+    Tuple & t = tuples_[mt::TimeStamp<typename std::tuple_element<i, Messages>::type>::value(
+      *evt.getMessage())];
     std::get<i>(t) = evt;
 
     checkTuple(t);
   }
 
-  template<class C>
+  template <class C>
   Connection registerDropCallback(const C & callback)
   {
     return drop_signal_.addCallback(callback);
   }
 
-  template<class C>
+  template <class C>
   Connection registerDropCallback(C & callback)
   {
     return drop_signal_.addCallback(callback);
   }
 
-  template<class C, typename T>
+  template <class C, typename T>
   Connection registerDropCallback(const C & callback, T * t)
   {
     return drop_signal_.addCallback(callback, t);
   }
 
-  template<class C, typename T>
+  template <class C, typename T>
   Connection registerDropCallback(C & callback, T * t)
   {
     return drop_signal_.addCallback(callback, t);
@@ -123,19 +112,25 @@ private:
     bool full = true;
     full = full && static_cast<bool>(std::get<0>(t).getMessage());
     full = full && static_cast<bool>(std::get<1>(t).getMessage());
-    full = full && (RealTypeCount::value > 2 ? static_cast<bool>(std::get<2>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 3 ? static_cast<bool>(std::get<3>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 4 ? static_cast<bool>(std::get<4>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 5 ? static_cast<bool>(std::get<5>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 6 ? static_cast<bool>(std::get<6>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 7 ? static_cast<bool>(std::get<7>(t).getMessage()) : true);  // NOLINT
-    full = full && (RealTypeCount::value > 8 ? static_cast<bool>(std::get<8>(t).getMessage()) : true);  // NOLINT
+    full = full && (RealTypeCount::value > 2 ? static_cast<bool>(std::get<2>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 3 ? static_cast<bool>(std::get<3>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 4 ? static_cast<bool>(std::get<4>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 5 ? static_cast<bool>(std::get<5>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 6 ? static_cast<bool>(std::get<6>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 7 ? static_cast<bool>(std::get<7>(t).getMessage())
+                                             : true);  // NOLINT
+    full = full && (RealTypeCount::value > 8 ? static_cast<bool>(std::get<8>(t).getMessage())
+                                             : true);  // NOLINT
 
     if (full) {
       parent_->signal(
-        std::get<0>(t), std::get<1>(t), std::get<2>(t),
-        std::get<3>(t), std::get<4>(t), std::get<5>(t),
-        std::get<6>(t), std::get<7>(t), std::get<8>(t));
+        std::get<0>(t), std::get<1>(t), std::get<2>(t), std::get<3>(t), std::get<4>(t),
+        std::get<5>(t), std::get<6>(t), std::get<7>(t), std::get<8>(t));
 
       last_signal_time_ = mt::TimeStamp<M0>::value(*std::get<0>(t).getMessage());
 
@@ -148,9 +143,8 @@ private:
       while (tuples_.size() > queue_size_) {
         Tuple & t2 = tuples_.begin()->second;
         drop_signal_.call(
-          std::get<0>(t2), std::get<1>(t2), std::get<2>(t2),
-          std::get<3>(t2), std::get<4>(t2), std::get<5>(t2),
-          std::get<6>(t2), std::get<7>(t2), std::get<8>(t2));
+          std::get<0>(t2), std::get<1>(t2), std::get<2>(t2), std::get<3>(t2), std::get<4>(t2),
+          std::get<5>(t2), std::get<6>(t2), std::get<7>(t2), std::get<8>(t2));
         tuples_.erase(tuples_.begin());
       }
     }
@@ -161,16 +155,15 @@ private:
   {
     auto it = tuples_.begin();
     auto end = tuples_.end();
-    for (; it != end; ) {
+    for (; it != end;) {
       if (it->first <= last_signal_time_) {
         auto old = it;
         ++it;
 
         Tuple & t = old->second;
         drop_signal_.call(
-          std::get<0>(t), std::get<1>(t), std::get<2>(t),
-          std::get<3>(t), std::get<4>(t), std::get<5>(t),
-          std::get<6>(t), std::get<7>(t), std::get<8>(t));
+          std::get<0>(t), std::get<1>(t), std::get<2>(t), std::get<3>(t), std::get<4>(t),
+          std::get<5>(t), std::get<6>(t), std::get<7>(t), std::get<8>(t));
         tuples_.erase(old);
       } else {
         // the map is sorted by time, so we can ignore anything after this if this one's time is ok

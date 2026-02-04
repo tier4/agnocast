@@ -1,10 +1,10 @@
-#include <gtest/gtest.h>
-
-#include <array>
+#include "agnocast/message_filters/synchronizer.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
-#include "agnocast/message_filters/synchronizer.hpp"
+#include <gtest/gtest.h>
+
+#include <array>
 
 using namespace agnocast::message_filters;
 using namespace std::placeholders;
@@ -26,15 +26,15 @@ using MsgPtr = agnocast::ipc_shared_ptr<Msg>;
 using MsgConstPtr = agnocast::ipc_shared_ptr<Msg const>;
 
 // Test helper to create ipc_shared_ptr for testing without kernel support
-template<typename T>
+template <typename T>
 agnocast::ipc_shared_ptr<T> make_test_ipc_shared_ptr(T * ptr)
 {
   return agnocast::ipc_shared_ptr<T>(ptr, "test_topic", 0, -1);
 }
 
-template<typename M0, typename M1, typename M2 = NullType, typename M3 = NullType,
-         typename M4 = NullType, typename M5 = NullType, typename M6 = NullType,
-         typename M7 = NullType, typename M8 = NullType>
+template <
+  typename M0, typename M1, typename M2 = NullType, typename M3 = NullType, typename M4 = NullType,
+  typename M5 = NullType, typename M6 = NullType, typename M7 = NullType, typename M8 = NullType>
 struct NullPolicy : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
 {
   using Sync = Synchronizer<NullPolicy>;
@@ -51,11 +51,9 @@ struct NullPolicy : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
     }
   }
 
-  void initParent(Sync *)
-  {
-  }
+  void initParent(Sync *) {}
 
-  template<int i>
+  template <int i>
   void add(const typename std::tuple_element<i, Events>::type &)
   {
     ++added_.at(i);
@@ -121,26 +119,41 @@ TEST(AgnocastSynchronizer, compile9)
   Synchronizer<Policy9> sync(f0, f1, f2, f3, f4, f5, f6, f7, f8);
 }
 
-void function2(const MsgConstPtr &, const MsgConstPtr &) {}
-void function3(const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
-void function4(
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+void function2(const MsgConstPtr &, const MsgConstPtr &)
+{
+}
+void function3(const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+{
+}
+void function4(const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+{
+}
 void function5(
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-  const MsgConstPtr &, const MsgConstPtr &) {}
+  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+  const MsgConstPtr &)
+{
+}
 void function6(
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+  const MsgConstPtr &, const MsgConstPtr &)
+{
+}
 void function7(
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+{
+}
 void function8(
   const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+  const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+{
+}
 void function9(
-  const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &, MsgConstPtr,
-  const MsgConstPtr &, MsgConstPtr, const MessageEvent<Msg const> &,
-  const MessageEvent<Msg const> &, const MsgConstPtr &) {}
+  const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &,
+  MsgConstPtr, const MessageEvent<Msg const> &, const MessageEvent<Msg const> &,
+  const MsgConstPtr &)
+{
+}
 
 TEST(AgnocastSynchronizer, compileFunction2)
 {
@@ -194,20 +207,29 @@ struct MethodHelper
 {
   void method2(const MsgConstPtr &, const MsgConstPtr &) {}
   void method3(const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
-  void method4(
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+  void method4(const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+  {
+  }
   void method5(
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-    const MsgConstPtr &, const MsgConstPtr &) {}
+    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+    const MsgConstPtr &)
+  {
+  }
   void method6(
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+    const MsgConstPtr &, const MsgConstPtr &)
+  {
+  }
   void method7(
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
-    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &) {}
+    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &,
+    const MsgConstPtr &, const MsgConstPtr &, const MsgConstPtr &)
+  {
+  }
   void method8(
-    const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &, MsgConstPtr,
-    const MsgConstPtr &, MsgConstPtr, const MessageEvent<Msg const> &, const MessageEvent<Msg const> &) {}
+    const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &, MsgConstPtr, const MsgConstPtr &,
+    MsgConstPtr, const MessageEvent<Msg const> &, const MessageEvent<Msg const> &)
+  {
+  }
 };
 
 TEST(AgnocastSynchronizer, compileMethod2)
@@ -458,4 +480,3 @@ TEST(AgnocastSynchronizer, add9)
   sync.add<8>(m);
   ASSERT_EQ(sync.added_[8], 1);
 }
-

@@ -1,13 +1,14 @@
+#include "agnocast/agnocast.hpp"
+#include "agnocast/message_filters/subscriber.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <std_msgs/msg/int32.hpp>
+
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <thread>
-
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/int32.hpp>
-
-#include "agnocast/agnocast.hpp"
-#include "agnocast/message_filters/subscriber.hpp"
 
 using namespace agnocast::message_filters;
 using namespace std::placeholders;
@@ -18,30 +19,18 @@ using MsgConstPtr = agnocast::ipc_shared_ptr<Msg const>;
 class Helper
 {
 public:
-  Helper()
-  : count_(0)
-  {
-  }
+  Helper() : count_(0) {}
 
-  void cb(const MsgConstPtr &)
-  {
-    ++count_;
-  }
+  void cb(const MsgConstPtr &) { ++count_; }
 
   int32_t count_;
 };
 
 struct ConstHelper
 {
-  void cb(const MsgConstPtr & msg)
-  {
-    msg_ = msg;
-  }
+  void cb(const MsgConstPtr & msg) { msg_ = msg; }
 
-  void reset()
-  {
-    msg_.reset();
-  }
+  void reset() { msg_.reset(); }
 
   MsgConstPtr msg_;
 };
@@ -57,9 +46,7 @@ protected:
     executor_->add_node(node_);
 
     // Start spinning in a background thread (agnocast callbacks are only processed in spin())
-    spin_thread_ = std::thread([this]() {
-      executor_->spin();
-    });
+    spin_thread_ = std::thread([this]() { executor_->spin(); });
   }
 
   void TearDown() override
@@ -162,8 +149,7 @@ TEST_F(AgnocastSubscriberTest, subUnsubSub_raw)
   Subscriber<Msg> sub(node_.get(), "test_topic_unsub_raw");
   sub.registerCallback(std::bind(&Helper::cb, &h, _1));
 
-  auto pub =
-    agnocast::create_publisher<Msg>(node_.get(), "test_topic_unsub_raw", rclcpp::QoS(10));
+  auto pub = agnocast::create_publisher<Msg>(node_.get(), "test_topic_unsub_raw", rclcpp::QoS(10));
 
   sub.unsubscribe();
   sub.subscribe();
@@ -186,8 +172,7 @@ TEST_F(AgnocastSubscriberTest, switchRawAndShared)
   Subscriber<Msg> sub(node_, "test_topic_switch1");
   sub.registerCallback(std::bind(&Helper::cb, &h, _1));
 
-  auto pub =
-    agnocast::create_publisher<Msg>(node_.get(), "test_topic_switch2", rclcpp::QoS(10));
+  auto pub = agnocast::create_publisher<Msg>(node_.get(), "test_topic_switch2", rclcpp::QoS(10));
 
   sub.unsubscribe();
   sub.subscribe(node_.get(), "test_topic_switch2");
@@ -256,5 +241,3 @@ TEST_F(AgnocastSubscriberTest, multipleCallbacks)
   h1.reset();
   h2.reset();
 }
-
-

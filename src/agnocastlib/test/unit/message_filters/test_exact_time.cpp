@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
+#include "agnocast/message_filters/sync_policies/exact_time.hpp"
+#include "agnocast/message_filters/synchronizer.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
-#include "agnocast/message_filters/sync_policies/exact_time.hpp"
-#include "agnocast/message_filters/synchronizer.hpp"
+#include <gtest/gtest.h>
 
 using namespace agnocast::message_filters;
 using namespace agnocast::message_filters::sync_policies;
@@ -20,7 +20,7 @@ struct Msg
 };
 
 // Test helper to create ipc_shared_ptr for testing without kernel support
-template<typename T>
+template <typename T>
 agnocast::ipc_shared_ptr<T> make_test_ipc_shared_ptr(T * ptr)
 {
   return agnocast::ipc_shared_ptr<T>(ptr, "test_topic", 0, -1);
@@ -30,13 +30,10 @@ namespace message_filters
 {
 namespace message_traits
 {
-template<>
+template <>
 struct TimeStamp<Msg>
 {
-  static rclcpp::Time value(const Msg & m)
-  {
-    return m.header.stamp;
-  }
+  static rclcpp::Time value(const Msg & m) { return m.header.stamp; }
 };
 }  // namespace message_traits
 }  // namespace message_filters
@@ -47,21 +44,11 @@ using MsgConstPtr = agnocast::ipc_shared_ptr<Msg const>;
 class Helper
 {
 public:
-  Helper()
-  : count_(0)
-  , drop_count_(0)
-  {
-  }
+  Helper() : count_(0), drop_count_(0) {}
 
-  void cb()
-  {
-    ++count_;
-  }
+  void cb() { ++count_; }
 
-  void dropcb()
-  {
-    ++drop_count_;
-  }
+  void dropcb() { ++drop_count_; }
 
   int32_t count_;
   int32_t drop_count_;
@@ -190,4 +177,3 @@ TEST(AgnocastExactTime, eventInEventOut)
   ASSERT_EQ(h.e1_.getReceiptTime(), evt.getReceiptTime());
   ASSERT_EQ(h.e2_.getReceiptTime(), evt.getReceiptTime());
 }
-

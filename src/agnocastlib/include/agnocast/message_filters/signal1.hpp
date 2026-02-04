@@ -1,14 +1,14 @@
 #pragma once
 
+#include "agnocast/message_filters/message_event.hpp"
+#include "agnocast/message_filters/parameter_adapter.hpp"
+
+#include <message_filters/connection.h>
+
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
-
-#include <message_filters/connection.h>
-
-#include "agnocast/message_filters/message_event.hpp"
-#include "agnocast/message_filters/parameter_adapter.hpp"
 
 namespace agnocast
 {
@@ -17,7 +17,7 @@ namespace message_filters
 
 using ::message_filters::Connection;
 
-template<class M>
+template <class M>
 class CallbackHelper1
 {
 public:
@@ -28,7 +28,7 @@ public:
   using Ptr = std::shared_ptr<CallbackHelper1<M>>;
 };
 
-template<typename P, typename M>
+template <typename P, typename M>
 class CallbackHelper1T : public CallbackHelper1<M>
 {
 public:
@@ -36,10 +36,7 @@ public:
   using Callback = std::function<void(typename Adapter::Parameter)>;
   using Event = typename Adapter::Event;
 
-  CallbackHelper1T(const Callback & cb)
-  : callback_(cb)
-  {
-  }
+  CallbackHelper1T(const Callback & cb) : callback_(cb) {}
 
   virtual void call(const MessageEvent<M const> & event)
   {
@@ -50,14 +47,14 @@ private:
   Callback callback_;
 };
 
-template<class M>
+template <class M>
 class Signal1
 {
   using CallbackHelper1Ptr = std::shared_ptr<CallbackHelper1<M>>;
   using V_CallbackHelper1 = std::vector<CallbackHelper1Ptr>;
 
 public:
-  template<typename P>
+  template <typename P>
   CallbackHelper1Ptr addCallback(const std::function<void(P)> & callback)
   {
     CallbackHelper1T<P, M> * helper = new CallbackHelper1T<P, M>(callback);
