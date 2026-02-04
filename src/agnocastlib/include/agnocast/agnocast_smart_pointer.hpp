@@ -122,8 +122,7 @@ public:
   // Converting move constructor (e.g., ipc_shared_ptr<T> -> ipc_shared_ptr<const T>)
   template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, T *>>>
   ipc_shared_ptr(ipc_shared_ptr<U> && r)  // NOLINT(google-explicit-constructor)
-  : ptr_(r.ptr_), topic_name_(std::move(r.topic_name_)), pubsub_id_(r.pubsub_id_),
-    entry_id_(r.entry_id_)
+  : ptr_(r.ptr_), topic_name_(r.topic_name_), pubsub_id_(r.pubsub_id_), entry_id_(r.entry_id_)
   {
     r.ptr_ = nullptr;
   }
@@ -149,7 +148,7 @@ public:
   {
     reset();
     ptr_ = r.ptr_;
-    topic_name_ = std::move(r.topic_name_);
+    topic_name_ = r.topic_name_;
     pubsub_id_ = r.pubsub_id_;
     entry_id_ = r.entry_id_;
     r.ptr_ = nullptr;
