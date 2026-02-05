@@ -1,5 +1,4 @@
 import ctypes
-from enum import Enum
 from ros2cli.node.strategy import NodeStrategy
 from ros2node.api import (
     get_action_client_info, get_action_server_info, get_node_names,
