@@ -75,7 +75,7 @@ def generate_test_description():
                         )
                     )
                 pub_i += 1
-            else:
+            else: # s
                 if TEST_MODE == 'agno2ros':
                     composable_nodes.append(
                         ComposableNode(
