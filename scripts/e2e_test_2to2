@@ -58,6 +58,7 @@ show_config() {
 }
 
 FAILURE_COUNT=0
+LOWER_BRIDGE_MODE=$(echo "$AGNOCAST_BRIDGE_MODE" | tr '[:upper:]' '[:lower:]')
 if [ "$RUN_SINGLE" = true ]; then
     CURRENT_YAML_MODE=$(grep "^test_mode:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
     export TEST_MODE=${CURRENT_YAML_MODE}
@@ -69,6 +70,9 @@ if [ "$RUN_SINGLE" = true ]; then
     fi
 else
     TEST_MODES=("agno2agno" "ros2agno" "agno2ros")
+    if [ "$LOWER_BRIDGE_MODE" = "0" ] || [ "$LOWER_BRIDGE_MODE" = "off" ]; then
+        TEST_MODES=("agno2agno")
+    fi
     CONTAINER_LAYOUT=("PPSS" "PP|SS" "P|PSS" "PPS|S" "P|P|SS" "P|PS|S" "PP|S|S" "P|P|S|S")
 
     TOTAL_TESTS=$((${#TEST_MODES[@]} * ${#CONTAINER_LAYOUT[@]}))
@@ -109,10 +113,14 @@ else
     done
 fi
 
+CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
+
 if [ "$FAILURE_COUNT" -gt 0 ]; then
+    echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
     echo "$FAILURE_COUNT / $TOTAL_TESTS tests failed" | sudo tee /dev/kmsg
     exit 1
 else
+    echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
     echo "All tests passed!!" | sudo tee /dev/kmsg
 fi
 
