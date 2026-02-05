@@ -82,7 +82,7 @@ class GenerateBridgePluginsVerb(VerbExtension):
                 text=True,
                 check=True
             )
-            return [line.strip() for line in result.stdout.strip().split('\n') if '/' in line.strip()]
+            return [stripped for line in result.stdout.strip().split('\n') if '/' in (stripped := line.strip())]
         except subprocess.CalledProcessError as e:
             print(f'Error: Failed to run "ros2 interface list -m": {e}', file=sys.stderr)
             return []
