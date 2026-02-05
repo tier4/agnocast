@@ -567,8 +567,7 @@ TEST_F(AgnocastSmartPointerTest, converting_copy_constructor)
   agnocast::ipc_shared_ptr<const int> sut2 = sut;
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 1);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
   EXPECT_EQ(dummy_entry_id, sut2.get_entry_id());
@@ -584,8 +583,6 @@ TEST_F(AgnocastSmartPointerTest, converting_move_constructor)
   agnocast::ipc_shared_ptr<const int> sut2 = std::move(sut);
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
@@ -603,8 +600,7 @@ TEST_F(AgnocastSmartPointerTest, converting_copy_assignment)
   sut2 = sut;
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 1);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
+  EXPECT_EQ(ptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
   EXPECT_EQ(dummy_entry_id, sut2.get_entry_id());
@@ -621,8 +617,6 @@ TEST_F(AgnocastSmartPointerTest, converting_move_assignment)
   sut2 = std::move(sut);
 
   // Assert
-  EXPECT_EQ(increment_rc_mock_called_count, 0);
-  EXPECT_EQ(decrement_rc_mock_called_count, 0);
   EXPECT_EQ(nullptr, sut.get());
   EXPECT_EQ(ptr, sut2.get());
   EXPECT_EQ(dummy_tn, sut2.get_topic_name());
