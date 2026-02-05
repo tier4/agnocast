@@ -32,6 +32,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(message_filters REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -46,7 +47,7 @@ add_library(agnocast SHARED
   src/bridge/performance/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/performance/agnocast_performance_bridge_loader.cpp src/bridge/performance/agnocast_performance_bridge_manager.cpp
   src/node/tf2/buffer.cpp src/node/tf2/transform_listener.cpp)
 
-ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp tf2 tf2_ros tf2_msgs geometry_msgs)
+ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp tf2 tf2_ros tf2_msgs geometry_msgs message_filters)
 
 target_link_libraries(agnocast
   ${rclcpp_LIBRARIES}
@@ -255,6 +256,19 @@ if(BUILD_TESTING)
     ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
   )
 
+  # Message filters unit tests (with ioctl mock)
+  ament_add_gmock(test_unit_message_filters_${PROJECT_NAME}
+    test/unit/message_filters/test_simple.cpp
+    test/unit/message_filters/test_exact_time.cpp
+    test/unit/message_filters/test_synchronizer.cpp
+    test/unit/message_filters/ioctl_mock_for_mf.cpp)
+  target_include_directories(test_unit_message_filters_${PROJECT_NAME} PRIVATE include)
+  target_link_libraries(test_unit_message_filters_${PROJECT_NAME} agnocast)
+  ament_target_dependencies(test_unit_message_filters_${PROJECT_NAME} message_filters)
+  set_tests_properties(test_unit_message_filters_${PROJECT_NAME} PROPERTIES
+    ENVIRONMENT "GTEST_DEATH_TEST_STYLE=threadsafe"
+  )
+
   # Integration tests
   ament_add_gmock(test_integration_${PROJECT_NAME}
     test/integration/test_agnocast_single_threaded_executor.cpp
@@ -323,5 +337,5 @@ endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(cie_thread_configurator cie_config_msgs tf2 tf2_ros tf2_msgs geometry_msgs)
+ament_export_dependencies(cie_thread_configurator cie_config_msgs tf2 tf2_ros tf2_msgs geometry_msgs message_filters)
 ament_package()
