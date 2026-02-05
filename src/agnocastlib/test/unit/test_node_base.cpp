@@ -157,8 +157,7 @@ TEST_F(TestNodeBase, create_callback_group_reentrant)
 TEST_F(TestNodeBase, create_callback_group_automatically_add_to_executor_true)
 {
   auto node_base = create_node_base("my_node", "/my_ns");
-  auto group = node_base->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive, true);
+  auto group = node_base->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, true);
   EXPECT_NE(nullptr, group);
   EXPECT_TRUE(group->automatically_add_to_executor_with_node());
 }
@@ -166,8 +165,8 @@ TEST_F(TestNodeBase, create_callback_group_automatically_add_to_executor_true)
 TEST_F(TestNodeBase, create_callback_group_automatically_add_to_executor_false)
 {
   auto node_base = create_node_base("my_node", "/my_ns");
-  auto group = node_base->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  auto group =
+    node_base->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
   EXPECT_NE(nullptr, group);
   EXPECT_FALSE(group->automatically_add_to_executor_with_node());
 }
@@ -208,8 +207,8 @@ TEST_F(TestNodeBase, for_each_callback_group_counts_groups)
   EXPECT_EQ(1, count);
 
   // Create additional callback groups
-  node_base->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  node_base->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  auto group1 = node_base->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto group2 = node_base->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
   count = 0;
   node_base->for_each_callback_group([&count](rclcpp::CallbackGroup::SharedPtr) { ++count; });
