@@ -99,9 +99,9 @@ class ListAgnocastVerb(VerbExtension):
                 if has_duplicates(merged_node_name):
                     print('WARNING: Be aware that there are nodes in the graph that share an exact '
                         'name, which can have unintended side effects.', file=sys.stderr)
-                for topic in sorted(merged_node_name):
-                    if topic in agnocast_node_name and topic not in ros2_node_name:
+                for node_name in sorted(merged_node_name):
+                    if node_name in agnocast_node_name and node_name not in ros2_node_name:
                         suffix = " (Agnocast enabled)"
                     else:
                         suffix = ""
-                    print(f"{topic}{suffix}")
+                    print(f"{node_name}{suffix}")
