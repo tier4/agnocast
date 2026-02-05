@@ -59,9 +59,10 @@ show_config() {
 
 FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
-    export TEST_MODE="agno2agno"
+    CURRENT_YAML_MODE=$(grep "^test_mode:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
+    export TEST_MODE=${CURRENT_YAML_MODE}
     show_config
-    launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:=agno2agno
+    launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:="$TEST_MODE"
     if [ $? -ne 0 ]; then
         echo "Test failed" | sudo tee /dev/kmsg
         exit 1
@@ -75,6 +76,7 @@ else
 
     for mode in "${TEST_MODES[@]}"; do
         export TEST_MODE=$mode
+        sed -i "s|^test_mode:.*|test_mode: \"$mode\"|" "$CONFIG_FILE"
 
         for layout in "${CONTAINER_LAYOUT[@]}"; do
             CURRENT_COUNT=$((CURRENT_COUNT + 1))

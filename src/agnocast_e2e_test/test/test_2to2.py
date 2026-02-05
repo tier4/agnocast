@@ -14,7 +14,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config_test_2to2.yaml')
 with open(CONFIG_PATH, 'r') as f:
     CONFIG = yaml.safe_load(f)
 
-TEST_MODE = os.environ.get('TEST_MODE', 'agno2agno')
+TEST_MODE = CONFIG.get('test_mode', os.environ.get('TEST_MODE', 'agno2agno'))
 QOS_DEPTH = 10
 PUB_NUM = int(QOS_DEPTH / 2)
 TIMEOUT = float(os.environ.get('STRESS_TEST_TIMEOUT', 8.0))
@@ -28,7 +28,10 @@ def generate_test_description():
     sub_i = 0
     containers = []
     testing_processes = {}
-    for i, nodes in enumerate(CONFIG.values()):
+    for i in range(4):
+        container_key = f'container{i}'
+        nodes = CONFIG.get(container_key, [])
+        
         composable_nodes = []
         for node in nodes:
             if node == 'p':
