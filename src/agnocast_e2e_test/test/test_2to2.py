@@ -14,7 +14,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config_test_2to2.yaml')
 with open(CONFIG_PATH, 'r') as f:
     CONFIG = yaml.safe_load(f)
 
-TEST_MODE = os.environ.get('TEST_MODE', 'native')
+TEST_MODE = os.environ.get('TEST_MODE', 'agno2agno')
 QOS_DEPTH = 10
 PUB_NUM = int(QOS_DEPTH / 2)
 TIMEOUT = float(os.environ.get('STRESS_TEST_TIMEOUT', 8.0))
@@ -32,7 +32,7 @@ def generate_test_description():
         composable_nodes = []
         for node in nodes:
             if node == 'p':
-                if TEST_MODE == 'r2a':
+                if TEST_MODE == 'ros2agno':
                     composable_nodes.append(
                         ComposableNode(
                             package='agnocast_e2e_test',
@@ -44,7 +44,9 @@ def generate_test_description():
                                     "transient_local": False,
                                     "init_pub_num": 0,
                                     "pub_num": PUB_NUM,
+                                    # Standard DDS discovery detects both ROS 2 talker nodes (publishers).
                                     "planned_pub_count": 2,
+                                    # The Bridge Manager creates a single ROS 2 Subscriber (ROS 2 cannot detect Agnocast subscribers).
                                     "planned_sub_count": 1,
                                     "forever": FOREVER,
                                 }
@@ -63,8 +65,10 @@ def generate_test_description():
                                     "transient_local": False,
                                     "init_pub_num": 0,
                                     "pub_num": PUB_NUM,
-                                    "planned_pub_count": 1 if IS_STANDARD_BRIDGE else 0, # Number of ROS 2 inside the bridge.
-                                    "planned_sub_count": 2, # Number of external Agnocast.
+                                    #If not in Standard mode (e.g., Performance or Off), the Bridge does not instantiate a ROS 2 Publisher.
+                                    "planned_pub_count": 1 if IS_STANDARD_BRIDGE else 0,
+                                     # Number of external Agnocast.
+                                    "planned_sub_count": 2,
                                     "forever": FOREVER,
                                 }
                             ],
@@ -72,7 +76,7 @@ def generate_test_description():
                     )
                 pub_i += 1
             else:
-                if TEST_MODE == 'a2r':
+                if TEST_MODE == 'agno2ros':
                     composable_nodes.append(
                         ComposableNode(
                             package='agnocast_e2e_test',
@@ -83,8 +87,8 @@ def generate_test_description():
                                     "qos_depth": QOS_DEPTH,
                                     "transient_local": False,
                                     "forever": FOREVER,
-                                    "target_end_id": PUB_NUM - 1,
-                                    "target_end_count": 2,
+                                    "target_end_id": PUB_NUM - 1, # Target the last publisher id (PUB_NUM - 1).
+                                    "target_end_count": 2, # Number of external Agnocast.
                                 }
                             ],
                         )
@@ -101,7 +105,7 @@ def generate_test_description():
                                     "qos_depth": QOS_DEPTH,
                                     "transient_local": False,
                                     "forever": FOREVER,
-                                    "target_end_id": PUB_NUM - 1,
+                                    "target_end_id": PUB_NUM - 1, # Target the last publisher id (PUB_NUM - 1).
                                     "target_end_count": 2, # Number of external Agnocast.
                                 }
                             ],

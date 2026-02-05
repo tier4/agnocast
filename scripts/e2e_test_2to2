@@ -67,7 +67,7 @@ if [ "$RUN_SINGLE" = true ]; then
         exit 1
     fi
 else
-    TEST_MODES=("native" "r2a" "a2r")
+    TEST_MODES=("agno2agno" "ros2agno" "agno2ros")
     CONTAINER_LAYOUT=("PPSS" "PP|SS" "P|PSS" "PPS|S" "P|P|SS" "P|PS|S" "PP|S|S" "P|P|S|S")
 
     TOTAL_TESTS=$((${#TEST_MODES[@]} * ${#CONTAINER_LAYOUT[@]}))
