@@ -87,7 +87,7 @@ class ListAgnocastVerb(VerbExtension):
             ros2_node_name = {n.full_name for n in ros2_node_name_list}
 
             ########################################################################
-            # Print topic list
+            # Print node list
             ########################################################################
             merged_node_name = agnocast_node_name | ros2_node_name
             if not args.all:
