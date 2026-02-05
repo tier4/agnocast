@@ -7,7 +7,7 @@ namespace agnocast
 
 std::atomic<bool> need_epoll_updates{false};
 
-void wait_and_handle_epoll_event(
+bool wait_and_handle_epoll_event(
   const int epoll_fd, const pid_t my_pid, const int timeout_ms,
   std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables)
@@ -24,15 +24,20 @@ void wait_and_handle_epoll_event(
       exit(EXIT_FAILURE);
     }
 
-    return;
+    return false;
   }
 
   // timeout
   if (nfds == 0) {
-    return;
+    return false;
   }
 
   const uint32_t event_id = event.data.u32;
+
+  // Shutdown event - only used by AgnocastOnlyExecutor
+  if ((event_id & SHUTDOWN_EVENT_FLAG) != 0U) {
+    return true;
+  }
 
   if ((event_id & TIMER_EVENT_FLAG) != 0U) {
     // Timer event
@@ -50,7 +55,7 @@ void wait_and_handle_epoll_event(
       }
       timer_info = it->second;
       if (!timer_info->timer.lock()) {
-        return;  // Timer object has been destroyed
+        return false;  // Timer object has been destroyed
       }
       callback_group = timer_info->callback_group;
     }
@@ -73,10 +78,8 @@ void wait_and_handle_epoll_event(
 
       const auto it = id2_callback_info.find(callback_info_id);
       if (it == id2_callback_info.end()) {
-        RCLCPP_ERROR(
-          logger, "Agnocast internal implementation error: callback info cannot be found");
-        close(agnocast_fd);
-        exit(EXIT_FAILURE);
+        // Callback was unregistered (subscription destroyed) - this is normal
+        return false;
       }
 
       callback_info = it->second;
@@ -94,13 +97,15 @@ void wait_and_handle_epoll_event(
         exit(EXIT_FAILURE);
       }
 
-      return;
+      return false;
     }
 
     agnocast::receive_message(
       callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
       ready_agnocast_executables);
   }
+
+  return false;
 }
 
 }  // namespace agnocast
