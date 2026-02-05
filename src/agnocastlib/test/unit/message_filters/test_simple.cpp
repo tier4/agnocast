@@ -30,7 +30,6 @@ struct Filter : public SimpleFilter<Msg>
   void add(const EventType & evt) { signalMessage(evt); }
 };
 
-using MsgPtr = agnocast::ipc_shared_ptr<Msg>;
 using MsgConstPtr = agnocast::ipc_shared_ptr<Msg const>;
 
 class Helper
