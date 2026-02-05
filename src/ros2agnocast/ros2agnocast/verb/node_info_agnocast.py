@@ -19,11 +19,6 @@ class TopicInfoRet(ctypes.Structure):
         ("is_bridge", ctypes.c_bool),
     ]
 
-class NodeClass(Enum):
-    UNKNOWN = 0
-    ROS2 = 1
-    AGNOCAST = 2
-
 def service_name_from_request_topic(topic_name):
     prefix = '/AGNOCAST_SRV_REQUEST'
     if not topic_name.startswith(prefix):
@@ -231,39 +226,35 @@ class NodeInfoAgnocastVerb(VerbExtension):
             ros2_node_name_list = get_node_names(node=node, include_hidden_nodes=True)
             ros2_node_name = {n.full_name for n in ros2_node_name_list}
 
-            # Determine node class
-            node_class = NodeClass.UNKNOWN
-            # 1. ros2 node
-            if node_name in ros2_node_name: 
-                node_class = NodeClass.ROS2
-                node_name_bytes = node_name.encode('utf-8')
-                agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients = get_ros2_node_agnocast_topic(node_name_bytes)
-            # 2. agnocast node
-            elif any([agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients]):
-                node_class = NodeClass.AGNOCAST
-            # 3. unknown node
-            else:
-                print(f"Error: The node '{node_name}' does not exist.")
-                return
-
-
             ########################################################################
             # Print node info
             ########################################################################
-            if node_class == NodeClass.ROS2:
+            subscribers = []
+            publishers = []
+            service_servers = []
+            service_clients = []
+            action_servers = []
+            action_clients = []
+
+            # Determine node class
+            # 1. ros2 node
+            if node_name in ros2_node_name: 
+                node_name_bytes = node_name.encode('utf-8')
+                agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients = get_ros2_node_agnocast_topic(node_name_bytes)
                 subscribers = get_subscriber_info(node=node, remote_node_name=node_name)
                 publishers = get_publisher_info(node=node, remote_node_name=node_name)
                 service_servers = get_service_server_info(node=node, remote_node_name=node_name)
                 service_clients = get_service_client_info(node=node, remote_node_name=node_name)
                 action_servers = get_action_server_info(node=node, remote_node_name=node_name)
                 action_clients = get_action_client_info(node=node, remote_node_name=node_name)
+            # 2. agnocast node
+            elif any([agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients]):
+                pass
+            # 3. unknown node
             else:
-                subscribers = []
-                publishers = []
-                service_servers = []
-                service_clients = []
-                action_servers = []
-                action_clients = []
+                print(f"Error: The node '{node_name}' does not exist.")
+                return
+
             all_topics_raw = get_topic_names_and_types(node=node)
             all_topics = [{'name': topic_name, 'types': topic_types} for topic_name, topic_types in all_topics_raw]
 
