@@ -289,7 +289,7 @@ public:
   {
     Msg * raw = new Msg();
     msgs_.push_back(raw);
-    return make_test_ipc_shared_ptr(const_cast<Msg const *>(raw));
+    return make_test_ipc_shared_ptr(raw);
   }
 
   ~TestMsgManager()
