@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <type_traits>
 
 // Branch prediction hints for GCC/Clang; fallback to identity on other compilers
 #if defined(__GNUC__) || defined(__clang__)
@@ -43,6 +44,37 @@ constexpr int64_t ENTRY_ID_NOT_ASSIGNED = -1;
 template <typename MessageT, typename BridgeRequestPolicy>
 class BasicPublisher;
 
+namespace detail
+{
+
+// Defined outside ipc_shared_ptr<T> because converting constructors (e.g., ipc_shared_ptr<T> to
+// ipc_shared_ptr<const T>) need to share control_block pointers. If control_block were nested
+// inside the template, each instantiation would create a distinct type (ipc_shared_ptr<T>::
+// control_block vs ipc_shared_ptr<const T>::control_block), preventing pointer assignment.
+struct control_block
+{
+  std::atomic<uint32_t> ref_count{1U};
+  std::atomic<uint32_t> valid{1U};
+  std::string topic_name;
+  topic_local_id_t pubsub_id;
+  int64_t entry_id;
+
+  control_block(std::string topic, topic_local_id_t pubsub, int64_t entry)
+  : topic_name(std::move(topic)), pubsub_id(pubsub), entry_id(entry)
+  {
+  }
+
+  void increment() noexcept { ref_count.fetch_add(1, std::memory_order_relaxed); }
+
+  // Returns true if this was the last reference (i.e., previous count was 1).
+  bool decrement_and_check() noexcept
+  {
+    return ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1;
+  }
+};
+
+}  // namespace detail
+
 // A smart pointer for IPC message sharing between publishers and subscribers.
 //
 // Thread Safety:
@@ -59,34 +91,12 @@ class ipc_shared_ptr
   template <typename MessageT, typename BridgeRequestPolicy>
   friend class BasicPublisher;
 
-  // Control block shared among all copies for thread-safe reference counting and invalidation.
-  // Uses atomic operations to ensure correct behavior when multiple threads hold copies.
-  // Also stores metadata (topic_name, pubsub_id, entry_id) to avoid copying on every ipc_shared_ptr
-  // copy.
-  struct control_block
-  {
-    std::atomic<uint32_t> ref_count{1U};
-    std::atomic<uint32_t> valid{1U};
-    std::string topic_name;
-    topic_local_id_t pubsub_id;
-    int64_t entry_id;
-
-    control_block(std::string topic, topic_local_id_t pubsub, int64_t entry)
-    : topic_name(std::move(topic)), pubsub_id(pubsub), entry_id(entry)
-    {
-    }
-
-    void increment() noexcept { ref_count.fetch_add(1, std::memory_order_relaxed); }
-
-    // Returns true if this was the last reference (i.e., previous count was 1).
-    bool decrement_and_check() noexcept
-    {
-      return ref_count.fetch_sub(1, std::memory_order_acq_rel) == 1;
-    }
-  };
+  // Allow converting constructors to access private members of ipc_shared_ptr<U>
+  template <typename U>
+  friend class ipc_shared_ptr;
 
   T * ptr_ = nullptr;
-  control_block * control_ = nullptr;
+  detail::control_block * control_ = nullptr;
 
   // Unimplemented operators. If these are called, a compile error is raised.
   bool operator==(const ipc_shared_ptr & r) const = delete;
@@ -122,7 +132,8 @@ public:
   // Creates control block for reference counting and one-shot invalidation.
   explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
   : ptr_(ptr),
-    control_(ptr ? new control_block(topic_name, pubsub_id, ENTRY_ID_NOT_ASSIGNED) : nullptr)
+    control_(
+      ptr ? new detail::control_block(topic_name, pubsub_id, ENTRY_ID_NOT_ASSIGNED) : nullptr)
   {
   }
 
@@ -131,14 +142,14 @@ public:
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
     const int64_t entry_id)
-  : ptr_(ptr), control_(ptr ? new control_block(topic_name, pubsub_id, entry_id) : nullptr)
+  : ptr_(ptr), control_(ptr ? new detail::control_block(topic_name, pubsub_id, entry_id) : nullptr)
   {
   }
 
   ~ipc_shared_ptr() { reset(); }
 
   // Thread-safe: atomically increments reference count.
-  // Metadata (topic_name, pubsub_id, entry_id) is stored in control_block, so no string copying.
+  // Metadata (topic_name, pubsub_id, entry_id) is stored in control block, so no string copying.
   ipc_shared_ptr(const ipc_shared_ptr & r) : ptr_(r.ptr_), control_(r.control_)
   {
     if (control_) {
@@ -147,7 +158,7 @@ public:
   }
 
   // Thread-safe: atomically decrements old ref count and increments new ref count.
-  // Metadata (topic_name, pubsub_id, entry_id) is stored in control_block, so no string copying.
+  // Metadata (topic_name, pubsub_id, entry_id) is stored in control block, so no string copying.
   ipc_shared_ptr & operator=(const ipc_shared_ptr & r)
   {
     if (this != &r) {
@@ -179,6 +190,50 @@ public:
       r.ptr_ = nullptr;
       r.control_ = nullptr;
     }
+    return *this;
+  }
+
+  // Converting copy constructor (e.g., ipc_shared_ptr<T> -> ipc_shared_ptr<const T>)
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, T *>>>
+  ipc_shared_ptr(const ipc_shared_ptr<U> & r)  // NOLINT(google-explicit-constructor)
+  : ptr_(r.ptr_), control_(r.control_)
+  {
+    if (control_) {
+      control_->increment();
+    }
+  }
+
+  // Converting move constructor (e.g., ipc_shared_ptr<T> -> ipc_shared_ptr<const T>)
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, T *>>>
+  ipc_shared_ptr(ipc_shared_ptr<U> && r)  // NOLINT(google-explicit-constructor)
+  : ptr_(r.ptr_), control_(r.control_)
+  {
+    r.ptr_ = nullptr;
+    r.control_ = nullptr;
+  }
+
+  // Converting copy assignment (e.g., ipc_shared_ptr<T> -> ipc_shared_ptr<const T>)
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, T *>>>
+  ipc_shared_ptr & operator=(const ipc_shared_ptr<U> & r)
+  {
+    reset();
+    ptr_ = r.ptr_;
+    control_ = r.control_;
+    if (control_) {
+      control_->increment();
+    }
+    return *this;
+  }
+
+  // Converting move assignment (e.g., ipc_shared_ptr<T> -> ipc_shared_ptr<const T>)
+  template <typename U, typename = std::enable_if_t<std::is_convertible_v<U *, T *>>>
+  ipc_shared_ptr & operator=(ipc_shared_ptr<U> && r)
+  {
+    reset();
+    ptr_ = r.ptr_;
+    control_ = r.control_;
+    r.ptr_ = nullptr;
+    r.control_ = nullptr;
     return *this;
   }
 
