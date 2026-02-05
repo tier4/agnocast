@@ -59,9 +59,9 @@ show_config() {
 
 FAILURE_COUNT=0
 if [ "$RUN_SINGLE" = true ]; then
-    export TEST_MODE="native"
+    export TEST_MODE="agno2agno"
     show_config
-    launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:=native
+    launch_test src/agnocast_e2e_test/test/test_2to2.py test_mode:=agno2agno
     if [ $? -ne 0 ]; then
         echo "Test failed" | sudo tee /dev/kmsg
         exit 1
