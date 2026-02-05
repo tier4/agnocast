@@ -54,7 +54,7 @@ namespace detail
 struct control_block
 {
   std::atomic<uint32_t> ref_count{1U};
-  std::atomic<uint32_t> valid{1U};
+  std::atomic<bool> valid{true};
   std::string topic_name;
   topic_local_id_t pubsub_id;
   int64_t entry_id;
@@ -105,7 +105,7 @@ class ipc_shared_ptr
   // Check if this handle has been invalidated (publisher-side invalidation).
   bool is_invalidated_() const noexcept
   {
-    return control_ && control_->valid.load(std::memory_order_acquire) == 0U;
+    return control_ && !control_->valid.load(std::memory_order_acquire);
   }
 
   // Invalidates all references sharing this handle's control block (publisher-side only).
@@ -115,7 +115,7 @@ class ipc_shared_ptr
   void invalidate_all_references() noexcept
   {
     if (control_) {
-      control_->valid.store(0U, std::memory_order_release);
+      control_->valid.store(false, std::memory_order_release);
     }
   }
 
@@ -280,7 +280,7 @@ public:
       if (control_->entry_id != ENTRY_ID_NOT_ASSIGNED) {
         // Subscriber side: notify kmod that all references are released.
         release_subscriber_reference(control_->topic_name, control_->pubsub_id, control_->entry_id);
-      } else if (control_->valid.load(std::memory_order_acquire) == 1U) {
+      } else if (control_->valid.load(std::memory_order_acquire)) {
         // Publisher side, last reference, not published: delete the memory.
         // This handles the case where borrow_loaned_message() was called but publish() was not.
         decrement_borrowed_publisher_num();
