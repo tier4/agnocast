@@ -123,21 +123,16 @@ class ListAgnocastVerb(VerbExtension):
                     match get_bridge_status(topic):
                         case BridgeStatus.PUBSUB:
                             suffix = " (Agnocast enabled, bridged)"
-                            print("debug: PUBSUB detected")
                         case BridgeStatus.PUBLISHER:
                             if topic in ros2_pub_topics:
                                 suffix = " (Agnocast enabled, bridged)"
-                                print("debug: PUBLISHER bridged detected")
                             else:
                                 suffix = " (Agnocast enabled)"
-                                print("debug: PUBLISHER unbridged detected")
                         case BridgeStatus.SUBSCRIBER:
                             if topic in ros2_sub_topics:
                                 suffix = " (Agnocast enabled, bridged)"
-                                print("debug: SUBSCRIBER bridged detected")
                             else:
                                 suffix = " (Agnocast enabled)"
-                                print("debug: SUBSCRIBER unbridged detected")
                         case BridgeStatus.NOT_BRIDGED:
                             suffix = " (WARN: Agnocast ros2 mismatch)"
                 print(f"{topic}{suffix}")
