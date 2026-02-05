@@ -322,11 +322,7 @@ public:
   void add(const EventType & e) { (void)e; }
 
 private:
-  void cb(ipc_shared_ptr<M> msg)
-  {
-    MConstPtr const_msg = std::move(msg);
-    this->signalMessage(EventType(const_msg));
-  }
+  void cb(ipc_shared_ptr<M> msg) { this->signalMessage(EventType(std::move(msg))); }
 
   typename agnocast::Subscription<M>::SharedPtr sub_;
 

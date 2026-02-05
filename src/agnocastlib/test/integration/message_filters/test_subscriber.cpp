@@ -45,7 +45,7 @@ protected:
     executor_ = std::make_shared<agnocast::SingleThreadedAgnocastExecutor>();
     executor_->add_node(node_);
 
-    // Start spinning in a background thread (agnocast callbacks are only processed in spin())
+    // Start spinning in a background thread
     spin_thread_ = std::thread([this]() { executor_->spin(); });
   }
 

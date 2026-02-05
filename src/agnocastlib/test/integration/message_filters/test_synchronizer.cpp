@@ -85,7 +85,7 @@ protected:
   std::thread spin_thread_;
 };
 
-// Test full 9-channel pipeline: Publisher → Subscriber → Synchronizer → ExactTime → callback
+// Test full 9-channel pipeline: Publisher -> Subscriber -> Synchronizer -> ExactTime -> callback
 TEST_F(AgnocastSynchronizerTest, exactTimeSync9)
 {
   using Policy9 = ExactTime<Msg, Msg, Msg, Msg, Msg, Msg, Msg, Msg, Msg>;
@@ -182,7 +182,7 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSyncPartialThenComplete)
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_EQ(h.count_, 0);
 
-  // Now publish on topic 1 with same timestamp → should trigger sync
+  // Now publish on topic 1 with same timestamp -> should trigger sync
   {
     auto msg = pub1->borrow_loaned_message();
     msg->stamp = stamp;
@@ -211,7 +211,7 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSyncNoMatchThenMatch)
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-  // Publish with different timestamps → should NOT sync
+  // Publish with different timestamps -> should NOT sync
   {
     builtin_interfaces::msg::Time stamp0;
     stamp0.sec = 100;
@@ -232,7 +232,7 @@ TEST_F(AgnocastSynchronizerTest, exactTimeSyncNoMatchThenMatch)
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_EQ(h.count_, 0);
 
-  // Now publish with matching timestamps → should sync
+  // Now publish with matching timestamps -> should sync
   {
     builtin_interfaces::msg::Time stamp_match;
     stamp_match.sec = 300;
