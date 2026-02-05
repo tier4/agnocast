@@ -542,9 +542,11 @@ TEST_F(AgnocastCallbackInfoTest, get_erased_callback_const_ptr)
 {
   // Arrange
   bool callback_called = false;
-  int * data = new int(0);
+  int data = 0;
+  // Use subscriber-side constructor (4 args with entry_id) since publisher-side constructor is
+  // private (users must use borrow_loaned_message()).
   agnocast::TypedMessagePtr<int> int_arg{
-    agnocast::ipc_shared_ptr<int>(data, dummy_tn, dummy_pubsub_id)};
+    agnocast::ipc_shared_ptr<int>(&data, dummy_tn, dummy_pubsub_id, /*entry_id=*/1)};
   auto const_callback = [&](const agnocast::ipc_shared_ptr<const int> & /*unused_arg*/) {
     callback_called = true;
   };

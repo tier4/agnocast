@@ -51,16 +51,17 @@ namespace detail
 // ipc_shared_ptr<const T>) need to share control_block pointers. If control_block were nested
 // inside the template, each instantiation would create a distinct type (ipc_shared_ptr<T>::
 // control_block vs ipc_shared_ptr<const T>::control_block), preventing pointer assignment.
+// Member order is optimized for minimal padding (largest alignment first).
 struct control_block
 {
-  std::atomic<uint32_t> ref_count{1U};
-  std::atomic<bool> valid{true};
-  std::string topic_name;
-  topic_local_id_t pubsub_id;
-  int64_t entry_id;
+  std::string topic_name;               // 8-byte alignment
+  int64_t entry_id;                     // 8-byte alignment
+  std::atomic<uint32_t> ref_count{1U};  // 4-byte alignment
+  topic_local_id_t pubsub_id;           // 4-byte alignment
+  std::atomic<bool> valid{true};        // 1-byte alignment
 
   control_block(std::string topic, topic_local_id_t pubsub, int64_t entry)
-  : topic_name(std::move(topic)), pubsub_id(pubsub), entry_id(entry)
+  : topic_name(std::move(topic)), entry_id(entry), pubsub_id(pubsub)
   {
   }
 
@@ -119,6 +120,18 @@ class ipc_shared_ptr
     }
   }
 
+  // Publisher-side constructor (entry_id not yet assigned).
+  // Creates control block for reference counting and one-shot invalidation.
+  // Private: users must call BasicPublisher::borrow_loaned_message() instead of constructing
+  // directly. This ensures proper memory allocation via the heaphook allocator.
+  // Note: ptr must point to heap-allocated memory; destructor calls delete if not published.
+  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
+  : ptr_(ptr),
+    control_(
+      ptr ? new detail::control_block(topic_name, pubsub_id, ENTRY_ID_NOT_ASSIGNED) : nullptr)
+  {
+  }
+
 public:
   using element_type = T;
 
@@ -128,17 +141,10 @@ public:
 
   ipc_shared_ptr() = default;
 
-  // Publisher-side constructor (entry_id not yet assigned).
-  // Creates control block for reference counting and one-shot invalidation.
-  explicit ipc_shared_ptr(T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id)
-  : ptr_(ptr),
-    control_(
-      ptr ? new detail::control_block(topic_name, pubsub_id, ENTRY_ID_NOT_ASSIGNED) : nullptr)
-  {
-  }
-
   // Subscriber-side constructor (entry_id already assigned).
   // Creates control block for reference counting.
+  // Note: Unlike the publisher-side constructor, this does NOT delete ptr on destruction.
+  // Instead, it notifies the kernel via release_subscriber_reference().
   explicit ipc_shared_ptr(
     T * ptr, const std::string & topic_name, const topic_local_id_t pubsub_id,
     const int64_t entry_id)
