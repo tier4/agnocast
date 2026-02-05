@@ -222,7 +222,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
             # Get Agnocast node info
             agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients = get_agnocast_node_info(agnocast_topics, node_name)
 
-            # Get ros2 allnode names
+            # Get ros2 all node names
             ros2_node_name_list = get_node_names(node=node, include_hidden_nodes=True)
             ros2_node_name = {n.full_name for n in ros2_node_name_list}
 
