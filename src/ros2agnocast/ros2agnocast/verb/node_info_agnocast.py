@@ -223,7 +223,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
 
             # Get ros2 all node names
             ros2_node_name_list = get_node_names(node=node, include_hidden_nodes=True)
-            ros2_node_name = {n.full_name for n in ros2_node_name_list}
+            ros2_node_names = {n.full_name for n in ros2_node_name_list}
 
             ########################################################################
             # Print node info
@@ -237,7 +237,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
 
             # Determine node class
             # 1. ros2 node
-            if node_name in ros2_node_name: 
+            if node_name in ros2_node_names: 
                 node_name_bytes = node_name.encode('utf-8')
                 agnocast_subscribers, agnocast_publishers, agnocast_servers, agnocast_clients = get_ros2_node_agnocast_topic(node_name_bytes)
                 subscribers = get_subscriber_info(node=node, remote_node_name=node_name)
