@@ -133,10 +133,9 @@ public:
     typename P7, typename P8>
   Connection addCallback(const std::function<void(P0, P1, P2, P3, P4, P5, P6, P7, P8)> & callback)
   {
-    auto * helper = new CallbackHelper9T<P0, P1, P2, P3, P4, P5, P6, P7, P8>(callback);
-
     std::lock_guard<std::mutex> lock(mutex_);
-    callbacks_.push_back(CallbackHelper9Ptr(helper));
+    callbacks_.push_back(
+      std::make_shared<CallbackHelper9T<P0, P1, P2, P3, P4, P5, P6, P7, P8>>(callback));
     return Connection(std::bind(&Signal9::removeCallback, this, callbacks_.back()));
   }
 
