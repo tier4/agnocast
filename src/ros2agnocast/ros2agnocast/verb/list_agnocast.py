@@ -70,7 +70,7 @@ class ListAgnocastVerb(VerbExtension):
                 
                 return mapping[(has_sub_bridge, has_pub_bridge)]
             
-            def devide_ros2_topic_into_pubsub(topic_names):
+            def divide_ros2_topic_into_pubsub(topic_names):
                 pub_topics = []
                 sub_topics = []
                 for name in topic_names:
@@ -106,7 +106,7 @@ class ListAgnocastVerb(VerbExtension):
             # Get ros2 topics
             ros2_topics_data = get_topic_names_and_types(node=node)
             ros2_topics = [name for name, _ in ros2_topics_data]
-            ros2_pub_topics, ros2_sub_topics = devide_ros2_topic_into_pubsub(ros2_topics)
+            ros2_pub_topics, ros2_sub_topics = divide_ros2_topic_into_pubsub(ros2_topics)
 
             ########################################################################
             # Print topic list
