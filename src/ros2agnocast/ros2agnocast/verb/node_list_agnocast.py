@@ -4,7 +4,6 @@ import sys
 from ros2cli.node.strategy import add_arguments
 from ros2cli.node.strategy import NodeStrategy
 from ros2node.api import get_node_names
-from ros2node.api import has_duplicates
 from ros2topic.verb import VerbExtension
 
 class TopicInfoRet(ctypes.Structure):
@@ -96,9 +95,7 @@ class ListAgnocastVerb(VerbExtension):
                 total_nodes = len(agnocast_node_name | ros2_node_name)
                 print(total_nodes)
             else:
-                if has_duplicates(merged_node_name):
-                    print('WARNING: Be aware that there are nodes in the graph that share an exact '
-                        'name, which can have unintended side effects.', file=sys.stderr)
+
                 for node_name in sorted(merged_node_name):
                     if node_name in agnocast_node_name and node_name not in ros2_node_name:
                         suffix = " (Agnocast enabled)"
