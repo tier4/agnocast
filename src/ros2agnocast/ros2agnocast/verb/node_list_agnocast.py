@@ -27,6 +27,9 @@ class ListAgnocastVerb(VerbExtension):
         parser.add_argument(
             '-c', '--count-nodes', action='store_true',
             help='Only display the number of nodes discovered')
+        parser.add_argument(
+            '-d', '--debug', action='store_true',
+            help='Include internal bridge nodes (agnocast_bridge_node_*) in the output')
 
     def main(self, *, args):
         with NodeStrategy(None) as node:
@@ -89,7 +92,7 @@ class ListAgnocastVerb(VerbExtension):
             # Print node list
             ########################################################################
             merged_node_name = agnocast_node_name | ros2_node_name
-            if not args.all:
+            if not args.all and not args.debug:
                 merged_node_name = {node for node in merged_node_name if not node.startswith("/agnocast_bridge_node_")}
             if args.count_nodes:
                 total_nodes = len(agnocast_node_name | ros2_node_name)
