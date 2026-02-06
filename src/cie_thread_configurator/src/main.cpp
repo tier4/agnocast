@@ -1,7 +1,7 @@
+#include "agnocast/agnocast.hpp"
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 #include "cie_thread_configurator/prerun_node.hpp"
 #include "cie_thread_configurator/thread_configurator_node.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include <filesystem>
@@ -76,12 +76,11 @@ static void spin_thread_configurator_node(const std::string & config_filename)
   std::cout << config["non_ros_threads"] << std::endl;
 
   auto node = std::make_shared<ThreadConfiguratorNode>(config);
-  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  auto executor = std::make_shared<agnocast::AgnocastOnlySingleThreadedExecutor>();
 
   executor->add_node(node);
-  for (const auto & domain_node : node->get_domain_nodes()) {
-    executor->add_node(domain_node);
-  }
+  // Note: Domain nodes (rclcpp::Node) are not added to the agnocast executor.
+  // Their agnocast subscriptions are automatically handled by the agnocast infrastructure.
 
   while (rclcpp::ok() && !node->all_applied()) {
     executor->spin_once();
@@ -112,12 +111,11 @@ static void spin_prerun_node(const std::set<size_t> & domain_ids)
   std::cout << "prerun mode" << std::endl;
 
   auto node = std::make_shared<PrerunNode>(domain_ids);
-  auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  auto executor = std::make_shared<agnocast::AgnocastOnlySingleThreadedExecutor>();
 
   executor->add_node(node);
-  for (const auto & sub_node : node->get_domain_nodes()) {
-    executor->add_node(sub_node);
-  }
+  // Note: Domain nodes (rclcpp::Node) are not added to the agnocast executor.
+  // Their agnocast subscriptions are automatically handled by the agnocast infrastructure.
 
   executor->spin();
 
@@ -152,7 +150,7 @@ static std::set<size_t> parse_domain_ids(const std::string & domains_str)
 
 int main(int argc, char * argv[])
 {
-  rclcpp::init(argc, argv);
+  agnocast::init(argc, argv);
   std::vector<std::string> args = rclcpp::remove_ros_arguments(argc, argv);
 
   bool prerun_mode = false;
@@ -177,12 +175,10 @@ int main(int argc, char * argv[])
     if (config_filename.empty()) {
       std::cerr << "[ERROR] --config-file must be provided when not running in --prerun mode."
                 << std::endl;
-      rclcpp::shutdown();
       return 1;
     }
     spin_thread_configurator_node(config_filename);
   }
 
-  rclcpp::shutdown();
   return 0;
 }

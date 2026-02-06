@@ -1,5 +1,6 @@
+#include "agnocast/agnocast.hpp"
 #include "agnocast/agnocast_single_threaded_executor.hpp"
-#include "cie_thread_configurator/cie_thread_configurator.hpp"
+#include "agnocast/agnocast_cie_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
@@ -49,8 +50,8 @@ public:
   : rclcpp_components::ComponentManager(std::forward<Args>(args)...)
   {
     get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
-    client_publisher_ = create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
+    client_publisher_ = agnocast::create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
+      this, "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH));
   }
 
   ~ComponentManagerCallbackIsolated() override;
@@ -69,7 +70,7 @@ private:
   static bool is_clock_callback_group(const rclcpp::CallbackGroup::SharedPtr & group);
 
   std::unordered_map<uint64_t, std::list<ExecutorWrapper>> node_id_to_executor_wrappers_;
-  rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
+  agnocast::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
   std::mutex client_publisher_mutex_;
   int get_next_timeout_ms_;
 };
@@ -142,7 +143,7 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
       auto agnocast_topics = agnocast::get_agnocast_topics_by_group(callback_group);
       std::string group_id =
-        cie_thread_configurator::create_callback_group_id(callback_group, node, agnocast_topics);
+        agnocast::create_callback_group_id(callback_group, node, agnocast_topics);
       std::atomic_bool & has_executor = callback_group->get_associated_with_executor_atomic();
 
       if (is_clock_callback_group(callback_group) /* workaround */ || has_executor.load()) {
@@ -175,7 +176,7 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
           {
             std::lock_guard<std::mutex> lock{this->client_publisher_mutex_};
-            cie_thread_configurator::publish_callback_group_info(
+            agnocast::publish_callback_group_info(
               this->client_publisher_, tid, group_id);
           }
 

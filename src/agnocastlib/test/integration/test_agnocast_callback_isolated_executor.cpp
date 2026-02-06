@@ -65,7 +65,7 @@ public:
   CallbackGroupInfoReceiverNode() : Node("callback_group_info_receiver", "/cie_thread_configurator")
   {
     subscription_ = this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(1000).keep_all(),
+      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(1000),
       [this](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(mutex_);
         received_messages_.push_back(*msg);

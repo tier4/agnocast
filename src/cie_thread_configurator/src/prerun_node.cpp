@@ -1,7 +1,6 @@
 #include "cie_thread_configurator/prerun_node.hpp"
 
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include "cie_config_msgs/msg/callback_group_info.hpp"
@@ -11,14 +10,14 @@
 #include <iostream>
 #include <string>
 
-PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : Node("prerun_node")
+PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : agnocast::Node("prerun_node")
 {
   size_t default_domain_id = cie_thread_configurator::get_default_domain_id();
 
   // Create subscription for non-ROS thread info
   non_ros_thread_sub_ = this->create_subscription<cie_config_msgs::msg::NonRosThreadInfo>(
     "/cie_thread_configurator/non_ros_thread_info", 100,
-    [this](const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg) {
+    [this](const agnocast::ipc_shared_ptr<cie_config_msgs::msg::NonRosThreadInfo> & msg) {
       this->non_ros_thread_callback(msg);
     });
 
@@ -26,7 +25,8 @@ PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : Node("prerun_node"
   subs_for_each_domain_.push_back(
     this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
       "/cie_thread_configurator/callback_group_info", 100,
-      [this, default_domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+      [this, default_domain_id](
+        const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg) {
         this->topic_callback(default_domain_id, msg);
       }));
 
@@ -39,9 +39,10 @@ PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : Node("prerun_node"
     auto node = cie_thread_configurator::create_node_for_domain(domain_id);
     nodes_for_each_domain_.push_back(node);
 
-    auto sub = node->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", 100,
-      [this, domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+    auto sub = agnocast::create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
+      node.get(), "/cie_thread_configurator/callback_group_info", 100,
+      [this, domain_id](
+        const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg) {
         this->topic_callback(domain_id, msg);
       });
     subs_for_each_domain_.push_back(sub);
@@ -51,7 +52,7 @@ PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : Node("prerun_node"
 }
 
 void PrerunNode::topic_callback(
-  size_t domain_id, const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
+  size_t domain_id, const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg)
 {
   auto key = std::make_pair(domain_id, msg->callback_group_id);
   if (domain_and_cbg_ids_.find(key) != domain_and_cbg_ids_.end()) {
@@ -66,7 +67,7 @@ void PrerunNode::topic_callback(
 }
 
 void PrerunNode::non_ros_thread_callback(
-  const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg)
+  const agnocast::ipc_shared_ptr<cie_config_msgs::msg::NonRosThreadInfo> & msg)
 {
   if (non_ros_thread_names_.find(msg->thread_name) != non_ros_thread_names_.end()) {
     RCLCPP_ERROR(

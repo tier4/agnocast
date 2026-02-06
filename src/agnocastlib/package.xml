@@ -31,7 +31,6 @@
   <depend>ament_index_cpp</depend>
 
   <depend>cie_config_msgs</depend>
-  <depend>cie_thread_configurator</depend>
   <depend>agnocast_sample_interfaces</depend>
 
   <!-- Uncomment when agnocast_kmod is released from PPA -->

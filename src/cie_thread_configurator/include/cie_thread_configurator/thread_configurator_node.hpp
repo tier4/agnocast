@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rclcpp/rclcpp.hpp"
+#include "agnocast/agnocast.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include "cie_config_msgs/msg/callback_group_info.hpp"
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-class ThreadConfiguratorNode : public rclcpp::Node
+class ThreadConfiguratorNode : public agnocast::Node
 {
   struct ThreadConfig
   {
@@ -43,13 +43,15 @@ private:
   bool set_affinity_by_cgroup(int64_t thread_id, const std::vector<int> & cpus);
   bool issue_syscalls(const ThreadConfig & config);
   void callback_group_callback(
-    size_t domain_id, const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg);
-  void non_ros_thread_callback(const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg);
+    size_t domain_id,
+    const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg);
+  void non_ros_thread_callback(
+    const agnocast::ipc_shared_ptr<cie_config_msgs::msg::NonRosThreadInfo> & msg);
 
   std::vector<rclcpp::Node::SharedPtr> nodes_for_each_domain_;
-  std::vector<rclcpp::Subscription<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr>
+  std::vector<agnocast::Subscription<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr>
     subs_for_each_domain_;
-  rclcpp::Subscription<cie_config_msgs::msg::NonRosThreadInfo>::SharedPtr non_ros_thread_sub_;
+  agnocast::Subscription<cie_config_msgs::msg::NonRosThreadInfo>::SharedPtr non_ros_thread_sub_;
 
   std::vector<ThreadConfig> callback_group_configs_;
   // (domain_id, callback_group_id) -> ThreadConfig*

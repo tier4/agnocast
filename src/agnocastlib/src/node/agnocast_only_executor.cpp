@@ -125,4 +125,25 @@ void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node
   (void)node;
 }
 
+void AgnocastOnlyExecutor::spin_once(std::chrono::nanoseconds timeout)
+{
+  if (need_epoll_updates.load()) {
+    agnocast::prepare_epoll_impl(
+      epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
+      [](const rclcpp::CallbackGroup::SharedPtr & group) {
+        (void)group;
+        return true;
+      });
+  }
+
+  const int timeout_ms = (timeout.count() < 0)
+    ? -1
+    : static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count());
+  agnocast::AgnocastExecutable agnocast_executable;
+  bool shutdown_detected = false;
+  if (get_next_agnocast_executable(agnocast_executable, timeout_ms, shutdown_detected)) {
+    execute_agnocast_executable(agnocast_executable);
+  }
+}
+
 }  // namespace agnocast

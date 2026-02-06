@@ -2,7 +2,6 @@
 
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 #include "cie_thread_configurator/sched_deadline.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include "cie_config_msgs/msg/callback_group_info.hpp"
@@ -18,7 +17,7 @@
 #include <unordered_map>
 
 ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
-: Node("thread_configurator_node"), unapplied_num_(0), cgroup_num_(0)
+: agnocast::Node("thread_configurator_node"), unapplied_num_(0), cgroup_num_(0)
 {
   YAML::Node callback_groups = yaml["callback_groups"];
   YAML::Node non_ros_threads = yaml["non_ros_threads"];
@@ -106,7 +105,7 @@ ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
   // Create subscription for non-ROS thread info
   non_ros_thread_sub_ = this->create_subscription<cie_config_msgs::msg::NonRosThreadInfo>(
     "/cie_thread_configurator/non_ros_thread_info", qos,
-    [this](const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg) {
+    [this](const agnocast::ipc_shared_ptr<cie_config_msgs::msg::NonRosThreadInfo> & msg) {
       this->non_ros_thread_callback(msg);
     });
 
@@ -114,7 +113,8 @@ ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
   subs_for_each_domain_.push_back(
     this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
       "/cie_thread_configurator/callback_group_info", qos,
-      [this, default_domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+      [this, default_domain_id](
+        const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg) {
         this->callback_group_callback(default_domain_id, msg);
       }));
 
@@ -127,9 +127,10 @@ ThreadConfiguratorNode::ThreadConfiguratorNode(const YAML::Node & yaml)
     auto node = cie_thread_configurator::create_node_for_domain(domain_id);
     nodes_for_each_domain_.push_back(node);
 
-    auto sub = node->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", qos,
-      [this, domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+    auto sub = agnocast::create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
+      node.get(), "/cie_thread_configurator/callback_group_info", qos,
+      [this, domain_id](
+        const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg) {
         this->callback_group_callback(domain_id, msg);
       });
     subs_for_each_domain_.push_back(sub);
@@ -305,7 +306,7 @@ const std::vector<rclcpp::Node::SharedPtr> & ThreadConfiguratorNode::get_domain_
 }
 
 void ThreadConfiguratorNode::callback_group_callback(
-  size_t domain_id, const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
+  size_t domain_id, const agnocast::ipc_shared_ptr<cie_config_msgs::msg::CallbackGroupInfo> & msg)
 {
   auto key = std::make_pair(domain_id, msg->callback_group_id);
   auto it = id_to_callback_group_config_.find(key);
@@ -347,7 +348,7 @@ void ThreadConfiguratorNode::callback_group_callback(
 }
 
 void ThreadConfiguratorNode::non_ros_thread_callback(
-  const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg)
+  const agnocast::ipc_shared_ptr<cie_config_msgs::msg::NonRosThreadInfo> & msg)
 {
   auto it = id_to_non_ros_thread_config_.find(msg->thread_name);
   if (it == id_to_non_ros_thread_config_.end()) {
