@@ -123,7 +123,6 @@ Groups messages by exact timestamp match. When all message slots for a given tim
 | `noncopyable` | `message_filters/synchronizer.h` | Base class preventing copy |
 | `mp_count` | `message_filters/synchronizer.h` | Counting non-NullType template args |
 | `message_traits::TimeStamp` | `message_filters/message_traits.h` | Timestamp extraction from messages |
-| `message_traits::HasHeader` | `message_filters/message_traits.h` | Header detection for auto TimeStamp |
 
 ## Test Structure
 
