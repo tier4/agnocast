@@ -26,6 +26,34 @@ $ ros2 topic list_agnocast | grep Agnocast
 /topic_name2 (Agnocast enabled)
 ```
 
+If an Agnocast topic is bridged to ROS 2 publishers or subscribers, it is shown with the "(Agnocast enabled, bridged)" suffix.
+
+```bash
+$ ros2 topic list_agnocast
+/topic_name1 (Agnocast enabled)
+/topic_name2 (Agnocast enabled, bridged)
+/topic_name3
+```
+
+This does not necessarily mean that a bridge process is currently running. If there is only one Agnocast publisher and no ROS 2 subscriber, the topic will be displayed simply as "(Agnocast enabled)" rather than including the "bridged" suffix. The "bridged" status indicates that communication has been successfully established between Agnocast and ROS 2.
+
+#### Table 1: Pub/Sub situations and display names
+
+| pub | sub | bridge | display |
+| :--- | :--- | :--- | :--- |
+| rclcpp::publisher | rclcpp::subscription | off / standard / performance | /my_topic |
+| agnocast::publisher | rclcpp::subscription | off | /my_topic (WARN: Agnocast and ROS2 endpoints exist but bridge is not active) |
+| agnocast::publisher | rclcpp::subscription | standard / performance | /my_topic (Agnocast enabled, bridged) |
+| rclcpp::publisher | agnocast::subscription | off | /my_topic (WARN: Agnocast and ROS2 endpoints exist but bridge is not active) |
+| rclcpp::publisher | agnocast::subscription | standard / performance | /my_topic (Agnocast enabled, bridged) |
+| agnocast::publisher | agnocast::subscription | off / standard / performance | /my_topic (Agnocast enabled) |
+| agnocast::publisher | non | off / standard / performance | /my_topic (Agnocast enabled) |
+| non | agnocast::subscription | off / standard / performance | /my_topic (Agnocast enabled) |
+
+#### Notes
+
+- If an Agnocast topic and a ROS 2 topic share the same name but have different message types, the status will still be displayed as (Agnocast enabled, bridged). However, in this case, the actual communication will not be established.
+
 ### Topic Info
 
 To show the topic info including Agnocast, use `ros2 topic info_agnocast /topic_name`.
