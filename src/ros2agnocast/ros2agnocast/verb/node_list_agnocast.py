@@ -46,7 +46,7 @@ class ListAgnocastVerb(VerbExtension):
 
             def get_node_name_set(topic_name):
                 topic_name_bytes = topic_name.encode('utf-8')
-                node_names = set()  # setに変更
+                node_names = set()
 
                 # Check Agnocast subscribers
                 sub_count = ctypes.c_int()
