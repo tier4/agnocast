@@ -6,10 +6,10 @@ from ros2topic.api import get_topic_names_and_types
 from ros2topic.verb import VerbExtension
 
 class BridgeStatus(Enum):
-    NOT_BRIDGED = 0
-    PUBLISHER = 1
-    SUBSCRIBER = 2
-    PUBSUB = 3
+    NONE = 0
+    ROS2_TO_AGNOCAST = 1
+    AGNOCAST_TO_ROS2= 2
+    BIDIRECTION = 3
 
 class TopicInfoRet(ctypes.Structure):
     _fields_ = [
@@ -62,10 +62,10 @@ class ListAgnocastVerb(VerbExtension):
                     has_pub_bridge = any(n.is_bridge for n in nodes)
 
                 mapping = {
-                    (True, True):   BridgeStatus.PUBSUB,
-                    (True, False):  BridgeStatus.SUBSCRIBER,
-                    (False, True):  BridgeStatus.PUBLISHER,
-                    (False, False): BridgeStatus.NOT_BRIDGED,
+                    (True, True):   BridgeStatus.BIDIRECTION,
+                    (True, False):  BridgeStatus.AGNOCAST_TO_ROS2,
+                    (False, True):  BridgeStatus.ROS2_TO_AGNOCAST,
+                    (False, False): BridgeStatus.NONE,
                 }
                 
                 return mapping[(has_sub_bridge, has_pub_bridge)]
@@ -121,18 +121,18 @@ class ListAgnocastVerb(VerbExtension):
                     suffix = ""
                 else:
                     match get_bridge_status(topic):
-                        case BridgeStatus.PUBSUB:
+                        case BridgeStatus.BIDIRECTION:
                             suffix = " (Agnocast enabled, bridged)"
-                        case BridgeStatus.PUBLISHER:
+                        case BridgeStatus.ROS2_TO_AGNOCAST:
                             if topic in ros2_pub_topics:
                                 suffix = " (Agnocast enabled, bridged)"
                             else:
                                 suffix = " (Agnocast enabled)"
-                        case BridgeStatus.SUBSCRIBER:
+                        case BridgeStatus.AGNOCAST_TO_ROS2:
                             if topic in ros2_sub_topics:
                                 suffix = " (Agnocast enabled, bridged)"
                             else:
                                 suffix = " (Agnocast enabled)"
-                        case BridgeStatus.NOT_BRIDGED:
+                        case BridgeStatus.NONE:
                             suffix = " (WARN: Agnocast ros2 mismatch)"
                 print(f"{topic}{suffix}")
