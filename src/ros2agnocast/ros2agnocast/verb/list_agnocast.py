@@ -134,5 +134,5 @@ class ListAgnocastVerb(VerbExtension):
                             else:
                                 suffix = " (Agnocast enabled)"
                         case BridgeStatus.NONE:
-                            suffix = " (WARN: Agnocast ros2 mismatch)"
+                            suffix = " (WARN: Agnocast and ROS2 endpoints exist but bridge is not active)"
                 print(f"{topic}{suffix}")
