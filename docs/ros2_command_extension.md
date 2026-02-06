@@ -182,6 +182,22 @@ QoS profile:
   Durability: VOLATILE
 ```
 
+### Node List
+
+To list all nodes including those implemented with Agnocast, use `ros2 node list_agnocast`.
+
+Standard ROS 2 nodes are displayed normally, while `agnocast::Node` instances are marked with the "(Agnocast enabled)" suffix.
+
+```bash
+$ ros2 node list_agnocast
+/ros2_talker_node
+/agnocast_listener_node (Agnocast enabled)
+```
+
+#### Nodes
+
+Detection of agnocast::Node instances depends on the presence of Agnocast-enabled endpoints. A node without at least one Agnocast publisher or subscriber will be omitted from the output.
+
 ### Node Info
 
 To show the node info including Agnocast, use `ros2 node info_agnocast /node_name`.
