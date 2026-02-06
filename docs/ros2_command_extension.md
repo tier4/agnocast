@@ -206,31 +206,6 @@ To show the node info including Agnocast, use `ros2 node info_agnocast /node_nam
 $ ros2 node info_agnocast /listener_node
   Subscribers:
     /parameter_events: rcl_interfaces/msg/ParameterEvent
-    /my_topic: agnocast_sample_interfaces/msg/DynamicSizeArray (Agnocast enabled)
-  Publishers:
-    /my_topic2: agnocast_sample_interfaces/msg/DynamicSizeArray (Agnocast enabled)
-    /parameter_events: rcl_interfaces/msg/ParameterEvent
-    /rosout: rcl_interfaces/msg/Log
-  Service Servers:
-    /listener_node/describe_parameters: rcl_interfaces/srv/DescribeParameters
-    /listener_node/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
-    /listener_node/get_parameters: rcl_interfaces/srv/GetParameters
-    /listener_node/list_parameters: rcl_interfaces/srv/ListParameters
-    /listener_node/set_parameters: rcl_interfaces/srv/SetParameters
-    /listener_node/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
-  Service Clients:
-  Action Servers:
-  Action Clients:
-```
-
-### Node Debug Mode
-
-Use the `--debug` or `-d` flag to show additional information about bridged endpoints. When enabled, topics that are connected through a bridge node will display "(Agnocast enabled, bridged)".
-
-```bash
-$ ros2 node info_agnocast /listener_node -d
-  Subscribers:
-    /parameter_events: rcl_interfaces/msg/ParameterEvent
     /my_topic: agnocast_sample_interfaces/msg/DynamicSizeArray (Agnocast enabled, bridged)
   Publishers:
     /my_topic2: agnocast_sample_interfaces/msg/DynamicSizeArray (Agnocast enabled)
@@ -247,3 +222,7 @@ $ ros2 node info_agnocast /listener_node -d
   Action Servers:
   Action Clients:
 ```
+
+Similar to `ros2 topic list_agnocast`, the (Agnocast enabled, bridged) suffix in the node info indicates that communication has been successfully established between Agnocast and ROS 2 for that specific topic.
+
+If a topic is Agnocast-enabled but not currently bridged (e.g., there is no corresponding ROS 2 publisher/subscriber or the bridge process is not active), it will be displayed simply as (Agnocast enabled). This allows you to verify the connectivity status of each topic directly from the node's perspective.
