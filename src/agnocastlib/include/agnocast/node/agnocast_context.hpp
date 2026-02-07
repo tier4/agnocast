@@ -35,5 +35,7 @@ extern Context g_context;
 extern std::mutex g_context_mtx;
 
 void init(int argc, char const * const * argv);
+bool ok();
+void shutdown();
 
 }  // namespace agnocast
