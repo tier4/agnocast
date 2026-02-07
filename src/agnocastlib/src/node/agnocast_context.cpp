@@ -1,5 +1,7 @@
 #include "agnocast/node/agnocast_context.hpp"
 
+#include "agnocast_signal_handler.hpp"
+
 namespace agnocast
 {
 
@@ -27,6 +29,18 @@ void init(int argc, char const * const * argv)
 {
   std::lock_guard<std::mutex> lock(g_context_mtx);
   g_context.init(argc, argv);
+  SignalHandler::install();
+}
+
+bool ok()
+{
+  return !SignalHandler::is_shutdown_requested();
+}
+
+void shutdown()
+{
+  SignalHandler::notify_all_executors();
+  SignalHandler::uninstall();
 }
 
 }  // namespace agnocast
