@@ -125,4 +125,30 @@ void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node
   (void)node;
 }
 
+void AgnocastOnlyExecutor::add_callback_group(
+  const rclcpp::CallbackGroup::SharedPtr & callback_group)
+{
+  if (!callback_group) {
+    RCLCPP_ERROR(logger, "Cannot add nullptr callback group");
+    return;
+  }
+  added_callback_groups_.insert(callback_group);
+}
+
+bool AgnocastOnlyExecutor::validate_callback_group(
+  const rclcpp::CallbackGroup::SharedPtr & group) const
+{
+  if (!group) {
+    RCLCPP_ERROR(logger, "Callback group is nullptr. The node may have been destructed.");
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  if (added_callback_groups_.empty()) {
+    return true;
+  }
+
+  return added_callback_groups_.find(group) != added_callback_groups_.end();
+}
+
 }  // namespace agnocast

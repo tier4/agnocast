@@ -33,9 +33,8 @@ void AgnocastOnlySingleThreadedExecutor::spin()
     if (need_epoll_updates.load()) {
       agnocast::prepare_epoll_impl(
         epoll_fd_, my_pid_, ready_agnocast_executables_mutex_, ready_agnocast_executables_,
-        [](const rclcpp::CallbackGroup::SharedPtr & group) {
-          (void)group;
-          return true;
+        [this](const rclcpp::CallbackGroup::SharedPtr & group) {
+          return validate_callback_group(group);
         });
     }
 
