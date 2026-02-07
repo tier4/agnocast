@@ -11,6 +11,7 @@ class SignalHandler
 {
 public:
   static void install();
+  static void uninstall();
   static bool is_shutdown_requested() { return shutdown_requested_.load(); }
   static void register_shutdown_event(int eventfd);
   static void unregister_shutdown_event(int eventfd);

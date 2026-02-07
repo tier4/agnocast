@@ -361,7 +361,7 @@ The following tables compare methods that are **directly defined** in each class
 
 | Aspect | agnocast | Notes |
 |--------|----------|-------|
-| Global context required | ✗ (Optional) | Works without agnocast::init() |
+| Global context required | ✓ (Standalone) | agnocast::init() required for standalone (non-rclcpp) use |
 | NodeOptions support | ✓ | Supports parameter_overrides, context, arguments, etc. |
 | Sub-nodes | ✗ | agnocast does not support sub-nodes |
 | Lifecycle nodes | ✗ | Not applicable |

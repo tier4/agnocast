@@ -49,6 +49,26 @@ void SignalHandler::install()
   }
 }
 
+void SignalHandler::uninstall()
+{
+  if (!installed_.load()) {
+    return;
+  }
+
+  shutdown_requested_.store(true);
+  notify_all_executors();
+
+  struct sigaction sa
+  {
+  };
+  sigemptyset(&sa.sa_mask);
+  sa.sa_handler = SIG_DFL;
+  sigaction(SIGINT, &sa, nullptr);
+  sigaction(SIGTERM, &sa, nullptr);
+
+  installed_.store(false);
+}
+
 void SignalHandler::register_shutdown_event(int eventfd)
 {
   std::lock_guard<std::mutex> lock(eventfds_mutex_);
