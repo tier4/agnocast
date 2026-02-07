@@ -16,6 +16,8 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <limits>
+#include <cstdlib>
 
 namespace agnocast
 {
