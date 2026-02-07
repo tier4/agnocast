@@ -136,8 +136,13 @@ class NodeInfoAgnocastVerb(VerbExtension):
                         try:
                             for i in range(pub_count.value):
                                 if pub_array[i].node_name.decode('utf-8') == node_name:
-                                    # skip service topics
-                                    # Checkd by subscription scan
+                                    # Skip topic names used by services.
+                                    # They have already been accounted for during the subscription topic scan.
+                                    if (
+                                        service_name_from_request_topic(topic_name) is not None
+                                        or service_name_from_response_topic(topic_name) is not None
+                                    ):
+                                        continue
                                     pub_topic_set.add(topic_name)
                         finally:
                             lib.free_agnocast_topic_info_ret(pub_array)
