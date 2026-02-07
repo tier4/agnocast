@@ -10,11 +10,10 @@ const int callback_map_bkt_cnt = 100;  // arbitrary size to prevent rehash
 std::unordered_map<uint32_t, CallbackInfo> id2_callback_info(callback_map_bkt_cnt);
 std::atomic<uint32_t> next_callback_info_id;
 
-void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
-  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables)
+namespace
+{
+
+std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & callback_info)
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
@@ -33,7 +32,6 @@ void receive_message(
         exit(EXIT_FAILURE);
       }
 
-      // Map the shared memory region with read permissions whenever a new publisher is discovered.
       for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
         const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
         const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
@@ -42,7 +40,6 @@ void receive_message(
       }
     }
 
-    // Collect entries (oldest first order from ioctl)
     for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
       entries.emplace_back(receive_args.ret_entry_ids[i], receive_args.ret_entry_addrs[i]);
     }
@@ -50,11 +47,21 @@ void receive_message(
     call_again = receive_args.ret_call_again;
   }
 
-  // Process entries from oldest to newest (ioctl returns oldest first)
-  for (const auto & entry : entries) {
-    const int64_t entry_id = entry.first;
-    const uint64_t entry_addr = entry.second;
+  return entries;
+}
 
+}  // namespace
+
+void receive_message(
+  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
+  [[maybe_unused]] const pid_t my_pid,               // for CARET
+  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables)
+{
+  const auto entries = receive_entries(callback_info);
+
+  // Process entries from oldest to newest (ioctl returns oldest first)
+  for (const auto & [entry_id, entry_addr] : entries) {
     const std::shared_ptr<std::function<void()>> callable =
       std::make_shared<std::function<void()>>([callback_info, entry_addr, entry_id]() {
         auto typed_msg = callback_info.message_creator(
@@ -77,6 +84,28 @@ void receive_message(
       ready_agnocast_executables.emplace_back(
         AgnocastExecutable{callable, callback_info.callback_group});
     }
+  }
+}
+
+void receive_and_execute_message(
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
+{
+  const auto entries = receive_entries(callback_info);
+
+  for (const auto & [entry_id, entry_addr] : entries) {
+    {
+      constexpr uint8_t PID_SHIFT_BITS = 32;
+      uint64_t pid_callback_info_id =
+        (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
+      TRACEPOINT(
+        agnocast_create_callable, reinterpret_cast<const void *>(entry_addr), entry_id,
+        pid_callback_info_id);
+    }
+
+    auto typed_msg = callback_info.message_creator(
+      reinterpret_cast<void *>(entry_addr), callback_info.topic_name,
+      callback_info.subscriber_id, entry_id);
+    callback_info.callback(std::move(*typed_msg));
   }
 }
 

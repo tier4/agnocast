@@ -116,4 +116,7 @@ void receive_message(
   const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
+void receive_and_execute_message(
+  uint32_t callback_info_id, pid_t my_pid, const CallbackInfo & callback_info);
+
 }  // namespace agnocast
