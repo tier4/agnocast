@@ -80,6 +80,57 @@ void receive_message(
   }
 }
 
+void receive_and_execute_message(
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
+{
+  bool call_again = true;
+  while (call_again) {
+    union ioctl_receive_msg_args receive_args = {};
+    receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
+    receive_args.subscriber_id = callback_info.subscriber_id;
+
+    {
+      std::lock_guard<std::mutex> lock(mmap_mtx);
+
+      if (ioctl(agnocast_fd, AGNOCAST_RECEIVE_MSG_CMD, &receive_args) < 0) {
+        RCLCPP_ERROR(logger, "AGNOCAST_RECEIVE_MSG_CMD failed: %s", strerror(errno));
+        close(agnocast_fd);
+        exit(EXIT_FAILURE);
+      }
+
+      // Map the shared memory region with read permissions whenever a new publisher is discovered.
+      for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
+        const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
+        const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
+        const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
+        map_read_only_area(pid, addr, size);
+      }
+    }
+
+    // Execute callbacks directly for each entry (oldest first order from ioctl)
+    for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
+      const int64_t entry_id = receive_args.ret_entry_ids[i];
+      const uint64_t entry_addr = receive_args.ret_entry_addrs[i];
+
+      {
+        constexpr uint8_t PID_SHIFT_BITS = 32;
+        uint64_t pid_callback_info_id =
+          (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
+        TRACEPOINT(
+          agnocast_create_callable, reinterpret_cast<const void *>(entry_addr), entry_id,
+          pid_callback_info_id);
+      }
+
+      auto typed_msg = callback_info.message_creator(
+        reinterpret_cast<void *>(entry_addr), callback_info.topic_name, callback_info.subscriber_id,
+        entry_id);
+      callback_info.callback(std::move(*typed_msg));
+    }
+
+    call_again = receive_args.ret_call_again;
+  }
+}
+
 std::vector<std::string> get_agnocast_topics_by_group(
   const rclcpp::CallbackGroup::SharedPtr & group)
 {
