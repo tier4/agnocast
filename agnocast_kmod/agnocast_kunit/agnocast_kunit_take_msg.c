@@ -406,9 +406,9 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
+  topic_local_id_t subscriber_ids_buf[16];
   for (uint32_t i = 0; i < qos_depth; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
-    topic_local_id_t subscriber_ids_buf[16];
     int ret = publish_msg(
       TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, subscriber_ids_buf, 16,
       &ioctl_publish_msg_ret);

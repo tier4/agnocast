@@ -65,6 +65,7 @@ void test_case_release_sub_ref_no_pubsub_id(struct kunit * test)
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args publish_msg_args;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret0 = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf, 16,
     &publish_msg_args);
@@ -90,6 +91,7 @@ void test_case_release_sub_ref_last_reference(struct kunit * test)
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
 
   union ioctl_publish_msg_args publish_msg_args;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf, 16,
     &publish_msg_args);

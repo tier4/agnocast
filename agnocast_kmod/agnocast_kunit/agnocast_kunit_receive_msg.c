@@ -165,7 +165,6 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_p
 
   topic_local_id_t subscriber_ids_buf[16];
   union ioctl_publish_msg_args ioctl_publish_msg_ret1;
-  topic_local_id_t subscriber_ids_buf[16];
   int ret1 = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
     &ioctl_publish_msg_ret1);
@@ -256,9 +255,9 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
+  topic_local_id_t subscriber_ids_buf[16];
   for (int i = 0; i < publisher_qos_depth; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
-    topic_local_id_t subscriber_ids_buf[16];
     int ret = publish_msg(
       TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr + i, subscriber_ids_buf, 16,
       &ioctl_publish_msg_ret);
@@ -306,9 +305,9 @@ void test_case_receive_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_a
   setup_one_subscriber(
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
+  topic_local_id_t subscriber_ids_buf[16];
   for (int i = 0; i < MAX_RECEIVE_NUM - 1; i++) {
     union ioctl_publish_msg_args ioctl_publish_msg_ret;
-    topic_local_id_t subscriber_ids_buf[16];
     int ret = publish_msg(
       TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, ret_addr, subscriber_ids_buf, 16,
       &ioctl_publish_msg_ret);

@@ -111,7 +111,7 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  atomic_t reference_flags[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];  // boolean flag indexed by pubsub_id
+  atomic_t reference_flags[MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY];  // boolean flag indexed by pubsub_id
   atomic_t total_ref_count;  // number of pubsub currently referencing this entry
 };
 
@@ -428,7 +428,7 @@ static bool is_referenced(struct entry_node * en)
 // Returns 0 on success, -EINVAL if invalid id, -EALREADY if already referenced.
 static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+  if (id < 0 || id >= MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY) {
     dev_warn(agnocast_device, "Invalid pubsub_id=%d. (add_subscriber_reference)\n", id);
     return -EINVAL;
   }
@@ -447,7 +447,7 @@ static int add_subscriber_reference(struct entry_node * en, const topic_local_id
 // Returns true if the reference was removed, false otherwise.
 static bool remove_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+  if (id < 0 || id >= MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY) {
     dev_warn(agnocast_device, "Invalid pubsub_id=%d. (remove_subscriber_reference)\n", id);
     return false;
   }
@@ -595,7 +595,7 @@ static int insert_message_entry(
   new_node->msg_virtual_address = msg_virtual_address;
   // Initialize all reference flags to 0 (no subscriber is holding a reference).
   // Subscribers will add their references when they receive/take the message.
-  for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
+  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
     atomic_set(&new_node->reference_flags[i], 0);
   }
   atomic_set(&new_node->total_ref_count, 0);
@@ -2646,7 +2646,7 @@ int get_entry_rc(
     return -1;
   }
 
-  if (pubsub_id < 0 || pubsub_id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
+  if (pubsub_id < 0 || pubsub_id >= MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY) {
     return -1;
   }
 

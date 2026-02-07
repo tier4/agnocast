@@ -76,6 +76,7 @@ static uint64_t setup_one_entry(
   struct kunit * test, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address)
 {
   union ioctl_publish_msg_args publish_msg_args;
+  topic_local_id_t subscriber_ids_buf[16];
   int ret = publish_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, subscriber_ids_buf, 16,
     &publish_msg_args);
