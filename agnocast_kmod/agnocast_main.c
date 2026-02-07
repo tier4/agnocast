@@ -426,16 +426,23 @@ static bool is_referenced(struct entry_node * en)
 
 // Add subscriber reference (set boolean flag).
 // Returns 0 on success, -EINVAL if invalid id, -EALREADY if already referenced.
-static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+static int add_subscriber_reference(
+  struct entry_node * en, const topic_local_id_t id, const char * topic_name, const char * caller)
 {
   if (id < 0 || id >= MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY) {
-    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (add_subscriber_reference)\n", id);
+    dev_warn(
+      agnocast_device,
+      "Invalid pubsub_id=%d, topic=%s, entry_id=%lld. (add_subscriber_reference, caller=%s)\n", id,
+      topic_name, en->entry_id, caller);
     return -EINVAL;
   }
 
   if (atomic_cmpxchg(&en->reference_flags[id], 0, 1) != 0) {
     dev_warn(
-      agnocast_device, "pubsub_id=%d already holds a reference. (add_subscriber_reference)\n", id);
+      agnocast_device,
+      "pubsub_id=%d already holds a reference. topic=%s, entry_id=%lld. "
+      "(add_subscriber_reference, caller=%s)\n",
+      id, topic_name, en->entry_id, caller);
     return -EALREADY;
   }
 
@@ -445,17 +452,26 @@ static int add_subscriber_reference(struct entry_node * en, const topic_local_id
 
 // Remove subscriber reference (clear boolean flag).
 // Returns true if the reference was removed, false otherwise.
-static bool remove_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+//
+// It is expected that the flag is already 0 in the following cases, so no error handling is needed:
+// - take_msg with allow_same_message=true skips add_subscriber_reference when the subscriber
+//   already holds a reference. The user-land ipc_shared_ptr created without a kernel reference
+//   will call release_message_entry_reference on destruction, finding the flag already cleared.
+// - Publishers do not participate in reference counting, so their flags are always 0.
+// - Cleanup functions (remove_subscriber, pre_handler_subscriber_exit) iterate all entries
+//   and attempt to remove references regardless of whether one exists.
+static bool remove_subscriber_reference(
+  struct entry_node * en, const topic_local_id_t id, const char * topic_name, const char * caller)
 {
   if (id < 0 || id >= MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY) {
-    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (remove_subscriber_reference)\n", id);
+    dev_warn(
+      agnocast_device,
+      "Invalid pubsub_id=%d, topic=%s, entry_id=%lld. (remove_subscriber_reference, caller=%s)\n",
+      id, topic_name, en->entry_id, caller);
     return false;
   }
 
   if (atomic_cmpxchg(&en->reference_flags[id], 1, 0) != 1) {
-    dev_warn(
-      agnocast_device,
-      "pubsub_id=%d does not hold a reference. (remove_subscriber_reference)\n", id);
     return false;
   }
 
@@ -527,7 +543,7 @@ int increment_message_entry_rc(
     goto unlock_all;
   }
 
-  ret = add_subscriber_reference(en, pubsub_id);
+  ret = add_subscriber_reference(en, pubsub_id, topic_name, "increment_message_entry_rc");
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
@@ -568,10 +584,11 @@ int release_message_entry_reference(
     goto unlock_all;
   }
 
-  if (!remove_subscriber_reference(en, pubsub_id)) {
-    ret = -EINVAL;
-    goto unlock_all;
-  }
+  // Silently succeed if the reference was already released.
+  // This can happen when take_msg with allow_same_message=true skips add_subscriber_reference
+  // because the subscriber already held a reference: the first ipc_shared_ptr destruction releases
+  // the flag, and the second destruction finds the flag already cleared.
+  remove_subscriber_reference(en, pubsub_id, topic_name, "release_message_entry_reference");
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
@@ -1073,7 +1090,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = add_subscriber_reference(en, subscriber_id);
+    int ret = add_subscriber_reference(en, subscriber_id, wrapper->key, "receive_msg_core");
     if (ret < 0) {
       return ret;
     }
@@ -1210,9 +1227,18 @@ int take_msg(
   }
 
   if (candidate_en) {
-    ret = add_subscriber_reference(candidate_en, subscriber_id);
-    if (ret < 0) {
-      goto unlock_all;
+    // When allow_same_message is true and the subscriber already holds a reference,
+    // skip adding a duplicate reference. This happens when the user-land ipc_shared_ptr
+    // from the previous take() is still alive.
+    const bool already_referenced =
+      subscriber_id >= 0 && subscriber_id < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY &&
+      atomic_read(&candidate_en->reference_flags[subscriber_id]) != 0;
+
+    if (!already_referenced) {
+      ret = add_subscriber_reference(candidate_en, subscriber_id, topic_name, "take_msg");
+      if (ret < 0) {
+        goto unlock_all;
+      }
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
@@ -1786,7 +1812,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    remove_subscriber_reference(en, subscriber_id);
+    remove_subscriber_reference(en, subscriber_id, topic_name, "remove_subscriber");
 
     if (is_referenced(en)) continue;
 
@@ -2779,7 +2805,8 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      remove_subscriber_reference(en, subscriber_id);
+      remove_subscriber_reference(
+        en, subscriber_id, wrapper->key, "pre_handler_subscriber_exit");
 
       if (is_referenced(en)) continue;
 
