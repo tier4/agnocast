@@ -144,13 +144,16 @@ bool AgnocastOnlyExecutor::validate_callback_group(
     exit(EXIT_FAILURE);
   }
 
-  // If no callback groups have been explicitly added, accept all
-  if (added_callback_groups_.empty()) {
-    return true;
+  // If callback groups have been explicitly added, only accept those
+  if (!added_callback_groups_.empty()) {
+    return added_callback_groups_.find(group) != added_callback_groups_.end();
   }
 
-  // Only accept callback groups that have been added to this executor
-  return added_callback_groups_.find(group) != added_callback_groups_.end();
+  // If no callback groups have been explicitly added, accept all EXCEPT those
+  // that have automatically_add_to_executor_with_node set to false.
+  // This allows dedicated executors (like the clock executor) to have exclusive
+  // ownership of their callback groups.
+  return group->automatically_add_to_executor_with_node();
 }
 
 }  // namespace agnocast
