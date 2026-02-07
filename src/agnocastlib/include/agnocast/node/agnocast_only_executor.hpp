@@ -36,6 +36,7 @@ public:
   virtual ~AgnocastOnlyExecutor();
 
   virtual void spin() = 0;
+  void cancel();
 
   void add_node(const std::shared_ptr<agnocast::Node> & node);
   void add_callback_group(const rclcpp::CallbackGroup::SharedPtr & callback_group);

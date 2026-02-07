@@ -71,6 +71,11 @@ void AgnocastOnlyExecutor::execute_agnocast_executable(AgnocastExecutable & agno
   }
 }
 
+void AgnocastOnlyExecutor::cancel()
+{
+  spinning_.store(false);
+}
+
 // Implemented align to unify the API with rclcpp::Executor
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node)
@@ -97,11 +102,16 @@ bool AgnocastOnlyExecutor::validate_callback_group(
     exit(EXIT_FAILURE);
   }
 
-  if (added_callback_groups_.empty()) {
-    return true;
+  // If callback groups have been explicitly added, only accept those
+  if (!added_callback_groups_.empty()) {
+    return added_callback_groups_.find(group) != added_callback_groups_.end();
   }
 
-  return added_callback_groups_.find(group) != added_callback_groups_.end();
+  // If no callback groups have been explicitly added, accept all EXCEPT those
+  // that have automatically_add_to_executor_with_node set to false.
+  // This allows dedicated executors (like the clock executor) to have exclusive
+  // ownership of their callback groups.
+  return group->automatically_add_to_executor_with_node();
 }
 
 }  // namespace agnocast
