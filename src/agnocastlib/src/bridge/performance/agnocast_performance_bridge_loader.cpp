@@ -59,7 +59,7 @@ std::string PerformanceBridgeLoader::convert_type_to_snake_case(const std::strin
 }
 
 std::vector<std::string> PerformanceBridgeLoader::generate_library_paths(
-  const std::string & snake_type, const std::string & plugin_suffix) const
+  const std::string & snake_type, const std::string & plugin_suffix)
 {
   std::vector<std::string> paths;
   const std::string lib_name = "lib" + plugin_suffix + "_bridge_plugin_" + snake_type + ".so";
@@ -72,7 +72,12 @@ std::vector<std::string> PerformanceBridgeLoader::generate_library_paths(
     std::string path;
     while (std::getline(iss, path, ':')) {
       if (!path.empty()) {
-        paths.push_back(path + "/" + lib_name);
+        std::string full_path;
+        full_path.reserve(path.size() + 1 + lib_name.size());
+        full_path += path;
+        full_path += '/';
+        full_path += lib_name;
+        paths.push_back(std::move(full_path));
       }
     }
   }
