@@ -277,10 +277,14 @@ public:
         sub_ = agnocast::create_subscription<M>(
           node, topic, detail::to_rclcpp_qos(qos),
           [this](ipc_shared_ptr<M> msg) { this->cb(std::move(msg)); }, options);
-      } else {
+      } else if constexpr (std::is_same_v<NodeType, agnocast::Node>) {
         sub_ = node->template create_subscription<M>(
           topic, detail::to_rclcpp_qos(qos),
           [this](ipc_shared_ptr<M> msg) { this->cb(std::move(msg)); }, options);
+      } else {
+        static_assert(
+          !std::is_same_v<NodeType, NodeType>,
+          "Unsupported NodeType: expected rclcpp::Node or agnocast::Node.");
       }
       node_raw_ = node;
     }
