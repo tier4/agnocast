@@ -9,15 +9,16 @@
 #include <message_filters/message_traits.h>
 #include <message_filters/null_types.h>
 
+#include <array>
 #include <cassert>
 #include <cinttypes>
+#include <cstdlib>
 #include <deque>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <tuple>
 #include <vector>
-#include <limits>
-#include <cstdlib>
 
 namespace agnocast
 {
@@ -221,6 +222,7 @@ struct ApproximateTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
 
   void setInterMessageLowerBound(int i, rclcpp::Duration lower_bound)
   {
+    assert(i >= 0 && i < RealTypeCount::value);
     assert(lower_bound >= rclcpp::Duration(0, 0));
     inter_message_lower_bounds_[i] = lower_bound;
   }
@@ -587,7 +589,7 @@ private:
   //       false: look for the earliest head of deque
   void getVirtualCandidateBoundary(uint32_t & index, rclcpp::Time & time, bool end)
   {
-    std::vector<rclcpp::Time> virtual_times(9);
+    std::array<rclcpp::Time, 9> virtual_times;
     virtual_times[0] = getVirtualTime<0>();
     virtual_times[1] = getVirtualTime<1>();
     virtual_times[2] = getVirtualTime<2>();
