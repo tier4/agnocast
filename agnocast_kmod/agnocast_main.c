@@ -35,8 +35,9 @@ static DECLARE_RWSEM(global_htables_rwsem);
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
 
-// Maximum number of referencing Publisher/Subscriber per entry: +1 for the publisher
-#define MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY (MAX_SUBSCRIBER_NUM + 1)
+// Maximum number of referencing subscribers per entry.
+// Publisher-side handles do not participate in reference counting.
+#define MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY MAX_SUBSCRIBER_NUM
 
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
@@ -110,8 +111,8 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  atomic_t reference_counts[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];  // indexed by pubsub_id
-  atomic_t total_ref_count;  // number of unique pubsub referencing this entry
+  atomic_t reference_flags[MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY];  // boolean flag indexed by pubsub_id
+  atomic_t total_ref_count;  // number of pubsub currently referencing this entry
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -423,51 +424,45 @@ static bool is_referenced(struct entry_node * en)
   return atomic_read(&en->total_ref_count) > 0;
 }
 
-// Atomically increment reference count for a pubsub_id
-// Returns 0 on success
-static int increment_rc(struct entry_node * en, const topic_local_id_t id)
+// Add subscriber reference (set boolean flag).
+// Returns 0 on success, -EINVAL if invalid id, -EALREADY if already referenced.
+static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
   if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
-    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (increment_rc)\n", id);
+    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (add_subscriber_reference)\n", id);
     return -EINVAL;
   }
 
-  // If this is the first reference from this pubsub, increment total_ref_count
-  if (atomic_inc_return(&en->reference_counts[id]) == 1) {
-    atomic_inc(&en->total_ref_count);
+  if (atomic_cmpxchg(&en->reference_flags[id], 0, 1) != 0) {
+    dev_warn(
+      agnocast_device, "pubsub_id=%d already holds a reference. (add_subscriber_reference)\n", id);
+    return -EALREADY;
   }
+
+  atomic_inc(&en->total_ref_count);
   return 0;
 }
 
-// Atomically decrement reference count for a pubsub_id
-// Returns true if the reference was completely removed (count reached 0)
-static bool decrement_rc(struct entry_node * en, const topic_local_id_t id)
+// Remove subscriber reference (clear boolean flag).
+// Returns true if the reference was removed, false otherwise.
+static bool remove_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
   if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
-    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (decrement_rc)\n", id);
+    dev_warn(agnocast_device, "Invalid pubsub_id=%d. (remove_subscriber_reference)\n", id);
     return false;
   }
 
-  // If count reaches 0, decrement total_ref_count
-  if (atomic_dec_and_test(&en->reference_counts[id])) {
-    atomic_dec(&en->total_ref_count);
-    return true;
-  }
-  return false;
-}
-
-// Remove all references from a specific pubsub_id
-static void remove_all_references(struct entry_node * en, const topic_local_id_t id)
-{
-  if (id < 0 || id >= MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY) {
-    return;
+  if (atomic_cmpxchg(&en->reference_flags[id], 1, 0) != 1) {
+    dev_warn(
+      agnocast_device,
+      "pubsub_id=%d does not hold a reference. (remove_subscriber_reference)\n", id);
+    return false;
   }
 
-  int old_count = atomic_xchg(&en->reference_counts[id], 0);
-  if (old_count > 0) {
-    atomic_dec(&en->total_ref_count);
-  }
+  atomic_dec(&en->total_ref_count);
+  return true;
 }
+
 
 static struct entry_node * find_message_entry(
   struct topic_wrapper * wrapper, const int64_t entry_id)
@@ -490,6 +485,8 @@ static struct entry_node * find_message_entry(
   return NULL;
 }
 
+// Add subscriber reference to message entry (set boolean flag to true).
+// Called when subscriber first receives/takes the message.
 int increment_message_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
   const int64_t entry_id)
@@ -520,7 +517,7 @@ int increment_message_entry_rc(
     goto unlock_all;
   }
 
-  // Incrementing reference count is allowed only for subscribers
+  // Adding reference is allowed only for subscribers
   if (!find_subscriber_info(wrapper, pubsub_id)) {
     dev_warn(
       agnocast_device,
@@ -530,7 +527,7 @@ int increment_message_entry_rc(
     goto unlock_all;
   }
 
-  ret = increment_rc(en, pubsub_id);
+  ret = add_subscriber_reference(en, pubsub_id);
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
@@ -539,7 +536,9 @@ unlock_rwsem:
   return ret;
 }
 
-int decrement_message_entry_rc(
+// Release subscriber reference from message entry (set boolean flag to false).
+// Called when subscriber's last ipc_shared_ptr reference is destroyed.
+int release_message_entry_reference(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t pubsub_id,
   const int64_t entry_id)
 {
@@ -550,7 +549,7 @@ int decrement_message_entry_rc(
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
     dev_warn(
-      agnocast_device, "Topic (topic_name=%s) not found. (decrement_message_entry_rc)\n",
+      agnocast_device, "Topic (topic_name=%s) not found. (release_message_entry_reference)\n",
       topic_name);
     ret = -EINVAL;
     goto unlock_rwsem;
@@ -563,24 +562,16 @@ int decrement_message_entry_rc(
     dev_warn(
       agnocast_device,
       "Message entry (topic_name=%s entry_id=%lld) not found. "
-      "(decrement_message_entry_rc)\n",
+      "(release_message_entry_reference)\n",
       topic_name, entry_id);
     ret = -EINVAL;
     goto unlock_all;
   }
 
-  // Atomically decrement reference count
-  if (atomic_read(&en->reference_counts[pubsub_id]) == 0) {
-    dev_warn(
-      agnocast_device,
-      "Try to decrement reference of Publisher/Subscriber (pubsub_id=%d) for message entry "
-      "(topic_name=%s entry_id=%lld), but it is not found. (decrement_message_entry_rc)\n",
-      pubsub_id, topic_name, entry_id);
+  if (!remove_subscriber_reference(en, pubsub_id)) {
     ret = -EINVAL;
     goto unlock_all;
   }
-
-  decrement_rc(en, pubsub_id);
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
@@ -602,15 +593,12 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->topic.current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-
-  // Initialize all reference counts to 0
+  // Initialize all reference flags to 0 (no subscriber is holding a reference).
+  // Subscribers will add their references when they receive/take the message.
   for (int i = 0; i < MAX_REFERENCING_PUBSUB_NUM_PER_ENTRY; i++) {
-    atomic_set(&new_node->reference_counts[i], 0);
+    atomic_set(&new_node->reference_flags[i], 0);
   }
   atomic_set(&new_node->total_ref_count, 0);
-
-  // Publisher references its own entry
-  increment_rc(new_node, pub_info->id);
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -900,10 +888,9 @@ static int release_msgs_to_meet_depth(
   // HACK:
   //   The current implementation only releases a maximum of MAX_RELEASE_NUM messages at a time, and
   //   if there are more messages to release, qos_depth is temporarily not met.
-  //   However, it is rare for the reference_count of more than MAX_RELEASE_NUM messages
-  //   that are out of qos_depth to be zero at a specific time. If this happens, as long as the
-  //   publisher's qos_depth is greater than the subscriber's qos_depth, this has little effect on
-  //   system behavior.
+  //   However, it is rare for more than MAX_RELEASE_NUM messages that are out of qos_depth to be
+  //   unreferenced at a specific time. If this happens, as long as the publisher's qos_depth is
+  //   greater than the subscriber's qos_depth, this has little effect on system behavior.
   while (num_search_entries > 0 && ioctl_ret->ret_released_num < MAX_RELEASE_NUM) {
     struct entry_node * en = container_of(node, struct entry_node, node);
     node = rb_next(node);
@@ -1086,7 +1073,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = increment_rc(en, subscriber_id);
+    int ret = add_subscriber_reference(en, subscriber_id);
     if (ret < 0) {
       return ret;
     }
@@ -1223,7 +1210,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    ret = increment_rc(candidate_en, subscriber_id);
+    ret = add_subscriber_reference(candidate_en, subscriber_id);
     if (ret < 0) {
       goto unlock_all;
     }
@@ -1799,7 +1786,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    remove_all_references(en, subscriber_id);
+    remove_subscriber_reference(en, subscriber_id);
 
     if (is_referenced(en)) continue;
 
@@ -1867,6 +1854,8 @@ int remove_publisher(
     goto unlock;
   }
 
+  // Publisher-side handles do not participate in reference counting, so we don't need
+  // to remove publisher references. Just clean up entries that have no subscriber references.
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
   struct rb_node * next_node;
@@ -1877,8 +1866,6 @@ int remove_publisher(
     node = next_node;
 
     if (en->publisher_id != publisher_id) continue;
-
-    remove_all_references(en, publisher_id);
 
     if (!is_referenced(en)) {
       pub_info->entries_num--;
@@ -2167,7 +2154,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(combined_buf);
     if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
       return -EFAULT;
-  } else if (cmd == AGNOCAST_INCREMENT_RC_CMD) {
+  } else if (cmd == AGNOCAST_RELEASE_SUB_REF_CMD) {
     struct ioctl_update_entry_args entry_args;
     if (copy_from_user(
           &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
@@ -2181,25 +2168,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       return -EFAULT;
     }
     topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret =
-      increment_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
-    kfree(topic_name_buf);
-  } else if (cmd == AGNOCAST_DECREMENT_RC_CMD) {
-    struct ioctl_update_entry_args entry_args;
-    if (copy_from_user(
-          &entry_args, (struct ioctl_update_entry_args __user *)arg, sizeof(entry_args)))
-      return -EFAULT;
-    if (entry_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
-    char * topic_name_buf = kmalloc(entry_args.topic_name.len + 1, GFP_KERNEL);
-    if (!topic_name_buf) return -ENOMEM;
-    if (copy_from_user(
-          topic_name_buf, (char __user *)entry_args.topic_name.ptr, entry_args.topic_name.len)) {
-      kfree(topic_name_buf);
-      return -EFAULT;
-    }
-    topic_name_buf[entry_args.topic_name.len] = '\0';
-    ret =
-      decrement_message_entry_rc(topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
+    ret = release_message_entry_reference(
+      topic_name_buf, ipc_ns, entry_args.pubsub_id, entry_args.entry_id);
     kfree(topic_name_buf);
   } else if (cmd == AGNOCAST_RECEIVE_MSG_CMD) {
     union ioctl_receive_msg_args receive_msg_args;
@@ -2660,6 +2630,8 @@ bool is_in_topic_entries(
   return true;
 }
 
+// Returns 1 if subscriber is holding a reference to the entry, 0 otherwise.
+// Returns -1 if topic or entry not found.
 int get_entry_rc(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const int64_t entry_id,
   const topic_local_id_t pubsub_id)
@@ -2678,7 +2650,7 @@ int get_entry_rc(
     return -1;
   }
 
-  return atomic_read(&en->reference_counts[pubsub_id]);
+  return atomic_read(&en->reference_flags[pubsub_id]);
 }
 
 int64_t get_latest_received_entry_id(
@@ -2807,7 +2779,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      remove_all_references(en, subscriber_id);
+      remove_subscriber_reference(en, subscriber_id);
 
       if (is_referenced(en)) continue;
 
@@ -2849,6 +2821,8 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
 
     const topic_local_id_t publisher_id = pub_info->id;
 
+    // Publisher-side handles do not participate in reference counting, so we don't need
+    // to remove publisher references. Just clean up entries that have no subscriber references.
     struct rb_root * root = &wrapper->topic.entries;
     struct rb_node * node = rb_first(root);
     while (node) {
@@ -2856,8 +2830,6 @@ static void pre_handler_publisher_exit(struct topic_wrapper * wrapper, const pid
       node = rb_next(node);
 
       if (en->publisher_id != publisher_id) continue;
-
-      remove_all_references(en, publisher_id);
 
       if (!is_referenced(en)) {
         pub_info->entries_num--;
