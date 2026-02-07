@@ -4,6 +4,7 @@ Currently, Agnocast supports the following `ros2` commands:
 
 - `ros2 topic list`
 - `ros2 topic info /topic_name`
+- `ros2 topic echo /topic_name`
 - `ros2 node info /node_name`
 
 ### Topic List
@@ -152,6 +153,41 @@ Endpoint type: SUBSCRIPTION (Agnocast enabled)
 QoS profile:
   History (Depth): KEEP_LAST (1)
   Durability: VOLATILE
+```
+
+### Topic Echo
+
+To echo messages from a topic (including Agnocast enabled topics), use `ros2 topic echo_agnocast /topic_name`.
+
+This command will first check if the topic has Agnocast publishers or subscribers, then subscribe to the topic and print received messages.
+
+```bash
+$ ros2 topic echo_agnocast /my_topic
+Topic '/my_topic' has 1 Agnocast publisher(s)
+
+---
+data: 42
+---
+data: 43
+```
+
+Available options:
+
+- `--once`: Print only the first message received and then exit
+- `--timeout N`: Maximum time to wait for a message (in seconds)
+- `--no-agnocast-check`: Skip checking if topic has Agnocast publishers
+- `--qos-depth N`: QoS history depth (default: 10)
+- `--qos-reliability`: QoS reliability (`reliable` or `best_effort`, default: `best_effort`)
+- `--qos-durability`: QoS durability (`volatile` or `transient_local`, default: `volatile`)
+
+Example with options:
+
+```bash
+$ ros2 topic echo_agnocast /my_topic --once --qos-reliability reliable
+Topic '/my_topic' has 1 Agnocast publisher(s)
+
+---
+data: 42
 ```
 
 ### Node Info
