@@ -219,12 +219,12 @@ TEST(AgnocastApproximateTime, ExactMatch)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));         // a
-  input.push_back(TimeAndTopic(t, 1));         // A
-  input.push_back(TimeAndTopic(t + s * 3, 0)); // b
-  input.push_back(TimeAndTopic(t + s * 3, 1)); // B
-  input.push_back(TimeAndTopic(t + s * 6, 0)); // c
-  input.push_back(TimeAndTopic(t + s * 6, 1)); // C
+  input.push_back(TimeAndTopic(t, 0));          // a
+  input.push_back(TimeAndTopic(t, 1));          // A
+  input.push_back(TimeAndTopic(t + s * 3, 0));  // b
+  input.push_back(TimeAndTopic(t + s * 3, 1));  // B
+  input.push_back(TimeAndTopic(t + s * 6, 0));  // c
+  input.push_back(TimeAndTopic(t + s * 6, 1));  // C
   output.push_back(TimePair(t, t));
   output.push_back(TimePair(t + s * 3, t + s * 3));
   output.push_back(TimePair(t + s * 6, t + s * 6));
@@ -245,12 +245,12 @@ TEST(AgnocastApproximateTime, PerfectMatch)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));         // a
-  input.push_back(TimeAndTopic(t + s, 1));     // A
-  input.push_back(TimeAndTopic(t + s * 3, 0)); // b
-  input.push_back(TimeAndTopic(t + s * 4, 1)); // B
-  input.push_back(TimeAndTopic(t + s * 6, 0)); // c
-  input.push_back(TimeAndTopic(t + s * 7, 1)); // C
+  input.push_back(TimeAndTopic(t, 0));          // a
+  input.push_back(TimeAndTopic(t + s, 1));      // A
+  input.push_back(TimeAndTopic(t + s * 3, 0));  // b
+  input.push_back(TimeAndTopic(t + s * 4, 1));  // B
+  input.push_back(TimeAndTopic(t + s * 6, 0));  // c
+  input.push_back(TimeAndTopic(t + s * 7, 1));  // C
   output.push_back(TimePair(t, t + s));
   output.push_back(TimePair(t + s * 3, t + s * 4));
 
@@ -270,13 +270,13 @@ TEST(AgnocastApproximateTime, ImperfectMatch)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));         // a
-  input.push_back(TimeAndTopic(t + s, 1));     // A
-  input.push_back(TimeAndTopic(t + s * 2, 0)); // x
-  input.push_back(TimeAndTopic(t + s * 3, 0)); // b
-  input.push_back(TimeAndTopic(t + s * 5, 1)); // B
-  input.push_back(TimeAndTopic(t + s * 6, 0)); // c
-  input.push_back(TimeAndTopic(t + s * 7, 1)); // C
+  input.push_back(TimeAndTopic(t, 0));          // a
+  input.push_back(TimeAndTopic(t + s, 1));      // A
+  input.push_back(TimeAndTopic(t + s * 2, 0));  // x
+  input.push_back(TimeAndTopic(t + s * 3, 0));  // b
+  input.push_back(TimeAndTopic(t + s * 5, 1));  // B
+  input.push_back(TimeAndTopic(t + s * 6, 0));  // c
+  input.push_back(TimeAndTopic(t + s * 7, 1));  // C
   output.push_back(TimePair(t, t + s));
   output.push_back(TimePair(t + s * 6, t + s * 5));
 
@@ -297,12 +297,12 @@ TEST(AgnocastApproximateTime, Acceleration)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));          // a
-  input.push_back(TimeAndTopic(t + s * 7, 1));  // A
-  input.push_back(TimeAndTopic(t + s * 12, 0)); // b
-  input.push_back(TimeAndTopic(t + s * 15, 1)); // B
-  input.push_back(TimeAndTopic(t + s * 17, 0)); // c
-  input.push_back(TimeAndTopic(t + s * 18, 1)); // C
+  input.push_back(TimeAndTopic(t, 0));           // a
+  input.push_back(TimeAndTopic(t + s * 7, 1));   // A
+  input.push_back(TimeAndTopic(t + s * 12, 0));  // b
+  input.push_back(TimeAndTopic(t + s * 15, 1));  // B
+  input.push_back(TimeAndTopic(t + s * 17, 0));  // c
+  input.push_back(TimeAndTopic(t + s * 18, 1));  // C
   output.push_back(TimePair(t + s * 12, t + s * 7));
   output.push_back(TimePair(t + s * 17, t + s * 18));
 
@@ -324,16 +324,16 @@ TEST(AgnocastApproximateTime, DroppedMessages)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));          // a
-  input.push_back(TimeAndTopic(t + s, 1));      // A
-  input.push_back(TimeAndTopic(t + s * 3, 1));  // B
-  input.push_back(TimeAndTopic(t + s * 4, 0));  // b
-  input.push_back(TimeAndTopic(t + s * 7, 1));  // C
-  input.push_back(TimeAndTopic(t + s * 8, 0));  // c
-  input.push_back(TimeAndTopic(t + s * 10, 0)); // d
-  input.push_back(TimeAndTopic(t + s * 11, 1)); // D
-  input.push_back(TimeAndTopic(t + s * 13, 0)); // e
-  input.push_back(TimeAndTopic(t + s * 14, 1)); // E
+  input.push_back(TimeAndTopic(t, 0));           // a
+  input.push_back(TimeAndTopic(t + s, 1));       // A
+  input.push_back(TimeAndTopic(t + s * 3, 1));   // B
+  input.push_back(TimeAndTopic(t + s * 4, 0));   // b
+  input.push_back(TimeAndTopic(t + s * 7, 1));   // C
+  input.push_back(TimeAndTopic(t + s * 8, 0));   // c
+  input.push_back(TimeAndTopic(t + s * 10, 0));  // d
+  input.push_back(TimeAndTopic(t + s * 11, 1));  // D
+  input.push_back(TimeAndTopic(t + s * 13, 0));  // e
+  input.push_back(TimeAndTopic(t + s * 14, 1));  // E
   output.push_back(TimePair(t + s * 4, t + s * 3));
   output.push_back(TimePair(t + s * 10, t + s * 11));
 
@@ -369,24 +369,23 @@ TEST(AgnocastApproximateTime, LongQueue)
 
   rclcpp::Time t(0, 0);
 
-  input.push_back(TimeAndTopic(t, 0));                             // a
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(1, 0), 0));    // b
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(2, 0), 0));    // c
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 0));    // d
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(4, 0), 0));    // e
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 0));    // f
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 0));    // g
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(7, 0), 0));    // h
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(8, 0), 0));    // i
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 1));    // j
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(9, 0), 0));    // k
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 0));   // l
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(11, 0), 0));   // m
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(12, 0), 0));   // n
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 1));   // o
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(13, 0), 0));   // p
-  output.push_back(
-    TimePair(t + rclcpp::Duration(10, 0), t + rclcpp::Duration(10, 0)));
+  input.push_back(TimeAndTopic(t, 0));                            // a
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(1, 0), 0));   // b
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(2, 0), 0));   // c
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 0));   // d
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(4, 0), 0));   // e
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 0));   // f
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 0));   // g
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(7, 0), 0));   // h
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(8, 0), 0));   // i
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 1));   // j
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(9, 0), 0));   // k
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 0));  // l
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(11, 0), 0));  // m
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(12, 0), 0));  // n
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 1));  // o
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(13, 0), 0));  // p
+  output.push_back(TimePair(t + rclcpp::Duration(10, 0), t + rclcpp::Duration(10, 0)));
 
   ApproximateTimeSynchronizerTest sync_test(input, output, 5);
   sync_test.run();
@@ -407,13 +406,12 @@ TEST(AgnocastApproximateTime, DoublePublish)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));                         // a
-  input.push_back(TimeAndTopic(t + s, 1));                     // A
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 1)); // B
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 0)); // b
+  input.push_back(TimeAndTopic(t, 0));                           // a
+  input.push_back(TimeAndTopic(t + s, 1));                       // A
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 1));  // B
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 0));  // b
   output.push_back(TimePair(t, t + s));
-  output.push_back(
-    TimePair(t + rclcpp::Duration(3, 0), t + rclcpp::Duration(3, 0)));
+  output.push_back(TimePair(t + rclcpp::Duration(3, 0), t + rclcpp::Duration(3, 0)));
 
   ApproximateTimeSynchronizerTest sync_test(input, output, 10);
   sync_test.run();
@@ -436,29 +434,28 @@ TEST(AgnocastApproximateTime, FourTopics)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));                           // a
-  input.push_back(TimeAndTopic(t + s, 1));                       // b
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(2, 0), 2));  // c
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 3));  // d
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 0));  // e
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 3));  // f
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 1));  // g
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 2));  // h
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(8, 0), 0));  // i
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(9, 0), 1));  // j
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 2)); // k
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(11, 0), 3)); // l
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 0)); // m
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(13, 0), 0)); // n
-  input.push_back(TimeAndTopic(t + rclcpp::Duration(14, 0), 1)); // o
-  output.push_back(
-    TimeQuad(t, t + s, t + rclcpp::Duration(2, 0), t + rclcpp::Duration(3, 0)));
+  input.push_back(TimeAndTopic(t, 0));                            // a
+  input.push_back(TimeAndTopic(t + s, 1));                        // b
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(2, 0), 2));   // c
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(3, 0), 3));   // d
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 0));   // e
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(5, 0), 3));   // f
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 1));   // g
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(6, 0), 2));   // h
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(8, 0), 0));   // i
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(9, 0), 1));   // j
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 2));  // k
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(11, 0), 3));  // l
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(10, 0), 0));  // m
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(13, 0), 0));  // n
+  input.push_back(TimeAndTopic(t + rclcpp::Duration(14, 0), 1));  // o
+  output.push_back(TimeQuad(t, t + s, t + rclcpp::Duration(2, 0), t + rclcpp::Duration(3, 0)));
   output.push_back(TimeQuad(
-    t + rclcpp::Duration(5, 0), t + rclcpp::Duration(6, 0),
-    t + rclcpp::Duration(6, 0), t + rclcpp::Duration(5, 0)));
+    t + rclcpp::Duration(5, 0), t + rclcpp::Duration(6, 0), t + rclcpp::Duration(6, 0),
+    t + rclcpp::Duration(5, 0)));
   output.push_back(TimeQuad(
-    t + rclcpp::Duration(10, 0), t + rclcpp::Duration(9, 0),
-    t + rclcpp::Duration(10, 0), t + rclcpp::Duration(11, 0)));
+    t + rclcpp::Duration(10, 0), t + rclcpp::Duration(9, 0), t + rclcpp::Duration(10, 0),
+    t + rclcpp::Duration(11, 0)));
 
   ApproximateTimeSynchronizerTestQuad sync_test(input, output, 10);
   sync_test.run();
@@ -481,11 +478,11 @@ TEST(AgnocastApproximateTime, EarlyPublish)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));       // a
-  input.push_back(TimeAndTopic(t + s, 1));   // b
-  input.push_back(TimeAndTopic(t + s * 2, 2)); // c
-  input.push_back(TimeAndTopic(t + s * 3, 3)); // d
-  input.push_back(TimeAndTopic(t + s * 7, 0)); // e
+  input.push_back(TimeAndTopic(t, 0));          // a
+  input.push_back(TimeAndTopic(t + s, 1));      // b
+  input.push_back(TimeAndTopic(t + s * 2, 2));  // c
+  input.push_back(TimeAndTopic(t + s * 3, 3));  // d
+  input.push_back(TimeAndTopic(t + s * 7, 0));  // e
   output.push_back(TimeQuad(t, t + s, t + s * 2, t + s * 3));
 
   ApproximateTimeSynchronizerTestQuad sync_test(input, output, 10);
@@ -505,12 +502,12 @@ TEST(AgnocastApproximateTime, RateBound)
   rclcpp::Time t(0, 0);
   rclcpp::Duration s(1, 0);
 
-  input.push_back(TimeAndTopic(t, 0));         // a
-  input.push_back(TimeAndTopic(t + s, 1));     // A
-  input.push_back(TimeAndTopic(t + s * 3, 0)); // b
-  input.push_back(TimeAndTopic(t + s * 4, 1)); // B
-  input.push_back(TimeAndTopic(t + s * 6, 0)); // c
-  input.push_back(TimeAndTopic(t + s * 7, 1)); // C
+  input.push_back(TimeAndTopic(t, 0));          // a
+  input.push_back(TimeAndTopic(t + s, 1));      // A
+  input.push_back(TimeAndTopic(t + s * 3, 0));  // b
+  input.push_back(TimeAndTopic(t + s * 4, 1));  // B
+  input.push_back(TimeAndTopic(t + s * 6, 0));  // c
+  input.push_back(TimeAndTopic(t + s * 7, 1));  // C
   output.push_back(TimePair(t, t + s));
   output.push_back(TimePair(t + s * 3, t + s * 4));
 

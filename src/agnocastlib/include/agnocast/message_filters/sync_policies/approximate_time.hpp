@@ -106,6 +106,7 @@ struct ApproximateTime : public PolicyBase<M0, M1, M2, M3, M4, M5, M6, M7, M8>
     candidate_end_ = rhs.candidate_end_;
     deques_ = rhs.deques_;
     past_ = rhs.past_;
+    candidate_ = rhs.candidate_;
     has_dropped_messages_ = rhs.has_dropped_messages_;
     inter_message_lower_bounds_ = rhs.inter_message_lower_bounds_;
     warned_about_incorrect_bound_ = rhs.warned_about_incorrect_bound_;
