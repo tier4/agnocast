@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 
 namespace agnocast
 {
@@ -272,9 +273,15 @@ public:
       topic_ = topic;
       qos_ = qos;
       options_ = options;
-      sub_ = agnocast::create_subscription<M>(
-        node, topic, detail::to_rclcpp_qos(qos),
-        [this](ipc_shared_ptr<M> msg) { this->cb(std::move(msg)); }, options);
+      if constexpr (std::is_same_v<NodeType, rclcpp::Node>) {
+        sub_ = agnocast::create_subscription<M>(
+          node, topic, detail::to_rclcpp_qos(qos),
+          [this](ipc_shared_ptr<M> msg) { this->cb(std::move(msg)); }, options);
+      } else {
+        sub_ = node->template create_subscription<M>(
+          topic, detail::to_rclcpp_qos(qos),
+          [this](ipc_shared_ptr<M> msg) { this->cb(std::move(msg)); }, options);
+      }
       node_raw_ = node;
     }
   }
