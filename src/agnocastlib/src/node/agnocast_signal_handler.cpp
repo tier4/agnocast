@@ -13,22 +13,28 @@ namespace agnocast
 namespace
 {
 rclcpp::Logger logger = rclcpp::get_logger("agnocast_signal_handler");
+
+std::array<volatile sig_atomic_t, SignalHandler::MAX_EXECUTORS_NUM> make_initial_eventfds()
+{
+  std::array<volatile sig_atomic_t, SignalHandler::MAX_EXECUTORS_NUM> arr;
+  for (auto & fd : arr) {
+    fd = -1;
+  }
+  return arr;
 }
+}  // namespace
 
 std::atomic<bool> SignalHandler::installed_{false};
 std::mutex SignalHandler::eventfds_mutex_;
-std::array<std::atomic<int>, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_{};
+std::array<volatile sig_atomic_t, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_ =
+  make_initial_eventfds();
 std::atomic<size_t> SignalHandler::eventfd_count_{0};
 
 void SignalHandler::install()
 {
+  // eventfds_ is already initialized to -1 at static initialization
   if (installed_.exchange(true)) {
     return;
-  }
-
-  // Initialize eventfds array with -1 (empty marker)
-  for (auto & fd : eventfds_) {
-    fd.store(-1);
   }
 
   struct sigaction sa
@@ -54,8 +60,8 @@ void SignalHandler::register_shutdown_event(int eventfd)
   size_t count = eventfd_count_.load();
 
   for (size_t i = 0; i < count; ++i) {
-    if (eventfds_[i].load() == -1) {
-      eventfds_[i].store(eventfd);
+    if (eventfds_[i] == -1) {
+      eventfds_[i] = eventfd;
       return;
     }
   }
@@ -64,7 +70,7 @@ void SignalHandler::register_shutdown_event(int eventfd)
     RCLCPP_ERROR(logger, "Maximum number of executors (%zu) exceeded", MAX_EXECUTORS_NUM);
     return;
   }
-  eventfds_[count].store(eventfd);
+  eventfds_[count] = eventfd;
   eventfd_count_.store(count + 1);
 }
 
@@ -73,8 +79,8 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
   std::lock_guard<std::mutex> lock(eventfds_mutex_);
   size_t count = eventfd_count_.load();
   for (size_t i = 0; i < count; ++i) {
-    if (eventfds_[i].load() == eventfd) {
-      eventfds_[i].store(-1);
+    if (eventfds_[i] == eventfd) {
+      eventfds_[i] = -1;
       return;
     }
   }
@@ -88,9 +94,12 @@ void SignalHandler::signal_handler(int signum)
 
 void SignalHandler::notify_all_executors()
 {
+  // This function is async-signal-safe:
+  // - volatile sig_atomic_t read is async-signal-safe per C/POSIX standard
+  // - write() is async-signal-safe per POSIX
   uint64_t val = 1;
   for (size_t i = 0; i < MAX_EXECUTORS_NUM; ++i) {
-    int fd = eventfds_[i].load();
+    int fd = eventfds_[i];
     if (fd != -1) {
       [[maybe_unused]] auto ret = write(fd, &val, sizeof(val));
     }
