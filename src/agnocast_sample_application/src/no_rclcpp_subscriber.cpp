@@ -117,5 +117,6 @@ int main(int argc, char ** argv)
   auto node = std::make_shared<NoRclcppSubscriber>();
   executor.add_node(node);
   executor.spin();
+  agnocast::shutdown();
   return 0;
 }
