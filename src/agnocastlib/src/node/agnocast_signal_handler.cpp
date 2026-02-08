@@ -51,7 +51,7 @@ void SignalHandler::install()
 
 void SignalHandler::uninstall()
 {
-  if (!installed_.load()) {
+  if (!installed_.exchange(false)) {
     return;
   }
 
@@ -62,8 +62,6 @@ void SignalHandler::uninstall()
   sa.sa_handler = SIG_DFL;
   sigaction(SIGINT, &sa, nullptr);
   sigaction(SIGTERM, &sa, nullptr);
-
-  installed_.store(false);
 }
 
 void SignalHandler::register_shutdown_event(int eventfd)
