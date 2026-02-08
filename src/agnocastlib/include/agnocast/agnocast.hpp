@@ -80,8 +80,8 @@ typename Subscription<MessageT>::SharedPtr create_subscription(
 
 template <typename MessageT, typename NodeT, typename Func>
 typename Subscription<MessageT>::SharedPtr create_subscription(
-  NodeT * node, const std::string & topic_name, const size_t qos_history_depth,
-  Func && callback, agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
+  NodeT * node, const std::string & topic_name, const size_t qos_history_depth, Func && callback,
+  agnocast::SubscriptionOptions options = agnocast::SubscriptionOptions{})
 {
   static_assert(
     std::is_base_of_v<rclcpp::Node, NodeT> || std::is_base_of_v<agnocast::Node, NodeT>,
