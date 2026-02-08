@@ -23,13 +23,15 @@ std::atomic<size_t> SignalHandler::eventfd_count_{0};
 
 void SignalHandler::install()
 {
-  if (installed_.exchange(true)) {
-    return;
-  }
-
-  // Initialize eventfds array with -1 (empty marker)
-  for (auto & fd : eventfds_) {
-    fd.store(-1);
+  {
+    std::lock_guard<std::mutex> lock(eventfds_mutex_);
+    if (installed_.exchange(true)) {
+      return;
+    }
+    // Initialize eventfds array with -1 (empty marker)
+    for (auto & fd : eventfds_) {
+      fd.store(-1);
+    }
   }
 
   struct sigaction sa
