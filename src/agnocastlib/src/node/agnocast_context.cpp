@@ -39,6 +39,7 @@ bool ok()
 
 void shutdown()
 {
+  SignalHandler::request_shutdown();
   SignalHandler::notify_all_executors();
   SignalHandler::uninstall();
 }
