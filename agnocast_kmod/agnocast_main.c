@@ -29,10 +29,6 @@ static DEFINE_MUTEX(global_mutex);
 #define SUB_INFO_HASH_BITS 5
 #define PROC_INFO_HASH_BITS 10
 
-// Maximum number of referencing subscribers per entry.
-// Publisher-side handles do not participate in reference counting.
-#define MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY MAX_SUBSCRIBER_NUM
-
 // Maximum length of topic name: 256 characters
 #define TOPIC_NAME_BUFFER_SIZE 256
 
@@ -104,9 +100,9 @@ struct entry_node
   int64_t entry_id;  // rbtree key
   topic_local_id_t publisher_id;
   uint64_t msg_virtual_address;
-  // Per-subscriber boolean flag: if ID is present, subscriber is holding a reference.
-  // When subscriber releases the reference, the ID is removed from this array.
-  topic_local_id_t referencing_ids[MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY];
+  // Per-subscriber boolean flag: if bit is set, subscriber is holding a reference.
+  // When subscriber releases the reference, the bit is cleared.
+  DECLARE_BITMAP(referencing_subscribers, MAX_SUBSCRIBER_NUM);
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -414,45 +410,14 @@ static int insert_publisher_info(
 
 static bool is_referenced(struct entry_node * en)
 {
-  // The referencing_ids array is always populated starting from the smallest index.
-  // Therefore, the value -1 at index 0 is equivalent to a non-existent referencing.
-  return (en->referencing_ids[0] != -1);
-}
-
-static void remove_reference_by_index(struct entry_node * en, int index)
-{
-  for (int i = index; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY - 1; i++) {
-    en->referencing_ids[i] = en->referencing_ids[i + 1];
-  }
-
-  en->referencing_ids[MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY - 1] = -1;
+  return !bitmap_empty(en->referencing_subscribers, MAX_SUBSCRIBER_NUM);
 }
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
-static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+static void add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-    // Already referenced by this subscriber - no-op
-    if (en->referencing_ids[i] == id) {
-      return 0;
-    }
-
-    // Empty slot found - add reference
-    if (en->referencing_ids[i] == -1) {
-      en->referencing_ids[i] = id;
-      return 0;
-    }
-  }
-
-  dev_warn(
-    agnocast_device,
-    "Unreachable. The number of referencing subscribers reached the upper bound "
-    "(MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY=%d), so no new subscriber can reference. "
-    "(add_subscriber_reference)\n",
-    MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY);
-
-  return -ENOBUFS;
+  set_bit(id, en->referencing_subscribers);
 }
 
 static struct entry_node * find_message_entry(
@@ -509,11 +474,7 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  int ret = add_subscriber_reference(en, pubsub_id);
-  if (ret < 0) {
-    return ret;
-  }
-
+  add_subscriber_reference(en, pubsub_id);
   return 0;
 }
 
@@ -541,21 +502,17 @@ int release_message_entry_reference(
     return -EINVAL;
   }
 
-  // Remove subscriber reference
-  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-    if (en->referencing_ids[i] == pubsub_id) {
-      remove_reference_by_index(en, i);
-      return 0;
-    }
+  // Remove subscriber reference using bitmap
+  if (!test_and_clear_bit(pubsub_id, en->referencing_subscribers)) {
+    dev_warn(
+      agnocast_device,
+      "Try to release reference of Subscriber (pubsub_id=%d) for message entry "
+      "(topic_name=%s entry_id=%lld), but it is not found. (release_message_entry_reference)\n",
+      pubsub_id, topic_name, entry_id);
+    return -EINVAL;
   }
 
-  dev_warn(
-    agnocast_device,
-    "Try to release reference of Subscriber (pubsub_id=%d) for message entry "
-    "(topic_name=%s entry_id=%lld), but it is not found. (release_message_entry_reference)\n",
-    pubsub_id, topic_name, entry_id);
-
-  return -EINVAL;
+  return 0;
 }
 
 static int insert_message_entry(
@@ -572,11 +529,9 @@ static int insert_message_entry(
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   // Publisher-side handles do not participate in reference counting.
-  // Initialize all reference slots as empty (-1 means no subscriber is holding a reference).
+  // Initialize bitmap as empty (no subscriber is holding a reference).
   // Subscribers will add their references when they receive/take the message.
-  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-    new_node->referencing_ids[i] = -1;
-  }
+  bitmap_zero(new_node->referencing_subscribers, MAX_SUBSCRIBER_NUM);
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -889,7 +844,8 @@ static int release_msgs_to_meet_depth(
 
 int publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
-  const uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
+  const uint64_t msg_virtual_address, topic_local_id_t * subscriber_ids_out,
+  uint32_t subscriber_ids_buffer_size, union ioctl_publish_msg_args * ioctl_ret)
 {
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
   if (!wrapper) {
@@ -928,7 +884,7 @@ int publish_msg(
     return ret;
   }
 
-  int subscriber_num = 0;
+  uint32_t subscriber_num = 0;
   struct subscriber_info * sub_info;
   int bkt_sub_info;
   hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
@@ -937,7 +893,9 @@ int publish_msg(
     if (sub_info->ignore_local_publications && (sub_info->pid == pub_info->pid)) {
       continue;
     }
-    ioctl_ret->ret_subscriber_ids[subscriber_num] = sub_info->id;
+    if (subscriber_num < subscriber_ids_buffer_size) {
+      subscriber_ids_out[subscriber_num] = sub_info->id;
+    }
     subscriber_num++;
   }
   ioctl_ret->ret_subscriber_num = subscriber_num;
@@ -1010,10 +968,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = add_subscriber_reference(en, subscriber_id);
-    if (ret < 0) {
-      return ret;
-    }
+    add_subscriber_reference(en, subscriber_id);
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
     ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
@@ -1126,10 +1081,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    int ret = add_subscriber_reference(candidate_en, subscriber_id);
-    if (ret < 0) {
-      return ret;
-    }
+    add_subscriber_reference(candidate_en, subscriber_id);
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
     ioctl_ret->ret_entry_id = candidate_en->entry_id;
@@ -1287,10 +1239,11 @@ int get_topic_list(
       return -ENOBUFS;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       return -EFAULT;
     }
 
@@ -1327,10 +1280,11 @@ static int get_node_subscriber_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1370,10 +1324,11 @@ static int get_node_publisher_topics(
           return -ENOBUFS;
         }
 
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
+        if (
+          copy_to_user(
+            (char
+               __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+            wrapper->key, strlen(wrapper->key) + 1)) {
           return -EFAULT;
         }
 
@@ -1590,12 +1545,8 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-      if (en->referencing_ids[i] == subscriber_id) {
-        remove_reference_by_index(en, i);
-        break;
-      }
-    }
+    // Clear this subscriber's reference from the entry
+    clear_bit(subscriber_id, en->referencing_subscribers);
 
     if (is_referenced(en)) continue;
 
@@ -1997,12 +1948,37 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       return -EFAULT;
     }
     topic_name_buf[publish_msg_args.topic_name.len] = '\0';
+
+    // Allocate kernel buffer for subscriber IDs
+    uint32_t buffer_size = publish_msg_args.subscriber_ids_buffer_size;
+    topic_local_id_t * subscriber_ids_buf =
+      kmalloc_array(buffer_size, sizeof(topic_local_id_t), GFP_KERNEL);
+    if (!subscriber_ids_buf) {
+      kfree(topic_name_buf);
+      return -ENOMEM;
+    }
+
     mutex_lock(&global_mutex);
     ret = publish_msg(
       topic_name_buf, ipc_ns, publish_msg_args.publisher_id, publish_msg_args.msg_virtual_address,
-      &publish_msg_args);
+      subscriber_ids_buf, buffer_size, &publish_msg_args);
     mutex_unlock(&global_mutex);
     kfree(topic_name_buf);
+
+    if (ret == 0) {
+      // Copy subscriber IDs to user-space buffer
+      uint32_t copy_count = min(publish_msg_args.ret_subscriber_num, buffer_size);
+      if (copy_count > 0) {
+        if (copy_to_user(
+              (topic_local_id_t __user *)publish_msg_args.subscriber_ids_buffer_addr,
+              subscriber_ids_buf, copy_count * sizeof(topic_local_id_t))) {
+          kfree(subscriber_ids_buf);
+          return -EFAULT;
+        }
+      }
+    }
+    kfree(subscriber_ids_buf);
+
     if (copy_to_user(
           (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
       return -EFAULT;
@@ -2438,13 +2414,8 @@ int get_entry_rc(
     return -1;
   }
 
-  for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-    if (en->referencing_ids[i] == pubsub_id) {
-      return 1;  // Subscriber is holding a reference
-    }
-  }
-
-  return 0;  // Subscriber is not holding a reference
+  // Check if subscriber is holding a reference using bitmap
+  return test_bit(pubsub_id, en->referencing_subscribers) ? 1 : 0;
 }
 
 int64_t get_latest_received_entry_id(
@@ -2573,11 +2544,8 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-        if (en->referencing_ids[i] == subscriber_id) {
-          remove_reference_by_index(en, i);
-        }
-      }
+      // Clear this subscriber's reference from the entry
+      clear_bit(subscriber_id, en->referencing_subscribers);
 
       if (is_referenced(en)) continue;
 
