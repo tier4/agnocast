@@ -62,19 +62,17 @@ class BasicPublisher
   {
     std::memset(gid_.data, 0, RMW_GID_STORAGE_SIZE);
 
-    // [0-3]: Agnocast identifier (0xFFFF prefix ensures no collision with DDS GUIDs)
-    gid_.data[0] = 0xFF;
-    gid_.data[1] = 0xFF;
-    gid_.data[2] = 'A';  // Agnocast marker
-    gid_.data[3] = 'G';
+    // [0-1]: Agnocast identifier
+    gid_.data[0] = 'A';
+    gid_.data[1] = 'G';
 
-    // [4-7]: Process ID
+    // [2-5]: Process ID
     pid_t pid = getpid();
     std::memcpy(gid_.data + 4, &pid, sizeof(pid));
 
-    // [8-11]: topic_name hash (upper 4 bytes)
+    // [6-11]: topic_name hash (upper 6 bytes)
     size_t topic_hash = std::hash<std::string>{}(topic_name_);
-    std::memcpy(gid_.data + 8, &topic_hash, 4);
+    std::memcpy(gid_.data + 8, &topic_hash, 6);
 
     // [12-15]: publisher id
     std::memcpy(gid_.data + 12, &id_, sizeof(id_));
