@@ -1,11 +1,8 @@
 #include "agnocast/message_filters/pass_through.hpp"
 
-#include <rclcpp/rclcpp.hpp>
-
 #include <gtest/gtest.h>
 
 #include <functional>
-#include <memory>
 
 using namespace agnocast::message_filters;
 using namespace std::placeholders;

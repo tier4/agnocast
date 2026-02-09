@@ -2,6 +2,8 @@
 
 #include "agnocast/message_filters/simple_filter.hpp"
 
+#include <functional>
+
 namespace agnocast
 {
 namespace message_filters
