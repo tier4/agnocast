@@ -103,7 +103,6 @@ class NodeInfoAgnocastVerb(VerbExtension):
 
             def get_agnocast_label(topic_name, ros2_sub_topics, ros2_pub_topics):
                 """Get the appropriate label for an Agnocast-enabled topic."""
-                topic_name_bytes = topic_name.encode('utf-8')
 
                 suffix = "(Agnocast enabled)"
                 match get_bridge_status(topic_name):
