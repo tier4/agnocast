@@ -32,7 +32,6 @@ std::atomic<size_t> SignalHandler::eventfd_count_{0};
 
 void SignalHandler::install()
 {
-  // eventfds_ is already initialized to -1 at static initialization
   if (installed_.exchange(true)) {
     return;
   }
@@ -94,9 +93,6 @@ void SignalHandler::signal_handler(int signum)
 
 void SignalHandler::notify_all_executors()
 {
-  // This function is async-signal-safe:
-  // - volatile sig_atomic_t read is async-signal-safe per C/POSIX standard
-  // - write() is async-signal-safe per POSIX
   uint64_t val = 1;
   for (size_t i = 0; i < MAX_EXECUTORS_NUM; ++i) {
     int fd = eventfds_[i];
