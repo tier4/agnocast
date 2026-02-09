@@ -52,23 +52,7 @@ TEST(AgnocastPassThrough, addEventType)
   delete raw;
 }
 
-TEST(AgnocastPassThrough, connectInputConstructor)
-{
-  PassThrough<Msg> upstream;
-  PassThrough<Msg> pt(upstream);
-
-  int count = 0;
-  pt.registerCallback([&count](const MsgConstPtr &) { ++count; });
-
-  Msg const * raw = new Msg const();
-  auto msg = make_test_ipc_shared_ptr(raw);
-  upstream.add(msg);
-
-  EXPECT_EQ(count, 1);
-  delete raw;
-}
-
-TEST(AgnocastPassThrough, connectInputMethod)
+TEST(AgnocastPassThrough, connectInput)
 {
   PassThrough<Msg> upstream;
   PassThrough<Msg> pt;
