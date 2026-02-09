@@ -110,7 +110,6 @@ uint32_t register_callback(
   return callback_info_id;
 }
 
-void receive_and_execute_message(
-  uint32_t callback_info_id, pid_t my_pid, const CallbackInfo & callback_info);
+void receive_and_execute_message(const CallbackInfo & callback_info);
 
 }  // namespace agnocast
