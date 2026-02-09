@@ -68,11 +68,11 @@ class BasicPublisher
 
     // [2-5]: Process ID
     pid_t pid = getpid();
-    std::memcpy(gid_.data + 4, &pid, sizeof(pid));
+    std::memcpy(gid_.data + 2, &pid, sizeof(pid));
 
     // [6-11]: topic_name hash (upper 6 bytes)
     size_t topic_hash = std::hash<std::string>{}(topic_name_);
-    std::memcpy(gid_.data + 8, &topic_hash, 6);
+    std::memcpy(gid_.data + 6, &topic_hash, 6);
 
     // [12-15]: publisher id
     std::memcpy(gid_.data + 12, &id_, sizeof(id_));
