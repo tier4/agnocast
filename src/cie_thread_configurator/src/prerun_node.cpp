@@ -11,24 +11,80 @@
 #include <iostream>
 #include <string>
 
-PrerunNode::PrerunNode() : Node("prerun_node")
+PrerunNode::PrerunNode(const std::set<size_t> & domain_ids) : Node("prerun_node")
 {
-  subscription_ = this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
-    "/cie_thread_configurator/callback_group_info", 100,
-    std::bind(&PrerunNode::topic_callback, this, std::placeholders::_1));
+  size_t default_domain_id = cie_thread_configurator::get_default_domain_id();
+
+  // Create subscription for non-ROS thread info
+  non_ros_thread_sub_ = this->create_subscription<cie_config_msgs::msg::NonRosThreadInfo>(
+    "/cie_thread_configurator/non_ros_thread_info", 100,
+    [this](const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg) {
+      this->non_ros_thread_callback(msg);
+    });
+
+  // Create subscription for default domain on this node
+  subs_for_each_domain_.push_back(
+    this->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
+      "/cie_thread_configurator/callback_group_info", 100,
+      [this, default_domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+        this->topic_callback(default_domain_id, msg);
+      }));
+
+  // Create nodes and subscriptions for other domain IDs
+  for (size_t domain_id : domain_ids) {
+    if (domain_id == default_domain_id) {
+      continue;
+    }
+
+    auto node = cie_thread_configurator::create_node_for_domain(domain_id);
+    nodes_for_each_domain_.push_back(node);
+
+    auto sub = node->create_subscription<cie_config_msgs::msg::CallbackGroupInfo>(
+      "/cie_thread_configurator/callback_group_info", 100,
+      [this, domain_id](const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg) {
+        this->topic_callback(domain_id, msg);
+      });
+    subs_for_each_domain_.push_back(sub);
+
+    RCLCPP_INFO(this->get_logger(), "Created subscription for domain ID: %zu", domain_id);
+  }
 }
 
-void PrerunNode::topic_callback(const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
+void PrerunNode::topic_callback(
+  size_t domain_id, const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg)
 {
-  if (callback_group_ids_.find(msg->callback_group_id) != callback_group_ids_.end()) {
+  auto key = std::make_pair(domain_id, msg->callback_group_id);
+  if (domain_and_cbg_ids_.find(key) != domain_and_cbg_ids_.end()) {
     return;
   }
 
   RCLCPP_INFO(
-    this->get_logger(), "Received CallbackGroupInfo: tid=%ld | %s", msg->thread_id,
-    msg->callback_group_id.c_str());
+    this->get_logger(), "Received CallbackGroupInfo: domain=%zu | tid=%ld | %s", domain_id,
+    msg->thread_id, msg->callback_group_id.c_str());
 
-  callback_group_ids_.insert(msg->callback_group_id);
+  domain_and_cbg_ids_.insert(key);
+}
+
+void PrerunNode::non_ros_thread_callback(
+  const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg)
+{
+  if (non_ros_thread_names_.find(msg->thread_name) != non_ros_thread_names_.end()) {
+    RCLCPP_ERROR(
+      this->get_logger(), "Duplicate thread_name received: tid=%ld | %s", msg->thread_id,
+      msg->thread_name.c_str());
+    return;
+  }
+
+  RCLCPP_INFO(
+    this->get_logger(), "Received NonRosThreadInfo: tid=%ld | %s", msg->thread_id,
+    msg->thread_name.c_str());
+
+  non_ros_thread_names_.insert(msg->thread_name);
+}
+
+const std::vector<rclcpp::Node::SharedPtr> & PrerunNode::get_domain_nodes() const
+{
+  return nodes_for_each_domain_;
 }
 
 void PrerunNode::dump_yaml_config(std::filesystem::path path)
@@ -53,9 +109,26 @@ void PrerunNode::dump_yaml_config(std::filesystem::path path)
   out << YAML::Key << "callback_groups";
   out << YAML::Value << YAML::BeginSeq;
 
-  for (const std::string & callback_group_id : callback_group_ids_) {
+  for (const auto & [domain_id, callback_group_id] : domain_and_cbg_ids_) {
     out << YAML::BeginMap;
     out << YAML::Key << "id" << YAML::Value << callback_group_id;
+    out << YAML::Key << "domain_id" << YAML::Value << domain_id;
+    out << YAML::Key << "affinity" << YAML::Value << YAML::Null;
+    out << YAML::Key << "policy" << YAML::Value << "SCHED_OTHER";
+    out << YAML::Key << "priority" << YAML::Value << 0;
+    out << YAML::EndMap;
+    out << YAML::Newline;
+  }
+
+  out << YAML::EndSeq;
+
+  // Add non_ros_threads section
+  out << YAML::Key << "non_ros_threads";
+  out << YAML::Value << YAML::BeginSeq;
+
+  for (const auto & thread_name : non_ros_thread_names_) {
+    out << YAML::BeginMap;
+    out << YAML::Key << "name" << YAML::Value << thread_name;
     out << YAML::Key << "affinity" << YAML::Value << YAML::Null;
     out << YAML::Key << "policy" << YAML::Value << "SCHED_OTHER";
     out << YAML::Key << "priority" << YAML::Value << 0;

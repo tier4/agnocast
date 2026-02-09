@@ -40,7 +40,8 @@ void decrement_borrowed_publisher_num()
 }
 
 topic_local_id_t initialize_publisher(
-  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos)
+  const std::string & topic_name, const std::string & node_name, const rclcpp::QoS & qos,
+  const bool is_bridge)
 {
   validate_ld_preload();
 
@@ -49,6 +50,7 @@ topic_local_id_t initialize_publisher(
   pub_args.node_name = {node_name.c_str(), node_name.size()};
   pub_args.qos_depth = qos.depth();
   pub_args.qos_is_transient_local = qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
+  pub_args.is_bridge = is_bridge;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_PUBLISHER_CMD, &pub_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_PUBLISHER_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -131,6 +133,31 @@ union ioctl_publish_msg_args publish_core(
 
 uint32_t get_subscription_count_core(const std::string & topic_name)
 {
+  union ioctl_get_subscriber_num_args args = {};
+  args.topic_name = {topic_name.c_str(), topic_name.size()};
+  if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &args) < 0) {
+    RCLCPP_ERROR(logger, "AGNOCAST_GET_SUBSCRIBER_NUM_CMD failed: %s", strerror(errno));
+    close(agnocast_fd);
+    exit(EXIT_FAILURE);
+  }
+
+  uint32_t inter_count = args.ret_other_process_subscriber_num;
+  // Assumes at most one bridge subscriber per topic
+  if (args.ret_a2r_bridge_exist && inter_count > 0) {
+    inter_count--;
+  }
+
+  uint32_t ros2_count = args.ret_ros2_subscriber_num;
+  // Assumes at most one bridge subscriber per topic
+  if (args.ret_r2a_bridge_exist && ros2_count > 0) {
+    ros2_count--;
+  }
+
+  return inter_count + ros2_count;
+}
+
+uint32_t get_intra_subscription_count_core(const std::string & topic_name)
+{
   union ioctl_get_subscriber_num_args get_subscriber_count_args = {};
   get_subscriber_count_args.topic_name = {topic_name.c_str(), topic_name.size()};
   if (ioctl(agnocast_fd, AGNOCAST_GET_SUBSCRIBER_NUM_CMD, &get_subscriber_count_args) < 0) {
@@ -139,7 +166,7 @@ uint32_t get_subscription_count_core(const std::string & topic_name)
     exit(EXIT_FAILURE);
   }
 
-  return get_subscriber_count_args.ret_subscriber_num;
+  return get_subscriber_count_args.ret_same_process_subscriber_num;
 }
 
 }  // namespace agnocast

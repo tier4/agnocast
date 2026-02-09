@@ -54,6 +54,18 @@ target_include_directories(no_rclcpp_pubsub PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
+add_executable(no_rclcpp_talker src/no_rclcpp_publisher.cpp)
+ament_target_dependencies(no_rclcpp_talker agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_talker PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(no_rclcpp_take_listener src/no_rclcpp_take_subscriber.cpp)
+ament_target_dependencies(no_rclcpp_take_listener agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_take_listener PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
 add_executable(client src/minimal_client.cpp)
 ament_target_dependencies(client rclcpp agnocastlib agnocast_sample_interfaces)
 target_include_directories(client PRIVATE
@@ -63,6 +75,18 @@ target_include_directories(client PRIVATE
 add_executable(server src/minimal_server.cpp)
 ament_target_dependencies(server rclcpp agnocastlib agnocast_sample_interfaces)
 target_include_directories(server PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(no_rclcpp_server src/no_rclcpp_server.cpp)
+ament_target_dependencies(no_rclcpp_server agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_server PRIVATE
+  ${agnocastlib_INCLUDE_DIRS}
+)
+
+add_executable(no_rclcpp_client src/no_rclcpp_client.cpp)
+ament_target_dependencies(no_rclcpp_client agnocastlib agnocast_sample_interfaces)
+target_include_directories(no_rclcpp_client PRIVATE
   ${agnocastlib_INCLUDE_DIRS}
 )
 
@@ -109,10 +133,22 @@ install(TARGETS no_rclcpp_listener_component
 install(TARGETS no_rclcpp_pubsub
   DESTINATION lib/${PROJECT_NAME})
 
+install(TARGETS no_rclcpp_talker
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS no_rclcpp_take_listener
+  DESTINATION lib/${PROJECT_NAME})
+
 install(TARGETS client
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS server
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS no_rclcpp_server
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS no_rclcpp_client
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
