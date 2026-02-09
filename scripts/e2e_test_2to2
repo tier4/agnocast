@@ -48,6 +48,10 @@ source /opt/ros/${ROS_DISTRO}/setup.bash
 colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 
+LOWER_BRIDGE_MODE=$(echo "$AGNOCAST_BRIDGE_MODE" | tr '[:upper:]' '[:lower:]')
+CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
+echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
+
 # Run test
 CONFIG_FILE=src/agnocast_e2e_test/test/config_test_2to2.yaml
 show_config() {
@@ -58,7 +62,6 @@ show_config() {
 }
 
 FAILURE_COUNT=0
-LOWER_BRIDGE_MODE=$(echo "$AGNOCAST_BRIDGE_MODE" | tr '[:upper:]' '[:lower:]')
 if [ "$RUN_SINGLE" = true ]; then
     CURRENT_YAML_MODE=$(grep "^test_mode:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
     export TEST_MODE=${CURRENT_YAML_MODE}
@@ -113,14 +116,11 @@ else
     done
 fi
 
-CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
-
 if [ "$FAILURE_COUNT" -gt 0 ]; then
-    echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
     echo "$FAILURE_COUNT / $TOTAL_TESTS tests failed" | sudo tee /dev/kmsg
     exit 1
 else
-    echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
+
     echo "All tests passed!!" | sudo tee /dev/kmsg
 fi
 
