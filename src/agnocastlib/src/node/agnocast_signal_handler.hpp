@@ -21,7 +21,7 @@ private:
   static std::atomic<bool> installed_;
 
   static std::mutex eventfds_mutex_;
-  // volatile sig_atomic_t is async-signal-safe per C/POSIX standard
+  // For async-signal-safe access from signal handler
   static std::array<volatile sig_atomic_t, MAX_EXECUTORS_NUM> eventfds_;
   static std::atomic<size_t> eventfd_count_;
 
