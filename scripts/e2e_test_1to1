@@ -44,13 +44,20 @@ done
 
 # Check bridge mode
 LOWER_BRIDGE_MODE=$(echo "$AGNOCAST_BRIDGE_MODE" | tr '[:upper:]' '[:lower:]')
-[[ "$LOWER_BRIDGE_MODE" =~ ^(0|off)$ ]] && BRIDGE_OFF=true || BRIDGE_OFF=false
+if [[ "$LOWER_BRIDGE_MODE" =~ ^(0|off)$ ]]; then
+    BRIDGE_OFF=true
+else
+    BRIDGE_OFF=false
+fi
 
 # Setup
 rm -rf build/agnocast_e2e_test install/e2e_test
 source /opt/ros/${ROS_DISTRO}/setup.bash
 colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
+
+CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
+echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
 
 # Run test
 CONFIG_FILE="src/agnocast_e2e_test/test/config_test_1to1.yaml"
@@ -127,9 +134,6 @@ else
         done
     done
 fi
-
-CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
-echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
 
 if [ "$FAILURE_COUNT" -gt 0 ]; then
     echo "$FAILURE_COUNT / $COUNT tests failed" | sudo tee /dev/kmsg
