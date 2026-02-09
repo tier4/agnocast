@@ -107,13 +107,13 @@ class NodeInfoAgnocastVerb(VerbExtension):
                 suffix = "(Agnocast enabled)"
                 match get_bridge_status(topic_name):
                     case BridgeStatus.PUBSUB:
-                        suffix = " (Agnocast enabled, bridged)"
+                        suffix = "(Agnocast enabled, bridged)"
                     case BridgeStatus.PUBLISHER:
                         if topic_name in ros2_pub_topics:
-                            suffix = " (Agnocast enabled, bridged)"
+                            suffix = "(Agnocast enabled, bridged)"
                     case BridgeStatus.SUBSCRIBER:
                         if topic_name in ros2_sub_topics:
-                            suffix = " (Agnocast enabled, bridged)"
+                            suffix = "(Agnocast enabled, bridged)"
                     case BridgeStatus.NOT_BRIDGED:
                         pass
                 return suffix
