@@ -16,7 +16,6 @@ rclcpp::Logger logger = rclcpp::get_logger("agnocast_signal_handler");
 }
 
 std::atomic<bool> SignalHandler::installed_{false};
-std::atomic<bool> SignalHandler::shutdown_requested_{false};
 std::mutex SignalHandler::eventfds_mutex_;
 std::array<std::atomic<int>, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_{};
 std::atomic<size_t> SignalHandler::eventfd_count_{0};
@@ -47,21 +46,6 @@ void SignalHandler::install()
     RCLCPP_ERROR(logger, "Failed to install SIGTERM handler: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
-}
-
-void SignalHandler::uninstall()
-{
-  if (!installed_.exchange(false)) {
-    return;
-  }
-
-  struct sigaction sa
-  {
-  };
-  sigemptyset(&sa.sa_mask);
-  sa.sa_handler = SIG_DFL;
-  sigaction(SIGINT, &sa, nullptr);
-  sigaction(SIGTERM, &sa, nullptr);
 }
 
 void SignalHandler::register_shutdown_event(int eventfd)
@@ -99,7 +83,6 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
 void SignalHandler::signal_handler(int signum)
 {
   (void)signum;
-  shutdown_requested_.store(true);
   notify_all_executors();
 }
 

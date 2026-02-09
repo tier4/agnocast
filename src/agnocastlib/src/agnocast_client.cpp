@@ -58,7 +58,8 @@ bool wait_for_service_nanoseconds(
   nanoseconds time_to_wait =
     timeout > nanoseconds(0) ? timeout - (steady_clock::now() - start) : nanoseconds::max();
   do {
-    if (context ? !rclcpp::ok(context) : !ok()) {
+    // TODO(Koichi98): agnocast::ok and agnocast::shutdown are planned to be implemented.
+    if (context ? !rclcpp::ok(context) : false) {
       return false;
     }
     nanoseconds interval = std::min(time_to_wait, duration_cast<nanoseconds>(100ms));
