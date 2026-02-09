@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #include "agnocast/agnocast.hpp"
