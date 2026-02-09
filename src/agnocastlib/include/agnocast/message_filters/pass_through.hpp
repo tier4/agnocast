@@ -20,7 +20,7 @@ public:
   PassThrough() {}
 
   template <typename F>
-  PassThrough(F & f)
+  explicit PassThrough(F & f)
   {
     connectInput(f);
   }
