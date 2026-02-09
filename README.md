@@ -370,3 +370,5 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [agnocast::Node and rclcpp::Node interface comparison](./docs/agnocast_node_interface_comparison.md)
 - [Callback Isolated Executor for Agnocast](./docs/callback_isolated_executor_for_agnocast.md)
 - [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)
+- [Message Filters Design Document](./docs/message_filters_design_document.md)
+- [Message Filters Synchronizer User Guide](./docs/message_filters_synchronizer_user.md)
