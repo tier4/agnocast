@@ -92,6 +92,12 @@ Connects agnocast subscriptions to the message_filters chain. Wraps `agnocast::c
 
 **Difference from ROS 2**: ROS 2 `Subscriber` uses `rclcpp::Subscription` internally. Agnocast's version uses `agnocast::create_subscription()` and converts the received `ipc_shared_ptr<M>` to `ipc_shared_ptr<M const>` before signaling.
 
+### PassThrough (`pass_through.hpp`)
+
+Simple passthrough filter that re-signals every incoming message unchanged. Extends `SimpleFilter<M>` and can be connected to any upstream filter via `connectInput()`, or fed manually via `add()`.
+
+**Reused from ROS 2**: `Connection`.
+
 ### Synchronizer (`synchronizer.hpp`)
 
 Policy-based multi-message synchronizer. Routes messages from 2–9 input filters to a sync policy via `add<i>()`.
@@ -147,4 +153,4 @@ Groups messages whose timestamps are close but not necessarily identical. Uses a
 
 - **[ApproximateEpsilonTime policy](https://docs.ros.org/en/rolling/p/message_filters/doc/index.html#approximateepsilontime-policy)**: Support the `ApproximateEpsilonTime` sync policy.
 - **ROS message and agnocast message synchronization**: Enable synchronizing messages from both standard ROS 2 subscriptions (`std::shared_ptr<const M>`) and agnocast subscriptions (`ipc_shared_ptr<const M>`) within the same Synchronizer.
-- **Additional filter types**: Support filters beyond `Synchronizer`, such as `Cache` (time-indexed message history) and `Chain` (sequential filter pipeline).
+- **Additional filter types**: Support filters beyond `Synchronizer` and `PassThrough`, such as `Cache` (time-indexed message history) and `Chain` (sequential filter pipeline).

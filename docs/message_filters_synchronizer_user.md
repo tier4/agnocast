@@ -228,3 +228,24 @@ When using `agnocast::Node` instead of `rclcpp::Node`, specify the node type as 
 ```cpp
 agnocast::message_filters::Subscriber<Image, agnocast::Node> sub(node_ptr, "camera/image");
 ```
+
+## PassThrough
+
+**Header**: `<agnocast/message_filters/pass_through.hpp>`
+
+The `PassThrough` filter re-signals every incoming message unchanged. It can be connected to any upstream filter or fed messages manually.
+
+```cpp
+#include <agnocast/message_filters/pass_through.hpp>
+
+// Connect to an existing filter (e.g., Subscriber)
+agnocast::message_filters::Subscriber<Image> sub(this, "camera/image");
+agnocast::message_filters::PassThrough<Image> pass(sub);
+
+// Or connect later
+agnocast::message_filters::PassThrough<Image> pass;
+pass.connectInput(sub);
+
+// Register downstream callback
+pass.registerCallback(&MyNode::callback, this);
+```
