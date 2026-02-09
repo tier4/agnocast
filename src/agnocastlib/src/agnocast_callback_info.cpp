@@ -54,41 +54,6 @@ std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & c
 
 }  // namespace
 
-void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
-  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
-  std::vector<AgnocastExecutable> & ready_agnocast_executables)
-{
-  const auto entries = receive_entries(callback_info);
-
-  // Process entries from oldest to newest (ioctl returns oldest first)
-  for (const auto & [entry_id, entry_addr] : entries) {
-    const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([callback_info, entry_addr, entry_id]() {
-        auto typed_msg = callback_info.message_creator(
-          reinterpret_cast<void *>(entry_addr), callback_info.topic_name,
-          callback_info.subscriber_id, entry_id);
-        callback_info.callback(std::move(*typed_msg));
-      });
-
-    {
-      constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_callback_info_id =
-        (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
-      TRACEPOINT(
-        agnocast_create_callable, static_cast<const void *>(callable.get()), entry_id,
-        pid_callback_info_id);
-    }
-
-    {
-      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
-      ready_agnocast_executables.emplace_back(
-        AgnocastExecutable{callable, callback_info.callback_group});
-    }
-  }
-}
-
 void receive_and_execute_message(
   const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
 {
