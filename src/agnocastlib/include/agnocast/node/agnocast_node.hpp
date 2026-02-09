@@ -1,6 +1,8 @@
 #pragma once
 
+#include "agnocast/agnocast_client.hpp"
 #include "agnocast/agnocast_publisher.hpp"
+#include "agnocast/agnocast_service.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/node/agnocast_arguments.hpp"
@@ -314,6 +316,21 @@ public:
       options);
   }
 
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const size_t qos_history_depth)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(
+      this, topic_name, rclcpp::QoS(rclcpp::KeepLast(qos_history_depth)));
+  }
+
+  template <typename MessageT>
+  typename agnocast::PollingSubscriber<MessageT>::SharedPtr create_subscription(
+    const std::string & topic_name, const rclcpp::QoS & qos)
+  {
+    return std::make_shared<PollingSubscriber<MessageT>>(this, topic_name, qos);
+  }
+
   template <typename Func>
   typename WallTimer<Func>::SharedPtr create_wall_timer(
     std::chrono::nanoseconds period, Func && callback,
@@ -331,9 +348,59 @@ public:
 
     auto timer = std::make_shared<WallTimer<Func>>(timer_id, period, std::forward<Func>(callback));
 
-    register_timer_info(timer_id, timer, period, group);
+    register_timer_info(timer_id, timer, period, group, timer->get_clock());
 
     return timer;
+  }
+
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    return create_timer(period, std::forward<CallbackT>(callback), group, get_clock());
+  }
+
+  template <typename DurationRepT, typename DurationT, typename CallbackT>
+  typename GenericTimer<CallbackT>::SharedPtr create_timer(
+    std::chrono::duration<DurationRepT, DurationT> period, CallbackT && callback,
+    rclcpp::CallbackGroup::SharedPtr group, rclcpp::Clock::SharedPtr clock)
+  {
+    static_assert(
+      std::is_invocable_v<CallbackT, TimerBase &> || std::is_invocable_v<CallbackT>,
+      "Callback must be callable with void() or void(TimerBase&)");
+
+    if (!group) {
+      group = node_base_->get_default_callback_group();
+    }
+
+    const uint32_t timer_id = allocate_timer_id();
+    const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(period);
+
+    auto timer = std::make_shared<GenericTimer<CallbackT>>(
+      timer_id, period_ns, clock, std::forward<CallbackT>(callback));
+
+    register_timer_info(timer_id, timer, period_ns, group, clock);
+
+    return timer;
+  }
+
+  template <typename ServiceT>
+  typename agnocast::Client<ServiceT>::SharedPtr create_client(
+    const std::string & service_name, const rclcpp::QoS & qos = rclcpp::ServicesQoS(),
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    return std::make_shared<Client<ServiceT>>(this, service_name, qos, group);
+  }
+
+  template <typename ServiceT, typename Func>
+  typename agnocast::Service<ServiceT>::SharedPtr create_service(
+    const std::string & service_name, Func && callback,
+    const rclcpp::QoS & qos = rclcpp::ServicesQoS(),
+    rclcpp::CallbackGroup::SharedPtr group = nullptr)
+  {
+    return std::make_shared<Service<ServiceT>>(
+      this, service_name, std::forward<Func>(callback), qos, group);
   }
 
 private:
