@@ -32,6 +32,6 @@ int main(int argc, char * argv[])
   auto node = std::make_shared<NoRclcppServer>();
   executor.add_node(node);
   executor.spin();
-  agnocast::shutdown();
+  // TODO(Koichi98): Add agnocast::shutdown() here
   return 0;
 }
