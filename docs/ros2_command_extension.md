@@ -97,7 +97,7 @@ QoS profile:
   Durability: VOLATILE
 ```
 
-### Topic Debug Mode
+#### Debug Mode
 
 By default, `ros2 topic info_agnocast` hides internal bridge nodes and endpoints to provide a cleaner view. To include these internal details, use the `--debug` or `-d` flag.
 
@@ -195,7 +195,18 @@ $ ros2 node list_agnocast
 /agnocast_listener_node (Agnocast enabled)
 ```
 
-#### Nodes
+#### Debug Mode
+
+By default, `ros2 node list_agnocast` hides internal bridge nodes and endpoints to provide a cleaner view. To include these internal details, use the `--debug` or `-d` flag.
+
+```bash
+$ ros2 node list_agnocast -d
+/ros2_talker_node
+/agnocast_bridge_node_86050
+/agnocast_listener_node (Agnocast enabled)
+```
+
+#### Notes
 
 Detection of agnocast::Node instances depends on the presence of Agnocast-enabled endpoints. A node without at least one Agnocast publisher or subscriber will be omitted from the output.
 
