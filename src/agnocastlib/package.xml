@@ -30,6 +30,9 @@
   <depend>rosgraph_msgs</depend>
   <depend>ament_index_cpp</depend>
 
+  <build_depend>glog</build_depend>
+  <exec_depend>glog</exec_depend>
+
   <depend>cie_config_msgs</depend>
   <depend>cie_thread_configurator</depend>
   <depend>agnocast_sample_interfaces</depend>

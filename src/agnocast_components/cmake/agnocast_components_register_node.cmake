@@ -96,11 +96,14 @@ macro(agnocast_components_register_node target)
   file(GENERATE OUTPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp
     INPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_configured_${node}.cpp.in)
 
+  find_package(glog QUIET REQUIRED)
+
   # Create executable
   add_executable(${node} ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp)
   if(NOT ARGS_SKIP_LIBRARY_DEPENDENCY)
     add_dependencies(${node} ${target})
   endif()
+  target_link_libraries(${node} glog::glog)
   ament_target_dependencies(${node}
     "rclcpp"
     "class_loader"

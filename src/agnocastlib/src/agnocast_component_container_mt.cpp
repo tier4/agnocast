@@ -2,10 +2,15 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
+#include <glog/logging.h>
+
 #include <chrono>
 
 int main(int argc, char * argv[])
 {
+  google::InitGoogleLogging(argv[0]);
+  google::InstallFailureSignalHandler();
+
   try {
     using namespace std::chrono;
 
