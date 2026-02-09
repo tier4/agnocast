@@ -57,8 +57,8 @@ void prepare_epoll_impl(
       }
 
       if (callback_info.is_transient_local) {
-        auto deferred_callable = std::make_shared<std::function<void()>>(
-          [callback_info_id, my_pid, callback_info]() {
+        auto deferred_callable =
+          std::make_shared<std::function<void()>>([callback_info_id, my_pid, callback_info]() {
             agnocast::receive_and_execute_message(callback_info_id, my_pid, callback_info);
           });
 
