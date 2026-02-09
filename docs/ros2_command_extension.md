@@ -4,6 +4,7 @@ Currently, Agnocast supports the following `ros2` commands:
 
 - `ros2 topic list`
 - `ros2 topic info /topic_name`
+- `ros2 node list`
 - `ros2 node info /node_name`
 
 ### Topic List
