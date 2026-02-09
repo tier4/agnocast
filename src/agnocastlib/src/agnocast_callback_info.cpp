@@ -32,6 +32,7 @@ std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & c
         exit(EXIT_FAILURE);
       }
 
+      // Map the shared memory region with read permissions whenever a new publisher is discovered.
       for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
         const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
         const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
@@ -40,6 +41,7 @@ std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & c
       }
     }
 
+    // Collect entries (oldest first order from ioctl)
     for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
       entries.emplace_back(receive_args.ret_entry_ids[i], receive_args.ret_entry_addrs[i]);
     }
