@@ -21,11 +21,8 @@ int main(int argc, char * argv[])
   using ServiceT = agnocast_sample_interfaces::srv::SumIntArray;
   auto client = node->create_client<ServiceT>("sum_int_array");
 
+  // TODO(Koichi98): Add agnocast::ok() check here
   while (!client->wait_for_service(1s)) {
-    if (!agnocast::ok()) {
-      RCLCPP_ERROR(node->get_logger(), "Interrupted while waiting for the service. Exiting.");
-      return 0;
-    }
     RCLCPP_INFO(node->get_logger(), "Service not available, waiting again...");
   }
 
@@ -46,6 +43,6 @@ int main(int argc, char * argv[])
   RCLCPP_INFO(node->get_logger(), "Result2: %ld", future.get()->sum);
 
   spin_thread.join();
-  agnocast::shutdown();
+  // TODO(Koichi98): Add agnocast::shutdown() here
   return 0;
 }
