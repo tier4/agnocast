@@ -108,7 +108,7 @@ explicit ExactTime(uint32_t queue_size);
 
 ExactTime maintains an internal map from timestamp to a tuple of messages:
 
-```
+```text
 std::map<rclcpp::Time, Tuple>
 ```
 

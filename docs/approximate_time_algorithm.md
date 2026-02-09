@@ -53,7 +53,7 @@ Steps 2–4 repeat in a loop. Each iteration removes one front message (either d
 
    Evaluate whether the current set of front messages is better than the candidate:
 
-   ```
+   ```text
    (end_time - candidate_end) * (1 + age_penalty) >= (start_time - candidate_start)
    ```
 
@@ -75,6 +75,6 @@ Steps 2–4 repeat in a loop. Each iteration removes one front message (either d
 
 6. **After publishing**: The candidate messages are delivered to the callback. All messages in the past buffer are returned to the front of their respective queues. The candidate messages (now at the front of each queue) are then removed, and the algorithm restarts from step 1.
 
-#### Queue overflow handling
+### Queue overflow handling
 
 When a topic's buffer exceeds `queue_size`, all messages in the past buffer are first returned to their respective queues. The oldest message on the overflowing topic is then dropped, and the current candidate (if any) is discarded. The algorithm restarts from step 1.
