@@ -10,10 +10,10 @@ from ros2topic.api import get_topic_names_and_types
 from ros2node.verb import VerbExtension
 
 class BridgeStatus(Enum):
-    NOT_BRIDGED = 0
-    PUBLISHER = 1
-    SUBSCRIBER = 2
-    PUBSUB = 3
+    NONE = 0
+    ROS2_TO_AGNOCAST = 1
+    AGNOCAST_TO_ROS2= 2
+    BIDIRECTION = 3
 
 class TopicInfoRet(ctypes.Structure):
     _fields_ = [
@@ -93,10 +93,10 @@ class NodeInfoAgnocastVerb(VerbExtension):
                     has_pub_bridge = any(n.is_bridge for n in nodes)
 
                 mapping = {
-                    (True, True):   BridgeStatus.PUBSUB,
-                    (True, False):  BridgeStatus.SUBSCRIBER,
-                    (False, True):  BridgeStatus.PUBLISHER,
-                    (False, False): BridgeStatus.NOT_BRIDGED,
+                    (True, True):   BridgeStatus.BIDIRECTION,
+                    (True, False):  BridgeStatus.AGNOCAST_TO_ROS2,
+                    (False, True):  BridgeStatus.ROS2_TO_AGNOCAST,
+                    (False, False): BridgeStatus.NONE,
                 }
                 
                 return mapping[(has_sub_bridge, has_pub_bridge)]
@@ -105,17 +105,20 @@ class NodeInfoAgnocastVerb(VerbExtension):
                 """Get the appropriate label for an Agnocast-enabled topic."""
 
                 suffix = "(Agnocast enabled)"
+                if topic_name not in ros2_sub_topics and topic_name not in ros2_pub_topics:
+                    return suffix  # No bridge info if only one endpoint exists
+
                 match get_bridge_status(topic_name):
-                    case BridgeStatus.PUBSUB:
+                    case BridgeStatus.BIDIRECTION:
                         suffix = "(Agnocast enabled, bridged)"
-                    case BridgeStatus.PUBLISHER:
+                    case BridgeStatus.ROS2_TO_AGNOCAST:
                         if topic_name in ros2_pub_topics:
                             suffix = "(Agnocast enabled, bridged)"
-                    case BridgeStatus.SUBSCRIBER:
+                    case BridgeStatus.AGNOCAST_TO_ROS2:
                         if topic_name in ros2_sub_topics:
                             suffix = "(Agnocast enabled, bridged)"
-                    case BridgeStatus.NOT_BRIDGED:
-                        pass
+                    case BridgeStatus.NONE:
+                        suffix = "(WARN: Agnocast and ROS2 endpoints exist but bridge is not active)"
                 return suffix
             
             def get_agnocast_node_info(topic_list, node_name):
@@ -230,12 +233,6 @@ class NodeInfoAgnocastVerb(VerbExtension):
                     if subs_info:
                         sub_topics.append(name)
                 return pub_topics, sub_topics
-              
-            def get_agnocast_label(topic_name):
-                """Get the appropriate label for an Agnocast-enabled topic."""
-                if args.debug and is_topic_bridged(topic_name):
-                    return "(Agnocast enabled, bridged)"
-                return "(Agnocast enabled)"
             
             def get_agnocast_node_info(topic_list, node_name):
                 sub_topic_set = set()
@@ -396,10 +393,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
             # ======== Subscribers ========
             print("  Subscribers:")
             for sub in subscribers:
-                if sub.name in agnocast_subscribers:
-                    print(f"    {sub.name}: {', '.join(sub.types)} {get_agnocast_label(sub.name)}")
-                else:
-                    print(f"    {sub.name}: {', '.join(sub.types)}")
+                print(f"    {sub.name}: {', '.join(sub.types)}")
 
             for agnocast_sub in agnocast_subscribers:
                 if agnocast_sub in [sub.name for sub in subscribers]:
@@ -414,10 +408,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
             # ======== Publishers ========
             print("  Publishers:")
             for pub in publishers:
-                if pub.name in agnocast_publishers:
-                    print(f"    {pub.name}: {', '.join(pub.types)} {get_agnocast_label(pub.name, ros2_sub_topics, ros2_pub_topics)}")
-                else:
-                    print(f"    {pub.name}: {', '.join(pub.types)}")
+                print(f"    {pub.name}: {', '.join(pub.types)}")
 
             for agnocast_pub in agnocast_publishers:
                 if agnocast_pub in [pub.name for pub in publishers]:
