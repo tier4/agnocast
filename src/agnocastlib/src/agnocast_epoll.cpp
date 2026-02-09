@@ -101,17 +101,15 @@ bool wait_and_handle_epoll_event(
     }
 
     {
-      const auto deferred_callable = std::make_shared<std::function<void()>>(
-        [callback_info]() { agnocast::receive_and_execute_message(callback_info); });
-
-      {
-        constexpr uint8_t PID_SHIFT_BITS = 32;
-        uint64_t pid_callback_info_id =
-          (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
-        TRACEPOINT(
-          agnocast_create_callable, static_cast<const void *>(deferred_callable.get()), 0,
-          pid_callback_info_id);
-      }
+      // Create the shared_ptr first, then capture its raw pointer by value in the lambda.
+      // This allows receive_and_execute_message to use the callable address for tracepoints,
+      // matching the address recorded in agnocast_callable_end by the executor.
+      auto deferred_callable = std::make_shared<std::function<void()>>();
+      const void * callable_ptr = deferred_callable.get();
+      *deferred_callable = [callback_info_id, my_pid, callable_ptr, callback_info]() {
+        agnocast::receive_and_execute_message(
+          callback_info_id, my_pid, callable_ptr, callback_info);
+      };
 
       std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
       ready_agnocast_executables.emplace_back(

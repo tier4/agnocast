@@ -10,7 +10,9 @@ const int callback_map_bkt_cnt = 100;  // arbitrary size to prevent rehash
 std::unordered_map<uint32_t, CallbackInfo> id2_callback_info(callback_map_bkt_cnt);
 std::atomic<uint32_t> next_callback_info_id;
 
-void receive_and_execute_message(const CallbackInfo & callback_info)
+void receive_and_execute_message(
+  const uint32_t callback_info_id, const pid_t my_pid, const void * callable_ptr,
+  const CallbackInfo & callback_info)
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
@@ -48,6 +50,13 @@ void receive_and_execute_message(const CallbackInfo & callback_info)
 
   // Process entries from oldest to newest (ioctl returns oldest first)
   for (const auto & [entry_id, entry_addr] : entries) {
+    {
+      constexpr uint8_t PID_SHIFT_BITS = 32;
+      uint64_t pid_callback_info_id =
+        (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
+      TRACEPOINT(agnocast_create_callable, callable_ptr, entry_id, pid_callback_info_id);
+    }
+
     auto typed_msg = callback_info.message_creator(
       reinterpret_cast<void *>(entry_addr), callback_info.topic_name, callback_info.subscriber_id,
       entry_id);
