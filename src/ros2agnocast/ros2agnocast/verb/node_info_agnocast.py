@@ -166,7 +166,7 @@ class NodeInfoAgnocastVerb(VerbExtension):
                         finally:
                             lib.free_agnocast_topic_info_ret(pub_array)
 
-                return list(sub_topic_set), list(pub_topic_set), list(server_set), list(client_set)
+                return sorted(sub_topic_set), sorted(pub_topic_set), sorted(server_set), sorted(client_set)
             
             def get_ros2_node_agnocast_topic(node_name):
                 sub_topic_list = []
