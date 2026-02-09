@@ -64,14 +64,8 @@ public:
   std::string resolve_topic_or_service_name(
     const std::string & name, bool is_service, bool only_expand = false) const override;
 
-  const rcl_arguments_t * get_local_args() const
-  {
-    return local_args_;
-  }
-  const rcl_arguments_t * get_global_args() const
-  {
-    return global_args_;
-  }
+  const rcl_arguments_t * get_local_args() const { return local_args_; }
+  const rcl_arguments_t * get_global_args() const { return global_args_; }
 
 private:
   std::string node_name_;
