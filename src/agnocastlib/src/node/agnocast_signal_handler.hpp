@@ -11,13 +11,13 @@ namespace agnocast
 class SignalHandler
 {
 public:
-  static constexpr size_t MAX_EXECUTORS_NUM = 128;
-
   static void install();
   static void register_shutdown_event(int eventfd);
   static void unregister_shutdown_event(int eventfd);
 
 private:
+  static constexpr size_t MAX_EXECUTORS_NUM = 128;
+
   static std::atomic<bool> installed_;
 
   static std::mutex eventfds_mutex_;
@@ -27,6 +27,7 @@ private:
 
   static void signal_handler(int signum);
   static void notify_all_executors();
+  static std::array<volatile sig_atomic_t, MAX_EXECUTORS_NUM> make_initial_eventfds();
 };
 
 }  // namespace agnocast
