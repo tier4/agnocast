@@ -43,6 +43,7 @@ AgnocastOnlyExecutor::AgnocastOnlyExecutor()
     exit(EXIT_FAILURE);
   }
 
+  SignalHandler::install();
   SignalHandler::register_shutdown_event(shutdown_event_fd_);
 }
 

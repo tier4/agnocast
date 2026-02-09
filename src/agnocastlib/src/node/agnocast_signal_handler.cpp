@@ -13,31 +13,22 @@ namespace agnocast
 namespace
 {
 rclcpp::Logger logger = rclcpp::get_logger("agnocast_signal_handler");
-
-std::array<volatile int, SignalHandler::MAX_EXECUTORS_NUM> make_initial_eventfds()
-{
-  std::array<volatile int, SignalHandler::MAX_EXECUTORS_NUM> arr;
-  for (auto & fd : arr) {
-    fd = -1;
-  }
-  return arr;
 }
-}  // namespace
 
 std::atomic<bool> SignalHandler::installed_{false};
-volatile sig_atomic_t SignalHandler::shutdown_requested_{0};
 std::mutex SignalHandler::eventfds_mutex_;
-std::array<volatile int, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_ =
-  make_initial_eventfds();
+std::array<std::atomic<int>, SignalHandler::MAX_EXECUTORS_NUM> SignalHandler::eventfds_{};
 std::atomic<size_t> SignalHandler::eventfd_count_{0};
-struct sigaction SignalHandler::old_sigint_action_{};
-struct sigaction SignalHandler::old_sigterm_action_{};
 
 void SignalHandler::install()
 {
-  // eventfds_ is already initialized to -1 at static initialization
   if (installed_.exchange(true)) {
     return;
+  }
+
+  // Initialize eventfds array with -1 (empty marker)
+  for (auto & fd : eventfds_) {
+    fd.store(-1);
   }
 
   struct sigaction sa
@@ -46,29 +37,14 @@ void SignalHandler::install()
   sigemptyset(&sa.sa_mask);
   sa.sa_handler = &SignalHandler::signal_handler;
 
-  if (sigaction(SIGINT, &sa, &old_sigint_action_) != 0) {
+  if (sigaction(SIGINT, &sa, nullptr) != 0) {
     RCLCPP_ERROR(logger, "Failed to install SIGINT handler: %s", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
-  if (sigaction(SIGTERM, &sa, &old_sigterm_action_) != 0) {
+  if (sigaction(SIGTERM, &sa, nullptr) != 0) {
     RCLCPP_ERROR(logger, "Failed to install SIGTERM handler: %s", strerror(errno));
     exit(EXIT_FAILURE);
-  }
-}
-
-void SignalHandler::uninstall()
-{
-  if (!installed_.exchange(false)) {
-    return;
-  }
-
-  if (sigaction(SIGINT, &old_sigint_action_, nullptr) != 0) {
-    RCLCPP_ERROR(logger, "Failed to restore SIGINT handler: %s", strerror(errno));
-  }
-
-  if (sigaction(SIGTERM, &old_sigterm_action_, nullptr) != 0) {
-    RCLCPP_ERROR(logger, "Failed to restore SIGTERM handler: %s", strerror(errno));
   }
 }
 
@@ -78,8 +54,8 @@ void SignalHandler::register_shutdown_event(int eventfd)
   size_t count = eventfd_count_.load();
 
   for (size_t i = 0; i < count; ++i) {
-    if (eventfds_[i] == -1) {
-      eventfds_[i] = eventfd;
+    if (eventfds_[i].load() == -1) {
+      eventfds_[i].store(eventfd);
       return;
     }
   }
@@ -88,7 +64,7 @@ void SignalHandler::register_shutdown_event(int eventfd)
     RCLCPP_ERROR(logger, "Maximum number of executors (%zu) exceeded", MAX_EXECUTORS_NUM);
     return;
   }
-  eventfds_[count] = eventfd;
+  eventfds_[count].store(eventfd);
   eventfd_count_.store(count + 1);
 }
 
@@ -97,8 +73,8 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
   std::lock_guard<std::mutex> lock(eventfds_mutex_);
   size_t count = eventfd_count_.load();
   for (size_t i = 0; i < count; ++i) {
-    if (eventfds_[i] == eventfd) {
-      eventfds_[i] = -1;
+    if (eventfds_[i].load() == eventfd) {
+      eventfds_[i].store(-1);
       return;
     }
   }
@@ -107,19 +83,14 @@ void SignalHandler::unregister_shutdown_event(int eventfd)
 void SignalHandler::signal_handler(int signum)
 {
   (void)signum;
-  // Use volatile sig_atomic_t assignment for async-signal-safety
-  shutdown_requested_ = 1;
   notify_all_executors();
 }
 
 void SignalHandler::notify_all_executors()
 {
-  // This function is async-signal-safe:
-  // - volatile int read is safe
-  // - write() is async-signal-safe per POSIX
   uint64_t val = 1;
   for (size_t i = 0; i < MAX_EXECUTORS_NUM; ++i) {
-    int fd = eventfds_[i];
+    int fd = eventfds_[i].load();
     if (fd != -1) {
       [[maybe_unused]] auto ret = write(fd, &val, sizeof(val));
     }
