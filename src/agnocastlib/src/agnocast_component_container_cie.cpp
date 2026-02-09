@@ -218,7 +218,7 @@ void ComponentManagerCallbackIsolated::cancel_executor(ExecutorWrapper & executo
 
 int main(int argc, char * argv[])
 {
-  google::InitGoogleLogging(argv[0]);
+  google::InitGoogleLogging(argv[0]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   google::InstallFailureSignalHandler();
 
   try {
