@@ -10,10 +10,8 @@ const int callback_map_bkt_cnt = 100;  // arbitrary size to prevent rehash
 std::unordered_map<uint32_t, CallbackInfo> id2_callback_info(callback_map_bkt_cnt);
 std::atomic<uint32_t> next_callback_info_id;
 
-namespace
-{
-
-std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & callback_info)
+void receive_and_execute_message(
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
@@ -49,16 +47,7 @@ std::vector<std::pair<int64_t, uint64_t>> receive_entries(const CallbackInfo & c
     call_again = receive_args.ret_call_again;
   }
 
-  return entries;
-}
-
-}  // namespace
-
-void receive_and_execute_message(
-  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
-{
-  const auto entries = receive_entries(callback_info);
-
+  // Process entries from oldest to newest (ioctl returns oldest first)
   for (const auto & [entry_id, entry_addr] : entries) {
     {
       constexpr uint8_t PID_SHIFT_BITS = 32;
