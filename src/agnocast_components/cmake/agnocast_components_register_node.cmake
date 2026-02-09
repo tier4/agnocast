@@ -96,7 +96,9 @@ macro(agnocast_components_register_node target)
   file(GENERATE OUTPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp
     INPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_configured_${node}.cpp.in)
 
-  find_package(glog QUIET REQUIRED)
+  if(NOT TARGET glog::glog)
+    find_package(glog REQUIRED)
+  endif()
 
   # Create executable
   add_executable(${node} ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp)
