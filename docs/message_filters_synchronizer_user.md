@@ -169,7 +169,6 @@ sync.getPolicy()->setInterMessageLowerBound(1, rclcpp::Duration(0, 100000000)); 
 
 Please see [ApproximateTime Algorithm](./approximate_time_algorithm.md) for details.
 
-
 ## Callback Signatures
 
 The synchronized callback can use any of these parameter types, and they can be mixed:
