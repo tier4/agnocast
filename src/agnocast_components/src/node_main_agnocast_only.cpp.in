@@ -67,5 +67,6 @@ int main(int argc, char * argv[])
     return 1;
   }
 
+  // TODO(Koichi98): Add agnocast::shutdown() here
   return 0;
 }
