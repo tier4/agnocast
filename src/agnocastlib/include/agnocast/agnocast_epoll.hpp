@@ -57,15 +57,10 @@ void prepare_epoll_impl(
       }
 
       if (callback_info.is_transient_local) {
-        // Create the shared_ptr first, then capture its raw pointer by value in the lambda.
-        // This allows receive_and_execute_message to use the callable address for tracepoints,
-        // matching the address recorded in agnocast_callable_end by the executor.
-        auto deferred_callable = std::make_shared<std::function<void()>>();
-        const void * callable_ptr = deferred_callable.get();
-        *deferred_callable = [callback_info_id, my_pid, callable_ptr, callback_info]() {
-          agnocast::receive_and_execute_message(
-            callback_info_id, my_pid, callable_ptr, callback_info);
-        };
+        auto deferred_callable = std::make_shared<std::function<void()>>(
+          [callback_info_id, my_pid, callback_info]() {
+            agnocast::receive_and_execute_message(callback_info_id, my_pid, callback_info);
+          });
 
         std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
         ready_agnocast_executables.emplace_back(
