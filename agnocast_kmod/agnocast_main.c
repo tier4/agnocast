@@ -415,9 +415,13 @@ static bool is_referenced(struct entry_node * en)
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
-static void add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  set_bit(id, en->referencing_subscribers);
+  if (test_and_set_bit(id, en->referencing_subscribers)) {
+    pr_err("subscriber (id=%d) already referencing entry (entry_id=%lld)\n", id, en->entry_id);
+    return -EINVAL;
+  }
+  return 0;
 }
 
 static struct entry_node * find_message_entry(
@@ -474,7 +478,10 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  add_subscriber_reference(en, pubsub_id);
+  int ret = add_subscriber_reference(en, pubsub_id);
+  if (ret < 0) {
+    return ret;
+  }
   return 0;
 }
 
@@ -502,15 +509,14 @@ int release_message_entry_reference(
     return -EINVAL;
   }
 
-  // Remove subscriber reference using bitmap
-  if (!test_and_clear_bit(pubsub_id, en->referencing_subscribers)) {
-    dev_warn(
-      agnocast_device,
-      "Try to release reference of Subscriber (pubsub_id=%d) for message entry "
-      "(topic_name=%s entry_id=%lld), but it is not found. (release_message_entry_reference)\n",
-      pubsub_id, topic_name, entry_id);
-    return -EINVAL;
-  }
+  // Silently succeed if the bit is already cleared. This is expected in the following cases:
+  // - take_msg with allow_same_message=true skips add_subscriber_reference when the subscriber
+  //   already holds a reference. The user-land ipc_shared_ptr created without a kernel-side
+  //   reference will call release on destruction, finding the bit already cleared.
+  // - Publishers do not participate in reference counting, so their bits are always 0.
+  // - Cleanup functions (remove_subscriber, pre_handler_subscriber_exit) iterate all entries
+  //   and clear bits regardless of whether one was set.
+  clear_bit(pubsub_id, en->referencing_subscribers);
 
   return 0;
 }
@@ -529,7 +535,6 @@ static int insert_message_entry(
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
   // Publisher-side handles do not participate in reference counting.
-  // Initialize bitmap as empty (no subscriber is holding a reference).
   // Subscribers will add their references when they receive/take the message.
   bitmap_zero(new_node->referencing_subscribers, MAX_SUBSCRIBER_NUM);
 
@@ -968,7 +973,10 @@ static int receive_msg_core(
       continue;
     }
 
-    add_subscriber_reference(en, subscriber_id);
+    int ret = add_subscriber_reference(en, subscriber_id);
+    if (ret < 0) {
+      return ret;
+    }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
     ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
@@ -1081,7 +1089,15 @@ int take_msg(
   }
 
   if (candidate_en) {
-    add_subscriber_reference(candidate_en, subscriber_id);
+    // When allow_same_message is true and the subscriber already holds a reference,
+    // skip adding a duplicate reference. This happens when the user-land ipc_shared_ptr
+    // from the previous take() is still alive.
+    if (!test_bit(subscriber_id, candidate_en->referencing_subscribers)) {
+      int ret = add_subscriber_reference(candidate_en, subscriber_id);
+      if (ret < 0) {
+        return ret;
+      }
+    }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
     ioctl_ret->ret_entry_id = candidate_en->entry_id;
