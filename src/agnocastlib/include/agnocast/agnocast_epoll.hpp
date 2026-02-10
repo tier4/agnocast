@@ -2,7 +2,6 @@
 
 #include "agnocast/agnocast_callback_info.hpp"
 #include "agnocast/agnocast_timer_info.hpp"
-#include "agnocast/agnocast_tracepoint_wrapper.h"
 #include "sys/epoll.h"
 
 #include <atomic>
@@ -57,14 +56,9 @@ void prepare_epoll_impl(
       }
 
       if (callback_info.is_transient_local) {
-        auto deferred_callable =
-          std::make_shared<std::function<void()>>([callback_info_id, my_pid, callback_info]() {
-            agnocast::receive_and_execute_message(callback_info_id, my_pid, callback_info);
-          });
-
-        std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
-        ready_agnocast_executables.emplace_back(
-          AgnocastExecutable{deferred_callable, callback_info.callback_group});
+        agnocast::enqueue_receive_and_execute(
+          callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
+          ready_agnocast_executables);
       }
 
       callback_info.need_epoll_update = false;
