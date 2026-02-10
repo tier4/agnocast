@@ -48,6 +48,8 @@ public:
   void set_mq_handler(EventCallback cb);
   void set_signal_handler(SignalCallback cb);
 
+  const std::string & get_mq_name() const { return mq_name_; }
+
 protected:
   rclcpp::Logger logger_;
   virtual void handle_signal();
