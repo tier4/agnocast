@@ -418,7 +418,8 @@ static bool is_referenced(struct entry_node * en)
 static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
   if (id < 0 || id >= MAX_SUBSCRIBER_NUM) {
-    pr_err("subscriber id %d out of range [0, %d). (add_subscriber_reference)\n", id,
+    pr_err(
+      "subscriber id %d out of range [0, %d). (add_subscriber_reference)\n", id,
       MAX_SUBSCRIBER_NUM);
     return -EINVAL;
   }
@@ -513,9 +514,8 @@ int release_message_entry_reference(
 
   if (pubsub_id < 0 || pubsub_id >= MAX_SUBSCRIBER_NUM) {
     dev_warn(
-      agnocast_device,
-      "pubsub_id %d out of range [0, %d). (release_message_entry_reference)\n", pubsub_id,
-      MAX_SUBSCRIBER_NUM);
+      agnocast_device, "pubsub_id %d out of range [0, %d). (release_message_entry_reference)\n",
+      pubsub_id, MAX_SUBSCRIBER_NUM);
     return -EINVAL;
   }
 
