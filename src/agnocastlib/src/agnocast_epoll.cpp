@@ -92,9 +92,10 @@ bool wait_and_handle_epoll_event(
       mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
     if (ret < 0) {
       if (errno != EAGAIN) {
-        RCLCPP_ERROR(
-          logger, "mq_receive failed for topic '%s' (subscriber_id=%d): %s",
-          callback_info.topic_name.c_str(), callback_info.subscriber_id, strerror(errno));
+        RCLCPP_ERROR_STREAM(
+          logger, "mq_receive failed for topic '" << callback_info.topic_name << "' (subscriber_id="
+                                                  << callback_info.subscriber_id
+                                                  << "): " << strerror(errno));
         close(agnocast_fd);
         exit(EXIT_FAILURE);
       }
