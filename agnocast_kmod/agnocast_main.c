@@ -415,13 +415,9 @@ static bool is_referenced(struct entry_node * en)
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
-static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+static void add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  if (test_and_set_bit(id, en->referencing_subscribers)) {
-    pr_err("subscriber (id=%d) already referencing entry (entry_id=%lld)\n", id, en->entry_id);
-    return -EINVAL;
-  }
-  return 0;
+  set_bit(id, en->referencing_subscribers);
 }
 
 static struct entry_node * find_message_entry(
@@ -478,10 +474,7 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  int ret = add_subscriber_reference(en, pubsub_id);
-  if (ret < 0) {
-    return ret;
-  }
+  add_subscriber_reference(en, pubsub_id);
   return 0;
 }
 
@@ -973,10 +966,7 @@ static int receive_msg_core(
       continue;
     }
 
-    int ret = add_subscriber_reference(en, subscriber_id);
-    if (ret < 0) {
-      return ret;
-    }
+    add_subscriber_reference(en, subscriber_id);
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
     ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
@@ -1089,15 +1079,7 @@ int take_msg(
   }
 
   if (candidate_en) {
-    // When allow_same_message is true and the subscriber already holds a reference,
-    // skip adding a duplicate reference. This happens when the user-land ipc_shared_ptr
-    // from the previous take() is still alive.
-    if (!test_bit(subscriber_id, candidate_en->referencing_subscribers)) {
-      int ret = add_subscriber_reference(candidate_en, subscriber_id);
-      if (ret < 0) {
-        return ret;
-      }
-    }
+    add_subscriber_reference(candidate_en, subscriber_id);
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
     ioctl_ret->ret_entry_id = candidate_en->entry_id;

@@ -103,8 +103,11 @@ union ioctl_publish_msg_args {
     struct name_info topic_name;
     topic_local_id_t publisher_id;
     uint64_t msg_virtual_address;
-    uint64_t subscriber_ids_buffer_addr;  // User-space buffer address for subscriber IDs
-    uint32_t subscriber_ids_buffer_size;  // Number of entries the buffer can hold
+    // Unlike ret_* fields which are returned via the union copy, subscriber IDs are written
+    // directly to this user-space buffer via copy_to_user. The caller must ensure the buffer
+    // remains valid until the ioctl returns.
+    uint64_t subscriber_ids_buffer_addr;
+    uint32_t subscriber_ids_buffer_size;
   };
   struct
   {

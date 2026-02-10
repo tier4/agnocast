@@ -73,6 +73,8 @@ union ioctl_publish_msg_args publish_core(
   publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};
   publish_msg_args.publisher_id = publisher_id;
   publish_msg_args.msg_virtual_address = msg_virtual_address;
+  // The kernel writes subscriber IDs directly to this buffer via copy_to_user,
+  // unlike ret_* fields which are copied back through the union.
   publish_msg_args.subscriber_ids_buffer_addr =
     reinterpret_cast<uint64_t>(subscriber_ids_buffer.data());
   publish_msg_args.subscriber_ids_buffer_size = MAX_SUBSCRIBER_NUM;
