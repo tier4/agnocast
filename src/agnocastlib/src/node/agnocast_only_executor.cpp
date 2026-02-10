@@ -50,31 +50,33 @@ AgnocastOnlyExecutor::AgnocastOnlyExecutor()
 
 AgnocastOnlyExecutor::~AgnocastOnlyExecutor()
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-  for (auto & pair : weak_groups_associated_with_executor_to_nodes_) {
-    auto group = pair.first.lock();
-    if (group) {
-      group->get_associated_with_executor_atomic().store(false);
+    for (auto & pair : weak_groups_associated_with_executor_to_nodes_) {
+      auto group = pair.first.lock();
+      if (group) {
+        group->get_associated_with_executor_atomic().store(false);
+      }
     }
-  }
-  weak_groups_associated_with_executor_to_nodes_.clear();
+    weak_groups_associated_with_executor_to_nodes_.clear();
 
-  for (auto & pair : weak_groups_to_nodes_associated_with_executor_) {
-    auto group = pair.first.lock();
-    if (group) {
-      group->get_associated_with_executor_atomic().store(false);
+    for (auto & pair : weak_groups_to_nodes_associated_with_executor_) {
+      auto group = pair.first.lock();
+      if (group) {
+        group->get_associated_with_executor_atomic().store(false);
+      }
     }
-  }
-  weak_groups_to_nodes_associated_with_executor_.clear();
+    weak_groups_to_nodes_associated_with_executor_.clear();
 
-  for (auto & weak_node : weak_nodes_) {
-    auto node = weak_node.lock();
-    if (node) {
-      node->get_associated_with_executor_atomic().store(false);
+    for (auto & weak_node : weak_nodes_) {
+      auto node = weak_node.lock();
+      if (node) {
+        node->get_associated_with_executor_atomic().store(false);
+      }
     }
+    weak_nodes_.clear();
   }
-  weak_nodes_.clear();
 
   SignalHandler::unregister_shutdown_event(shutdown_event_fd_);
   close(shutdown_event_fd_);
@@ -254,8 +256,7 @@ void AgnocastOnlyExecutor::add_callback_groups_from_nodes_associated_to_executor
       node->for_each_callback_group([this, node](rclcpp::CallbackGroup::SharedPtr group_ptr) {
         if (
           group_ptr->automatically_add_to_executor_with_node() &&
-          !group_ptr->get_associated_with_executor_atomic().load()) {
-          group_ptr->get_associated_with_executor_atomic().store(true);
+          !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
           weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node});
         }
       });
@@ -278,9 +279,8 @@ void AgnocastOnlyExecutor::add_node(
   std::lock_guard<std::mutex> lock(mutex_);
   node_ptr->for_each_callback_group([this, node_ptr](rclcpp::CallbackGroup::SharedPtr group_ptr) {
     if (
-      !group_ptr->get_associated_with_executor_atomic().load() &&
-      group_ptr->automatically_add_to_executor_with_node()) {
-      group_ptr->get_associated_with_executor_atomic().store(true);
+      group_ptr->automatically_add_to_executor_with_node() &&
+      !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
       weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node_ptr});
     }
   });
