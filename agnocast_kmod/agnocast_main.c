@@ -1558,7 +1558,6 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
-    // Clear this subscriber's reference from the entry
     clear_bit(subscriber_id, en->referencing_subscribers);
 
     if (is_referenced(en)) continue;
@@ -2557,7 +2556,6 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
-      // Clear this subscriber's reference from the entry
       clear_bit(subscriber_id, en->referencing_subscribers);
 
       if (is_referenced(en)) continue;
