@@ -362,5 +362,5 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [Callback Isolated Executor for Agnocast](./docs/callback_isolated_executor_for_agnocast.md)
 - [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)
 - [Message Filters Design Document](./docs/message_filters_design_document.md)
-- [Message Filters Synchronizer User Guide](./docs/message_filters_synchronizer_user.md)
+- [Message Filters User Guide](./docs/message_filters_user_guide.md)
 - [ApproximateTime Algorithm](./docs/approximate_time_algorithm.md)

@@ -1,6 +1,33 @@
-# Message Filters Synchronizer User Guide
+# Message Filters User Guide
 
-## Overview
+## Feature Support
+
+The following table shows the support status of agnocast message_filters compared to ROS 2 [message_filters](https://github.com/ros2/message_filters).
+
+### Filters
+
+| Filter | Supported | Description |
+|---|---|---|
+| `Subscriber` | Yes | Wraps an agnocast subscription and feeds messages into the filter chain |
+| `PassThrough` | Yes | Re-signals every incoming message unchanged |
+| `Synchronizer` | Yes | Policy-based multi-message synchronizer (2–9 inputs) |
+| `TimeSynchronizer` | No | Convenience wrapper for `Synchronizer<ExactTime>` |
+| `Cache` | No | Time-indexed message history |
+| `Chain` | No | Sequential filter pipeline |
+| `TimeSequencer` | No | Delays and reorders messages by timestamp |
+
+### Sync Policies
+
+| Policy | Supported | Description |
+|---|---|---|
+| `ExactTime` | Yes | Matches messages with exactly the same timestamp |
+| `ApproximateTime` | Yes | Matches messages with approximately the same timestamp |
+| `ApproximateEpsilonTime` | No | Variant of `ApproximateTime` with an epsilon bound |
+| `LatestTime` | No | Matches the latest available message from each topic |
+
+## Synchronizer
+
+### Overview
 
 The Synchronizer is a message filter that takes in messages from multiple agnocast topics and outputs them only when it has received a message on each topic with a matching or approximately matching timestamp. This is useful when you need to process data from multiple sensors or sources that publish at different rates.
 
