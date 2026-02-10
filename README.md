@@ -25,19 +25,10 @@ The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/doc
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Supported Environments](#supported-environments)
 - [For Users](#for-users)
-  - [Clone the repository](#clone-the-repository)
-  - [Setup](#setup)
-  - [Build](#build)
-  - [Run](#run)
-  - [Bridge Feature](#bridge-feature)
 - [For Developers](#for-developers)
-  - [Clone the repository](#clone-the-repository-1)
-  - [Setup pre-commit](#setup-pre-commit)
-  - [Build and insert kmod](#build-and-insert-kmod)
-  - [Test](#test)
-  - [Kernel Module Test](#kernel-module-test)
 - [Debug](#debug)
 - [Troubleshooting](#troubleshooting)
 - [Documents](#documents)
@@ -372,3 +363,4 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)
 - [Message Filters Design Document](./docs/message_filters_design_document.md)
 - [Message Filters Synchronizer User Guide](./docs/message_filters_synchronizer_user.md)
+- [ApproximateTime Algorithm](./docs/approximate_time_algorithm.md)
