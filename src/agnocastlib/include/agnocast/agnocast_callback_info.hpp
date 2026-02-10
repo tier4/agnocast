@@ -111,7 +111,6 @@ uint32_t register_callback(
 }
 
 void receive_and_execute_message(
-  uint32_t callback_info_id, pid_t my_pid, const void * callable_ptr,
-  const CallbackInfo & callback_info);
+  uint32_t callback_info_id, pid_t my_pid, const CallbackInfo & callback_info);
 
 }  // namespace agnocast

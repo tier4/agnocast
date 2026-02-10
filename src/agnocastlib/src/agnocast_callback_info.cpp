@@ -11,8 +11,7 @@ std::unordered_map<uint32_t, CallbackInfo> id2_callback_info(callback_map_bkt_cn
 std::atomic<uint32_t> next_callback_info_id;
 
 void receive_and_execute_message(
-  const uint32_t callback_info_id, const pid_t my_pid, const void * callable_ptr,
-  const CallbackInfo & callback_info)
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info)
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
@@ -49,18 +48,35 @@ void receive_and_execute_message(
   }
 
   // Process entries from oldest to newest (ioctl returns oldest first)
-  for (const auto & [entry_id, entry_addr] : entries) {
+  for (const auto & entry : entries) {
+    const auto & [entry_id, entry_addr] = entry;
+    const void * callback_addr = &entry;  // For CARET
+
     {
       constexpr uint8_t PID_SHIFT_BITS = 32;
       uint64_t pid_callback_info_id =
         (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
-      TRACEPOINT(agnocast_create_callable, callable_ptr, entry_id, pid_callback_info_id);
+      // NOTE: The agnocast_create_callable tracepoint was previously used to associate
+      // pid_callback_info_id with callable_addr, as well as to associate callable with entry_addr
+      // and entry_id. In the current implementation, however, this information can be obtained when
+      // the callback starts and ends, rendering this tracepoint unnecessary. Nevertheless, since
+      // the current implementation may change in the future, we are retaining this tracepoint to
+      // ensure that CARET can be used without modifying its implementation.
+      TRACEPOINT(agnocast_create_callable, callback_addr, entry_id, pid_callback_info_id);
     }
 
     auto typed_msg = callback_info.message_creator(
       reinterpret_cast<void *>(entry_addr), callback_info.topic_name, callback_info.subscriber_id,
       entry_id);
+    // NOTE: agnocast_callable_start should be renamed to agnocast_callback_start. As mentioned
+    // earlier, we will not change the name in order to avoid requiring changes to be made to the
+    // implementation of CARET.
+    TRACEPOINT(agnocast_callable_start, callback_addr);
     callback_info.callback(std::move(*typed_msg));
+    // NOTE: agnocast_callable_end should be renamed to agnocast_callback_end. As mentioned earlier,
+    // we will not change the name in order to avoid requiring changes to be made to the
+    // implementation of CARET.
+    TRACEPOINT(agnocast_callable_end, callback_addr);
   }
 }
 
