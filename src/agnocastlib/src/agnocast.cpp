@@ -195,6 +195,7 @@ void poll_for_unlink()
 
 void poll_for_bridge_manager([[maybe_unused]] pid_t target_pid)
 {
+  setenv("AGNOCAST_DISABLE_BRIDGE_SPAWN", "1", 1);
   if (setsid() == -1) {
     RCLCPP_ERROR(logger, "setsid failed for unlink daemon: %s", strerror(errno));
     close(agnocast_fd);
@@ -404,6 +405,7 @@ struct initialize_agnocast_result initialize_agnocast(
   pid_t target_pid = 0;
   bool should_spawn_bridge = false;
   auto bridge_mode = get_bridge_mode();
+  bool is_already_bridge = (std::getenv("AGNOCAST_DISABLE_BRIDGE_SPAWN") != nullptr);
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
@@ -420,7 +422,7 @@ struct initialize_agnocast_result initialize_agnocast(
     should_spawn_bridge = true;
   }
 
-  if (should_spawn_bridge) {
+  if (should_spawn_bridge && !is_already_bridge) {
     standard_bridge_manager_pid =
       spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
   }
