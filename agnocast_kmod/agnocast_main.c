@@ -415,9 +415,15 @@ static bool is_referenced(struct entry_node * en)
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
-static void add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
+static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
+  if (id < 0 || id >= MAX_SUBSCRIBER_NUM) {
+    pr_err("subscriber id %d out of range [0, %d). (add_subscriber_reference)\n", id,
+      MAX_SUBSCRIBER_NUM);
+    return -EINVAL;
+  }
   set_bit(id, en->referencing_subscribers);
+  return 0;
 }
 
 static struct entry_node * find_message_entry(
@@ -474,7 +480,10 @@ int increment_message_entry_rc(
     return -EINVAL;
   }
 
-  add_subscriber_reference(en, pubsub_id);
+  int ret = add_subscriber_reference(en, pubsub_id);
+  if (ret < 0) {
+    return ret;
+  }
   return 0;
 }
 
@@ -499,6 +508,14 @@ int release_message_entry_reference(
       "Message entry (topic_name=%s entry_id=%lld) not found. "
       "(release_message_entry_reference)\n",
       topic_name, entry_id);
+    return -EINVAL;
+  }
+
+  if (pubsub_id < 0 || pubsub_id >= MAX_SUBSCRIBER_NUM) {
+    dev_warn(
+      agnocast_device,
+      "pubsub_id %d out of range [0, %d). (release_message_entry_reference)\n", pubsub_id,
+      MAX_SUBSCRIBER_NUM);
     return -EINVAL;
   }
 
@@ -896,7 +913,8 @@ int publish_msg(
     }
     subscriber_num++;
   }
-  ioctl_ret->ret_subscriber_num = subscriber_num;
+  ioctl_ret->ret_subscriber_num =
+    subscriber_num < subscriber_ids_buffer_size ? subscriber_num : subscriber_ids_buffer_size;
 
   return 0;
 }
@@ -966,7 +984,10 @@ static int receive_msg_core(
       continue;
     }
 
-    add_subscriber_reference(en, subscriber_id);
+    int ret = add_subscriber_reference(en, subscriber_id);
+    if (ret < 0) {
+      return ret;
+    }
 
     ioctl_ret->ret_entry_ids[ioctl_ret->ret_entry_num] = en->entry_id;
     ioctl_ret->ret_entry_addrs[ioctl_ret->ret_entry_num] = en->msg_virtual_address;
@@ -1079,7 +1100,10 @@ int take_msg(
   }
 
   if (candidate_en) {
-    add_subscriber_reference(candidate_en, subscriber_id);
+    int ret = add_subscriber_reference(candidate_en, subscriber_id);
+    if (ret < 0) {
+      return ret;
+    }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
     ioctl_ret->ret_entry_id = candidate_en->entry_id;
@@ -1533,6 +1557,13 @@ int remove_subscriber(
   dev_info(
     agnocast_device, "Subscriber (id=%d) removed from topic %s.\n", subscriber_id, topic_name);
 
+  if (subscriber_id < 0 || subscriber_id >= MAX_SUBSCRIBER_NUM) {
+    dev_warn(
+      agnocast_device, "subscriber_id %d out of range [0, %d). (remove_subscriber)\n",
+      subscriber_id, MAX_SUBSCRIBER_NUM);
+    return -EINVAL;
+  }
+
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node * node = rb_first(root);
 
@@ -1945,6 +1976,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     // Allocate kernel buffer for subscriber IDs
     uint32_t buffer_size = publish_msg_args.subscriber_ids_buffer_size;
+    if (buffer_size > MAX_SUBSCRIBER_NUM) {
+      kfree(topic_name_buf);
+      return -EINVAL;
+    }
     topic_local_id_t * subscriber_ids_buf =
       kmalloc_array(buffer_size, sizeof(topic_local_id_t), GFP_KERNEL);
     if (!subscriber_ids_buf) {
@@ -2408,7 +2443,10 @@ int get_entry_rc(
     return -1;
   }
 
-  // Check if subscriber is holding a reference using bitmap
+  if (pubsub_id < 0 || pubsub_id >= MAX_SUBSCRIBER_NUM) {
+    return -1;
+  }
+
   return test_bit(pubsub_id, en->referencing_subscribers) ? 1 : 0;
 }
 
@@ -2531,6 +2569,13 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
     hash_del(&sub_info->node);
     kfree(sub_info->node_name);
     kfree(sub_info);
+
+    if (subscriber_id < 0 || subscriber_id >= MAX_SUBSCRIBER_NUM) {
+      dev_warn(
+        agnocast_device, "subscriber_id %d out of range [0, %d). (pre_handler_subscriber_exit)\n",
+        subscriber_id, MAX_SUBSCRIBER_NUM);
+      continue;
+    }
 
     struct rb_root * root = &wrapper->topic.entries;
     struct rb_node * node = rb_first(root);
