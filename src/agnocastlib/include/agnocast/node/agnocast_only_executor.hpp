@@ -45,8 +45,8 @@ protected:
   bool get_next_ready_agnocast_executable(AgnocastExecutable & agnocast_executable);
   void execute_agnocast_executable(AgnocastExecutable & agnocast_executable);
 
-  /// Returns true if the callback group is associated with this executor,
-  /// or if no groups have been explicitly associated (accept all).
+  /// Returns true if the callback group is associated with this executor.
+  /// Returns false if no groups or nodes have been explicitly associated.
   bool is_callback_group_associated(const rclcpp::CallbackGroup::SharedPtr & group);
 
   /// Discover callback groups created on associated nodes after add_node() was called.
