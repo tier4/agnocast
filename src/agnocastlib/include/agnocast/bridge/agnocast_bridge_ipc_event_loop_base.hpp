@@ -257,7 +257,8 @@ inline void IpcEventLoopBase::cleanup_resources()
 
   if (mq_fd_ != -1) {
     if (mq_close(mq_fd_) == -1) {
-      RCLCPP_WARN(logger_, "Failed to close mq_fd: %s", strerror(errno));
+      RCLCPP_WARN(
+        logger_, "Failed to close mq_fd for mq_name='%s': %s", mq_name_.c_str(), strerror(errno));
     }
     mq_fd_ = -1;
   }

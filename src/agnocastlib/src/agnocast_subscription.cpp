@@ -53,7 +53,9 @@ mqd_t open_mq_for_subscription(
   const int mq_mode = 0666;
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, mq_mode, &attr);
   if (mq == -1) {
-    RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger, "mq_open failed for topic '%s' (subscriber_id=%d, mq_name='%s'): %s",
+      topic_name.c_str(), subscriber_id, mq_name.c_str(), strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -66,10 +68,14 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 {
   /* The message queue is destroyed after all the publisher processes close it. */
   if (mq_close(mq_subscription.first) == -1) {
-    RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger, "mq_close failed for mq_name='%s': %s", mq_subscription.second.c_str(),
+      strerror(errno));
   }
   if (mq_unlink(mq_subscription.second.c_str()) == -1) {
-    RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+    RCLCPP_ERROR(
+      logger, "mq_unlink failed for mq_name='%s': %s", mq_subscription.second.c_str(),
+      strerror(errno));
   }
 }
 

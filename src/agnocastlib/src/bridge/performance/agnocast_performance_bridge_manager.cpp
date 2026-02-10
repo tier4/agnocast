@@ -96,7 +96,7 @@ void PerformanceBridgeManager::on_mq_request(int fd)
 
   if (bytes_read < 0) {
     if (errno != EAGAIN) {
-      RCLCPP_WARN(logger_, "mq_receive failed: %s", strerror(errno));
+      RCLCPP_WARN(logger_, "mq_receive failed (fd=%d): %s", fd, strerror(errno));
     }
     return;
   }
