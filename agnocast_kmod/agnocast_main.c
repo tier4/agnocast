@@ -1133,9 +1133,23 @@ int take_msg(
   }
 
   if (candidate_en) {
-    int ret = add_subscriber_reference(candidate_en, subscriber_id);
-    if (ret < 0) {
-      return ret;
+    // When allow_same_message is true and the subscriber already holds a reference,
+    // skip adding a duplicate reference.
+    bool already_referenced = false;
+    if (allow_same_message) {
+      for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
+        if (candidate_en->referencing_ids[i] == subscriber_id) {
+          already_referenced = true;
+          break;
+        }
+      }
+    }
+
+    if (!already_referenced) {
+      int ret = add_subscriber_reference(candidate_en, subscriber_id);
+      if (ret < 0) {
+        return ret;
+      }
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
