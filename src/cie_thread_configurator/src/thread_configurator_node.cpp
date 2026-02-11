@@ -153,26 +153,28 @@ void ThreadConfiguratorNode::apply_rt_throttling(const YAML::Node & yaml)
   if (rt_bw["period_us"]) {
     int period_us = rt_bw["period_us"].as<int>();
     std::ofstream period_file("/proc/sys/kernel/sched_rt_period_us");
-    if (period_file) {
-      period_file << period_us;
-      RCLCPP_INFO(this->get_logger(), "Set sched_rt_period_us to %d", period_us);
-    } else {
+    if (!period_file) {
       RCLCPP_ERROR(
         this->get_logger(), "Failed to open /proc/sys/kernel/sched_rt_period_us: %s",
         strerror(errno));
+    } else if (!(period_file << period_us)) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to write sched_rt_period_us: %s", strerror(errno));
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Set sched_rt_period_us to %d", period_us);
     }
   }
 
   if (rt_bw["runtime_us"]) {
     int runtime_us = rt_bw["runtime_us"].as<int>();
     std::ofstream runtime_file("/proc/sys/kernel/sched_rt_runtime_us");
-    if (runtime_file) {
-      runtime_file << runtime_us;
-      RCLCPP_INFO(this->get_logger(), "Set sched_rt_runtime_us to %d", runtime_us);
-    } else {
+    if (!runtime_file) {
       RCLCPP_ERROR(
         this->get_logger(), "Failed to open /proc/sys/kernel/sched_rt_runtime_us: %s",
         strerror(errno));
+    } else if (!(runtime_file << runtime_us)) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to write sched_rt_runtime_us: %s", strerror(errno));
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Set sched_rt_runtime_us to %d", runtime_us);
     }
   }
 }
