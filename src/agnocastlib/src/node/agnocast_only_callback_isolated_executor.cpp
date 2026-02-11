@@ -122,9 +122,23 @@ void AgnocastOnlyCallbackIsolatedExecutor::add_node(
 
   std::lock_guard<std::mutex> guard{mutex_};
 
-  // TODO(atsushi421): After add_callback_group is implemented, add a check here to confirm that
-  // no callback group in weak_groups_associated_with_executor_to_nodes_ belongs to the new node.
-  // See: agnocast_callback_isolated_executor.cpp CallbackIsolatedAgnocastExecutor::add_node()
+  // Confirm that any callback group in weak_groups_associated_with_executor_to_nodes_ does not
+  // refer to any of the callback groups held by node_ptr.
+  for (const auto & weak_group_to_node : weak_groups_associated_with_executor_to_nodes_) {
+    auto group = weak_group_to_node.first.lock();
+
+    if (!group) {
+      continue;
+    }
+
+    if (node_ptr->callback_group_in_node(group)) {
+      RCLCPP_ERROR(
+        logger, "One of the callback groups in node %s already exists in the executor.",
+        node_ptr->get_fully_qualified_name());
+      close(agnocast_fd);
+      exit(EXIT_FAILURE);
+    }
+  }
 
   for (const auto & weak_node : weak_nodes_) {
     if (weak_node.lock() == node_ptr) {
