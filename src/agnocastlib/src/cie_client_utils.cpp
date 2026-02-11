@@ -44,7 +44,7 @@ std::string create_callback_group_id(
 
   auto timer_func = [&entries](const rclcpp::TimerBase::SharedPtr & timer) {
     std::shared_ptr<const rcl_timer_t> timer_handle = timer->get_timer_handle();
-    int64_t period;
+    int64_t period = 0;
     rcl_ret_t ret = rcl_timer_get_period(timer_handle.get(), &period);
     (void)ret;
 
@@ -101,6 +101,8 @@ create_agnocast_client_publisher()
   auto node = std::make_shared<agnocast::Node>(
     "agnocast_client_node" + std::to_string(idx++), "/cie_thread_configurator");
   auto publisher = node->create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
+    // Note: agnocast Publisher does not support keep_all(), so KeepLast is used here
+    // (unlike the rclcpp variant which uses keep_all()).
     "/cie_thread_configurator/callback_group_info", rclcpp::QoS(rclcpp::KeepLast(CIE_QOS_DEPTH)));
   return publisher;
 }

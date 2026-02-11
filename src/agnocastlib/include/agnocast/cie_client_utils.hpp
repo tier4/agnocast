@@ -19,7 +19,7 @@ std::string create_callback_group_id(
 
 template <typename NodeT>
 std::string create_callback_group_id(
-  const rclcpp::CallbackGroup::SharedPtr & group, std::shared_ptr<NodeT> node,
+  const rclcpp::CallbackGroup::SharedPtr & group, const std::shared_ptr<NodeT> & node,
   const std::vector<std::string> & agnocast_topics)
 {
   return create_callback_group_id(group, node->get_node_base_interface(), agnocast_topics);
