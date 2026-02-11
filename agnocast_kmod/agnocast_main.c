@@ -440,9 +440,14 @@ static bool remove_subscriber_reference(struct entry_node * en, const topic_loca
 static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
   for (int i = 0; i < MAX_REFERENCING_SUBSCRIBERS_PER_ENTRY; i++) {
-    // Already referenced by this subscriber - no-op
+    // Already referenced by this subscriber - unexpected
     if (en->referencing_ids[i] == id) {
-      return 0;
+      dev_warn(
+        agnocast_device,
+        "subscriber id=%d already holds a reference for entry_id=%lld. "
+        "(add_subscriber_reference)\n",
+        id, en->entry_id);
+      return -EALREADY;
     }
 
     // Empty slot found - add reference
