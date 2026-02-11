@@ -162,7 +162,7 @@ void ThreadConfiguratorNode::validate_rt_throttling(const YAML::Node & yaml)
     }
     int value;
     if (!(file >> value)) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to read %s: %s", path.c_str(), strerror(errno));
+      RCLCPP_ERROR(this->get_logger(), "Failed to read integer from %s", path.c_str());
       return std::nullopt;
     }
     return value;
@@ -201,13 +201,20 @@ void ThreadConfiguratorNode::validate_rt_throttling(const YAML::Node & yaml)
   }
 
   if (mismatch) {
-    RCLCPP_ERROR(
-      this->get_logger(),
+    std::string message =
       "rt_throttling values do not match the configuration. "
       "Please create /etc/sysctl.d/99-rt-throttling.conf with the following content and reboot "
-      "(or run 'sudo sysctl --system'):\n"
-      "  kernel.sched_rt_period_us = <period_us>\n"
-      "  kernel.sched_rt_runtime_us = <runtime_us>");
+      "(or run 'sudo sysctl --system'):\n";
+
+    if (rt_bw["period_us"]) {
+      message +=
+        "  kernel.sched_rt_period_us = " + std::to_string(rt_bw["period_us"].as<int>()) + "\n";
+    }
+    if (rt_bw["runtime_us"]) {
+      message += "  kernel.sched_rt_runtime_us = " + std::to_string(rt_bw["runtime_us"].as<int>());
+    }
+
+    RCLCPP_ERROR(this->get_logger(), "%s", message.c_str());
   }
 }
 
