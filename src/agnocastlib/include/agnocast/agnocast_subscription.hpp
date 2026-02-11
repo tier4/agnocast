@@ -194,14 +194,8 @@ class BasicTakeSubscription : public SubscriptionBase
 {
 private:
   // Cached pointer from the most recent take(allow_same_message=true) call.
-  // When the same entry is returned again, a copy of this pointer is returned instead of
-  // creating a new ipc_shared_ptr with an independent control_block. This ensures the kernel-side
-  // reference stays alive until all userspace copies are destroyed, preventing:
-  // - use-after-free: an independent control_block's destruction releases the kernel reference
-  //   while other ipc_shared_ptr instances still point to the same message.
-  // - crash: the new kmod implementation returns -EINVAL (instead of silently succeeding) when
-  //   release_message_entry_reference is called for an already-released subscriber reference,
-  //   causing the userspace to exit(EXIT_FAILURE).
+  // When the same entry is returned again, a copy sharing the same control_block is returned
+  // so that the kernel-side reference is not released until all userspace copies are destroyed.
   agnocast::ipc_shared_ptr<const MessageT> last_taken_ptr_;
 
   template <typename NodeT>
