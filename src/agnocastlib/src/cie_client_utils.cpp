@@ -131,10 +131,11 @@ void publish_callback_group_info(
 {
   // Wait for bridge to be established before publishing (timeout: 3 seconds)
   // The agnocast-to-ROS2 bridge setup is asynchronous and may take time.
+  constexpr int subscriber_wait_interval_ms = 10;
   constexpr int max_subscriber_wait_iterations = 300;  // 300 * 10ms = 3 seconds
   int wait_count = 0;
   while (publisher->get_subscription_count() == 0 && wait_count < max_subscriber_wait_iterations) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(subscriber_wait_interval_ms));
     ++wait_count;
   }
 
