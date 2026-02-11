@@ -29,6 +29,8 @@ protected:
   int shutdown_event_fd_;
   pid_t my_pid_;
 
+  // Lock ordering: When both mutexes are needed, always acquire
+  // ready_agnocast_executables_mutex_ before mutex_ to prevent deadlocks.
   std::mutex ready_agnocast_executables_mutex_;
   std::vector<AgnocastExecutable> ready_agnocast_executables_;
 
