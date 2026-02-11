@@ -46,10 +46,10 @@ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
 
 if(BUILD_TESTING)
-  find_package(ament_cmake_gmock REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   find_package(std_msgs REQUIRED)
 
-  ament_add_gmock(test_unit_${PROJECT_NAME}
+  ament_add_gtest(test_unit_${PROJECT_NAME}
     test/unit/test_create_callback_group_id.cpp)
   target_include_directories(test_unit_${PROJECT_NAME} PRIVATE include)
   target_link_libraries(test_unit_${PROJECT_NAME} thread_configurator)
