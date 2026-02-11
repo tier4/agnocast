@@ -152,8 +152,10 @@ void AgnocastOnlyExecutor::cancel()
 }
 
 void AgnocastOnlyExecutor::add_callback_group(
-  rclcpp::CallbackGroup::SharedPtr group_ptr,                      // NOLINT: align with rclcpp API
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,  // NOLINT: align with rclcpp API
+  rclcpp::CallbackGroup::SharedPtr
+    group_ptr,  // NOLINT(performance-unnecessary-value-param): align with rclcpp API
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+    node_ptr,  // NOLINT(performance-unnecessary-value-param): align with rclcpp API
   bool notify)
 {
   (void)notify;
@@ -173,8 +175,9 @@ void AgnocastOnlyExecutor::add_callback_group(
   }
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param): align with rclcpp API
 void AgnocastOnlyExecutor::remove_callback_group(
-  rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)  // NOLINT: align with rclcpp API
+  rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)
 {
   (void)notify;
   std::lock_guard<std::mutex> lock(mutex_);
@@ -267,8 +270,9 @@ void AgnocastOnlyExecutor::add_callback_groups_from_nodes_associated_to_executor
 }
 
 void AgnocastOnlyExecutor::add_node(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,
-  bool notify)  // NOLINT: align with rclcpp API
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+    node_ptr,  // NOLINT(performance-unnecessary-value-param): align with rclcpp API
+  bool notify)
 {
   (void)notify;
   std::atomic_bool & has_executor = node_ptr->get_associated_with_executor_atomic();
@@ -297,8 +301,9 @@ void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node
 }
 
 void AgnocastOnlyExecutor::remove_node(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,
-  bool notify)  // NOLINT: align with rclcpp API
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+    node_ptr,  // NOLINT(performance-unnecessary-value-param): align with rclcpp API
+  bool notify)
 {
   (void)notify;
   if (!node_ptr->get_associated_with_executor_atomic().load()) {
