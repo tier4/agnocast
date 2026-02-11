@@ -297,8 +297,9 @@ public:
     // When allow_same_message is true and the kernel returned the same entry as last time,
     // return a copy of the cached pointer (sharing the same control_block) instead of creating
     // a new one. This keeps the kernel-side reference alive until all copies are destroyed.
-    if (allow_same_message && last_taken_ptr_ &&
-        last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
+    if (
+      allow_same_message && last_taken_ptr_ &&
+      last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
       return last_taken_ptr_;
     }
 
