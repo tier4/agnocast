@@ -1,9 +1,10 @@
-#include <gtest/gtest.h>
-
 #include "cie_thread_configurator/cie_thread_configurator.hpp"
 
 #include <rclcpp/rclcpp.hpp>
+
 #include <std_msgs/msg/bool.hpp>
+
+#include <gtest/gtest.h>
 
 #include <string>
 #include <vector>
@@ -86,8 +87,7 @@ TEST_F(CreateCallbackGroupIdTest, MultipleEntriesSorted)
   auto id = cie_thread_configurator::create_callback_group_id(group, node_, agnocast_topics);
 
   // Assert: entries should be sorted alphabetically
-  EXPECT_EQ(
-    id, "/test_node@Subscription(/topic_a)@Subscription(/topic_b)@Timer(1000000000)");
+  EXPECT_EQ(id, "/test_node@Subscription(/topic_a)@Subscription(/topic_b)@Timer(1000000000)");
 }
 
 TEST_F(CreateCallbackGroupIdTest, AgnocastSubscription)
