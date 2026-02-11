@@ -197,6 +197,7 @@ private:
   // When the same entry is returned again, a copy sharing the same control_block is returned
   // so that the kernel-side reference is not released until all userspace copies are destroyed.
   agnocast::ipc_shared_ptr<const MessageT> last_taken_ptr_;
+  std::mutex last_taken_ptr_mtx_;
 
   template <typename NodeT>
   rclcpp::QoS constructor_impl(
@@ -288,24 +289,30 @@ public:
       agnocast_take, static_cast<void *>(this), reinterpret_cast<void *>(take_args.ret_addr),
       take_args.ret_entry_id);
 
-    // When allow_same_message is true and the kernel returned the same entry as last time,
-    // return a copy of the cached pointer (sharing the same control_block) instead of creating
-    // a new one. This keeps the kernel-side reference alive until all copies are destroyed.
-    if (
-      allow_same_message && last_taken_ptr_ &&
-      last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
-      return last_taken_ptr_;
+    {
+      std::lock_guard<std::mutex> lock(last_taken_ptr_mtx_);
+
+      // When allow_same_message is true and the kernel returned the same entry as last time,
+      // return a copy of the cached pointer (sharing the same control_block) instead of creating
+      // a new one. This keeps the kernel-side reference alive until all copies are destroyed.
+      if (
+        allow_same_message && last_taken_ptr_ &&
+        last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
+        return last_taken_ptr_;
+      }
+
+      MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
+      auto result =
+        agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
+
+      if (allow_same_message) {
+        last_taken_ptr_ = result;
+      } else {
+        last_taken_ptr_.reset();
+      }
+
+      return result;
     }
-
-    MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-    auto result =
-      agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
-
-    if (allow_same_message) {
-      last_taken_ptr_ = result;
-    }
-
-    return result;
   }
 };
 
