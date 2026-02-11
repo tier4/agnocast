@@ -152,8 +152,9 @@ void AgnocastOnlyExecutor::cancel()
 }
 
 void AgnocastOnlyExecutor::add_callback_group(
-  rclcpp::CallbackGroup::SharedPtr group_ptr,
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
+  rclcpp::CallbackGroup::SharedPtr group_ptr,                      // NOLINT: align with rclcpp API
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,  // NOLINT: align with rclcpp API
+  bool notify)
 {
   (void)notify;
   std::atomic_bool & has_executor = group_ptr->get_associated_with_executor_atomic();
@@ -173,7 +174,7 @@ void AgnocastOnlyExecutor::add_callback_group(
 }
 
 void AgnocastOnlyExecutor::remove_callback_group(
-  rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)
+  rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)  // NOLINT: align with rclcpp API
 {
   (void)notify;
   std::lock_guard<std::mutex> lock(mutex_);
@@ -253,19 +254,21 @@ void AgnocastOnlyExecutor::add_callback_groups_from_nodes_associated_to_executor
   for (auto & weak_node : weak_nodes_) {
     auto node = weak_node.lock();
     if (node) {
-      node->for_each_callback_group([this, node](rclcpp::CallbackGroup::SharedPtr group_ptr) {
-        if (
-          group_ptr->automatically_add_to_executor_with_node() &&
-          !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
-          weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node});
-        }
-      });
+      node->for_each_callback_group(
+        [this, node](const rclcpp::CallbackGroup::SharedPtr & group_ptr) {
+          if (
+            group_ptr->automatically_add_to_executor_with_node() &&
+            !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
+            weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node});
+          }
+        });
     }
   }
 }
 
 void AgnocastOnlyExecutor::add_node(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,
+  bool notify)  // NOLINT: align with rclcpp API
 {
   (void)notify;
   std::atomic_bool & has_executor = node_ptr->get_associated_with_executor_atomic();
@@ -277,13 +280,14 @@ void AgnocastOnlyExecutor::add_node(
     exit(EXIT_FAILURE);
   }
   std::lock_guard<std::mutex> lock(mutex_);
-  node_ptr->for_each_callback_group([this, node_ptr](rclcpp::CallbackGroup::SharedPtr group_ptr) {
-    if (
-      group_ptr->automatically_add_to_executor_with_node() &&
-      !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
-      weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node_ptr});
-    }
-  });
+  node_ptr->for_each_callback_group(
+    [this, node_ptr](const rclcpp::CallbackGroup::SharedPtr & group_ptr) {
+      if (
+        group_ptr->automatically_add_to_executor_with_node() &&
+        !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
+        weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node_ptr});
+      }
+    });
   weak_nodes_.push_back(node_ptr);
 }
 
@@ -293,7 +297,8 @@ void AgnocastOnlyExecutor::add_node(const std::shared_ptr<agnocast::Node> & node
 }
 
 void AgnocastOnlyExecutor::remove_node(
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr, bool notify)
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_ptr,
+  bool notify)  // NOLINT: align with rclcpp API
 {
   (void)notify;
   if (!node_ptr->get_associated_with_executor_atomic().load()) {
