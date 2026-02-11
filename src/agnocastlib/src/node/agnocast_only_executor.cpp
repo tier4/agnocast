@@ -175,8 +175,8 @@ void AgnocastOnlyExecutor::add_callback_group(
   }
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param): align with rclcpp API
 void AgnocastOnlyExecutor::remove_callback_group(
+  // NOLINTNEXTLINE(performance-unnecessary-value-param): align with rclcpp API
   rclcpp::CallbackGroup::SharedPtr group_ptr, bool notify)
 {
   (void)notify;
