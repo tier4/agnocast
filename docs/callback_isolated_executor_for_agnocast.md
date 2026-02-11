@@ -22,7 +22,7 @@
 ros2 run cie_thread_configurator thread_configurator_node --prerun --domains 0,1
 ```
 
-### RT Throttling
+#### RT Throttling
 
 The `rt_throttling` feature configures the kernel's real-time scheduling bandwidth parameters (`sched_rt_period_us` and `sched_rt_runtime_us`). To write to `/proc/sys/kernel/sched_rt_period_us` and `/proc/sys/kernel/sched_rt_runtime_us`, `CAP_SYS_ADMIN` is additionally required on top of the `CAP_SYS_NICE` capability described in the [Build and Install](https://github.com/tier4/callback_isolated_executor/blob/main/README.md#build-and-install) section of the original README:
 
