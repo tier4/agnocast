@@ -290,20 +290,26 @@ public:
       take_args.ret_entry_id);
 
     if (allow_same_message) {
-      std::lock_guard<std::mutex> lock(last_taken_ptr_mtx_);
+      // Declared outside the lock scope so that its destructor (which may call ioctl to release
+      // the kernel reference) runs after the mutex is released, avoiding unnecessary contention.
+      agnocast::ipc_shared_ptr<const MessageT> old_ptr;
+      {
+        std::lock_guard<std::mutex> lock(last_taken_ptr_mtx_);
 
-      // When the kernel returned the same entry as last time, return a copy of the cached
-      // pointer (sharing the same control_block) instead of creating a new one.
-      // This keeps the kernel-side reference alive until all copies are destroyed.
-      if (last_taken_ptr_ && last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
-        return last_taken_ptr_;
+        // When the kernel returned the same entry as last time, return a copy of the cached
+        // pointer (sharing the same control_block) instead of creating a new one.
+        // This keeps the kernel-side reference alive until all copies are destroyed.
+        if (last_taken_ptr_ && last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
+          return last_taken_ptr_;
+        }
+
+        MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
+        auto result =
+          agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
+        old_ptr = std::move(last_taken_ptr_);
+        last_taken_ptr_ = result;
+        return result;
       }
-
-      MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
-      auto result =
-        agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
-      last_taken_ptr_ = result;
-      return result;
     }
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
