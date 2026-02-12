@@ -14,7 +14,7 @@
 
 ### Features
 
-#### Using `agnocast_components_register_node` Macro
+#### `agnocast_components_register_node` Macro
 
 Instead of manually configuring component containers and launch files, you can use the `agnocast_components_register_node()` CMake macro (provided by the [`agnocast_components`](../src/agnocast_components) package) as a drop-in replacement for `rclcpp_components_register_node()`. This macro generates a standalone executable that uses the specified Agnocast executor.
 
