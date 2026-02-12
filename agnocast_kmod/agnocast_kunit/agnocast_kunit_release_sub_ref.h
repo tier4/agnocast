@@ -6,10 +6,12 @@
     KUNIT_CASE(test_case_release_sub_ref_no_message),     \
     KUNIT_CASE(test_case_release_sub_ref_no_pubsub_id),   \
     KUNIT_CASE(test_case_release_sub_ref_last_reference), \
-    KUNIT_CASE(test_case_release_sub_ref_multi_reference)
+    KUNIT_CASE(test_case_release_sub_ref_multi_reference), \
+    KUNIT_CASE(test_case_increment_rc_already_referenced)
 
 void test_case_release_sub_ref_no_topic(struct kunit * test);
 void test_case_release_sub_ref_no_message(struct kunit * test);
 void test_case_release_sub_ref_no_pubsub_id(struct kunit * test);
 void test_case_release_sub_ref_last_reference(struct kunit * test);
 void test_case_release_sub_ref_multi_reference(struct kunit * test);
+void test_case_increment_rc_already_referenced(struct kunit * test);
