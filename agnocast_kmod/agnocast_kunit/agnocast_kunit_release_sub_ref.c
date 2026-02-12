@@ -204,7 +204,7 @@ void test_case_increment_rc_already_referenced(struct kunit * test)
 {
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 0);
 
-  // Arrange: Publisher publishes a message, subscriber receives it via receive_msg.
+  // Arrange: Publisher publishes a message, subscriber receives it.
   topic_local_id_t ret_publisher_id;
   uint64_t ret_addr;
   setup_one_publisher(test, &ret_publisher_id, &ret_addr);
