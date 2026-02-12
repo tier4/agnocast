@@ -8,8 +8,8 @@ macro(_agnocast_components_register_package_hook)
   endif()
 endmacro()
 
-get_filename_component(agnocast_components_SHARE_DIR "${agnocast_components_DIR}" DIRECTORY)
-set(agnocast_components_NODE_TEMPLATE "${agnocast_components_SHARE_DIR}/node_main.cpp.in")
-set(agnocast_components_NODE_TEMPLATE_AGNOCAST_ONLY "${agnocast_components_SHARE_DIR}/node_main_agnocast_only.cpp.in")
+get_filename_component(@PROJECT_NAME@_SHARE_DIR "${@PROJECT_NAME@_DIR}" DIRECTORY)
+set(@PROJECT_NAME@_NODE_TEMPLATE "${@PROJECT_NAME@_SHARE_DIR}/src/node_main.cpp.in")
+set(@PROJECT_NAME@_NODE_TEMPLATE_AGNOCAST_ONLY "${@PROJECT_NAME@_SHARE_DIR}/src/node_main_agnocast_only.cpp.in")
 
-include("${agnocast_components_DIR}/agnocast_components_register_node.cmake")
+include("${@PROJECT_NAME@_DIR}/agnocast_components_register_node.cmake")

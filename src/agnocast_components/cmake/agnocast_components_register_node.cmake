@@ -17,6 +17,7 @@
 #   For rclcpp::Node (uses rclcpp::init):
 #     - SingleThreadedAgnocastExecutor
 #     - MultiThreadedAgnocastExecutor
+#     - CallbackIsolatedAgnocastExecutor
 #   For agnocast::Node (uses agnocast::init):
 #     - AgnocastOnlySingleThreadedExecutor
 #     - AgnocastOnlyMultiThreadedExecutor
@@ -24,7 +25,7 @@
 # :type RESOURCE_INDEX: string
 #
 macro(agnocast_components_register_node target)
-  cmake_parse_arguments(ARGS "" "PLUGIN;EXECUTABLE;EXECUTOR;RESOURCE_INDEX" "" ${ARGN})
+  cmake_parse_arguments(ARGS "SKIP_LIBRARY_DEPENDENCY" "PLUGIN;EXECUTABLE;EXECUTOR;RESOURCE_INDEX" "" ${ARGN})
 
   if(ARGS_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "agnocast_components_register_node() called with unused "
@@ -51,7 +52,7 @@ macro(agnocast_components_register_node target)
   set(_use_agnocast_only_template FALSE)
   if(NOT "${ARGS_EXECUTOR}" STREQUAL "")
     # Validate executor type
-    set(_rclcpp_executors "SingleThreadedAgnocastExecutor;MultiThreadedAgnocastExecutor")
+    set(_rclcpp_executors "SingleThreadedAgnocastExecutor;MultiThreadedAgnocastExecutor;CallbackIsolatedAgnocastExecutor")
     set(_agnocast_only_executors "AgnocastOnlySingleThreadedExecutor;AgnocastOnlyMultiThreadedExecutor")
     set(_valid_executors "${_rclcpp_executors};${_agnocast_only_executors}")
     if(NOT "${ARGS_EXECUTOR}" IN_LIST _valid_executors)
@@ -95,8 +96,16 @@ macro(agnocast_components_register_node target)
   file(GENERATE OUTPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp
     INPUT ${PROJECT_BINARY_DIR}/agnocast_components/node_main_configured_${node}.cpp.in)
 
+  if(NOT TARGET glog::glog)
+    find_package(glog REQUIRED)
+  endif()
+
   # Create executable
   add_executable(${node} ${PROJECT_BINARY_DIR}/agnocast_components/node_main_${node}.cpp)
+  if(NOT ARGS_SKIP_LIBRARY_DEPENDENCY)
+    add_dependencies(${node} ${target})
+  endif()
+  target_link_libraries(${node} glog::glog)
   ament_target_dependencies(${node}
     "rclcpp"
     "class_loader"

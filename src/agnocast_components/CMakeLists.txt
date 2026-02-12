@@ -13,8 +13,8 @@ install(
 )
 
 install(
-  FILES node_main.cpp.in node_main_agnocast_only.cpp.in
-  DESTINATION share/${PROJECT_NAME}
+  FILES src/node_main.cpp.in src/node_main_agnocast_only.cpp.in
+  DESTINATION share/${PROJECT_NAME}/src
 )
 
 ament_export_dependencies(

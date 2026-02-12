@@ -28,8 +28,8 @@
   <depend>rclcpp_components</depend>
 
   <depend>agnocastlib</depend>
-  <depend>agnocast_sample_interfaces</depend>
   <depend>agnocast_components</depend>
+  <depend>agnocast_sample_interfaces</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

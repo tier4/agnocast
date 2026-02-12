@@ -451,15 +451,7 @@ static int add_subscriber_reference(
 }
 
 // Remove subscriber reference (clear boolean flag).
-// Returns true if the reference was removed, false otherwise.
-//
-// It is expected that the flag is already 0 in the following cases, so no error handling is needed:
-// - take_msg with allow_same_message=true skips add_subscriber_reference when the subscriber
-//   already holds a reference. The user-land ipc_shared_ptr created without a kernel reference
-//   will call release_message_entry_reference on destruction, finding the flag already cleared.
-// - Publishers do not participate in reference counting, so their flags are always 0.
-// - Cleanup functions (remove_subscriber, pre_handler_subscriber_exit) iterate all entries
-//   and attempt to remove references regardless of whether one exists.
+// Returns true if the reference was removed, false if the flag was already 0.
 static bool remove_subscriber_reference(
   struct entry_node * en, const topic_local_id_t id, const char * topic_name, const char * caller)
 {
@@ -584,11 +576,15 @@ int release_message_entry_reference(
     goto unlock_all;
   }
 
-  // Silently succeed if the reference was already released.
-  // This can happen when take_msg with allow_same_message=true skips add_subscriber_reference
-  // because the subscriber already held a reference: the first ipc_shared_ptr destruction releases
-  // the flag, and the second destruction finds the flag already cleared.
-  remove_subscriber_reference(en, pubsub_id, topic_name, "release_message_entry_reference");
+  if (!remove_subscriber_reference(en, pubsub_id, topic_name, "release_message_entry_reference")) {
+    dev_warn(
+      agnocast_device,
+      "pubsub_id=%d does not hold a reference for entry (topic_name=%s entry_id=%lld). "
+      "(release_message_entry_reference)\n",
+      pubsub_id, topic_name, entry_id);
+    ret = -EINVAL;
+    goto unlock_all;
+  }
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
@@ -1812,6 +1808,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
+    // The subscriber may not have referenced this entry, so the flag may already be 0.
     remove_subscriber_reference(en, subscriber_id, topic_name, "remove_subscriber");
 
     if (is_referenced(en)) continue;
@@ -2805,6 +2802,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
+      // The subscriber may not have referenced this entry, so the flag may already be 0.
       remove_subscriber_reference(
         en, subscriber_id, wrapper->key, "pre_handler_subscriber_exit");
 

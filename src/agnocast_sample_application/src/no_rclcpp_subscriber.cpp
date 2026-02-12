@@ -2,6 +2,8 @@
 #include "agnocast_sample_interfaces/msg/dynamic_size_array.hpp"
 #include "rclcpp/time.hpp"
 
+#include <rclcpp_components/register_node_macro.hpp>
+
 #include <chrono>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <iostream>

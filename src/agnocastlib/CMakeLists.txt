@@ -33,6 +33,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(message_filters REQUIRED)
+find_package(glog REQUIRED)
 
 add_library(agnocast SHARED
   src/agnocast.cpp src/agnocast_utils.cpp src/agnocast_publisher.cpp src/agnocast_subscription.cpp
@@ -69,6 +70,7 @@ add_executable(agnocast_component_container src/agnocast_component_container.cpp
 
 target_link_libraries(agnocast_component_container
   agnocast
+  glog::glog
 )
 
 ament_target_dependencies(agnocast_component_container rclcpp rclcpp_components)
@@ -77,6 +79,7 @@ add_executable(agnocast_component_container_mt src/agnocast_component_container_
 
 target_link_libraries(agnocast_component_container_mt
   agnocast
+  glog::glog
 )
 
 ament_target_dependencies(agnocast_component_container_mt rclcpp rclcpp_components)
@@ -85,6 +88,7 @@ add_executable(agnocast_component_container_cie src/agnocast_component_container
 
 target_link_libraries(agnocast_component_container_cie
   agnocast
+  glog::glog
 )
 
 ament_target_dependencies(agnocast_component_container_cie rclcpp rclcpp_components cie_thread_configurator)
@@ -142,6 +146,7 @@ if(BUILD_TESTING)
   # Message filters unit tests (with ioctl mock)
   ament_add_gmock(test_unit_message_filters_${PROJECT_NAME}
     test/unit/message_filters/test_simple.cpp
+    test/unit/message_filters/test_pass_through.cpp
     test/unit/message_filters/test_exact_time.cpp
     test/unit/message_filters/test_approximate_time.cpp
     test/unit/message_filters/test_synchronizer.cpp
