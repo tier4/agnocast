@@ -211,8 +211,7 @@ void test_case_increment_rc_already_referenced(struct kunit * test)
 
   union ioctl_publish_msg_args publish_msg_args;
   int ret1 = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, subscriber_ids_buf,
-    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, ret_addr, &publish_msg_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   const pid_t subscriber_pid = 1000;
@@ -228,8 +227,8 @@ void test_case_increment_rc_already_referenced(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   union ioctl_receive_msg_args receive_msg_args;
-  int ret4 =
-    receive_msg(TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_args);
+  int ret4 = receive_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &receive_msg_args);
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, receive_msg_args.ret_entry_num, 1);
 
