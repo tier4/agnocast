@@ -445,7 +445,7 @@ struct initialize_agnocast_result initialize_agnocast(
   // The flag was only needed for the child process to inherit.
   // Unset it now to avoid polluting the current process's environment.
   if (!bridge_spawn_disabled) {
-    unsetenv("AGNOCAST_IS_BRIDGE");
+    unsetenv("AGNOCAST_DISABLE_BRIDGE_SPAWN");
   }
 
   void * mempool_ptr =
