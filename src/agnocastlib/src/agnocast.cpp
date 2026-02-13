@@ -442,6 +442,10 @@ struct initialize_agnocast_result initialize_agnocast(
       spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
   }
 
+  // The flag was only needed for the child process to inherit.
+  // Unset it now to avoid polluting the current process's environment.
+  unsetenv("AGNOCAST_DISABLE_BRIDGE_SPAWN");
+
   void * mempool_ptr =
     map_writable_area(getpid(), add_process_args.ret_addr, add_process_args.ret_shm_size);
   if (mempool_ptr == nullptr) {
