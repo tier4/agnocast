@@ -13,6 +13,12 @@ extern "C" {
 // clang-format off
 
 DECLARE_TRACEPOINT(
+  agnocast_node_init,
+  const void * node_handle,
+  const char * node_name,
+  const char * namespace_arg)
+
+DECLARE_TRACEPOINT(
   agnocast_publisher_init,
   const void * publisher_handle,
   const void * node_handle,

@@ -18,6 +18,21 @@
 
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
+  agnocast_node_init,
+  TP_ARGS(
+    const void *, node_handle_arg,
+    const char *, node_name_arg,
+    const char *, namespace_arg
+  ),
+  TP_FIELDS(
+    ctf_integer_hex(const void *, node_handle, node_handle_arg)
+    ctf_string(node_name, node_name_arg)
+    ctf_string(namespace, namespace_arg)
+  )
+)
+
+TRACEPOINT_EVENT(
+  TRACEPOINT_PROVIDER,
   agnocast_publisher_init,
   TP_ARGS(
     const void *, publisher_handle_arg,

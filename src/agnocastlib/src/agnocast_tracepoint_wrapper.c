@@ -25,6 +25,18 @@
 // In Jazzy, TRACEPOINT macro is for calling tracepoints, not defining function names.
 // We need to define the functions explicitly with ros_trace_ prefix.
 
+void ros_trace_agnocast_node_init(
+  const void * node_handle,
+  const char * node_name,
+  const char * namespace_arg)
+{
+  CONDITIONAL_TP(
+    agnocast_node_init,
+    node_handle,
+    node_name,
+    namespace_arg);
+}
+
 void ros_trace_agnocast_publisher_init(
   const void * publisher_handle,
   const void * node_handle,
