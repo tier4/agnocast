@@ -407,7 +407,7 @@ struct initialize_agnocast_result initialize_agnocast(
   bool bridge_spawn_disabled = (std::getenv("AGNOCAST_DISABLE_BRIDGE_SPAWN") != nullptr);
 
   // This environment variable acts as a control flag that is inherited by any exec()-based
-  // children of the BridgeManager (including popen() helpers). It prevents those children
+  // children of the BridgeManager (including popen() ). It prevents those children
   // from recursively spawning additional BridgeManager instances.
   if (setenv("AGNOCAST_DISABLE_BRIDGE_SPAWN", "1", 1) != 0) {
     int err = errno;
