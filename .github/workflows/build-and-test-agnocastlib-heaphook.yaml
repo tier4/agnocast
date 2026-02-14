@@ -186,13 +186,16 @@ jobs:
           GCOVR_EXTRA_ARGS="--gcov-ignore-parse-errors=negative_hits.warn"
         fi
         gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" $GCOVR_EXTRA_ARGS --txt > coverage.txt
+        echo "${{ github.event.pull_request.number }}" > pr_number.txt
 
     - name: Upload coverage report
       if: github.event_name == 'pull_request' && steps.check_diff.outputs.cpp_changed == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report-${{ matrix.ros_distro }}
-        path: coverage.txt
+        path: |
+          coverage.txt
+          pr_number.txt
 
     # ===== agnocast_heaphook =====
 
