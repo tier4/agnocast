@@ -49,7 +49,7 @@ jobs:
         echo "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
 
-        if echo "$CHANGED_FILES" | grep -qE '(agnocastlib|agnocast_ioctl_wrapper)/.*\.(cpp|hpp)$'; then
+        if echo "$CHANGED_FILES" | grep -qE '(agnocastlib|agnocast_ioctl_wrapper|cie_thread_configurator)/.*\.(cpp|hpp)$'; then
           echo "cpp_changed=true" >> "$GITHUB_OUTPUT"
         else
           echo "cpp_changed=false" >> "$GITHUB_OUTPUT"
@@ -65,7 +65,7 @@ jobs:
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends software-properties-common curl gcovr ccache
+        sudo apt-get install -y --no-install-recommends software-properties-common curl gcovr ccache libunwind-dev
 
         sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
@@ -189,7 +189,7 @@ jobs:
         fi
         gcovr -r . --exclude ".*/test/.*" --exclude ".*/_deps/.*" $GCOVR_EXTRA_ARGS --txt > coverage.txt
         coverage_text=$(<coverage.txt)
-        gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '## Coverage Report (${{ env.ROS_DISTRO }})\n```\n'"$coverage_text"'\n```')"
+        gh pr comment ${{ github.event.pull_request.number }} --body "$(echo -e '<details>\n<summary>Coverage Report (${{ env.ROS_DISTRO }})</summary>\n\n```\n'"$coverage_text"'\n```\n</details>')"
 
     # ===== agnocast_heaphook =====
 
