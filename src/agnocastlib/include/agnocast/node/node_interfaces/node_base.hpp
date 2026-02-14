@@ -12,6 +12,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -87,6 +88,12 @@ private:
 
   const rcl_arguments_t * local_args_ = nullptr;
   const rcl_arguments_t * global_args_ = nullptr;
+
+  // Guard condition for executor notification
+  // This is required for compatibility with rclcpp::Executor::add_node()
+  std::optional<rclcpp::GuardCondition> notify_guard_condition_;
+  mutable std::recursive_mutex notify_guard_condition_mutex_;
+  bool notify_guard_condition_is_valid_{false};
 };
 
 }  // namespace agnocast::node_interfaces
