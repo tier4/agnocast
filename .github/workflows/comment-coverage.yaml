@@ -7,6 +7,7 @@ on:
       - completed
 
 permissions:
+  actions: read
   pull-requests: write
 
 jobs:
@@ -19,24 +20,34 @@ jobs:
       matrix:
         ros_distro: [humble, jazzy]
     steps:
+      - name: Check if coverage artifact exists
+        id: check_artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARTIFACT_NAME="coverage-report-${{ matrix.ros_distro }}"
+          ARTIFACT_EXISTS=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
+            --jq ".artifacts | map(select(.name == \"$ARTIFACT_NAME\")) | length")
+          if [ "$ARTIFACT_EXISTS" -gt 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Coverage artifact not found (C++ files may not have changed), skipping"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download coverage artifact
-        id: download
+        if: steps.check_artifact.outputs.exists == 'true'
         uses: actions/download-artifact@v4
         with:
           name: coverage-report-${{ matrix.ros_distro }}
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Post coverage comment
-        if: steps.download.outcome == 'success'
+        if: steps.check_artifact.outputs.exists == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           coverage_text=$(<coverage.txt)
-          PR_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.pull_requests[0].number')
-          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
-            gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "$(echo -e '<details>\n<summary>Coverage Report (${{ matrix.ros_distro }})</summary>\n\n```\n'"$coverage_text"'\n```\n</details>')"
-          else
-            echo "Could not determine PR number, skipping comment"
-          fi
+          PR_NUMBER=$(<pr_number.txt)
+          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "$(echo -e '<details>\n<summary>Coverage Report (${{ matrix.ros_distro }})</summary>\n\n```\n'"$coverage_text"'\n```\n</details>')"
