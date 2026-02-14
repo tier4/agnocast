@@ -43,9 +43,9 @@ This does not necessarily mean that a bridge process is currently running. If th
 | pub | sub | bridge | display |
 | :--- | :--- | :--- | :--- |
 | rclcpp::publisher | rclcpp::subscription | off / standard / performance | /my_topic |
-| agnocast::publisher | rclcpp::subscription | off | /my_topic (WARN: Agnocast and ROS2 endpoints exist but bridge is not active) |
+| agnocast::publisher | rclcpp::subscription | off | /my_topic (WARN: Agnocast and ROS 2 endpoints exist but bridge is not active) |
 | agnocast::publisher | rclcpp::subscription | standard / performance | /my_topic (Agnocast enabled, bridged) |
-| rclcpp::publisher | agnocast::subscription | off | /my_topic (WARN: Agnocast and ROS2 endpoints exist but bridge is not active) |
+| rclcpp::publisher | agnocast::subscription | off | /my_topic (WARN: Agnocast and ROS 2 endpoints exist but bridge is not active) |
 | rclcpp::publisher | agnocast::subscription | standard / performance | /my_topic (Agnocast enabled, bridged) |
 | agnocast::publisher | agnocast::subscription | off / standard / performance | /my_topic (Agnocast enabled) |
 | agnocast::publisher | non | off / standard / performance | /my_topic (Agnocast enabled) |
