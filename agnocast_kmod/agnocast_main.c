@@ -109,7 +109,7 @@ struct entry_node
   uint64_t msg_virtual_address;
   // Per-subscriber boolean flag: if bit is set, subscriber is holding a reference.
   // When subscriber releases the reference, the bit is cleared.
-  DECLARE_BITMAP(referencing_subscribers, MAX_SUBSCRIBER_NUM);
+  DECLARE_BITMAP(referencing_subscribers, MAX_TOPIC_LOCAL_ID);
 };
 
 DEFINE_HASHTABLE(topic_hashtable, TOPIC_HASH_BITS);
@@ -418,20 +418,29 @@ static int insert_publisher_info(
 
 static bool is_referenced(struct entry_node * en)
 {
-  return !bitmap_empty(en->referencing_subscribers, MAX_SUBSCRIBER_NUM);
+  return !bitmap_empty(en->referencing_subscribers, MAX_TOPIC_LOCAL_ID);
 }
 
 // Add subscriber reference to entry (set boolean flag to true).
 // Called when subscriber first receives/takes the message.
 static int add_subscriber_reference(struct entry_node * en, const topic_local_id_t id)
 {
-  if (id < 0 || id >= MAX_SUBSCRIBER_NUM) {
+  if (id < 0 || id >= MAX_TOPIC_LOCAL_ID) {
     pr_err(
       "subscriber id %d out of range [0, %d). (add_subscriber_reference)\n", id,
-      MAX_SUBSCRIBER_NUM);
+      MAX_TOPIC_LOCAL_ID);
     return -EINVAL;
   }
-  set_bit(id, en->referencing_subscribers);
+
+  // Already referenced by this subscriber - unexpected
+  if (test_and_set_bit(id, en->referencing_subscribers)) {
+    dev_warn(
+      agnocast_device,
+      "subscriber id=%d already holds a reference for entry_id=%lld. "
+      "(add_subscriber_reference)\n",
+      id, en->entry_id);
+    return -EALREADY;
+  }
   return 0;
 }
 
@@ -542,10 +551,10 @@ int release_message_entry_reference(
     goto unlock_all;
   }
 
-  if (pubsub_id < 0 || pubsub_id >= MAX_SUBSCRIBER_NUM) {
+  if (pubsub_id < 0 || pubsub_id >= MAX_TOPIC_LOCAL_ID) {
     dev_warn(
       agnocast_device, "pubsub_id %d out of range [0, %d). (release_message_entry_reference)\n",
-      pubsub_id, MAX_SUBSCRIBER_NUM);
+      pubsub_id, MAX_TOPIC_LOCAL_ID);
     ret = -EINVAL;
     goto unlock_all;
   }
@@ -581,7 +590,7 @@ static int insert_message_entry(
   new_node->msg_virtual_address = msg_virtual_address;
   // Publisher-side handles do not participate in reference counting.
   // Subscribers will add their references when they receive/take the message.
-  bitmap_zero(new_node->referencing_subscribers, MAX_SUBSCRIBER_NUM);
+  bitmap_zero(new_node->referencing_subscribers, MAX_TOPIC_LOCAL_ID);
 
   struct rb_root * root = &wrapper->topic.entries;
   struct rb_node ** new = &(root->rb_node);
@@ -917,6 +926,14 @@ int publish_msg(
 {
   int ret = 0;
 
+  if (subscriber_ids_buffer_size != MAX_SUBSCRIBER_NUM) {
+    dev_warn(
+      agnocast_device,
+      "subscriber_ids_buffer_size must be MAX_SUBSCRIBER_NUM (%d), but got %u. (publish_msg)\n",
+      MAX_SUBSCRIBER_NUM, subscriber_ids_buffer_size);
+    return -EINVAL;
+  }
+
   down_read(&global_htables_rwsem);
 
   struct topic_wrapper * wrapper = find_topic(topic_name, ipc_ns);
@@ -971,10 +988,8 @@ int publish_msg(
     if (sub_info->ignore_local_publications && (sub_info->pid == pub_info->pid)) {
       continue;
     }
-    if (subscriber_num < subscriber_ids_buffer_size) {
-      subscriber_ids_out[subscriber_num] = sub_info->id;
-      subscriber_num++;
-    }
+    subscriber_ids_out[subscriber_num] = sub_info->id;
+    subscriber_num++;
   }
   ioctl_ret->ret_subscriber_num = subscriber_num;
 
@@ -1189,9 +1204,18 @@ int take_msg(
   }
 
   if (candidate_en) {
-    ret = add_subscriber_reference(candidate_en, subscriber_id);
-    if (ret < 0) {
-      goto unlock_all;
+    // When allow_same_message is true and the subscriber already holds a reference,
+    // skip adding a duplicate reference.
+    bool already_referenced = false;
+    if (allow_same_message) {
+      already_referenced = test_bit(subscriber_id, candidate_en->referencing_subscribers);
+    }
+
+    if (!already_referenced) {
+      ret = add_subscriber_reference(candidate_en, subscriber_id);
+      if (ret < 0) {
+        goto unlock_all;
+      }
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
@@ -1778,10 +1802,10 @@ int remove_subscriber(
   dev_info(
     agnocast_device, "Subscriber (id=%d) removed from topic %s.\n", subscriber_id, topic_name);
 
-  if (subscriber_id < 0 || subscriber_id >= MAX_SUBSCRIBER_NUM) {
+  if (subscriber_id < 0 || subscriber_id >= MAX_TOPIC_LOCAL_ID) {
     dev_warn(
       agnocast_device, "subscriber_id %d out of range [0, %d). (remove_subscriber)\n",
-      subscriber_id, MAX_SUBSCRIBER_NUM);
+      subscriber_id, MAX_TOPIC_LOCAL_ID);
     ret = -EINVAL;
     goto unlock;
   }
@@ -1793,6 +1817,7 @@ int remove_subscriber(
     struct entry_node * en = rb_entry(node, struct entry_node, node);
     node = rb_next(node);
 
+    // The subscriber may not have referenced this entry, so the bit may already be 0.
     clear_bit(subscriber_id, en->referencing_subscribers);
 
     if (is_referenced(en)) continue;
@@ -2216,7 +2241,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     // Allocate kernel buffer for subscriber IDs
     uint32_t buffer_size = publish_msg_args.subscriber_ids_buffer_size;
-    if (buffer_size > MAX_SUBSCRIBER_NUM) {
+    if (buffer_size != MAX_SUBSCRIBER_NUM) {
       kfree(topic_name_buf);
       return -EINVAL;
     }
@@ -2649,7 +2674,7 @@ int get_entry_rc(
     return -1;
   }
 
-  if (pubsub_id < 0 || pubsub_id >= MAX_SUBSCRIBER_NUM) {
+  if (pubsub_id < 0 || pubsub_id >= MAX_TOPIC_LOCAL_ID) {
     return -1;
   }
 
@@ -2776,10 +2801,10 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
     kfree(sub_info->node_name);
     kfree(sub_info);
 
-    if (subscriber_id < 0 || subscriber_id >= MAX_SUBSCRIBER_NUM) {
+    if (subscriber_id < 0 || subscriber_id >= MAX_TOPIC_LOCAL_ID) {
       dev_warn(
         agnocast_device, "subscriber_id %d out of range [0, %d). (pre_handler_subscriber_exit)\n",
-        subscriber_id, MAX_SUBSCRIBER_NUM);
+        subscriber_id, MAX_TOPIC_LOCAL_ID);
       continue;
     }
 
@@ -2789,6 +2814,7 @@ static void pre_handler_subscriber_exit(struct topic_wrapper * wrapper, const pi
       struct entry_node * en = rb_entry(node, struct entry_node, node);
       node = rb_next(node);
 
+      // The subscriber may not have referenced this entry, so the bit may already be 0.
       clear_bit(subscriber_id, en->referencing_subscribers);
 
       if (is_referenced(en)) continue;

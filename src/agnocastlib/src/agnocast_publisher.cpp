@@ -67,7 +67,7 @@ union ioctl_publish_msg_args publish_core(
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> & opened_mqs)
 {
-  std::array<topic_local_id_t, MAX_SUBSCRIBER_NUM> subscriber_ids_buffer;
+  std::array<topic_local_id_t, MAX_SUBSCRIBER_NUM> subscriber_ids_buffer{};
 
   union ioctl_publish_msg_args publish_msg_args = {};
   publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};

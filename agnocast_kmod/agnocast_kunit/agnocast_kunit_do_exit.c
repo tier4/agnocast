@@ -8,7 +8,7 @@
 
 static const pid_t PID_BASE = 1000;
 
-static topic_local_id_t subscriber_ids_buf[64];
+static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 static const char * TOPIC_NAME = "/kunit_test_topic";
 static const char * NODE_NAME = "/kunit_test_node";

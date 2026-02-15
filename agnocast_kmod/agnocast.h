@@ -4,7 +4,9 @@
 #include <linux/types.h>
 
 #define MAX_PUBLISHER_NUM 4      // Maximum number of publishers per topic
-#define MAX_SUBSCRIBER_NUM 1024  // Maximum number of subscribers per topic
+#define MAX_TOPIC_LOCAL_ID 1024  // Bitmap size for per-entry subscriber reference tracking
+#define MAX_SUBSCRIBER_NUM \
+  (MAX_TOPIC_LOCAL_ID - MAX_PUBLISHER_NUM)  // Maximum number of subscribers per topic
 /* Maximum number of entries that can be received at one ioctl. This value is heuristically set to
  * balance the number of calling ioctl and the overhead of copying data between user and kernel
  * space. */

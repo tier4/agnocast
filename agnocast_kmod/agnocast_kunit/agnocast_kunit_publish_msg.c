@@ -15,7 +15,7 @@ static pid_t common_pid = 3000;
 static bool is_take_sub = false;
 static bool is_bridge = false;
 
-static topic_local_id_t subscriber_ids_buf[64];
+static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 static void setup_one_subscriber(
   struct kunit * test, topic_local_id_t * subscriber_id, bool ignore_local_publications)
@@ -375,38 +375,21 @@ void test_case_publish_msg_ret_many_subscribers(struct kunit * test)
 
 void test_case_publish_msg_buffer_smaller_than_subscriber_count(struct kunit * test)
 {
-  // Arrange: 3 subscribers, but buffer can only hold 2 IDs.
-  // ret_subscriber_num should be clamped to the buffer size.
+  // Arrange
   topic_local_id_t publisher_id;
   uint64_t ret_addr;
   setup_one_publisher(test, &publisher_id, &ret_addr);
 
-  bool ignore_local_publications = false;
-  topic_local_id_t sub_id1, sub_id2, sub_id3;
-  setup_one_subscriber(test, &sub_id1, ignore_local_publications);
-  setup_one_subscriber(test, &sub_id2, ignore_local_publications);
-  setup_one_subscriber(test, &sub_id3, ignore_local_publications);
-
-  // Use a small buffer that can only hold 2 subscriber IDs
   topic_local_id_t small_buf[2];
-  memset(small_buf, 0xFF, sizeof(small_buf));
-
   union ioctl_publish_msg_args ioctl_publish_msg_ret;
 
-  // Act
+  // Act: pass a buffer smaller than MAX_SUBSCRIBER_NUM
   int ret = publish_msg(
     topic_name, current->nsproxy->ipc_ns, publisher_id, ret_addr, small_buf, ARRAY_SIZE(small_buf),
     &ioctl_publish_msg_ret);
 
-  // Assert: ret_subscriber_num is clamped to buffer size (2), not total subscriber count (3).
-  KUNIT_EXPECT_EQ(test, ret, 0);
-  KUNIT_EXPECT_EQ(test, ioctl_publish_msg_ret.ret_subscriber_num, 2);
-
-  // Verify that the 2 written IDs are valid subscriber IDs (from the set of 3)
-  for (int i = 0; i < 2; i++) {
-    KUNIT_EXPECT_TRUE(
-      test, small_buf[i] == sub_id1 || small_buf[i] == sub_id2 || small_buf[i] == sub_id3);
-  }
+  // Assert: publish_msg rejects buffers that are not MAX_SUBSCRIBER_NUM
+  KUNIT_EXPECT_EQ(test, ret, -EINVAL);
 }
 
 void test_case_ignore_local_same_pid_enabled(struct kunit * test)

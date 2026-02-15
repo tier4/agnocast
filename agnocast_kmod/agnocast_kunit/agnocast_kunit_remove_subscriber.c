@@ -16,7 +16,7 @@ static const bool IS_TAKE_SUB = false;
 static const bool IGNORE_LOCAL_PUBLICATIONS = false;
 static const bool IS_BRIDGE = false;
 
-static topic_local_id_t subscriber_ids_buf[64];
+static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {

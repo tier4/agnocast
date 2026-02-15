@@ -13,7 +13,7 @@ static bool IS_RELIABLE = true;
 static bool IGNORE_LOCAL_PUBLICATIONS = false;
 static bool IS_BRIDGE = false;
 
-static topic_local_id_t subscriber_ids_buf[64];
+static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 static void setup_one_subscriber(
   struct kunit * test, pid_t subscriber_pid, uint32_t qos_depth, bool is_transient_local,
