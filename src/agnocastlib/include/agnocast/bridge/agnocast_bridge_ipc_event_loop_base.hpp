@@ -265,6 +265,9 @@ inline void IpcEventLoopBase::cleanup_resources()
     mq_fd_ = -1;
   }
 
+  if (!mq_name_.empty()) {
+    mq_unlink(mq_name_.c_str());
+  }
   mq_name_.clear();
 }
 
