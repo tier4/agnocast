@@ -356,6 +356,15 @@ pid_t spawn_daemon_process(Func && func)
     exit(EXIT_FAILURE);
   }
   if (pid == 0) {
+    int devnull = open("/dev/null", O_RDWR);
+    if (devnull >= 0) {
+      dup2(devnull, STDIN_FILENO);
+      dup2(devnull, STDOUT_FILENO);
+      dup2(devnull, STDERR_FILENO);
+      if (devnull > STDERR_FILENO) {
+        close(devnull);
+      }
+    }
     func();
     exit(0);
   }
