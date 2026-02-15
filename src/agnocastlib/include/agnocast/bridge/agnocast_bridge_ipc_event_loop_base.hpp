@@ -266,7 +266,9 @@ inline void IpcEventLoopBase::cleanup_resources()
   }
 
   if (!mq_name_.empty()) {
-    mq_unlink(mq_name_.c_str());
+    if (mq_unlink(mq_name_.c_str()) == -1 && errno != ENOENT) {
+      RCLCPP_WARN(logger_, "Failed to unlink mq_name='%s': %s", mq_name_.c_str(), strerror(errno));
+    }
   }
   mq_name_.clear();
 }
