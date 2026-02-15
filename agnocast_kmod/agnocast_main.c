@@ -973,11 +973,10 @@ int publish_msg(
     }
     if (subscriber_num < subscriber_ids_buffer_size) {
       subscriber_ids_out[subscriber_num] = sub_info->id;
+      subscriber_num++;
     }
-    subscriber_num++;
   }
-  ioctl_ret->ret_subscriber_num =
-    subscriber_num < subscriber_ids_buffer_size ? subscriber_num : subscriber_ids_buffer_size;
+  ioctl_ret->ret_subscriber_num = subscriber_num;
 
 unlock_all:
   up_write(&wrapper->topic_rwsem);
@@ -1083,7 +1082,8 @@ int receive_msg(
     goto unlock_rwsem;
   }
 
-  down_read(&wrapper->topic_rwsem);
+  // Use write lock because we modify sub_info fields (latest_received_entry_id, need_mmap_update)
+  down_write(&wrapper->topic_rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1115,7 +1115,7 @@ int receive_msg(
   sub_info->need_mmap_update = false;
 
 unlock_all:
-  up_read(&wrapper->topic_rwsem);
+  up_write(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1137,7 +1137,8 @@ int take_msg(
     goto unlock_rwsem;
   }
 
-  down_read(&wrapper->topic_rwsem);
+  // Use write lock because we modify sub_info fields (latest_received_entry_id, need_mmap_update)
+  down_write(&wrapper->topic_rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1188,9 +1189,9 @@ int take_msg(
   }
 
   if (candidate_en) {
-    int ret = add_subscriber_reference(candidate_en, subscriber_id);
+    ret = add_subscriber_reference(candidate_en, subscriber_id);
     if (ret < 0) {
-      return ret;
+      goto unlock_all;
     }
 
     ioctl_ret->ret_addr = candidate_en->msg_virtual_address;
@@ -1213,7 +1214,7 @@ int take_msg(
   sub_info->need_mmap_update = false;
 
 unlock_all:
-  up_read(&wrapper->topic_rwsem);
+  up_write(&wrapper->topic_rwsem);
 unlock_rwsem:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1387,10 +1388,11 @@ int get_topic_list(
       goto unlock;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       ret = -EFAULT;
       goto unlock;
     }
@@ -1422,29 +1424,39 @@ static int get_node_subscriber_topics(
     if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
+
+    down_read(&wrapper->topic_rwsem);
+
     struct subscriber_info * sub_info;
     int bkt_sub_info;
+    bool found = false;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
     {
       if (strncmp(sub_info->node_name, node_name, strlen(node_name)) == 0) {
-        if (topic_num >= MAX_TOPIC_NUM) {
-          dev_warn(
-            agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
-          ret = -ENOBUFS;
-          goto unlock;
-        }
-
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
-          ret = -EFAULT;
-          goto unlock;
-        }
-
-        topic_num++;
+        found = true;
         break;
       }
+    }
+
+    up_read(&wrapper->topic_rwsem);
+
+    if (found) {
+      if (topic_num >= MAX_TOPIC_NUM) {
+        dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
+        ret = -ENOBUFS;
+        goto unlock;
+      }
+
+      if (
+        copy_to_user(
+          (char
+             __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+          wrapper->key, strlen(wrapper->key) + 1)) {
+        ret = -EFAULT;
+        goto unlock;
+      }
+
+      topic_num++;
     }
   }
 
@@ -1472,29 +1484,39 @@ static int get_node_publisher_topics(
     if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
       continue;
     }
+
+    down_read(&wrapper->topic_rwsem);
+
     struct publisher_info * pub_info;
     int bkt_pub_info;
+    bool found = false;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
     {
       if (strncmp(pub_info->node_name, node_name, strlen(node_name)) == 0) {
-        if (topic_num >= MAX_TOPIC_NUM) {
-          dev_warn(
-            agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
-          ret = -ENOBUFS;
-          goto unlock;
-        }
-
-        if (copy_to_user(
-              (char __user *)(node_info_args->topic_name_buffer_addr +
-                              topic_num * TOPIC_NAME_BUFFER_SIZE),
-              wrapper->key, strlen(wrapper->key) + 1)) {
-          ret = -EFAULT;
-          goto unlock;
-        }
-
-        topic_num++;
+        found = true;
         break;
       }
+    }
+
+    up_read(&wrapper->topic_rwsem);
+
+    if (found) {
+      if (topic_num >= MAX_TOPIC_NUM) {
+        dev_warn(agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
+        ret = -ENOBUFS;
+        goto unlock;
+      }
+
+      if (
+        copy_to_user(
+          (char
+             __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+          wrapper->key, strlen(wrapper->key) + 1)) {
+        ret = -EFAULT;
+        goto unlock;
+      }
+
+      topic_num++;
     }
   }
 
@@ -1760,7 +1782,8 @@ int remove_subscriber(
     dev_warn(
       agnocast_device, "subscriber_id %d out of range [0, %d). (remove_subscriber)\n",
       subscriber_id, MAX_SUBSCRIBER_NUM);
-    return -EINVAL;
+    ret = -EINVAL;
+    goto unlock;
   }
 
   struct rb_root * root = &wrapper->topic.entries;
