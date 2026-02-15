@@ -559,14 +559,15 @@ int release_message_entry_reference(
     goto unlock_all;
   }
 
-  // Silently succeed if the bit is already cleared. This is expected in the following cases:
-  // - take_msg with allow_same_message=true skips add_subscriber_reference when the subscriber
-  //   already holds a reference. The user-land ipc_shared_ptr created without a kernel-side
-  //   reference will call release on destruction, finding the bit already cleared.
-  // - Publishers do not participate in reference counting, so their bits are always 0.
-  // - Cleanup functions (remove_subscriber, pre_handler_subscriber_exit) iterate all entries
-  //   and clear bits regardless of whether one was set.
-  clear_bit(pubsub_id, en->referencing_subscribers);
+  if (!test_and_clear_bit(pubsub_id, en->referencing_subscribers)) {
+    dev_warn(
+      agnocast_device,
+      "pubsub_id %d does not hold a reference for entry (topic_name=%s entry_id=%lld). "
+      "(release_message_entry_reference)\n",
+      pubsub_id, topic_name, entry_id);
+    ret = -EINVAL;
+    goto unlock_all;
+  }
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);

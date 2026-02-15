@@ -74,12 +74,12 @@ void test_case_release_sub_ref_no_pubsub_id(struct kunit * test)
 
   // Act: Attempt to release a reference using the publisher's local ID.
   // Publishers do not participate in reference counting, so their bit is never set.
-  // clear_bit on an already-cleared bit is a no-op, so this succeeds with 0.
+  // test_and_clear_bit detects the missing reference and returns -EINVAL.
   int ret_sut = release_message_entry_reference(
     TOPIC_NAME, current->nsproxy->ipc_ns, ret_publisher_id, publish_msg_args.ret_entry_id);
 
   // Assert
-  KUNIT_EXPECT_EQ(test, ret_sut, 0);
+  KUNIT_EXPECT_EQ(test, ret_sut, -EINVAL);
 }
 
 void test_case_release_sub_ref_last_reference(struct kunit * test)
