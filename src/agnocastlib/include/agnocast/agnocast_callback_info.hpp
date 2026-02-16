@@ -81,8 +81,10 @@ uint32_t register_callback(
   // NOTE: ipc_shared_ptr<MessageT> and ipc_shared_ptr<MessageT>&& make no difference in the
   // assertion expression below, but we go with ipc_shared_ptr<MessageT>&&.
   static_assert(
-    std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<MessageT> &&>,
-    "Callback must be callable with ipc_shared_ptr (const&, &&, or by-value)");
+    std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<MessageT> &&> ||
+      std::is_invocable_v<std::decay_t<Func>, agnocast::ipc_shared_ptr<const MessageT> &&>,
+    "Callback must be callable with ipc_shared_ptr<T> or ipc_shared_ptr<const T> (const&, &&, or "
+    "by-value)");
 
   TypeErasedCallback erased_callback = get_erased_callback<MessageT>(std::forward<Func>(callback));
 
@@ -108,10 +110,14 @@ uint32_t register_callback(
   return callback_info_id;
 }
 
-void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
-  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+void receive_and_execute_message(
+  uint32_t callback_info_id, pid_t my_pid, const CallbackInfo & callback_info,
+  std::mutex & ready_agnocast_executables_mutex,
+  std::vector<AgnocastExecutable> & ready_agnocast_executables);
+
+void enqueue_receive_and_execute(
+  uint32_t callback_info_id, pid_t my_pid, const CallbackInfo & callback_info,
+  std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
 }  // namespace agnocast

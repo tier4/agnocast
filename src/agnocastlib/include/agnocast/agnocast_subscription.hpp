@@ -37,7 +37,7 @@ struct SubscriptionOptions
 {
   rclcpp::CallbackGroup::SharedPtr callback_group{nullptr};
   bool ignore_local_publications{false};
-  rclcpp::QosOverridingOptions qos_overriding_options;
+  rclcpp::QosOverridingOptions qos_overriding_options{};
 };
 
 // These are cut out of the class for information hiding.
@@ -99,9 +99,10 @@ template <typename MessageT, typename BridgeRequestPolicy>
 class BasicSubscription : public SubscriptionBase
 {
   std::pair<mqd_t, std::string> mq_subscription_;
+  uint32_t callback_info_id_;
 
   template <typename NodeT, typename Func>
-  std::pair<uint32_t, rclcpp::QoS> constructor_impl(
+  rclcpp::QoS constructor_impl(
     NodeT * node, const rclcpp::QoS & qos, Func && callback,
     rclcpp::CallbackGroup::SharedPtr callback_group, agnocast::SubscriptionOptions options,
     const bool is_bridge)
@@ -127,10 +128,10 @@ class BasicSubscription : public SubscriptionBase
 
     const bool is_transient_local =
       actual_qos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
-    uint32_t callback_info_id = agnocast::register_callback<MessageT>(
+    callback_info_id_ = agnocast::register_callback<MessageT>(
       std::forward<Func>(callback), topic_name_, id_, is_transient_local, mq, callback_group);
 
-    return {callback_info_id, actual_qos};
+    return actual_qos;
   }
 
 public:
@@ -144,11 +145,11 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    const auto [callback_info_id, actual_qos] =
+    const rclcpp::QoS actual_qos =
       constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, is_bridge);
 
     {
-      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id;
+      uint64_t pid_callback_info_id = (static_cast<uint64_t>(getpid()) << 32) | callback_info_id_;
       TRACEPOINT(
         agnocast_subscription_init, static_cast<const void *>(this),
         static_cast<const void *>(
@@ -167,19 +168,37 @@ public:
   {
     rclcpp::CallbackGroup::SharedPtr callback_group = get_valid_callback_group(node, options);
 
-    [[maybe_unused]] const auto [callback_info_id, actual_qos] =
+    [[maybe_unused]] const rclcpp::QoS actual_qos =
       constructor_impl(node, qos, std::forward<Func>(callback), callback_group, options, false);
 
     // TODO(atsushi421): CARET tracepoint for agnocast::Node
   }
 
-  ~BasicSubscription() { remove_mq(mq_subscription_); }
+  ~BasicSubscription()
+  {
+    // Remove from callback info map to prevent stale references on re-subscription and to avoid
+    // fd reuse conflicts. When mq_close() is called in remove_mq(), the OS may later reuse the
+    // same fd number for a new subscription. If the old entry remains in id2_callback_info,
+    // adding the new fd to epoll (EPOLL_CTL_ADD) can fail with EEXIST because epoll still
+    // associates that fd number with the stale entry.
+    {
+      std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
+      id2_callback_info.erase(callback_info_id_);
+    }
+    remove_mq(mq_subscription_);
+  }
 };
 
 template <typename MessageT, typename BridgeRequestPolicy>
 class BasicTakeSubscription : public SubscriptionBase
 {
 private:
+  // Cached pointer from the most recent take(allow_same_message=true) call.
+  // When the same entry is returned again, a copy sharing the same control_block is returned
+  // so that the kernel-side reference is not released until all userspace copies are destroyed.
+  agnocast::ipc_shared_ptr<const MessageT> last_taken_ptr_;
+  std::mutex last_taken_ptr_mtx_;
+
   template <typename NodeT>
   rclcpp::QoS constructor_impl(
     NodeT * node, const rclcpp::QoS & qos, agnocast::SubscriptionOptions options)
@@ -269,6 +288,29 @@ public:
     TRACEPOINT(
       agnocast_take, static_cast<void *>(this), reinterpret_cast<void *>(take_args.ret_addr),
       take_args.ret_entry_id);
+
+    if (allow_same_message) {
+      // Declared outside the lock scope so that its destructor (which may call ioctl to release
+      // the kernel reference) runs after the mutex is released, avoiding unnecessary contention.
+      agnocast::ipc_shared_ptr<const MessageT> old_ptr;
+      {
+        std::lock_guard<std::mutex> lock(last_taken_ptr_mtx_);
+
+        // When the kernel returned the same entry as last time, return a copy of the cached
+        // pointer (sharing the same control_block) instead of creating a new one.
+        // This keeps the kernel-side reference alive until all copies are destroyed.
+        if (last_taken_ptr_ && last_taken_ptr_.get_entry_id() == take_args.ret_entry_id) {
+          return last_taken_ptr_;
+        }
+
+        MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
+        auto result =
+          agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);
+        old_ptr = std::move(last_taken_ptr_);
+        last_taken_ptr_ = result;
+        return result;
+      }
+    }
 
     MessageT * ptr = reinterpret_cast<MessageT *>(take_args.ret_addr);
     return agnocast::ipc_shared_ptr<const MessageT>(ptr, topic_name_, id_, take_args.ret_entry_id);

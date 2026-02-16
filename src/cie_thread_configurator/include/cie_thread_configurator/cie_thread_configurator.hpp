@@ -2,7 +2,6 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-#include "cie_config_msgs/msg/callback_group_info.hpp"
 #include "cie_config_msgs/msg/non_ros_thread_info.hpp"
 
 #include <sys/syscall.h>
@@ -14,28 +13,9 @@
 #include <string>
 #include <thread>
 #include <tuple>
-#include <vector>
 
 namespace cie_thread_configurator
 {
-
-std::string create_callback_group_id(
-  rclcpp::CallbackGroup::SharedPtr group, rclcpp::Node::SharedPtr node,
-  const std::vector<std::string> & agnocast_topics);
-
-std::string create_callback_group_id(
-  rclcpp::CallbackGroup::SharedPtr group,
-  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node,
-  const std::vector<std::string> & agnocast_topics);
-
-// Caution: Do not call in parallel
-// Caution: Must be called after rclcpp::init() called
-rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr create_client_publisher();
-
-// `publisher` is assumed to be the return value of create_client_publisher()
-void publish_callback_group_info(
-  const rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr & publisher,
-  int64_t tid, const std::string & callback_group_id);
 
 // Get hardware information from lscpu command
 std::map<std::string, std::string> get_hardware_info();
@@ -68,11 +48,12 @@ std::thread spawn_non_ros2_thread(const char * thread_name, F && f, Args &&... a
       std::make_shared<rclcpp::Node>("cie_thread_client", "/cie_thread_configurator", options);
 
     auto publisher = node->create_publisher<cie_config_msgs::msg::NonRosThreadInfo>(
-      "/cie_thread_configurator/non_ros_thread_info", rclcpp::QoS(1000).reliable());
+      "/cie_thread_configurator/non_ros_thread_info", rclcpp::QoS(5000).reliable());
     auto tid = static_cast<pid_t>(syscall(SYS_gettid));
 
-    // Wait for subscriber to connect before publishing (timeout: 1 second)
-    constexpr int max_subscriber_wait_iterations = 100;  // 100 * 10ms = 1 second
+    // Wait for subscriber to connect before publishing (timeout: 5 seconds)
+    // DDS discovery with a fresh rclcpp context can be slow on loaded CI machines.
+    constexpr int max_subscriber_wait_iterations = 500;  // 500 * 10ms = 5 seconds
     int wait_count = 0;
     while (publisher->get_subscription_count() == 0 &&
            wait_count < max_subscriber_wait_iterations) {

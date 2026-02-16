@@ -2,6 +2,8 @@
 
 #include <sys/types.h>
 
+#include <array>
+
 namespace agnocast
 {
 
@@ -65,10 +67,18 @@ union ioctl_publish_msg_args publish_core(
   const topic_local_id_t publisher_id, const uint64_t msg_virtual_address,
   std::unordered_map<topic_local_id_t, std::tuple<mqd_t, bool>> & opened_mqs)
 {
+  std::array<topic_local_id_t, MAX_SUBSCRIBER_NUM> subscriber_ids_buffer{};
+
   union ioctl_publish_msg_args publish_msg_args = {};
   publish_msg_args.topic_name = {topic_name.c_str(), topic_name.size()};
   publish_msg_args.publisher_id = publisher_id;
   publish_msg_args.msg_virtual_address = msg_virtual_address;
+  // The kernel writes subscriber IDs directly to this buffer via copy_to_user,
+  // unlike ret_* fields which are copied back through the union.
+  publish_msg_args.subscriber_ids_buffer_addr =
+    reinterpret_cast<uint64_t>(subscriber_ids_buffer.data());
+  publish_msg_args.subscriber_ids_buffer_size = MAX_SUBSCRIBER_NUM;
+
   if (ioctl(agnocast_fd, AGNOCAST_PUBLISH_MSG_CMD, &publish_msg_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_PUBLISH_MSG_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -78,7 +88,7 @@ union ioctl_publish_msg_args publish_core(
   TRACEPOINT(agnocast_publish, publisher_handle, publish_msg_args.ret_entry_id);
 
   for (uint32_t i = 0; i < publish_msg_args.ret_subscriber_num; i++) {
-    const topic_local_id_t subscriber_id = publish_msg_args.ret_subscriber_ids[i];
+    const topic_local_id_t subscriber_id = subscriber_ids_buffer[i];
     mqd_t mq = 0;
     if (opened_mqs.find(subscriber_id) != opened_mqs.end()) {
       std::tuple<mqd_t, bool> & t = opened_mqs[subscriber_id];
@@ -94,7 +104,10 @@ union ioctl_publish_msg_args publish_core(
         // Right after a subscriber is added, its message queue has not been created yet. Therefore,
         // the `mq_open` call above might fail. In that case, we log a warning and continue, but if
         // the warning keeps appearing, something must be wrong.
-        RCLCPP_WARN(logger, "mq_open failed: %s", strerror(errno));
+        RCLCPP_WARN_STREAM(
+          logger, "mq_open failed for topic '" << topic_name << "' (subscriber_id=" << subscriber_id
+                                               << ", mq_name='" << mq_name
+                                               << "'): " << strerror(errno));
         continue;
       }
       opened_mqs.insert({subscriber_id, {mq, true}});
@@ -107,7 +120,9 @@ union ioctl_publish_msg_args publish_core(
       // hasn't received it yet. Thus, there's no need to send it again since the notification has
       // already been sent.
       if (errno != EAGAIN) {
-        RCLCPP_ERROR(logger, "mq_send failed: %s", strerror(errno));
+        RCLCPP_ERROR_STREAM(
+          logger, "mq_send failed for topic '" << topic_name << "' (subscriber_id=" << subscriber_id
+                                               << "): " << strerror(errno));
       }
     }
   }
@@ -118,7 +133,9 @@ union ioctl_publish_msg_args publish_core(
     if (!keep) {
       mqd_t mq = std::get<0>(it->second);
       if (mq_close(mq) == -1) {
-        RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+        RCLCPP_ERROR_STREAM(
+          logger, "mq_close failed for topic '" << topic_name << "' (subscriber_id=" << it->first
+                                                << "): " << strerror(errno));
       }
       it = opened_mqs.erase(it);
     } else {

@@ -25,19 +25,10 @@ The paper has been accepted to [IEEE ISORC 2025](https://ieeexplore.ieee.org/doc
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Supported Environments](#supported-environments)
 - [For Users](#for-users)
-  - [Clone the repository](#clone-the-repository)
-  - [Setup](#setup)
-  - [Build](#build)
-  - [Run](#run)
-  - [Bridge Feature](#bridge-feature)
 - [For Developers](#for-developers)
-  - [Clone the repository](#clone-the-repository-1)
-  - [Setup pre-commit](#setup-pre-commit)
-  - [Build and insert kmod](#build-and-insert-kmod)
-  - [Test](#test)
-  - [Kernel Module Test](#kernel-module-test)
 - [Debug](#debug)
 - [Troubleshooting](#troubleshooting)
 - [Documents](#documents)
@@ -193,10 +184,30 @@ export AGNOCAST_BRIDGE_MODE=off
 
 ### Performance Mode Setup
 
-Performance mode requires pre-compiled bridge plugins. Build with:
+Performance mode requires pre-compiled bridge plugins for each message type used. Generate and build them using the following steps:
+
+**1. Generate the plugin package:**
 
 ```bash
-BUILD_GENERIC_BRIDGE=ON colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+# For specific message types
+ros2 agnocast generate-bridge-plugins --message-types std_msgs/msg/String geometry_msgs/msg/Pose
+
+# Or for all available message types
+ros2 agnocast generate-bridge-plugins --all
+```
+
+**2. Build the generated package:**
+
+```bash
+colcon build --packages-select agnocast_bridge_plugins
+```
+
+**3. Source and run:**
+
+```bash
+source install/setup.bash
+export AGNOCAST_BRIDGE_MODE=performance
+# Run your application
 ```
 
 For detailed information, see [Bridge Documentation](./docs/agnocast_ros2_bridge.md).
@@ -350,3 +361,6 @@ rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 - [agnocast::Node and rclcpp::Node interface comparison](./docs/agnocast_node_interface_comparison.md)
 - [Callback Isolated Executor for Agnocast](./docs/callback_isolated_executor_for_agnocast.md)
 - [Agnocast-ROS 2 Bridge](./docs/agnocast_ros2_bridge.md)
+- [Message Filters Design Document](./docs/message_filters_design_document.md)
+- [Message Filters User Guide](./docs/message_filters_user_guide.md)
+- [ApproximateTime Algorithm](./docs/approximate_time_algorithm.md)
