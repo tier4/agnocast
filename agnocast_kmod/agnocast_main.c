@@ -680,12 +680,12 @@ static int set_publisher_shm_info(
     if (ret < 0) {
       if (ret == -EEXIST) {
         continue;
-      } else if (ret == -ENOBUFS) {
+      } else if (ret == -ENOMEM) {
         dev_warn(
           agnocast_device,
-          "Process (pid=%d)'s memory pool is already full (MAX_PROCESS_NUM_PER_MEMPOOL=%d), so no "
-          "new mapping from pid=%d can be created. (set_publisher_shm_info)\n",
-          pub_info->pid, MAX_PROCESS_NUM_PER_MEMPOOL, subscriber_pid);
+          "Failed to allocate memory for mapping from pid=%d to process (pid=%d)'s memory pool. "
+          "(set_publisher_shm_info)\n",
+          subscriber_pid, pub_info->pid);
         return ret;
       } else {
         dev_warn(
@@ -1432,10 +1432,11 @@ int ioctl_get_topic_list(
       goto unlock;
     }
 
-    if (copy_to_user(
-          (char __user *)(topic_list_args->topic_name_buffer_addr +
-                          topic_num * TOPIC_NAME_BUFFER_SIZE),
-          wrapper->key, strlen(wrapper->key) + 1)) {
+    if (
+      copy_to_user(
+        (char
+           __user *)(topic_list_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+        wrapper->key, strlen(wrapper->key) + 1)) {
       ret = -EFAULT;
       goto unlock;
     }
@@ -1490,10 +1491,11 @@ static int ioctl_get_node_subscriber_topics(
         goto unlock;
       }
 
-      if (copy_to_user(
-            (char __user *)(node_info_args->topic_name_buffer_addr +
-                            topic_num * TOPIC_NAME_BUFFER_SIZE),
-            wrapper->key, strlen(wrapper->key) + 1)) {
+      if (
+        copy_to_user(
+          (char
+             __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+          wrapper->key, strlen(wrapper->key) + 1)) {
         ret = -EFAULT;
         goto unlock;
       }
@@ -1549,10 +1551,11 @@ static int ioctl_get_node_publisher_topics(
         goto unlock;
       }
 
-      if (copy_to_user(
-            (char __user *)(node_info_args->topic_name_buffer_addr +
-                            topic_num * TOPIC_NAME_BUFFER_SIZE),
-            wrapper->key, strlen(wrapper->key) + 1)) {
+      if (
+        copy_to_user(
+          (char
+             __user *)(node_info_args->topic_name_buffer_addr + topic_num * TOPIC_NAME_BUFFER_SIZE),
+          wrapper->key, strlen(wrapper->key) + 1)) {
         ret = -EFAULT;
         goto unlock;
       }
