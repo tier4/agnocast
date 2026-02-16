@@ -356,6 +356,8 @@ pid_t spawn_daemon_process(Func && func)
     exit(EXIT_FAILURE);
   }
   if (pid == 0) {
+    agnocast::is_bridge_process = true;
+    unsetenv("LD_PRELOAD");
     func();
     exit(0);
   }
@@ -404,23 +406,6 @@ struct initialize_agnocast_result initialize_agnocast(
   pid_t target_pid = 0;
   bool should_spawn_bridge = false;
   auto bridge_mode = get_bridge_mode();
-  bool bridge_spawn_disabled = (std::getenv("AGNOCAST_DISABLE_BRIDGE_SPAWN") != nullptr);
-
-  // This environment variable acts as a control flag that is inherited by any exec()-based
-  // children of the BridgeManager (including popen() ). It prevents those children
-  // from recursively spawning additional BridgeManager instances.
-  if (setenv("AGNOCAST_DISABLE_BRIDGE_SPAWN", "1", 1) != 0) {
-    int err = errno;
-    RCLCPP_ERROR(logger, "setenv failed for AGNOCAST_DISABLE_BRIDGE_SPAWN: %s", strerror(err));
-    if (bridge_mode == BridgeMode::Standard) {
-      RCLCPP_ERROR(
-        logger,
-        "To prevent potential infinite bridge spawning, AGNOCAST_DISABLE_BRIDGE_SPAWN must be "
-        "set ");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-  }
 
   // Create a shm_unlink daemon process if it doesn't exist in its ipc namespace.
   if (!add_process_args.ret_unlink_daemon_exist) {
@@ -437,15 +422,9 @@ struct initialize_agnocast_result initialize_agnocast(
     should_spawn_bridge = true;
   }
 
-  if (should_spawn_bridge && !bridge_spawn_disabled) {
+  if (should_spawn_bridge) {
     standard_bridge_manager_pid =
       spawn_daemon_process([target_pid]() { poll_for_bridge_manager(target_pid); });
-  }
-
-  // The flag was only needed for the child process to inherit.
-  // Unset it now to avoid polluting the current process's environment.
-  if (!bridge_spawn_disabled) {
-    unsetenv("AGNOCAST_DISABLE_BRIDGE_SPAWN");
   }
 
   void * mempool_ptr =
