@@ -56,11 +56,11 @@ void test_case_take_msg_no_topic(struct kunit * test)
   topic_local_id_t subscriber_id = 0;
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
-  bool is_transient_local = false;
+  bool allow_same_message = false;
 
   // Act
   int ret = ioctl_take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, is_transient_local, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -719,20 +719,19 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   union ioctl_add_process_args add_process_args;
   const pid_t pid = 1000;
   int ret1 = ioctl_add_process(pid, current->nsproxy->ipc_ns, &add_process_args);
-  const bool publisher_transient_local = false;
+  const bool is_transient_local = false;
 
   union ioctl_add_subscriber_args add_subscriber_args;
   const uint32_t subscriber_qos_depth = 10;
   int ret2 = ioctl_add_subscriber(
-    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, subscriber_qos_depth,
-    publisher_transient_local, IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
-    &add_subscriber_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, subscriber_qos_depth, is_transient_local,
+    IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE, &add_subscriber_args);
 
   union ioctl_add_publisher_args add_publisher_args;
   const uint32_t publisher_qos_depth = 10;
   int ret3 = ioctl_add_publisher(
-    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, publisher_qos_depth,
-    publisher_transient_local, IS_BRIDGE, &add_publisher_args);
+    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, pid, publisher_qos_depth, is_transient_local,
+    IS_BRIDGE, &add_publisher_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);

@@ -497,6 +497,9 @@ int increment_message_entry_rc(
   return 0;
 }
 
+// Forward declaration
+static int get_process_num(const struct ipc_namespace * ipc_ns);
+
 // Release subscriber reference from message entry (set boolean flag to false).
 // Called when subscriber's last ipc_shared_ptr reference is destroyed.
 int ioctl_release_message_entry_reference(
@@ -692,7 +695,7 @@ int ioctl_add_process(
     dev_warn(agnocast_device, "Process (pid=%d) already exists. (ioctl_add_process)\n", pid);
     return -EINVAL;
   }
-  ioctl_ret->ret_unlink_daemon_exist = (ioctl_get_process_num(ipc_ns) > 0);
+  ioctl_ret->ret_unlink_daemon_exist = (get_process_num(ipc_ns) > 0);
 
   struct process_info * new_proc_info = kmalloc(sizeof(struct process_info), GFP_KERNEL);
   if (!new_proc_info) {
@@ -1268,7 +1271,7 @@ static int ioctl_get_exit_process(
     break;
   }
 
-  ioctl_ret->ret_daemon_should_exit = (ioctl_get_process_num(ipc_ns) == 0);
+  ioctl_ret->ret_daemon_should_exit = (get_process_num(ipc_ns) == 0);
   return 0;
 }
 
@@ -1845,7 +1848,7 @@ int ioctl_remove_bridge(
   return 0;
 }
 
-int ioctl_get_process_num(const struct ipc_namespace * ipc_ns)
+static int get_process_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct process_info * proc_info;
@@ -1857,6 +1860,11 @@ int ioctl_get_process_num(const struct ipc_namespace * ipc_ns)
     }
   }
   return count;
+}
+
+int ioctl_get_process_num(const struct ipc_namespace * ipc_ns)
+{
+  return get_process_num(ipc_ns);
 }
 
 static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long arg)
