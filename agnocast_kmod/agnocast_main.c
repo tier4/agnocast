@@ -100,7 +100,8 @@ struct topic_wrapper
   const struct ipc_namespace *
     ipc_ns;  // For use in separating topic namespaces when using containers.
   char * key;
-  struct rw_semaphore topic_rwsem;  // Per-topic rwsem: read for receive, write for publish/modify
+  struct rw_semaphore
+    topic_rwsem;  // Per-topic rwsem: read for read-only ops, write for publish/receive/modify
   struct topic_struct topic;
   struct hlist_node node;
 };
@@ -2100,20 +2101,17 @@ unlock:
   return ret;
 }
 
-// Caller must hold global_htables_rwsem
 static int get_process_num(const struct ipc_namespace * ipc_ns)
 {
   int count = 0;
   struct process_info * proc_info;
   int bkt_proc_info;
-
   hash_for_each(proc_info_htable, bkt_proc_info, proc_info, node)
   {
     if (ipc_eq(ipc_ns, proc_info->ipc_ns)) {
       count++;
     }
   }
-
   return count;
 }
 
