@@ -25,6 +25,14 @@
 // In Jazzy, TRACEPOINT macro is for calling tracepoints, not defining function names.
 // We need to define the functions explicitly with ros_trace_ prefix.
 
+void ros_trace_agnocast_init(
+  const void * context_handle)
+{
+  CONDITIONAL_TP(
+    agnocast_init,
+    context_handle);
+}
+
 void ros_trace_agnocast_node_init(
   const void * node_handle,
   const char * node_name,
@@ -73,6 +81,64 @@ void ros_trace_agnocast_subscription_init(
     pid_callback_info_id);
 }
 
+void ros_trace_agnocast_service_init(
+  const void * node_handle,
+  const void * service_handle,
+  const void * subscription_handle,
+  const char * service_name,
+  const void * callback_group,
+  const char * symbol)
+{
+  CONDITIONAL_TP(
+    agnocast_service_init,
+    node_handle,
+    service_handle,
+    subscription_handle,
+    service_name,
+    callback_group,
+    symbol);
+}
+
+void ros_trace_agnocast_client_init(
+  const void * node_handle,
+  const void * client_handle,
+  const char * service_name,
+  const void * callback_group)
+{
+  CONDITIONAL_TP(
+    agnocast_client_init,
+    node_handle,
+    client_handle,
+    service_name,
+    callback_group);
+}
+
+void ros_trace_agnocast_timer_init(
+  const void * node_handle,
+  const uint64_t pid_timer_id,
+  const void * callback_group,
+  const char * symbol,
+  int64_t period)
+{
+  CONDITIONAL_TP(
+    agnocast_timer_init,
+    node_handle,
+    pid_timer_id,
+    callback_group,
+    symbol,
+    period);
+}
+
+void ros_trace_agnocast_add_callback_group(
+  const void * executor_addr,
+  const void * callback_group_addr)
+{
+  CONDITIONAL_TP(
+    agnocast_add_callback_group,
+    executor_addr,
+    callback_group_addr);
+}
+
 void ros_trace_agnocast_publish(
   const void * publisher_handle,
   const int64_t entry_id)
@@ -93,6 +159,16 @@ void ros_trace_agnocast_create_callable(
     callable,
     entry_id,
     pid_callback_info_id);
+}
+
+void ros_trace_agnocast_create_timer_callable(
+  const void * callable,
+  const uint64_t pid_timer_id)
+{
+  CONDITIONAL_TP(
+    agnocast_create_timer_callable,
+    callable,
+    pid_timer_id);
 }
 
 void ros_trace_agnocast_callable_start(
