@@ -33,7 +33,7 @@ TransformListener::TransformListener(
 
     // Create executor with dedicated thread to spin.
     executor_ = std::make_shared<agnocast::AgnocastOnlySingleThreadedExecutor>();
-    executor_->add_callback_group(callback_group_);
+    executor_->add_callback_group(callback_group_, node.get_node_base_interface());
     dedicated_listener_thread_ = std::make_unique<std::thread>([&]() { executor_->spin(); });
     // Tell the buffer we have a dedicated thread to enable timeouts
     buffer_.setUsingDedicatedThread(true);
