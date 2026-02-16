@@ -8,7 +8,7 @@
 namespace agnocast
 {
 
-#define MAX_PUBLISHER_NUM 4      // Maximum number of publishers per topic
+#define MAX_PUBLISHER_NUM 128    // Maximum number of publishers per topic
 #define MAX_TOPIC_LOCAL_ID 1024  // Bitmap size for per-entry subscriber reference tracking
 #define MAX_SUBSCRIBER_NUM \
   (MAX_TOPIC_LOCAL_ID - MAX_PUBLISHER_NUM)  // Maximum number of subscribers per topic
@@ -29,13 +29,6 @@ constexpr const char * AGNOCAST_DEVICE_NOT_FOUND_MSG =
   "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.";
 
 using topic_local_id_t = int32_t;
-struct publisher_shm_info
-{
-  uint32_t publisher_num;
-  pid_t publisher_pids[MAX_PUBLISHER_NUM];
-  uint64_t shm_addrs[MAX_PUBLISHER_NUM];
-  uint64_t shm_sizes[MAX_PUBLISHER_NUM];
-};
 struct name_info
 {
   const char * ptr;
@@ -115,6 +108,11 @@ union ioctl_receive_msg_args {
   {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
+    // publisher shm info buffers (user-space allocated)
+    uint64_t pub_shm_pids_buffer_addr;
+    uint64_t pub_shm_addrs_buffer_addr;
+    uint64_t pub_shm_sizes_buffer_addr;
+    uint32_t pub_shm_buffer_size;
   };
   struct
   {
@@ -122,7 +120,7 @@ union ioctl_receive_msg_args {
     bool ret_call_again;
     int64_t ret_entry_ids[MAX_RECEIVE_NUM];
     uint64_t ret_entry_addrs[MAX_RECEIVE_NUM];
-    struct publisher_shm_info ret_pub_shm_info;
+    uint32_t ret_pub_shm_num;
   };
 };
 #pragma GCC diagnostic pop
@@ -159,12 +157,16 @@ union ioctl_take_msg_args {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
     bool allow_same_message;
+    uint64_t pub_shm_pids_buffer_addr;
+    uint64_t pub_shm_addrs_buffer_addr;
+    uint64_t pub_shm_sizes_buffer_addr;
+    uint32_t pub_shm_buffer_size;
   };
   struct
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
-    struct publisher_shm_info ret_pub_shm_info;
+    uint32_t ret_pub_shm_num;
   };
 };
 #pragma GCC diagnostic pop

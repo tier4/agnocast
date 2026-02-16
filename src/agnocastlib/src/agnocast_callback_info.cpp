@@ -3,6 +3,8 @@
 #include "agnocast/agnocast.hpp"
 #include "agnocast/agnocast_executor.hpp"
 
+#include <array>
+
 namespace agnocast
 {
 
@@ -18,9 +20,17 @@ void receive_and_execute_message(
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
+  std::array<pid_t, MAX_PUBLISHER_NUM> pub_pids_buffer{};
+  std::array<uint64_t, MAX_PUBLISHER_NUM> pub_addrs_buffer{};
+  std::array<uint64_t, MAX_PUBLISHER_NUM> pub_sizes_buffer{};
+
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
+  receive_args.pub_shm_pids_buffer_addr = reinterpret_cast<uint64_t>(pub_pids_buffer.data());
+  receive_args.pub_shm_addrs_buffer_addr = reinterpret_cast<uint64_t>(pub_addrs_buffer.data());
+  receive_args.pub_shm_sizes_buffer_addr = reinterpret_cast<uint64_t>(pub_sizes_buffer.data());
+  receive_args.pub_shm_buffer_size = MAX_PUBLISHER_NUM;
 
   {
     std::lock_guard<std::mutex> lock(mmap_mtx);
@@ -32,10 +42,10 @@ void receive_and_execute_message(
     }
 
     // Map the shared memory region with read permissions whenever a new publisher is discovered.
-    for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
-      const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
-      const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
-      const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
+    for (uint32_t i = 0; i < receive_args.ret_pub_shm_num; i++) {
+      const pid_t pid = pub_pids_buffer[i];
+      const uint64_t addr = pub_addrs_buffer[i];
+      const uint64_t size = pub_sizes_buffer[i];
       map_read_only_area(pid, addr, size);
     }
   }
