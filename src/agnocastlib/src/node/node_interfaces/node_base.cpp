@@ -103,7 +103,6 @@ NodeBase::NodeBase(
   // when creating GuardCondition during ROS shutdown
   if (context_ && context_->is_valid()) {
     notify_guard_condition_.emplace(context_);
-    notify_guard_condition_is_valid_ = true;
   }
 }
 
@@ -210,7 +209,7 @@ std::atomic_bool & NodeBase::get_associated_with_executor_atomic()
 rclcpp::GuardCondition & NodeBase::get_notify_guard_condition()
 {
   std::lock_guard<std::recursive_mutex> lock(notify_guard_condition_mutex_);
-  if (!notify_guard_condition_is_valid_ || !notify_guard_condition_.has_value()) {
+  if (!notify_guard_condition_.has_value()) {
     throw std::runtime_error(
       "notify_guard_condition is not available. "
       "This agnocast::Node was created without a valid context.");

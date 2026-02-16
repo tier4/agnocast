@@ -89,11 +89,12 @@ private:
   const rcl_arguments_t * local_args_ = nullptr;
   const rcl_arguments_t * global_args_ = nullptr;
 
-  // Guard condition for executor notification
-  // This is required for compatibility with rclcpp::Executor::add_node()
+  // Guard condition for executor notification.
+  // agnocast::Node uses its own epoll-based dispatch and does not need this guard condition,
+  // but rclcpp::Executor::add_node() (called by ComponentManager::add_node_to_executor())
+  // requires it in add_callback_group_to_map().
   std::optional<rclcpp::GuardCondition> notify_guard_condition_;
   mutable std::recursive_mutex notify_guard_condition_mutex_;
-  bool notify_guard_condition_is_valid_{false};
 };
 
 }  // namespace agnocast::node_interfaces
