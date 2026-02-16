@@ -177,7 +177,6 @@ void NodeTimeSource::destroy_clock_sub()
 {
   std::lock_guard<std::mutex> guard(clock_sub_lock_);
 
-  // Stop the dedicated executor and join the thread
   if (clock_executor_thread_.joinable()) {
     clock_executor_->cancel();
     clock_executor_thread_.join();

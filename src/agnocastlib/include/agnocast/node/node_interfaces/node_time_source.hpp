@@ -48,7 +48,6 @@ private:
   std::mutex clock_sub_lock_;
   rclcpp::Logger logger_{rclcpp::get_logger("agnocast")};
 
-  // Dedicated executor and thread for /clock processing
   std::unique_ptr<AgnocastOnlySingleThreadedExecutor> clock_executor_;
   std::thread clock_executor_thread_;
 
