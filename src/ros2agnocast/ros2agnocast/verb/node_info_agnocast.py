@@ -156,20 +156,18 @@ class NodeInfoAgnocastVerb(VerbExtension):
                         try:
                             for i in range(pub_count.value):
                                 if pub_array[i].node_name.decode('utf-8') == node_name:
-                                    # Check if this topic is used by a service server
-                                    service_name = service_name_from_request_topic(topic_name)
-                                    if service_name is not None:
-                                        server_set.add(service_name)
-                                        break
-                                    service_name = service_name_from_response_topic(topic_name)
-                                    if service_name is not None:
-                                        client_set.add(service_name)
-                                        break
+                                    # Skip topic names used by services.
+                                    # They have already been accounted for during the subscription topic scan.
+                                    if (
+                                        service_name_from_request_topic(topic_name) is not None
+                                        or service_name_from_response_topic(topic_name) is not None
+                                    ):
+                                        continue
                                     pub_topic_set.add(topic_name)
                         finally:
                             lib.free_agnocast_topic_info_ret(pub_array)
 
-                return sorted(sub_topic_set), sorted(pub_topic_set), sorted(server_set), sorted(client_set)
+                return list(sub_topic_set), list(pub_topic_set), list(server_set), list(client_set)
             
             def get_ros2_node_agnocast_topic(node_name):
                 sub_topic_list = []
