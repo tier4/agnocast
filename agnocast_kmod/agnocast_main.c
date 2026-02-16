@@ -16,6 +16,11 @@ static int major;
 static struct class * agnocast_class;
 static struct device * agnocast_device;
 
+// Locking convention:
+//   Only ioctl_ prefixed functions acquire locks. All other internal/static functions are
+//   lock-free and rely on callers to hold the appropriate locks. Exceptions are
+//   process_exit_cleanup and agnocast_exit_free_data, which manage locks directly.
+//
 // Lock ordering (to prevent deadlocks, always acquire in this order):
 //   1. global_htables_rwsem   (this file)
 //   2. topic_rwsem            (per-topic, in struct topic_wrapper)
