@@ -16,8 +16,10 @@ struct AgnocastExecutable;
 extern std::atomic<bool> need_epoll_updates;
 
 constexpr uint32_t TIMER_EVENT_FLAG = 0x80000000;
+constexpr uint32_t SHUTDOWN_EVENT_FLAG = 0x40000000;
 
-void wait_and_handle_epoll_event(
+/// @return true if shutdown event detected, false otherwise
+bool wait_and_handle_epoll_event(
   int epoll_fd, pid_t my_pid, int timeout_ms, std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables);
 
@@ -54,7 +56,7 @@ void prepare_epoll_impl(
       }
 
       if (callback_info.is_transient_local) {
-        agnocast::receive_message(
+        agnocast::enqueue_receive_and_execute(
           callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
           ready_agnocast_executables);
       }
