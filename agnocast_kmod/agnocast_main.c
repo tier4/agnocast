@@ -2618,6 +2618,9 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
 #ifdef KUNIT_BUILD
 
+// No locking needed for the following KUnit helper functions.
+// These are only called from single-threaded KUnit context.
+
 int get_alive_proc_num(void)
 {
   int count = 0;
