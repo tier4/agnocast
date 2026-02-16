@@ -173,6 +173,10 @@ void AgnocastOnlyExecutor::add_callback_group(
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
+
+  TRACEPOINT(
+    agnocast_add_callback_group, static_cast<const void *>(this),
+    static_cast<const void *>(group_ptr.get()));
 }
 
 void AgnocastOnlyExecutor::remove_callback_group(
@@ -263,6 +267,10 @@ void AgnocastOnlyExecutor::add_callback_groups_from_nodes_associated_to_executor
             group_ptr->automatically_add_to_executor_with_node() &&
             !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
             weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node});
+
+            TRACEPOINT(
+              agnocast_add_callback_group, static_cast<const void *>(this),
+              static_cast<const void *>(group_ptr.get()));
           }
         });
     }

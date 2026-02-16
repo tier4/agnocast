@@ -136,6 +136,23 @@ public:
           node, topic_name, qos, std::move(cb), options);
       },
       node_);
+
+    if (!group) {
+      group = node->get_node_base_interface()->get_default_callback_group();
+    }
+
+    if constexpr (std::is_same_v<NodeT, agnocast::Node>) {
+      TRACEPOINT(
+        agnocast_client_init, static_cast<const void *>(node), static_cast<const void *>(this),
+        service_name_.c_str(), static_cast<const void *>(group.get()));
+    } else {
+      TRACEPOINT(
+        agnocast_client_init,
+        static_cast<const void *>(
+          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
+        static_cast<const void *>(this), service_name_.c_str(),
+        static_cast<const void *>(group.get()));
+    }
   }
 
   ipc_shared_ptr<RequestT> borrow_loaned_request()

@@ -350,6 +350,14 @@ public:
 
     register_timer_info(timer_id, timer, period, group, timer->get_clock());
 
+    {
+      constexpr uint8_t PID_SHIFT_BITS = 32;
+      uint64_t pid_timer_id = (static_cast<uint64_t>(getpid()) << PID_SHIFT_BITS) | timer_id;
+      TRACEPOINT(
+        agnocast_timer_init, static_cast<const void *>(this), pid_timer_id,
+        static_cast<const void *>(group.get()), tracetools::get_symbol(callback), period.count());
+    }
+
     return timer;
   }
 
@@ -381,6 +389,15 @@ public:
       timer_id, period_ns, clock, std::forward<CallbackT>(callback));
 
     register_timer_info(timer_id, timer, period_ns, group, clock);
+
+    {
+      constexpr uint8_t PID_SHIFT_BITS = 32;
+      uint64_t pid_timer_id = (static_cast<uint64_t>(getpid()) << PID_SHIFT_BITS) | timer_id;
+      TRACEPOINT(
+        agnocast_timer_init, static_cast<const void *>(this), pid_timer_id,
+        static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
+        period_ns.count());
+    }
 
     return timer;
   }
