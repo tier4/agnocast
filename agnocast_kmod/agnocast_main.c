@@ -2945,6 +2945,7 @@ void process_exit_cleanup(const pid_t pid)
   // kernel worker thread calls this function, proc_info cannot disappear between the read and
   // write lock. This re-check is not strictly necessary, but we keep it as defensive programming.
   proc_info = NULL;
+  // cppcheck-suppress nullPointer // proc_info is set by hash_for_each_possible macro
   hash_for_each_possible(proc_info_htable, proc_info, node, hash_val)
   {
     if (proc_info->global_pid == pid) {
