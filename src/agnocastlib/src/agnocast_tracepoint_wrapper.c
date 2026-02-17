@@ -81,38 +81,6 @@ void ros_trace_agnocast_subscription_init(
     pid_callback_info_id);
 }
 
-void ros_trace_agnocast_service_init(
-  const void * node_handle,
-  const void * service_handle,
-  const void * subscription_handle,
-  const char * service_name,
-  const void * callback_group,
-  const char * symbol)
-{
-  CONDITIONAL_TP(
-    agnocast_service_init,
-    node_handle,
-    service_handle,
-    subscription_handle,
-    service_name,
-    callback_group,
-    symbol);
-}
-
-void ros_trace_agnocast_client_init(
-  const void * node_handle,
-  const void * client_handle,
-  const char * service_name,
-  const void * callback_group)
-{
-  CONDITIONAL_TP(
-    agnocast_client_init,
-    node_handle,
-    client_handle,
-    service_name,
-    callback_group);
-}
-
 void ros_trace_agnocast_timer_init(
   const void * node_handle,
   const uint64_t pid_timer_id,

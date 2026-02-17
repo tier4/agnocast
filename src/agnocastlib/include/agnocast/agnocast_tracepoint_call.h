@@ -84,54 +84,6 @@ TRACEPOINT_EVENT(
   )
 )
 
-// Records service initialization information.
-// Links a service to its node (via node_handle matching agnocast_node_init),
-// and to its internal subscription (via subscription_handle matching agnocast_subscription_init).
-
-// TODO: caret_analyzeの実装時にcallbackフィールドが必要か確認する。
-// ただしServiceは内部的にBasicSubscriptionを使用しており、
-// agnocast_subscription_init経由でcallbackが記録されるため不要な可能性が高い。
-TRACEPOINT_EVENT(
-  TRACEPOINT_PROVIDER,
-  agnocast_service_init,
-  TP_ARGS(
-    const void *, node_handle_arg,          // agnocast::Node pointer (same as agnocast_node_init)
-    const void *, service_handle_arg,       // agnocast::Service pointer for identification
-    const void *, subscription_handle_arg,  // internal BasicSubscription pointer, links to agnocast_subscription_init
-    const char *, service_name_arg,         // resolved service name
-    const void *, callback_group_arg,       // callback group this service belongs to
-    const char *, symbol_arg                // demangled callback function name for display
-  ),
-  TP_FIELDS(
-    ctf_integer_hex(const void *, node_handle, node_handle_arg)
-    ctf_integer_hex(const void *, service_handle, service_handle_arg)
-    ctf_integer_hex(const void *, subscription_handle, subscription_handle_arg)
-    ctf_string(service_name, service_name_arg)
-    ctf_integer_hex(const void *, callback_group, callback_group_arg)
-    ctf_string(symbol, symbol_arg)
-  )
-)
-
-// Records client initialization information.
-// Links a client to its node (via node_handle matching agnocast_node_init).
-// Equivalent to rcl_client_init + callback_group_add_client in rclcpp.
-TRACEPOINT_EVENT(
-  TRACEPOINT_PROVIDER,
-  agnocast_client_init,
-  TP_ARGS(
-    const void *, node_handle_arg,
-    const void *, client_handle_arg,
-    const char *, service_name_arg,
-    const void *, callback_group_arg
-  ),
-  TP_FIELDS(
-    ctf_integer_hex(const void *, node_handle, node_handle_arg)
-    ctf_integer_hex(const void *, client_handle, client_handle_arg)
-    ctf_string(service_name, service_name_arg)
-    ctf_integer_hex(const void *, callback_group, callback_group_arg)
-  )
-)
-
 // Records timer initialization information.
 // Links a timer to its node (via node_handle matching agnocast_node_init),
 // and stores metadata for identification in caret_analyze.

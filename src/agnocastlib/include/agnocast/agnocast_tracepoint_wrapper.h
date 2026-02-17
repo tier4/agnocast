@@ -41,22 +41,6 @@ DECLARE_TRACEPOINT(
   const uint64_t pid_callback_info_id)
 
 DECLARE_TRACEPOINT(
-  agnocast_service_init,
-  const void * node_handle,
-  const void * service_handle,
-  const void * subscription_handle,
-  const char * service_name,
-  const void * callback_group,
-  const char * symbol)
-
-DECLARE_TRACEPOINT(
-  agnocast_client_init,
-  const void * node_handle,
-  const void * client_handle,
-  const char * service_name,
-  const void * callback_group)
-
-DECLARE_TRACEPOINT(
   agnocast_timer_init,
   const void * node_handle,
   const uint64_t pid_timer_id,

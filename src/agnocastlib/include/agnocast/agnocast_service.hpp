@@ -101,21 +101,6 @@ public:
     std::string topic_name = create_service_request_topic_name(service_name_);
     subscriber_ = std::make_shared<BasicSubscription<RequestT, NoBridgeRequestPolicy>>(
       node, topic_name, qos, std::move(subscriber_callback), options);
-
-    if constexpr (std::is_same_v<NodeT, agnocast::Node>) {
-      TRACEPOINT(
-        agnocast_service_init, static_cast<const void *>(node), static_cast<const void *>(this),
-        static_cast<const void *>(subscriber_.get()), service_name_.c_str(),
-        static_cast<const void *>(group.get()), tracetools::get_symbol(callback));
-    } else {
-      TRACEPOINT(
-        agnocast_service_init,
-        static_cast<const void *>(
-          node->get_node_base_interface()->get_shared_rcl_node_handle().get()),
-        static_cast<const void *>(this), static_cast<const void *>(subscriber_.get()),
-        service_name_.c_str(), static_cast<const void *>(group.get()),
-        tracetools::get_symbol(callback));
-    }
   }
 };
 
