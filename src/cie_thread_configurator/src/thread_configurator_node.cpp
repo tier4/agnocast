@@ -454,10 +454,17 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
 
   ThreadConfig * config = it->second;
   if (config->applied) {
+    if (config->thread_id == msg->thread_id) {
+      RCLCPP_INFO(
+        this->get_logger(), "This non-ROS thread is already configured. skip (name=%s, tid=%ld)",
+        msg->thread_name.c_str(), msg->thread_id);
+      return;
+    }
     RCLCPP_INFO(
-      this->get_logger(), "This non-ROS thread is already configured. skip (name=%s, tid=%ld)",
-      msg->thread_name.c_str(), msg->thread_id);
-    return;
+      this->get_logger(),
+      "This non-ROS thread is already configured, but thread_id changed. "
+      "Re-applying configuration (name=%s, old_tid=%ld, new_tid=%ld)",
+      msg->thread_name.c_str(), config->thread_id, msg->thread_id);
   }
 
   RCLCPP_INFO(
@@ -478,8 +485,10 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
     }
   }
 
+  if (!config->applied) {
+    unapplied_num_--;
+  }
   config->applied = true;
-  unapplied_num_--;
 
   if (unapplied_num_ == 0) {
     apply_deadline_configs();
