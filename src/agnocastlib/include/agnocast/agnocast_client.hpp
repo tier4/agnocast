@@ -136,10 +136,6 @@ public:
           node, topic_name, qos, std::move(cb), options);
       },
       node_);
-
-    if (!group) {
-      group = node->get_node_base_interface()->get_default_callback_group();
-    }
   }
 
   ipc_shared_ptr<RequestT> borrow_loaned_request()

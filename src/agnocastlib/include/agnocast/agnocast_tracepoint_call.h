@@ -209,9 +209,6 @@ TRACEPOINT_EVENT(
 )
 
 // TODO: executor → callback_groupの紐付けについて：
-// - CIE経由のSingleThreadedAgnocastExecutorではdedicate_to_callback_groupから
-//   rclcpp::Executor::add_callback_groupが呼ばれるため、CARET側にトレースポイントが
-//   あれば発火する。caret_trace作業時に確認する。
 // - AgnocastOnly系はrclcpp::Executorを継承していないため発火しない。
 //   必要な場合はagnocast側にトレースポイントの追加が必要。caret_analyze作業時に確認する。
 TRACEPOINT_EVENT(

@@ -93,10 +93,6 @@ public:
         publisher->publish(std::move(response));
       };
 
-    if (!group) {
-      group = node->get_node_base_interface()->get_default_callback_group();
-    }
-
     SubscriptionOptions options{group};
     std::string topic_name = create_service_request_topic_name(service_name_);
     subscriber_ = std::make_shared<BasicSubscription<RequestT, NoBridgeRequestPolicy>>(
