@@ -16,6 +16,13 @@
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
 
 typedef int32_t topic_local_id_t;
+struct publisher_shm_info
+{
+  uint32_t publisher_num;
+  pid_t publisher_pids[MAX_PUBLISHER_NUM];  // Must be local PIDs, not global PIDs
+  uint64_t shm_addrs[MAX_PUBLISHER_NUM];
+  uint64_t shm_sizes[MAX_PUBLISHER_NUM];
+};
 struct name_info
 {
   const char * ptr;
@@ -81,11 +88,9 @@ union ioctl_receive_msg_args {
   {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
-    // publisher shm info buffers (user-space allocated)
-    uint64_t pub_shm_pids_buffer_addr;
-    uint64_t pub_shm_addrs_buffer_addr;
-    uint64_t pub_shm_sizes_buffer_addr;
-    uint32_t pub_shm_buffer_size;
+    // Pointer to a user-space allocated publisher_shm_info struct.
+    // The kernel writes publisher shm info directly to this buffer via copy_to_user.
+    uint64_t pub_shm_info_addr;
   };
   struct
   {
@@ -93,7 +98,6 @@ union ioctl_receive_msg_args {
     bool ret_call_again;
     int64_t ret_entry_ids[MAX_RECEIVE_NUM];
     uint64_t ret_entry_addrs[MAX_RECEIVE_NUM];
-    uint32_t ret_pub_shm_num;
   };
 };
 
@@ -124,16 +128,12 @@ union ioctl_take_msg_args {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
     bool allow_same_message;
-    uint64_t pub_shm_pids_buffer_addr;
-    uint64_t pub_shm_addrs_buffer_addr;
-    uint64_t pub_shm_sizes_buffer_addr;
-    uint32_t pub_shm_buffer_size;
+    uint64_t pub_shm_info_addr;
   };
   struct
   {
     uint64_t ret_addr;
     int64_t ret_entry_id;
-    uint32_t ret_pub_shm_num;
   };
 };
 
@@ -340,8 +340,8 @@ int ioctl_release_message_entry_reference(
 
 int ioctl_receive_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  const topic_local_id_t subscriber_id, pid_t * pub_pids_buf, uint64_t * pub_addrs_buf,
-  uint64_t * pub_sizes_buf, uint32_t pub_shm_buffer_size, union ioctl_receive_msg_args * ioctl_ret);
+  const topic_local_id_t subscriber_id, struct publisher_shm_info * pub_shm_info,
+  union ioctl_receive_msg_args * ioctl_ret);
 
 int ioctl_publish_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns, const topic_local_id_t publisher_id,
@@ -350,9 +350,8 @@ int ioctl_publish_msg(
 
 int ioctl_take_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  const topic_local_id_t subscriber_id, bool allow_same_message, pid_t * pub_pids_buf,
-  uint64_t * pub_addrs_buf, uint64_t * pub_sizes_buf, uint32_t pub_shm_buffer_size,
-  union ioctl_take_msg_args * ioctl_ret);
+  const topic_local_id_t subscriber_id, bool allow_same_message,
+  struct publisher_shm_info * pub_shm_info, union ioctl_take_msg_args * ioctl_ret);
 
 int ioctl_add_process(
   const pid_t pid, const struct ipc_namespace * ipc_ns, union ioctl_add_process_args * ioctl_ret);

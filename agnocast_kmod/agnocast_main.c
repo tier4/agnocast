@@ -659,8 +659,8 @@ static struct process_info * find_process_info(const pid_t pid)
 }
 
 static int set_publisher_shm_info(
-  const struct topic_wrapper * wrapper, const pid_t subscriber_pid, pid_t * pub_pids_buf,
-  uint64_t * pub_addrs_buf, uint64_t * pub_sizes_buf, uint32_t buffer_size, uint32_t * out_num)
+  const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
+  struct publisher_shm_info * pub_shm_info)
 {
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
@@ -697,7 +697,7 @@ static int set_publisher_shm_info(
       }
     }
 
-    if (publisher_num == buffer_size) {
+    if (publisher_num == MAX_PUBLISHER_NUM) {
       dev_warn(
         agnocast_device,
         "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
@@ -712,17 +712,17 @@ static int set_publisher_shm_info(
     if (local_pid == -1) {
       return -ESRCH;
     }
-    pub_pids_buf[publisher_num] = local_pid;
+    pub_shm_info->publisher_pids[publisher_num] = local_pid;
 #else
-    pub_pids_buf[publisher_num] = pub_info->pid;
+    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
 #endif
 
-    pub_addrs_buf[publisher_num] = proc_info->mempool_entry->addr;
-    pub_sizes_buf[publisher_num] = mempool_size_bytes;
+    pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
+    pub_shm_info->shm_sizes[publisher_num] = mempool_size_bytes;
     publisher_num++;
   }
 
-  *out_num = publisher_num;
+  pub_shm_info->publisher_num = publisher_num;
 
   return 0;
 }
@@ -1103,8 +1103,8 @@ static int receive_msg_core(
 
 int ioctl_receive_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  const topic_local_id_t subscriber_id, pid_t * pub_pids_buf, uint64_t * pub_addrs_buf,
-  uint64_t * pub_sizes_buf, uint32_t pub_shm_buffer_size, union ioctl_receive_msg_args * ioctl_ret)
+  const topic_local_id_t subscriber_id, struct publisher_shm_info * pub_shm_info,
+  union ioctl_receive_msg_args * ioctl_ret)
 {
   int ret = 0;
 
@@ -1138,13 +1138,11 @@ int ioctl_receive_msg(
 
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
+    pub_shm_info->publisher_num = 0;
     goto unlock_all;
   }
 
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, pub_pids_buf, pub_addrs_buf, pub_sizes_buf, pub_shm_buffer_size,
-    &ioctl_ret->ret_pub_shm_num);
+  ret = set_publisher_shm_info(wrapper, sub_info->pid, pub_shm_info);
   if (ret < 0) {
     goto unlock_all;
   }
@@ -1160,9 +1158,8 @@ unlock_rwsem:
 
 int ioctl_take_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  const topic_local_id_t subscriber_id, bool allow_same_message, pid_t * pub_pids_buf,
-  uint64_t * pub_addrs_buf, uint64_t * pub_sizes_buf, uint32_t pub_shm_buffer_size,
-  union ioctl_take_msg_args * ioctl_ret)
+  const topic_local_id_t subscriber_id, bool allow_same_message,
+  struct publisher_shm_info * pub_shm_info, union ioctl_take_msg_args * ioctl_ret)
 {
   int ret = 0;
 
@@ -1250,13 +1247,11 @@ int ioctl_take_msg(
 
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
+    pub_shm_info->publisher_num = 0;
     goto unlock_all;
   }
 
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, pub_pids_buf, pub_addrs_buf, pub_sizes_buf, pub_shm_buffer_size,
-    &ioctl_ret->ret_pub_shm_num);
+  ret = set_publisher_shm_info(wrapper, sub_info->pid, pub_shm_info);
   if (ret < 0) {
     goto unlock_all;
   }
@@ -2239,7 +2234,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           &receive_msg_args, (union ioctl_receive_msg_args __user *)arg, sizeof(receive_msg_args)))
       return -EFAULT;
     if (receive_msg_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
-    if (receive_msg_args.pub_shm_buffer_size != MAX_PUBLISHER_NUM) return -EINVAL;
     char * topic_name_buf = kmalloc(receive_msg_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) return -ENOMEM;
     if (copy_from_user(
@@ -2250,46 +2244,28 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     topic_name_buf[receive_msg_args.topic_name.len] = '\0';
 
-    uint64_t pub_shm_pids_addr = receive_msg_args.pub_shm_pids_buffer_addr;
-    uint64_t pub_shm_addrs_addr = receive_msg_args.pub_shm_addrs_buffer_addr;
-    uint64_t pub_shm_sizes_addr = receive_msg_args.pub_shm_sizes_buffer_addr;
-    uint32_t pub_shm_buf_size = receive_msg_args.pub_shm_buffer_size;
+    uint64_t pub_shm_info_addr = receive_msg_args.pub_shm_info_addr;
 
-    pid_t * pub_pids_buf = kmalloc_array(pub_shm_buf_size, sizeof(pid_t), GFP_KERNEL);
-    uint64_t * pub_addrs_buf = kmalloc_array(pub_shm_buf_size, sizeof(uint64_t), GFP_KERNEL);
-    uint64_t * pub_sizes_buf = kmalloc_array(pub_shm_buf_size, sizeof(uint64_t), GFP_KERNEL);
-    if (!pub_pids_buf || !pub_addrs_buf || !pub_sizes_buf) {
-      kfree(pub_pids_buf);
-      kfree(pub_addrs_buf);
-      kfree(pub_sizes_buf);
+    struct publisher_shm_info * pub_shm_info =
+      kmalloc(sizeof(struct publisher_shm_info), GFP_KERNEL);
+    if (!pub_shm_info) {
       kfree(topic_name_buf);
       return -ENOMEM;
     }
 
     ret = ioctl_receive_msg(
-      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_pids_buf, pub_addrs_buf,
-      pub_sizes_buf, pub_shm_buf_size, &receive_msg_args);
+      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_shm_info, &receive_msg_args);
     kfree(topic_name_buf);
 
     if (ret == 0) {
-      uint32_t num = receive_msg_args.ret_pub_shm_num;
-      if (num > 0) {
-        if (
-          copy_to_user((pid_t __user *)pub_shm_pids_addr, pub_pids_buf, num * sizeof(pid_t)) ||
-          copy_to_user(
-            (uint64_t __user *)pub_shm_addrs_addr, pub_addrs_buf, num * sizeof(uint64_t)) ||
-          copy_to_user(
-            (uint64_t __user *)pub_shm_sizes_addr, pub_sizes_buf, num * sizeof(uint64_t))) {
-          kfree(pub_pids_buf);
-          kfree(pub_addrs_buf);
-          kfree(pub_sizes_buf);
-          return -EFAULT;
-        }
+      if (copy_to_user(
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info,
+            sizeof(struct publisher_shm_info))) {
+        kfree(pub_shm_info);
+        return -EFAULT;
       }
     }
-    kfree(pub_pids_buf);
-    kfree(pub_addrs_buf);
-    kfree(pub_sizes_buf);
+    kfree(pub_shm_info);
 
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
@@ -2350,7 +2326,6 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
       return -EFAULT;
     if (take_args.topic_name.len >= TOPIC_NAME_BUFFER_SIZE) return -EINVAL;
-    if (take_args.pub_shm_buffer_size != MAX_PUBLISHER_NUM) return -EINVAL;
     char * topic_name_buf = kmalloc(take_args.topic_name.len + 1, GFP_KERNEL);
     if (!topic_name_buf) return -ENOMEM;
     if (copy_from_user(
@@ -2360,46 +2335,29 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     topic_name_buf[take_args.topic_name.len] = '\0';
 
-    uint64_t pub_shm_pids_addr = take_args.pub_shm_pids_buffer_addr;
-    uint64_t pub_shm_addrs_addr = take_args.pub_shm_addrs_buffer_addr;
-    uint64_t pub_shm_sizes_addr = take_args.pub_shm_sizes_buffer_addr;
-    uint32_t pub_shm_buf_size = take_args.pub_shm_buffer_size;
+    uint64_t pub_shm_info_addr = take_args.pub_shm_info_addr;
 
-    pid_t * pub_pids_buf = kmalloc_array(pub_shm_buf_size, sizeof(pid_t), GFP_KERNEL);
-    uint64_t * pub_addrs_buf = kmalloc_array(pub_shm_buf_size, sizeof(uint64_t), GFP_KERNEL);
-    uint64_t * pub_sizes_buf = kmalloc_array(pub_shm_buf_size, sizeof(uint64_t), GFP_KERNEL);
-    if (!pub_pids_buf || !pub_addrs_buf || !pub_sizes_buf) {
-      kfree(pub_pids_buf);
-      kfree(pub_addrs_buf);
-      kfree(pub_sizes_buf);
+    struct publisher_shm_info * pub_shm_info =
+      kmalloc(sizeof(struct publisher_shm_info), GFP_KERNEL);
+    if (!pub_shm_info) {
       kfree(topic_name_buf);
       return -ENOMEM;
     }
 
     ret = ioctl_take_msg(
-      topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, pub_pids_buf,
-      pub_addrs_buf, pub_sizes_buf, pub_shm_buf_size, &take_args);
+      topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, pub_shm_info,
+      &take_args);
     kfree(topic_name_buf);
 
     if (ret == 0) {
-      uint32_t num = take_args.ret_pub_shm_num;
-      if (num > 0) {
-        if (
-          copy_to_user((pid_t __user *)pub_shm_pids_addr, pub_pids_buf, num * sizeof(pid_t)) ||
-          copy_to_user(
-            (uint64_t __user *)pub_shm_addrs_addr, pub_addrs_buf, num * sizeof(uint64_t)) ||
-          copy_to_user(
-            (uint64_t __user *)pub_shm_sizes_addr, pub_sizes_buf, num * sizeof(uint64_t))) {
-          kfree(pub_pids_buf);
-          kfree(pub_addrs_buf);
-          kfree(pub_sizes_buf);
-          return -EFAULT;
-        }
+      if (copy_to_user(
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info,
+            sizeof(struct publisher_shm_info))) {
+        kfree(pub_shm_info);
+        return -EFAULT;
       }
     }
-    kfree(pub_pids_buf);
-    kfree(pub_addrs_buf);
-    kfree(pub_sizes_buf);
+    kfree(pub_shm_info);
 
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
       return -EFAULT;
