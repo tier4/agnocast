@@ -28,6 +28,7 @@ first_pkg = message_types[0].split('/')[0]
 add_library(r2a_bridge_plugin_@(first_safe_name) SHARED src/register_r2a_@(first_safe_name).cpp)
 target_link_libraries(r2a_bridge_plugin_@(first_safe_name) agnocastlib::agnocast)
 ament_target_dependencies(r2a_bridge_plugin_@(first_safe_name) rclcpp @(first_pkg))
+set_target_properties(r2a_bridge_plugin_@(first_safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
 target_precompile_headers(r2a_bridge_plugin_@(first_safe_name) PRIVATE
   <agnocast/agnocast.hpp>
   <rclcpp/rclcpp.hpp>
@@ -36,6 +37,7 @@ target_precompile_headers(r2a_bridge_plugin_@(first_safe_name) PRIVATE
 add_library(a2r_bridge_plugin_@(first_safe_name) SHARED src/register_a2r_@(first_safe_name).cpp)
 target_link_libraries(a2r_bridge_plugin_@(first_safe_name) agnocastlib::agnocast)
 ament_target_dependencies(a2r_bridge_plugin_@(first_safe_name) rclcpp @(first_pkg))
+set_target_properties(a2r_bridge_plugin_@(first_safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
 target_precompile_headers(a2r_bridge_plugin_@(first_safe_name) PRIVATE
   <agnocast/agnocast.hpp>
   <rclcpp/rclcpp.hpp>
@@ -53,11 +55,13 @@ pkg = msg_type.split('/')[0]
 add_library(r2a_bridge_plugin_@(safe_name) SHARED src/register_r2a_@(safe_name).cpp)
 target_link_libraries(r2a_bridge_plugin_@(safe_name) agnocastlib::agnocast)
 ament_target_dependencies(r2a_bridge_plugin_@(safe_name) rclcpp @(pkg))
+set_target_properties(r2a_bridge_plugin_@(safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
 target_precompile_headers(r2a_bridge_plugin_@(safe_name) REUSE_FROM r2a_bridge_plugin_@(first_safe_name))
 
 add_library(a2r_bridge_plugin_@(safe_name) SHARED src/register_a2r_@(safe_name).cpp)
 target_link_libraries(a2r_bridge_plugin_@(safe_name) agnocastlib::agnocast)
 ament_target_dependencies(a2r_bridge_plugin_@(safe_name) rclcpp @(pkg))
+set_target_properties(a2r_bridge_plugin_@(safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
 target_precompile_headers(a2r_bridge_plugin_@(safe_name) REUSE_FROM a2r_bridge_plugin_@(first_safe_name))
 
 install(TARGETS r2a_bridge_plugin_@(safe_name) a2r_bridge_plugin_@(safe_name)
