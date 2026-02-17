@@ -1,8 +1,9 @@
 #include "agnocast/agnocast_single_threaded_executor.hpp"
-#include "cie_thread_configurator/cie_thread_configurator.hpp"
+#include "agnocast/cie_client_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
+#include <glog/logging.h>
 #include <sys/syscall.h>
 
 #include <chrono>
@@ -142,7 +143,7 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
       auto agnocast_topics = agnocast::get_agnocast_topics_by_group(callback_group);
       std::string group_id =
-        cie_thread_configurator::create_callback_group_id(callback_group, node, agnocast_topics);
+        agnocast::create_callback_group_id(callback_group, node, agnocast_topics);
       std::atomic_bool & has_executor = callback_group->get_associated_with_executor_atomic();
 
       if (is_clock_callback_group(callback_group) /* workaround */ || has_executor.load()) {
@@ -175,8 +176,7 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
           {
             std::lock_guard<std::mutex> lock{this->client_publisher_mutex_};
-            cie_thread_configurator::publish_callback_group_info(
-              this->client_publisher_, tid, group_id);
+            agnocast::publish_callback_group_info(this->client_publisher_, tid, group_id);
           }
 
           executor_wrapper.thread_initialized_ = true;
@@ -217,6 +217,9 @@ void ComponentManagerCallbackIsolated::cancel_executor(ExecutorWrapper & executo
 
 int main(int argc, char * argv[])
 {
+  google::InitGoogleLogging(argv[0]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  google::InstallFailureSignalHandler();
+
   try {
     rclcpp::init(argc, argv);
 
