@@ -55,7 +55,7 @@ void test_case_receive_msg_no_topic_when_receive(struct kunit * test)
   // Arrange
   topic_local_id_t subscriber_id = 0;
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret = ioctl_receive_msg(
@@ -78,7 +78,7 @@ void test_case_receive_msg_no_subscriber_when_receive(struct kunit * test)
 
   topic_local_id_t subscriber_id = 0;
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret = ioctl_receive_msg(
@@ -99,7 +99,7 @@ void test_case_receive_msg_no_publish_nothing_to_receive(struct kunit * test)
     test, subscriber_pid, subscriber_qos_depth, subscriber_transient_local, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret = ioctl_receive_msg(
@@ -132,7 +132,7 @@ void test_case_receive_msg_receive_one(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret2 = ioctl_receive_msg(
@@ -180,7 +180,7 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_p
   KUNIT_ASSERT_EQ(test, ret2, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret3 = ioctl_receive_msg(
@@ -224,7 +224,7 @@ void test_case_receive_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_p
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret2 = ioctl_receive_msg(
@@ -274,7 +274,7 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than
   KUNIT_ASSERT_EQ(test, ret1, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret2 = ioctl_receive_msg(
@@ -324,7 +324,7 @@ void test_case_receive_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_a
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret3 = ioctl_receive_msg(
@@ -372,7 +372,7 @@ void test_case_receive_msg_qos_depth_larger_than_max_receive_num(struct kunit * 
 
   // Act & Assert - First ioctl_receive_msg call
   union ioctl_receive_msg_args ioctl_receive_msg_ret1;
-  struct publisher_shm_info pub_shm_info1;
+  struct publisher_shm_info pub_shm_info1 = {0};
   int ret1 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, &pub_shm_info1, &ioctl_receive_msg_ret1);
 
@@ -386,7 +386,7 @@ void test_case_receive_msg_qos_depth_larger_than_max_receive_num(struct kunit * 
 
   // Act & Assert - Second ioctl_receive_msg call
   union ioctl_receive_msg_args ioctl_receive_msg_ret2;
-  struct publisher_shm_info pub_shm_info2;
+  struct publisher_shm_info pub_shm_info2 = {0};
   int ret2 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, &pub_shm_info2, &ioctl_receive_msg_ret2);
 
@@ -428,7 +428,7 @@ void test_case_receive_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_a
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret2 = ioctl_receive_msg(
@@ -484,7 +484,7 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret4 = ioctl_receive_msg(
@@ -535,7 +535,7 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_publish_num_smal
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret4 = ioctl_receive_msg(
@@ -586,7 +586,7 @@ void test_case_receive_msg_transient_local_publish_num_smaller_than_sub_qos_smal
     test, subscriber_pid, subscriber_qos_depth, is_transient_local, &subscriber_id);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret4 = ioctl_receive_msg(
@@ -624,7 +624,7 @@ void test_case_receive_msg_one_new_pub(struct kunit * test)
     test, publisher_pid, publisher_qos_depth, is_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret = ioctl_receive_msg(
@@ -661,7 +661,7 @@ void test_case_receive_msg_pubsub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret4 = ioctl_receive_msg(
@@ -702,7 +702,7 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret3, 0);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
 
   // Act
   int ret4 = ioctl_receive_msg(
@@ -748,7 +748,7 @@ void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
     test, publisher_pid, publisher_qos_depth, is_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
   int ret4 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args1.ret_id, &pub_shm_info,
     &ioctl_receive_msg_ret);
@@ -786,7 +786,7 @@ void test_case_receive_msg_twice(struct kunit * test)
     test, publisher_pid, publisher_qos_depth, is_transient_local, &publisher_id, &ret_addr);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
-  struct publisher_shm_info pub_shm_info;
+  struct publisher_shm_info pub_shm_info = {0};
   int ret1 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, &pub_shm_info, &ioctl_receive_msg_ret);
   KUNIT_ASSERT_EQ(test, ret1, 0);
@@ -827,7 +827,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
   setup_one_subscriber(test, subscriber_pid1, qos_depth, is_transient_local, &subscriber_id1);
 
   union ioctl_receive_msg_args ioctl_receive_msg_ret1;
-  struct publisher_shm_info pub_shm_info1;
+  struct publisher_shm_info pub_shm_info1 = {0};
   int ret2 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1, &pub_shm_info1, &ioctl_receive_msg_ret1);
 
@@ -890,7 +890,7 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
 
   // Act
   union ioctl_receive_msg_args ioctl_receive_msg_ret2;
-  struct publisher_shm_info pub_shm_info2;
+  struct publisher_shm_info pub_shm_info2 = {0};
   int ret5 = ioctl_receive_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2, &pub_shm_info2, &ioctl_receive_msg_ret2);
 
@@ -936,7 +936,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
         &add_subscriber_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
       union ioctl_receive_msg_args receive_msg_ret;
-      struct publisher_shm_info rcv_pub_shm_info;
+      struct publisher_shm_info rcv_pub_shm_info = {0};
       ret = ioctl_receive_msg(
         topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &rcv_pub_shm_info,
         &receive_msg_ret);
@@ -960,7 +960,7 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
 
   // Act
   union ioctl_receive_msg_args receive_msg_ret;
-  struct publisher_shm_info rcv_pub_shm_info;
+  struct publisher_shm_info rcv_pub_shm_info = {0};
   ret = ioctl_receive_msg(
     topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, &rcv_pub_shm_info,
     &receive_msg_ret);
