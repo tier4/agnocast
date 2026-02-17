@@ -84,16 +84,18 @@ void ros_trace_agnocast_subscription_init(
 void ros_trace_agnocast_timer_init(
   const void * node_handle,
   const uint64_t pid_timer_id,
+    const void * callback,
   const void * callback_group,
-  const char * symbol,
+  const char * function_symbol,
   int64_t period)
 {
   CONDITIONAL_TP(
     agnocast_timer_init,
     node_handle,
     pid_timer_id,
+    callback,
     callback_group,
-    symbol,
+    function_symbol,
     period);
 }
 

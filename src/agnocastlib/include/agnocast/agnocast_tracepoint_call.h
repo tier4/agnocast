@@ -88,16 +88,13 @@ TRACEPOINT_EVENT(
 // Links a timer to its node (via node_handle matching agnocast_node_init),
 // and stores metadata for identification in caret_analyze.
 // pid_timer_id is used to link with agnocast_create_timer_callable.
-
-// TODO: caret_analyzeの実装時にcallbackフィールドが必要か確認する。
-// agnocast_subscription_initではcallback_remapper統合のためにcallbackを使用している。
-// 必要な場合、GenericTimerにgetterを追加し&(timer->callback_)を渡す。
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_timer_init,
   TP_ARGS(
     const void *, node_handle_arg,          // agnocast::Node pointer (same as agnocast_node_init)
     const uint64_t, pid_timer_id_arg,       // (pid << 32) | timer_id, links to create_timer_callable
+    const void *, callback_arg,             // callback pointer, used for identification in caret_analyze
     const void *, callback_group_arg,       // callback group this timer belongs to
     const char *, symbol_arg,               // demangled callback function name for display
     int64_t, period_arg                     // timer period in nanoseconds
@@ -210,7 +207,7 @@ TRACEPOINT_EVENT(
 
 // TODO: executor → callback_groupの紐付けについて：
 // - AgnocastOnly系はrclcpp::Executorを継承していないため発火しない。
-//   必要な場合はagnocast側にトレースポイントの追加が必要。caret_analyze作業時に確認する。
+//   追加済みだが実際に必要かは確認する必要がある。
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_construct_executor,

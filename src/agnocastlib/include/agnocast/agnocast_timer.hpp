@@ -57,6 +57,8 @@ public:
     }
   }
 
+  const void * get_callback_addr() const { return &callback_; }  // 必要か？
+
   void execute_callback() override
   {
     if constexpr (std::is_invocable_v<FunctorT, TimerBase &>) {
