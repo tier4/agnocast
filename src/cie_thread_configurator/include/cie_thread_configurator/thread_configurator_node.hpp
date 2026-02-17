@@ -31,11 +31,7 @@ class ThreadConfiguratorNode : public rclcpp::Node
 public:
   explicit ThreadConfiguratorNode(const YAML::Node & yaml);
   ~ThreadConfiguratorNode();
-  bool all_applied();
   void print_all_unapplied();
-
-  bool exist_deadline_config();
-  bool apply_deadline_configs();
 
   const std::vector<rclcpp::Node::SharedPtr> & get_domain_nodes() const;
 
@@ -46,6 +42,7 @@ private:
   void callback_group_callback(
     size_t domain_id, const cie_config_msgs::msg::CallbackGroupInfo::SharedPtr msg);
   void non_ros_thread_callback(const cie_config_msgs::msg::NonRosThreadInfo::SharedPtr msg);
+  void apply_deadline_configs();
 
   std::vector<rclcpp::Node::SharedPtr> nodes_for_each_domain_;
   std::vector<rclcpp::Subscription<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr>

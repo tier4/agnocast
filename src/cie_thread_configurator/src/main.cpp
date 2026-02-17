@@ -85,28 +85,9 @@ static void spin_thread_configurator_node(const std::string & config_filename)
     executor->add_node(domain_node);
   }
 
-  while (rclcpp::ok() && !node->all_applied()) {
-    executor->spin_once();
-  }
+  executor->spin();
 
-  if (node->all_applied()) {
-    if (node->exist_deadline_config()) {
-      RCLCPP_INFO(node->get_logger(), "Apply sched deadline?");
-      std::cin.get();
-
-      node->apply_deadline_configs();
-
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Success: All of the configurations are applied."
-        "\nPress enter to exit and remove cgroups, if there are "
-        "SCHED_DEADLINE tasks:");
-      std::cin.get();
-    }
-    RCLCPP_INFO(node->get_logger(), "Success: All of the configurations are applied.");
-  } else {
-    node->print_all_unapplied();
-  }
+  node->print_all_unapplied();
 }
 
 static void spin_prerun_node(const std::set<size_t> & domain_ids)

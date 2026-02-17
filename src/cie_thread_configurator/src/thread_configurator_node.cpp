@@ -228,11 +228,6 @@ ThreadConfiguratorNode::~ThreadConfiguratorNode()
   }
 }
 
-bool ThreadConfiguratorNode::all_applied()
-{
-  return unapplied_num_ == 0;
-}
-
 void ThreadConfiguratorNode::print_all_unapplied()
 {
   RCLCPP_WARN(this->get_logger(), "Following callback groups are not yet configured");
@@ -401,11 +396,18 @@ void ThreadConfiguratorNode::callback_group_callback(
 
   ThreadConfig * config = it->second;
   if (config->applied) {
+    if (config->thread_id == msg->thread_id) {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "This callback group is already configured. skip (domain=%zu, id=%s, tid=%ld)", domain_id,
+        msg->callback_group_id.c_str(), msg->thread_id);
+      return;
+    }
     RCLCPP_INFO(
       this->get_logger(),
-      "This callback group is already configured. skip (domain=%zu, id=%s, tid=%ld)", domain_id,
-      msg->callback_group_id.c_str(), msg->thread_id);
-    return;
+      "This callback group is already configured, but thread_id changed. "
+      "Re-applying configuration (domain=%zu, id=%s, old_tid=%ld, new_tid=%ld)",
+      domain_id, msg->callback_group_id.c_str(), config->thread_id, msg->thread_id);
   }
 
   RCLCPP_INFO(
@@ -427,8 +429,14 @@ void ThreadConfiguratorNode::callback_group_callback(
     }
   }
 
+  if (!config->applied) {
+    unapplied_num_--;
+  }
   config->applied = true;
-  unapplied_num_--;
+
+  if (unapplied_num_ == 0) {
+    apply_deadline_configs();
+  }
 }
 
 void ThreadConfiguratorNode::non_ros_thread_callback(
@@ -472,20 +480,30 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
 
   config->applied = true;
   unapplied_num_--;
+
+  if (unapplied_num_ == 0) {
+    apply_deadline_configs();
+  }
 }
 
-bool ThreadConfiguratorNode::apply_deadline_configs()
+void ThreadConfiguratorNode::apply_deadline_configs()
 {
   for (auto config : deadline_configs_) {
     if (!issue_syscalls(*config)) {
-      return false;
+      RCLCPP_WARN(
+        this->get_logger(), "Failed to apply SCHED_DEADLINE for tid=%ld", config->thread_id);
     }
   }
+  deadline_configs_.clear();
 
-  return true;
-}
+  RCLCPP_INFO(this->get_logger(), "Success: All of the configurations are applied.");
 
-bool ThreadConfiguratorNode::exist_deadline_config()
-{
-  return !deadline_configs_.empty();
+  // Reset for re-application when target applications restart
+  unapplied_num_ = callback_group_configs_.size() + non_ros_thread_configs_.size();
+  for (auto & config : callback_group_configs_) {
+    config.applied = false;
+  }
+  for (auto & config : non_ros_thread_configs_) {
+    config.applied = false;
+  }
 }
