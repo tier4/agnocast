@@ -660,7 +660,7 @@ static struct process_info * find_process_info(const pid_t pid)
 
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
-  struct publisher_shm_info * pub_shm_info)
+  struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size, uint32_t * out_num)
 {
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
@@ -697,7 +697,7 @@ static int set_publisher_shm_info(
       }
     }
 
-    if (publisher_num == MAX_PUBLISHER_NUM) {
+    if (publisher_num == pub_shm_infos_size) {
       dev_warn(
         agnocast_device,
         "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
@@ -712,17 +712,17 @@ static int set_publisher_shm_info(
     if (local_pid == -1) {
       return -ESRCH;
     }
-    pub_shm_info->entries[publisher_num].pid = local_pid;
+    pub_shm_infos[publisher_num].pid = local_pid;
 #else
-    pub_shm_info->entries[publisher_num].pid = pub_info->pid;
+    pub_shm_infos[publisher_num].pid = pub_info->pid;
 #endif
 
-    pub_shm_info->entries[publisher_num].shm_addr = proc_info->mempool_entry->addr;
-    pub_shm_info->entries[publisher_num].shm_size = mempool_size_bytes;
+    pub_shm_infos[publisher_num].shm_addr = proc_info->mempool_entry->addr;
+    pub_shm_infos[publisher_num].shm_size = mempool_size_bytes;
     publisher_num++;
   }
 
-  pub_shm_info->publisher_num = publisher_num;
+  *out_num = publisher_num;
 
   return 0;
 }
@@ -1103,8 +1103,8 @@ static int receive_msg_core(
 
 int ioctl_receive_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
-  const topic_local_id_t subscriber_id, struct publisher_shm_info * pub_shm_info,
-  union ioctl_receive_msg_args * ioctl_ret)
+  const topic_local_id_t subscriber_id, struct publisher_shm_info * pub_shm_infos,
+  uint32_t pub_shm_infos_size, union ioctl_receive_msg_args * ioctl_ret)
 {
   int ret = 0;
 
@@ -1138,11 +1138,12 @@ int ioctl_receive_msg(
 
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
-    pub_shm_info->publisher_num = 0;
+    ioctl_ret->ret_pub_shm_num = 0;
     goto unlock_all;
   }
 
-  ret = set_publisher_shm_info(wrapper, sub_info->pid, pub_shm_info);
+  ret = set_publisher_shm_info(
+    wrapper, sub_info->pid, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
   if (ret < 0) {
     goto unlock_all;
   }
@@ -1159,7 +1160,8 @@ unlock_rwsem:
 int ioctl_take_msg(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
   const topic_local_id_t subscriber_id, bool allow_same_message,
-  struct publisher_shm_info * pub_shm_info, union ioctl_take_msg_args * ioctl_ret)
+  struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size,
+  union ioctl_take_msg_args * ioctl_ret)
 {
   int ret = 0;
 
@@ -1247,11 +1249,12 @@ int ioctl_take_msg(
 
   // Check if there is any publisher that need to be mmapped
   if (!sub_info->need_mmap_update) {
-    pub_shm_info->publisher_num = 0;
+    ioctl_ret->ret_pub_shm_num = 0;
     goto unlock_all;
   }
 
-  ret = set_publisher_shm_info(wrapper, sub_info->pid, pub_shm_info);
+  ret = set_publisher_shm_info(
+    wrapper, sub_info->pid, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
   if (ret < 0) {
     goto unlock_all;
   }
@@ -2246,27 +2249,27 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     uint64_t pub_shm_info_addr = receive_msg_args.pub_shm_info_addr;
 
-    struct publisher_shm_info * pub_shm_info =
-      kmalloc(sizeof(struct publisher_shm_info), GFP_KERNEL);
-    if (!pub_shm_info) {
+    struct publisher_shm_info * pub_shm_infos =
+      kmalloc_array(MAX_PUBLISHER_NUM, sizeof(struct publisher_shm_info), GFP_KERNEL);
+    if (!pub_shm_infos) {
       kfree(topic_name_buf);
       return -ENOMEM;
     }
 
     ret = ioctl_receive_msg(
-      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_shm_info, &receive_msg_args);
+      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_shm_infos, MAX_PUBLISHER_NUM,
+      &receive_msg_args);
     kfree(topic_name_buf);
 
-    if (ret == 0) {
-      size_t copy_size = offsetof(struct publisher_shm_info, entries) +
-                         pub_shm_info->publisher_num * sizeof(struct publisher_shm_entry);
+    if (ret == 0 && receive_msg_args.ret_pub_shm_num > 0) {
       if (copy_to_user(
-            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info, copy_size)) {
-        kfree(pub_shm_info);
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_infos,
+            receive_msg_args.ret_pub_shm_num * sizeof(struct publisher_shm_info))) {
+        kfree(pub_shm_infos);
         return -EFAULT;
       }
     }
-    kfree(pub_shm_info);
+    kfree(pub_shm_infos);
 
     if (copy_to_user(
           (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
@@ -2338,28 +2341,27 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     uint64_t pub_shm_info_addr = take_args.pub_shm_info_addr;
 
-    struct publisher_shm_info * pub_shm_info =
-      kmalloc(sizeof(struct publisher_shm_info), GFP_KERNEL);
-    if (!pub_shm_info) {
+    struct publisher_shm_info * pub_shm_infos =
+      kmalloc_array(MAX_PUBLISHER_NUM, sizeof(struct publisher_shm_info), GFP_KERNEL);
+    if (!pub_shm_infos) {
       kfree(topic_name_buf);
       return -ENOMEM;
     }
 
     ret = ioctl_take_msg(
-      topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, pub_shm_info,
-      &take_args);
+      topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, pub_shm_infos,
+      MAX_PUBLISHER_NUM, &take_args);
     kfree(topic_name_buf);
 
-    if (ret == 0) {
-      size_t copy_size = offsetof(struct publisher_shm_info, entries) +
-                         pub_shm_info->publisher_num * sizeof(struct publisher_shm_entry);
+    if (ret == 0 && take_args.ret_pub_shm_num > 0) {
       if (copy_to_user(
-            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info, copy_size)) {
-        kfree(pub_shm_info);
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_infos,
+            take_args.ret_pub_shm_num * sizeof(struct publisher_shm_info))) {
+        kfree(pub_shm_infos);
         return -EFAULT;
       }
     }
-    kfree(pub_shm_info);
+    kfree(pub_shm_infos);
 
     if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
       return -EFAULT;

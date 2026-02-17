@@ -18,12 +18,12 @@ void receive_and_execute_message(
 {
   std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
 
-  publisher_shm_info pub_shm_info{};
+  publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM]{};
 
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
-  receive_args.pub_shm_info_addr = reinterpret_cast<uint64_t>(&pub_shm_info);
+  receive_args.pub_shm_info_addr = reinterpret_cast<uint64_t>(pub_shm_infos);
 
   {
     std::lock_guard<std::mutex> lock(mmap_mtx);
@@ -35,10 +35,10 @@ void receive_and_execute_message(
     }
 
     // Map the shared memory region with read permissions whenever a new publisher is discovered.
-    for (uint32_t i = 0; i < pub_shm_info.publisher_num; i++) {
-      const pid_t pid = pub_shm_info.entries[i].pid;
-      const uint64_t addr = pub_shm_info.entries[i].shm_addr;
-      const uint64_t size = pub_shm_info.entries[i].shm_size;
+    for (uint32_t i = 0; i < receive_args.ret_pub_shm_num; i++) {
+      const pid_t pid = pub_shm_infos[i].pid;
+      const uint64_t addr = pub_shm_infos[i].shm_addr;
+      const uint64_t size = pub_shm_infos[i].shm_size;
       map_read_only_area(pid, addr, size);
     }
   }
