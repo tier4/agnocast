@@ -25,16 +25,12 @@ find_package(@(pkg) REQUIRED)
 safe_name = msg_type.replace('/', '_')
 pkg = msg_type.split('/')[0]
 }
-# Plugins for @(msg_type)
-add_library(r2a_bridge_plugin_@(safe_name) SHARED src/register_r2a_@(safe_name).cpp)
-target_link_libraries(r2a_bridge_plugin_@(safe_name) agnocastlib::agnocast)
-ament_target_dependencies(r2a_bridge_plugin_@(safe_name) rclcpp @(pkg))
+# Plugin for @(msg_type)
+add_library(bridge_plugin_@(safe_name) SHARED src/bridge_plugin_@(safe_name).cpp)
+target_link_libraries(bridge_plugin_@(safe_name) agnocastlib::agnocast)
+ament_target_dependencies(bridge_plugin_@(safe_name) rclcpp @(pkg))
 
-add_library(a2r_bridge_plugin_@(safe_name) SHARED src/register_a2r_@(safe_name).cpp)
-target_link_libraries(a2r_bridge_plugin_@(safe_name) agnocastlib::agnocast)
-ament_target_dependencies(a2r_bridge_plugin_@(safe_name) rclcpp @(pkg))
-
-install(TARGETS r2a_bridge_plugin_@(safe_name) a2r_bridge_plugin_@(safe_name)
+install(TARGETS bridge_plugin_@(safe_name)
   DESTINATION lib/${PROJECT_NAME})
 
 @[end for]
