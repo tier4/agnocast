@@ -29,16 +29,16 @@ add_library(r2a_bridge_plugin_@(first_safe_name) SHARED src/register_r2a_@(first
 target_link_libraries(r2a_bridge_plugin_@(first_safe_name) agnocastlib::agnocast)
 ament_target_dependencies(r2a_bridge_plugin_@(first_safe_name) rclcpp @(first_pkg))
 target_precompile_headers(r2a_bridge_plugin_@(first_safe_name) PRIVATE
-  "agnocast/agnocast.hpp"
-  "rclcpp/rclcpp.hpp"
+  <agnocast/agnocast.hpp>
+  <rclcpp/rclcpp.hpp>
   <utility>)
 
 add_library(a2r_bridge_plugin_@(first_safe_name) SHARED src/register_a2r_@(first_safe_name).cpp)
 target_link_libraries(a2r_bridge_plugin_@(first_safe_name) agnocastlib::agnocast)
 ament_target_dependencies(a2r_bridge_plugin_@(first_safe_name) rclcpp @(first_pkg))
 target_precompile_headers(a2r_bridge_plugin_@(first_safe_name) PRIVATE
-  "agnocast/agnocast.hpp"
-  "rclcpp/rclcpp.hpp"
+  <agnocast/agnocast.hpp>
+  <rclcpp/rclcpp.hpp>
   <utility>)
 
 install(TARGETS r2a_bridge_plugin_@(first_safe_name) a2r_bridge_plugin_@(first_safe_name)
