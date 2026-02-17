@@ -10,7 +10,7 @@ extern int mempool_size_gb;
 // Mempool size in bytes (calculated from mempool_size_gb)
 extern uint64_t mempool_size_bytes;
 
-struct mapped_pid_node
+struct mapped_pid_entry
 {
   pid_t pid;
   struct list_head list;
