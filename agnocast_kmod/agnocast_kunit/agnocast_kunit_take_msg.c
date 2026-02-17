@@ -15,6 +15,10 @@ static const bool IS_BRIDGE = false;
 
 static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
+// Small buffer size for KUnit tests to avoid exceeding kernel stack frame limits.
+// Tests use at most a few publishers, so this is sufficient.
+#define KUNIT_PUB_SHM_BUF_SIZE 4
+
 static void setup_one_subscriber(
   struct kunit * test, pid_t subscriber_pid, uint32_t qos_depth, bool is_transient_local,
   topic_local_id_t * subscriber_id)
@@ -59,10 +63,10 @@ void test_case_take_msg_no_topic(struct kunit * test)
   bool allow_same_message = false;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -84,10 +88,10 @@ void test_case_take_msg_no_subscriber(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -EINVAL);
@@ -107,10 +111,10 @@ void test_case_take_msg_no_publish_nothing_to_take(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -145,10 +149,10 @@ void test_case_take_msg_take_one(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -193,10 +197,10 @@ void test_case_take_msg_take_the_first_one_when_sub_qos_depth_is_two(struct kuni
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret3 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -234,10 +238,10 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
   const bool allow_same_message = true;
-  struct publisher_shm_info pub_shm_infos1[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos1[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos1,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret1);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
@@ -247,10 +251,10 @@ void test_case_take_msg_take_one_again_with_allow_same_message(struct kunit * te
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
-  struct publisher_shm_info pub_shm_infos2[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos2[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret3 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos2,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret2);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -288,10 +292,10 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
   const bool allow_same_message = false;
-  struct publisher_shm_info pub_shm_infos1[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos1[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos1,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret1);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret1);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret1.ret_entry_id, ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(
@@ -301,10 +305,10 @@ void test_case_take_msg_take_one_again_not_allow_same_message(struct kunit * tes
   union ioctl_take_msg_args ioctl_take_msg_ret2;
 
   // Act
-  struct publisher_shm_info pub_shm_infos2[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos2[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret3 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos2,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret2);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -345,10 +349,10 @@ void test_case_take_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret3 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -389,10 +393,10 @@ void test_case_take_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -441,10 +445,10 @@ void test_case_take_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_pu
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -494,10 +498,10 @@ void test_case_take_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret3 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret3, 0);
@@ -539,10 +543,10 @@ void test_case_take_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_are_
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret2, 0);
@@ -593,10 +597,10 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_tha
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -645,10 +649,10 @@ void test_case_take_msg_transient_local_sub_qos_smaller_than_publish_num_smaller
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -696,10 +700,10 @@ void test_case_take_msg_transient_local_publish_num_smaller_than_sub_qos_smaller
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -736,10 +740,10 @@ void test_case_take_msg_one_new_pub(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -776,10 +780,10 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, allow_same_message,
-    pub_shm_infos, MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -822,10 +826,10 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
 
   // Act
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret4, 0);
@@ -869,10 +873,10 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
 
   union ioctl_take_msg_args ioctl_take_msg_ret;
   const bool allow_same_message = true;
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret4 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args1.ret_id, allow_same_message,
-    pub_shm_infos, MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
   KUNIT_ASSERT_EQ(test, ret4, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_addr, 0);
   KUNIT_ASSERT_EQ(test, ioctl_take_msg_ret.ret_pub_shm_num, 1);
@@ -880,10 +884,10 @@ void test_case_take_msg_2sub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, pub_shm_infos[0].shm_addr, ret_addr);
 
   // Act
-  struct publisher_shm_info pub_shm_infos2[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos2[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret5 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args2.ret_id, allow_same_message,
-    pub_shm_infos2, MAX_PUBLISHER_NUM, &ioctl_take_msg_ret);
+    pub_shm_infos2, KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);
@@ -914,10 +918,10 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
   setup_one_subscriber(test, subscriber_pid1, qos_depth, is_transient_local, &subscriber_id1);
 
   union ioctl_take_msg_args ioctl_take_msg_ret1;
-  struct publisher_shm_info pub_shm_infos1[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos1[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret2 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id1, allow_same_message, pub_shm_infos1,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret1);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret1);
 
   enqueue_exit_pid(publisher_pid);
 
@@ -976,10 +980,10 @@ void test_case_take_msg_with_exited_publisher(struct kunit * test)
 
   // Act
   union ioctl_take_msg_args ioctl_take_msg_ret2;
-  struct publisher_shm_info pub_shm_infos2[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos2[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret5 = ioctl_take_msg(
     TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id2, allow_same_message, pub_shm_infos2,
-    MAX_PUBLISHER_NUM, &ioctl_take_msg_ret2);
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret2);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);
@@ -1025,10 +1029,10 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
         &add_subscriber_args);
       KUNIT_ASSERT_EQ(test, ret, 0);
       union ioctl_take_msg_args take_msg_ret;
-      struct publisher_shm_info loop_pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+      struct publisher_shm_info loop_pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
       ret = ioctl_take_msg(
         topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, allow_same_message,
-        loop_pub_shm_infos, MAX_PUBLISHER_NUM, &take_msg_ret);
+        loop_pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE, &take_msg_ret);
       KUNIT_ASSERT_EQ(test, ret, 0);
       mmap_process_num++;
     }
@@ -1049,10 +1053,10 @@ void test_case_take_msg_too_many_mapping_processes(struct kunit * test)
 
   // Act
   union ioctl_take_msg_args take_msg_ret;
-  struct publisher_shm_info pub_shm_infos[MAX_PUBLISHER_NUM] = {0};
+  struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   ret = ioctl_take_msg(
     topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, allow_same_message,
-    pub_shm_infos, MAX_PUBLISHER_NUM, &take_msg_ret);
+    pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE, &take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
