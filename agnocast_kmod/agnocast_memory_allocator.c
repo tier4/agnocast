@@ -30,7 +30,7 @@ void init_memory_allocator(void)
   for (int i = 0; i < MEMPOOL_NUM; i++) {
     mempool_entries[i].addr = addr;
     mempool_entries[i].mapped_num = 0;
-    INIT_LIST_HEAD(&mempool_entries[i].mapped_pids);
+    INIT_LIST_HEAD(&mempool_entries[i].mapped_pid_head);
     addr += mempool_size_bytes;
   }
 }
@@ -51,7 +51,7 @@ struct mempool_entry * assign_memory(const pid_t pid)
   spin_lock_irqsave(&mempool_lock, flags);
   for (int i = 0; i < MEMPOOL_NUM; i++) {
     if (mempool_entries[i].mapped_num == 0) {
-      list_add(&new_entry->list, &mempool_entries[i].mapped_pids);
+      list_add(&new_entry->list, &mempool_entries[i].mapped_pid_head);
       mempool_entries[i].mapped_num = 1;
       result = &mempool_entries[i];
       break;
@@ -80,7 +80,7 @@ int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
   new_entry->pid = pid;
 
   spin_lock_irqsave(&mempool_lock, flags);
-  list_for_each_entry(entry, &mempool_entry->mapped_pids, list)
+  list_for_each_entry(entry, &mempool_entry->mapped_pid_head, list)
   {
     if (entry->pid == pid) {
       spin_unlock_irqrestore(&mempool_lock, flags);
@@ -88,7 +88,7 @@ int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
       return -EEXIST;
     }
   }
-  list_add(&new_entry->list, &mempool_entry->mapped_pids);
+  list_add(&new_entry->list, &mempool_entry->mapped_pid_head);
   mempool_entry->mapped_num++;
   spin_unlock_irqrestore(&mempool_lock, flags);
 
@@ -103,7 +103,7 @@ void free_memory(const pid_t pid)
 
   spin_lock_irqsave(&mempool_lock, flags);
   for (int i = 0; i < MEMPOOL_NUM; i++) {
-    list_for_each_entry_safe(entry, tmp, &mempool_entries[i].mapped_pids, list)
+    list_for_each_entry_safe(entry, tmp, &mempool_entries[i].mapped_pid_head, list)
     {
       if (entry->pid == pid) {
         list_del(&entry->list);
@@ -123,7 +123,7 @@ void exit_memory_allocator(void)
   struct mapped_pid_entry * tmp;
 
   for (int i = 0; i < MEMPOOL_NUM; i++) {
-    list_for_each_entry_safe(entry, tmp, &mempool_entries[i].mapped_pids, list)
+    list_for_each_entry_safe(entry, tmp, &mempool_entries[i].mapped_pid_head, list)
     {
       list_del(&entry->list);
       kfree(entry);

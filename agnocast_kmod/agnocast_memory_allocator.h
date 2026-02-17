@@ -20,7 +20,7 @@ struct mempool_entry
 {
   uint64_t addr;
   uint32_t mapped_num;
-  struct list_head mapped_pids;
+  struct list_head mapped_pid_head;
 };
 
 void init_memory_allocator(void);
