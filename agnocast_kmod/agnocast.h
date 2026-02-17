@@ -90,6 +90,7 @@ union ioctl_receive_msg_args {
     // Pointer to a user-space allocated publisher_shm_info array.
     // The kernel writes publisher shm info directly to this buffer via copy_to_user.
     uint64_t pub_shm_info_addr;
+    uint32_t pub_shm_info_size;
   };
   struct
   {
@@ -129,6 +130,7 @@ union ioctl_take_msg_args {
     topic_local_id_t subscriber_id;
     bool allow_same_message;
     uint64_t pub_shm_info_addr;
+    uint32_t pub_shm_info_size;
   };
   struct
   {

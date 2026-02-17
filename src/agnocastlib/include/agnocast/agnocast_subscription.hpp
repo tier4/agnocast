@@ -265,6 +265,7 @@ public:
     take_args.subscriber_id = id_;
     take_args.allow_same_message = allow_same_message;
     take_args.pub_shm_info_addr = reinterpret_cast<uint64_t>(pub_shm_infos);
+    take_args.pub_shm_info_size = MAX_PUBLISHER_NUM;
 
     {
       std::lock_guard<std::mutex> lock(mmap_mtx);

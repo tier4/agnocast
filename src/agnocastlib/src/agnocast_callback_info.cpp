@@ -24,6 +24,7 @@ void receive_and_execute_message(
   receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
   receive_args.pub_shm_info_addr = reinterpret_cast<uint64_t>(pub_shm_infos);
+  receive_args.pub_shm_info_size = MAX_PUBLISHER_NUM;
 
   {
     std::lock_guard<std::mutex> lock(mmap_mtx);

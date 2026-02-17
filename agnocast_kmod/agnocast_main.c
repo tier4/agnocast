@@ -2248,16 +2248,17 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[receive_msg_args.topic_name.len] = '\0';
 
     uint64_t pub_shm_info_addr = receive_msg_args.pub_shm_info_addr;
+    uint32_t pub_shm_info_size = receive_msg_args.pub_shm_info_size;
 
     struct publisher_shm_info * pub_shm_infos =
-      kmalloc_array(MAX_PUBLISHER_NUM, sizeof(struct publisher_shm_info), GFP_KERNEL);
+      kmalloc_array(pub_shm_info_size, sizeof(struct publisher_shm_info), GFP_KERNEL);
     if (!pub_shm_infos) {
       kfree(topic_name_buf);
       return -ENOMEM;
     }
 
     ret = ioctl_receive_msg(
-      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_shm_infos, MAX_PUBLISHER_NUM,
+      topic_name_buf, ipc_ns, receive_msg_args.subscriber_id, pub_shm_infos, pub_shm_info_size,
       &receive_msg_args);
     kfree(topic_name_buf);
 
@@ -2340,9 +2341,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[take_args.topic_name.len] = '\0';
 
     uint64_t pub_shm_info_addr = take_args.pub_shm_info_addr;
+    uint32_t pub_shm_info_size = take_args.pub_shm_info_size;
 
     struct publisher_shm_info * pub_shm_infos =
-      kmalloc_array(MAX_PUBLISHER_NUM, sizeof(struct publisher_shm_info), GFP_KERNEL);
+      kmalloc_array(pub_shm_info_size, sizeof(struct publisher_shm_info), GFP_KERNEL);
     if (!pub_shm_infos) {
       kfree(topic_name_buf);
       return -ENOMEM;
@@ -2350,7 +2352,7 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     ret = ioctl_take_msg(
       topic_name_buf, ipc_ns, take_args.subscriber_id, take_args.allow_same_message, pub_shm_infos,
-      MAX_PUBLISHER_NUM, &take_args);
+      pub_shm_info_size, &take_args);
     kfree(topic_name_buf);
 
     if (ret == 0 && take_args.ret_pub_shm_num > 0) {
