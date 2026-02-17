@@ -116,10 +116,12 @@ TRACEPOINT_EVENT(
   TP_ARGS(
     const void *, executor_addr_arg,
     const void *, callback_group_addr_arg
+    const char *, group_type_name_arg
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, executor_addr, executor_addr_arg)
     ctf_integer_hex(const void *, callback_group_addr, callback_group_addr_arg)
+    ctf_string(group_type_name, group_type_name_arg)
   )
 )
 

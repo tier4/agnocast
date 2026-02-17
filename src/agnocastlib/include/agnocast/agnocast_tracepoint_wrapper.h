@@ -52,7 +52,8 @@ DECLARE_TRACEPOINT(
 DECLARE_TRACEPOINT(
   agnocast_add_callback_group,
   const void * executor_addr,
-  const void * callback_group_addr)
+  const void * callback_group_addr,
+  const char * group_type_name)
 
 DECLARE_TRACEPOINT(
   agnocast_publish,
