@@ -34,4 +34,39 @@ install(TARGETS bridge_plugin_@(safe_name)
   DESTINATION lib/${PROJECT_NAME})
 
 @[end for]
+
+# Use precompiled headers to speed up build (requires CMake >= 3.16)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+@{
+first_safe_name = message_types[0].replace('/', '_')
+}
+  # Add all package dependencies to the PCH source targets so that their include paths
+  # are a superset of all reusing targets, ensuring PCH validity across packages.
+  ament_target_dependencies(r2a_bridge_plugin_@(first_safe_name) @(' '.join(package_names)))
+  set_target_properties(r2a_bridge_plugin_@(first_safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
+  target_precompile_headers(r2a_bridge_plugin_@(first_safe_name) PRIVATE
+    <agnocast/agnocast.hpp>
+    <rclcpp/rclcpp.hpp>
+    <utility>)
+
+  ament_target_dependencies(a2r_bridge_plugin_@(first_safe_name) @(' '.join(package_names)))
+  set_target_properties(a2r_bridge_plugin_@(first_safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
+  target_precompile_headers(a2r_bridge_plugin_@(first_safe_name) PRIVATE
+    <agnocast/agnocast.hpp>
+    <rclcpp/rclcpp.hpp>
+    <utility>)
+
+@[for msg_type in message_types[1:]]
+@{
+safe_name = msg_type.replace('/', '_')
+}
+  set_target_properties(r2a_bridge_plugin_@(safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
+  target_precompile_headers(r2a_bridge_plugin_@(safe_name) REUSE_FROM r2a_bridge_plugin_@(first_safe_name))
+
+  set_target_properties(a2r_bridge_plugin_@(safe_name) PROPERTIES DEFINE_SYMBOL "AGNOCAST_BRIDGE_PLUGIN_EXPORTS")
+  target_precompile_headers(a2r_bridge_plugin_@(safe_name) REUSE_FROM a2r_bridge_plugin_@(first_safe_name))
+
+@[end for]
+endif()
+
 ament_package()
