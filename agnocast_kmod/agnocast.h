@@ -87,8 +87,9 @@ union ioctl_receive_msg_args {
   {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
-    // Pointer to a user-space allocated publisher_shm_info array.
-    // The kernel writes publisher shm info directly to this buffer via copy_to_user.
+    // Unlike ret_* fields which are returned via the union copy, publisher shm info is written
+    // directly to this user-space buffer via copy_to_user. The caller must ensure the buffer
+    // remains valid until the ioctl returns.
     uint64_t pub_shm_info_addr;
     uint32_t pub_shm_info_size;
   };
@@ -129,6 +130,9 @@ union ioctl_take_msg_args {
     struct name_info topic_name;
     topic_local_id_t subscriber_id;
     bool allow_same_message;
+    // Unlike ret_* fields which are returned via the union copy, publisher shm info is written
+    // directly to this user-space buffer via copy_to_user. The caller must ensure the buffer
+    // remains valid until the ioctl returns.
     uint64_t pub_shm_info_addr;
     uint32_t pub_shm_info_size;
   };

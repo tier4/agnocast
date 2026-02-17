@@ -16,7 +16,6 @@ static const bool IS_BRIDGE = false;
 static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 // Small buffer size for KUnit tests to avoid exceeding kernel stack frame limits.
-// Tests use at most a few publishers, so this is sufficient.
 #define KUNIT_PUB_SHM_BUF_SIZE 4
 
 static void setup_one_subscriber(

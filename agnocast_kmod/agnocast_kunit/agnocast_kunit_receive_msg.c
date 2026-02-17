@@ -16,7 +16,6 @@ static bool IS_BRIDGE = false;
 static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 // Small buffer size for KUnit tests to avoid exceeding kernel stack frame limits.
-// Tests use at most a few publishers, so this is sufficient.
 #define KUNIT_PUB_SHM_BUF_SIZE 4
 
 static void setup_one_subscriber(
@@ -988,6 +987,40 @@ void test_case_receive_msg_too_many_mapping_processes(struct kunit * test)
   ret = ioctl_receive_msg(
     topic_name, current->nsproxy->ipc_ns, add_subscriber_args.ret_id, rcv_pub_shm_infos,
     KUNIT_PUB_SHM_BUF_SIZE, &receive_msg_ret);
+
+  // Assert
+  KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);
+}
+
+void test_case_receive_msg_pub_shm_info_buffer_too_small(struct kunit * test)
+{
+  // Arrange: create a subscriber and 2 publishers from different processes,
+  // then call ioctl_receive_msg with pub_shm_infos_size=1 so that
+  // set_publisher_shm_info returns -ENOBUFS.
+  const bool is_transient_local = false;
+  const uint32_t qos_depth = 10;
+
+  topic_local_id_t subscriber_id;
+  const pid_t subscriber_pid = 3000;
+  setup_one_subscriber(test, subscriber_pid, qos_depth, is_transient_local, &subscriber_id);
+
+  topic_local_id_t publisher_id1;
+  uint64_t ret_addr1;
+  const pid_t publisher_pid1 = 1000;
+  setup_one_publisher(
+    test, publisher_pid1, qos_depth, is_transient_local, &publisher_id1, &ret_addr1);
+
+  topic_local_id_t publisher_id2;
+  uint64_t ret_addr2;
+  const pid_t publisher_pid2 = 1001;
+  setup_one_publisher(
+    test, publisher_pid2, qos_depth, is_transient_local, &publisher_id2, &ret_addr2);
+
+  // Act: pass a buffer of size 1, but there are 2 publishers to map
+  struct publisher_shm_info pub_shm_infos[1] = {0};
+  union ioctl_receive_msg_args ioctl_receive_msg_ret;
+  int ret = ioctl_receive_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, pub_shm_infos, 1, &ioctl_receive_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, -ENOBUFS);

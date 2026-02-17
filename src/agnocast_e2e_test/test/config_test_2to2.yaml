@@ -1,5 +1,5 @@
 test_mode: "agno2ros"
-container0: [p]
-container1: [p]
-container2: [s,s]
+container0: [p,p,s,s]
+container1: []
+container2: []
 container3: []

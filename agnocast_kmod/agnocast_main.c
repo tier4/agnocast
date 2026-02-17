@@ -660,7 +660,8 @@ static struct process_info * find_process_info(const pid_t pid)
 
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, const pid_t subscriber_pid,
-  struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size, uint32_t * out_num)
+  struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size,
+  uint32_t * ret_pub_shm_num)
 {
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
@@ -700,10 +701,9 @@ static int set_publisher_shm_info(
     if (publisher_num == pub_shm_infos_size) {
       dev_warn(
         agnocast_device,
-        "Unreachable: the number of publisher processes to be mapped exceeds the maximum number "
-        "that can be returned at once in a call from this subscriber process (topic_name=%s, "
-        "subscriber_pid=%d). (set_publisher_shm_info)\n",
-        wrapper->key, subscriber_pid);
+        "The number of publisher processes to be mapped exceeds the buffer size "
+        "(pub_shm_infos_size=%u, topic_name=%s, subscriber_pid=%d). (set_publisher_shm_info)\n",
+        pub_shm_infos_size, wrapper->key, subscriber_pid);
       return -ENOBUFS;
     }
 
@@ -722,7 +722,7 @@ static int set_publisher_shm_info(
     publisher_num++;
   }
 
-  *out_num = publisher_num;
+  *ret_pub_shm_num = publisher_num;
 
   return 0;
 }
