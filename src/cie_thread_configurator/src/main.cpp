@@ -87,7 +87,9 @@ static void spin_thread_configurator_node(const std::string & config_filename)
 
   executor->spin();
 
-  node->print_all_unapplied();
+  if (!node->has_configured_once()) {
+    node->print_all_unapplied();
+  }
 }
 
 static void spin_prerun_node(const std::set<size_t> & domain_ids)

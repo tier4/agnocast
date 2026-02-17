@@ -32,6 +32,7 @@ public:
   explicit ThreadConfiguratorNode(const YAML::Node & yaml);
   ~ThreadConfiguratorNode();
   void print_all_unapplied();
+  bool has_configured_once() const;
 
   const std::vector<rclcpp::Node::SharedPtr> & get_domain_nodes() const;
 
@@ -59,6 +60,7 @@ private:
 
   int unapplied_num_;
   int cgroup_num_;
+  bool configured_at_least_once_ = false;
 
   std::vector<ThreadConfig *> deadline_configs_;
 };

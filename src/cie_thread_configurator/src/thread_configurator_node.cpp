@@ -12,6 +12,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -375,6 +376,11 @@ bool ThreadConfiguratorNode::issue_syscalls(const ThreadConfig & config)
   return true;
 }
 
+bool ThreadConfiguratorNode::has_configured_once() const
+{
+  return configured_at_least_once_;
+}
+
 const std::vector<rclcpp::Node::SharedPtr> & ThreadConfiguratorNode::get_domain_nodes() const
 {
   return nodes_for_each_domain_;
@@ -416,8 +422,12 @@ void ThreadConfiguratorNode::callback_group_callback(
   config->thread_id = msg->thread_id;
 
   if (config->policy == "SCHED_DEADLINE") {
-    // delayed applying
-    deadline_configs_.push_back(config);
+    // delayed applying (deduplicate if already queued)
+    if (
+      std::find(deadline_configs_.begin(), deadline_configs_.end(), config) ==
+      deadline_configs_.end()) {
+      deadline_configs_.push_back(config);
+    }
   } else {
     if (!issue_syscalls(*config)) {
       RCLCPP_WARN(
@@ -473,8 +483,12 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
   config->thread_id = msg->thread_id;
 
   if (config->policy == "SCHED_DEADLINE") {
-    // delayed applying
-    deadline_configs_.push_back(config);
+    // delayed applying (deduplicate if already queued)
+    if (
+      std::find(deadline_configs_.begin(), deadline_configs_.end(), config) ==
+      deadline_configs_.end()) {
+      deadline_configs_.push_back(config);
+    }
   } else {
     if (!issue_syscalls(*config)) {
       RCLCPP_WARN(
@@ -497,15 +511,25 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
 
 void ThreadConfiguratorNode::apply_deadline_configs()
 {
+  bool all_succeeded = true;
   for (auto config : deadline_configs_) {
     if (!issue_syscalls(*config)) {
       RCLCPP_WARN(
         this->get_logger(), "Failed to apply SCHED_DEADLINE for tid=%ld", config->thread_id);
+      all_succeeded = false;
     }
   }
   deadline_configs_.clear();
 
-  RCLCPP_INFO(this->get_logger(), "Success: All of the configurations are applied.");
+  if (all_succeeded) {
+    RCLCPP_INFO(this->get_logger(), "Success: All of the configurations are applied.");
+  } else {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Some SCHED_DEADLINE configurations failed. Non-deadline configurations were applied.");
+  }
+
+  configured_at_least_once_ = true;
 
   // Reset for re-application when target applications restart
   unapplied_num_ = callback_group_configs_.size() + non_ros_thread_configs_.size();
