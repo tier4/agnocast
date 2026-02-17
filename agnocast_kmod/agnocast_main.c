@@ -19,7 +19,8 @@ static struct device * agnocast_device;
 // Locking convention:
 //   Only ioctl_ prefixed functions acquire locks. All other internal/static functions are
 //   lock-free and rely on callers to hold the appropriate locks. Exceptions are
-//   process_exit_cleanup and agnocast_exit_free_data, which manage locks directly.
+//   process_exit_cleanup ,agnocast_exit_free_data, and increment_message_entry_rc, which manage
+//   locks directly.
 //
 // Lock ordering (to prevent deadlocks, always acquire in this order):
 //   1. global_htables_rwsem   (this file)
@@ -491,7 +492,7 @@ int increment_message_entry_rc(
       agnocast_device, "Topic (topic_name=%s) not found. (increment_message_entry_rc)\n",
       topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   down_read(&wrapper->topic_rwsem);
@@ -524,7 +525,7 @@ int increment_message_entry_rc(
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -548,7 +549,7 @@ int ioctl_release_message_entry_reference(
       agnocast_device, "Topic (topic_name=%s) not found. (ioctl_release_message_entry_reference)\n",
       topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   down_read(&wrapper->topic_rwsem);
@@ -585,7 +586,7 @@ int ioctl_release_message_entry_reference(
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -957,7 +958,7 @@ int ioctl_publish_msg(
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (ioctl_publish_msg)\n", topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   down_write(&wrapper->topic_rwsem);
@@ -1014,7 +1015,7 @@ int ioctl_publish_msg(
 
 unlock_all:
   up_write(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1114,7 +1115,7 @@ int ioctl_receive_msg(
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (ioctl_receive_msg)\n", topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   // Use write lock because we modify sub_info fields (latest_received_entry_id, need_mmap_update)
@@ -1152,7 +1153,7 @@ int ioctl_receive_msg(
 
 unlock_all:
   up_write(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1171,7 +1172,7 @@ int ioctl_take_msg(
   if (!wrapper) {
     dev_warn(agnocast_device, "Topic (topic_name=%s) not found. (ioctl_take_msg)\n", topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   // Use write lock because we modify sub_info fields (latest_received_entry_id, need_mmap_update)
@@ -1263,7 +1264,7 @@ int ioctl_take_msg(
 
 unlock_all:
   up_write(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1733,7 +1734,7 @@ int ioctl_get_subscriber_qos(
     dev_dbg(
       agnocast_device, "Topic (topic_name=%s) not found. (ioctl_get_subscriber_qos)\n", topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   down_read(&wrapper->topic_rwsem);
@@ -1754,7 +1755,7 @@ int ioctl_get_subscriber_qos(
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -1772,7 +1773,7 @@ int ioctl_get_publisher_qos(
     dev_dbg(
       agnocast_device, "Topic (topic_name=%s) not found. (ioctl_get_publisher_qos)\n", topic_name);
     ret = -EINVAL;
-    goto unlock_rwsem;
+    goto unlock_only_global;
   }
 
   down_read(&wrapper->topic_rwsem);
@@ -1792,7 +1793,7 @@ int ioctl_get_publisher_qos(
 
 unlock_all:
   up_read(&wrapper->topic_rwsem);
-unlock_rwsem:
+unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
 }
