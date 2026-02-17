@@ -16,12 +16,16 @@
 #define VERSION_BUFFER_LEN 32      // Maximum size of version number represented as a string
 
 typedef int32_t topic_local_id_t;
+struct publisher_shm_entry
+{
+  pid_t pid;  // Must be a local PID, not a global PID
+  uint64_t shm_addr;
+  uint64_t shm_size;
+};
 struct publisher_shm_info
 {
   uint32_t publisher_num;
-  pid_t publisher_pids[MAX_PUBLISHER_NUM];  // Must be local PIDs, not global PIDs
-  uint64_t shm_addrs[MAX_PUBLISHER_NUM];
-  uint64_t shm_sizes[MAX_PUBLISHER_NUM];
+  struct publisher_shm_entry entries[MAX_PUBLISHER_NUM];
 };
 struct name_info
 {

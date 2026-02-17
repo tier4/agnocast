@@ -29,12 +29,16 @@ constexpr const char * AGNOCAST_DEVICE_NOT_FOUND_MSG =
   "Run 'sudo modprobe agnocast' or 'sudo insmod <path-to-agnocast.ko>' to load the module.";
 
 using topic_local_id_t = int32_t;
+struct publisher_shm_entry
+{
+  pid_t pid;
+  uint64_t shm_addr;
+  uint64_t shm_size;
+};
 struct publisher_shm_info
 {
   uint32_t publisher_num;
-  pid_t publisher_pids[MAX_PUBLISHER_NUM];
-  uint64_t shm_addrs[MAX_PUBLISHER_NUM];
-  uint64_t shm_sizes[MAX_PUBLISHER_NUM];
+  struct publisher_shm_entry entries[MAX_PUBLISHER_NUM];
 };
 struct name_info
 {

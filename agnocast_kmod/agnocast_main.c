@@ -712,13 +712,13 @@ static int set_publisher_shm_info(
     if (local_pid == -1) {
       return -ESRCH;
     }
-    pub_shm_info->publisher_pids[publisher_num] = local_pid;
+    pub_shm_info->entries[publisher_num].pid = local_pid;
 #else
-    pub_shm_info->publisher_pids[publisher_num] = pub_info->pid;
+    pub_shm_info->entries[publisher_num].pid = pub_info->pid;
 #endif
 
-    pub_shm_info->shm_addrs[publisher_num] = proc_info->mempool_entry->addr;
-    pub_shm_info->shm_sizes[publisher_num] = mempool_size_bytes;
+    pub_shm_info->entries[publisher_num].shm_addr = proc_info->mempool_entry->addr;
+    pub_shm_info->entries[publisher_num].shm_size = mempool_size_bytes;
     publisher_num++;
   }
 
@@ -2258,9 +2258,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(topic_name_buf);
 
     if (ret == 0) {
+      size_t copy_size = offsetof(struct publisher_shm_info, entries) +
+                         pub_shm_info->publisher_num * sizeof(struct publisher_shm_entry);
       if (copy_to_user(
-            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info,
-            sizeof(struct publisher_shm_info))) {
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info, copy_size)) {
         kfree(pub_shm_info);
         return -EFAULT;
       }
@@ -2350,9 +2351,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     kfree(topic_name_buf);
 
     if (ret == 0) {
+      size_t copy_size = offsetof(struct publisher_shm_info, entries) +
+                         pub_shm_info->publisher_num * sizeof(struct publisher_shm_entry);
       if (copy_to_user(
-            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info,
-            sizeof(struct publisher_shm_info))) {
+            (struct publisher_shm_info __user *)pub_shm_info_addr, pub_shm_info, copy_size)) {
         kfree(pub_shm_info);
         return -EFAULT;
       }

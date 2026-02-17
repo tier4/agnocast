@@ -146,8 +146,8 @@ void test_case_receive_msg_receive_one(struct kunit * test)
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_pub_qos_depth(
@@ -195,8 +195,8 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_publish_num_smaller_than_p
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_pub_qos_depth(
@@ -238,8 +238,8 @@ void test_case_receive_msg_publish_num_smaller_than_sub_qos_depth_smaller_than_p
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than_publish_num(
@@ -288,8 +288,8 @@ void test_case_receive_msg_sub_qos_depth_smaller_than_pub_qos_depth_smaller_than
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_all_max_receive_num(
@@ -337,8 +337,8 @@ void test_case_receive_msg_publish_num_and_sub_qos_depth_and_pub_qos_depth_are_a
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_qos_depth_larger_than_max_receive_num(struct kunit * test)
@@ -442,8 +442,8 @@ void test_case_receive_msg_transient_local_sub_qos_and_pub_qos_and_publish_num_a
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_than_publish_num(
@@ -499,8 +499,8 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_pub_qos_smaller_
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_transient_local_sub_qos_smaller_than_publish_num_smaller_than_pub_qos(
@@ -550,8 +550,8 @@ void test_case_receive_msg_transient_local_sub_qos_smaller_than_publish_num_smal
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_receive_msg_ret.ret_entry_ids[0]);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_transient_local_publish_num_smaller_than_sub_qos_smaller_than_pub_qos(
@@ -599,8 +599,8 @@ void test_case_receive_msg_transient_local_publish_num_smaller_than_sub_qos_smal
     test, get_latest_received_entry_id(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id),
     ioctl_publish_msg_ret2.ret_entry_id);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 // ================================================
@@ -634,8 +634,8 @@ void test_case_receive_msg_one_new_pub(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 }
 
 void test_case_receive_msg_pubsub_in_same_process(struct kunit * test)
@@ -712,8 +712,8 @@ void test_case_receive_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
   KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_EXPECT_EQ(test, pub_shm_info.shm_addrs[0], add_process_args.ret_addr);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_EXPECT_EQ(test, pub_shm_info.entries[0].shm_addr, add_process_args.ret_addr);
 }
 
 void test_case_receive_msg_2sub_in_same_process(struct kunit * test)
@@ -792,8 +792,8 @@ void test_case_receive_msg_twice(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret.ret_entry_num, 0);
   KUNIT_ASSERT_EQ(test, pub_shm_info.publisher_num, 1);
-  KUNIT_ASSERT_EQ(test, pub_shm_info.publisher_pids[0], publisher_pid);
-  KUNIT_ASSERT_EQ(test, pub_shm_info.shm_addrs[0], ret_addr);
+  KUNIT_ASSERT_EQ(test, pub_shm_info.entries[0].pid, publisher_pid);
+  KUNIT_ASSERT_EQ(test, pub_shm_info.entries[0].shm_addr, ret_addr);
 
   // Act
   int ret2 = ioctl_receive_msg(
@@ -885,8 +885,8 @@ void test_case_receive_msg_with_exited_publisher(struct kunit * test)
     test, ioctl_receive_msg_ret1.ret_entry_ids[0], ioctl_publish_msg_ret.ret_entry_id);
   KUNIT_ASSERT_EQ(test, ioctl_receive_msg_ret1.ret_entry_addrs[0], msg_addr);
   KUNIT_ASSERT_EQ(test, pub_shm_info1.publisher_num, 1);
-  KUNIT_ASSERT_EQ(test, pub_shm_info1.publisher_pids[0], publisher_pid);
-  KUNIT_ASSERT_EQ(test, pub_shm_info1.shm_addrs[0], ret_addr);
+  KUNIT_ASSERT_EQ(test, pub_shm_info1.entries[0].pid, publisher_pid);
+  KUNIT_ASSERT_EQ(test, pub_shm_info1.entries[0].shm_addr, ret_addr);
 
   // Act
   union ioctl_receive_msg_args ioctl_receive_msg_ret2;

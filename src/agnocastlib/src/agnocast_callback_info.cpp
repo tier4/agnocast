@@ -36,9 +36,9 @@ void receive_and_execute_message(
 
     // Map the shared memory region with read permissions whenever a new publisher is discovered.
     for (uint32_t i = 0; i < pub_shm_info.publisher_num; i++) {
-      const pid_t pid = pub_shm_info.publisher_pids[i];
-      const uint64_t addr = pub_shm_info.shm_addrs[i];
-      const uint64_t size = pub_shm_info.shm_sizes[i];
+      const pid_t pid = pub_shm_info.entries[i].pid;
+      const uint64_t addr = pub_shm_info.entries[i].shm_addr;
+      const uint64_t size = pub_shm_info.entries[i].shm_size;
       map_read_only_area(pid, addr, size);
     }
   }
