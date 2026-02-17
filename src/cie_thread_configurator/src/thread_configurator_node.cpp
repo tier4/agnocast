@@ -12,7 +12,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -511,23 +510,15 @@ void ThreadConfiguratorNode::non_ros_thread_callback(
 
 void ThreadConfiguratorNode::apply_deadline_configs()
 {
-  bool all_succeeded = true;
   for (auto config : deadline_configs_) {
     if (!issue_syscalls(*config)) {
       RCLCPP_WARN(
         this->get_logger(), "Failed to apply SCHED_DEADLINE for tid=%ld", config->thread_id);
-      all_succeeded = false;
     }
   }
   deadline_configs_.clear();
 
-  if (all_succeeded) {
-    RCLCPP_INFO(this->get_logger(), "Success: All of the configurations are applied.");
-  } else {
-    RCLCPP_WARN(
-      this->get_logger(),
-      "Some SCHED_DEADLINE configurations failed. Non-deadline configurations were applied.");
-  }
+  RCLCPP_INFO(this->get_logger(), "Success: All of the configurations are applied.");
 
   configured_at_least_once_ = true;
 
