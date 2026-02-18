@@ -112,7 +112,7 @@ sudo sysctl -p
 
 Each bridge manager message queue consumes memory proportional to the maximum message size and queue depth.
 When running many Agnocast processes simultaneously, the per-user POSIX message queue memory limit
-(`RLIMIT_MSGQUEUE`) may be exceeded, causing `mq_open` to fail with `Too many open files`.
+(`RLIMIT_MSGQUEUE`) may be exceeded, causing `mq_open` to fail.
 
 To increase the limit, either add the following line to `/etc/security/limits.conf`:
 
