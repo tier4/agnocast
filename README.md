@@ -80,6 +80,29 @@ echo "fs.mqueue.msg_max=256" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
+#### Adjusting the maximum number of message queues
+
+Depending on the number of topics and subscribers in your system, you may need to increase the system-wide limit on the number of POSIX message queues (`queues_max`). The default is typically 256, which may not be sufficient for large-scale deployments.
+
+You can check the current limit with:
+
+```bash
+cat /proc/sys/fs/mqueue/queues_max
+```
+
+**Temporary setting (Current session only):**
+
+```bash
+sudo sysctl -w fs.mqueue.queues_max=1024
+```
+
+**Permanent setting:**
+
+```bash
+echo "fs.mqueue.queues_max=1024" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
 ### Setup
 
 Run the setup script to install dependencies:
@@ -343,13 +366,15 @@ Although Agnocast includes cleanup procedures for resources like shared memory a
 rm /dev/shm/agnocast@*
 ```
 
-Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, you may need to remove leftover message queues by running:
+Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, first try removing leftover message queues by running:
 
 ```bash
 rm /dev/mqueue/agnocast@*
 rm /dev/mqueue/agnocast_bridge_manager_parent@*
 rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 ```
+
+If the error persists after cleanup, you may need to increase the system-wide limit on the number of message queues. See the [Adjusting the maximum number of message queues](#adjusting-the-maximum-number-of-message-queues) section above.
 
 ## Documents
 
