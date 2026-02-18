@@ -216,7 +216,7 @@ void send_mq_message(
     return;
   }
 
-  constexpr int BRIDGE_MQ_SEND_MAX_RETRIES = 10;
+  constexpr int BRIDGE_MQ_SEND_MAX_RETRIES = 100;
   constexpr useconds_t BRIDGE_MQ_SEND_RETRY_INTERVAL_US = 100000;  // 100ms
 
   int send_result = -1;
