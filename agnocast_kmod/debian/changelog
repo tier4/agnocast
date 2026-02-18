@@ -1,4 +1,4 @@
-agnocast-kmod-v2.2.0 (2.2.0-5) noble; urgency=medium
+agnocast-kmod-v2.2.0 (2.2.0-6) noble; urgency=medium
 
   * fix(kmod)[need-minor-update]: delete unnecessary tests along with the abolish of `MAX_PROCESS_NUM_PER_MEMPOOL` (#1073 <https://github.com/tier4/agnocast/issues/1073>)
   * fix(agnocastlib): add warning about `mempool_size_gb` (#1069 <https://github.com/tier4/agnocast/issues/1069>)
