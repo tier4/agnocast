@@ -1,6 +1,16 @@
 #!/bin/bash
 set -eux
 
+if ! command -v debuild &> /dev/null; then
+  echo "Error: debuild is not installed. Install it with: sudo apt install devscripts"
+  exit 1
+fi
+
+if ! dpkg -s dh-dkms &> /dev/null; then
+  echo "Error: dh-dkms is required. Install it with: sudo apt install dh-dkms"
+  exit 1
+fi
+
 VERSION="2.2.0"
 
 cp -r agnocast_kmod agnocast-kmod-v${VERSION}-${VERSION}
