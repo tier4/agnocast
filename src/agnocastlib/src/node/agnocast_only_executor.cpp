@@ -305,6 +305,20 @@ void AgnocastOnlyExecutor::add_node(
         group_ptr->automatically_add_to_executor_with_node() &&
         !group_ptr->get_associated_with_executor_atomic().exchange(true)) {
         weak_groups_to_nodes_associated_with_executor_.insert({group_ptr, node_ptr});
+
+        const auto group_type_enum = group_ptr->type();
+        const char * group_type_str =
+          (group_type_enum == rclcpp::CallbackGroupType::MutuallyExclusive) ? "MutuallyExclusive"
+                                                                            : "Reentrant";
+
+        std::cout << "TRACEPOINT: agnocast_add_callback_group with executor "
+                  << static_cast<const void *>(this) << ", callback group "
+                  << static_cast<const void *>(group_ptr.get()) << ", group type " << group_type_str
+                  << std::endl;
+
+        TRACEPOINT(
+          agnocast_add_callback_group, static_cast<const void *>(this),
+          static_cast<const void *>(group_ptr.get()), group_type_str);
       }
     });
   weak_nodes_.push_back(node_ptr);

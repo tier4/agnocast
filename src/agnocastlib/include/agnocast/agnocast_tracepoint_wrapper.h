@@ -42,7 +42,7 @@ DECLARE_TRACEPOINT(
 
 DECLARE_TRACEPOINT(
   agnocast_timer_init,
-   const void * timer_handle,
+  const void * timer_handle,
   const void * node_handle,
   const void * callback,
   const void * callback_group,
