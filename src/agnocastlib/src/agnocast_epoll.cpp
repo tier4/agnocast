@@ -60,16 +60,15 @@ bool wait_and_handle_epoll_event(
       callback_group = timer_info->callback_group;
     }
 
+    auto timer_ptr = timer_info->timer.lock();
+
     // Create a callable that handles the timer event
     const std::shared_ptr<std::function<void()>> callable =
       std::make_shared<std::function<void()>>([timer_info]() { handle_timer_event(*timer_info); });
 
-    {
-      constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_timer_id = (static_cast<uint64_t>(getpid()) << PID_SHIFT_BITS) | timer_id;
-      TRACEPOINT(
-        agnocast_create_timer_callable, static_cast<const void *>(callable.get()), pid_timer_id);
-    }
+    TRACEPOINT(
+      agnocast_create_timer_callable, static_cast<const void *>(callable.get()),
+      static_cast<const void *>(timer_ptr.get()));
 
     {
       std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};

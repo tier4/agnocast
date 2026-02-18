@@ -92,16 +92,16 @@ TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_timer_init,
   TP_ARGS(
+    const void *, timer_handle_arg,         // timer pointer, used for identification in caret_analyze
     const void *, node_handle_arg,          // agnocast::Node pointer (same as agnocast_node_init)
-    const uint64_t, pid_timer_id_arg,       // (pid << 32) | timer_id, links to create_timer_callable
     const void *, callback_arg,             // callback pointer, used for identification in caret_analyze
     const void *, callback_group_arg,       // callback group this timer belongs to
     const char *, symbol_arg,               // demangled callback function name for display
     int64_t, period_arg                     // timer period in nanoseconds
   ),
   TP_FIELDS(
+    ctf_integer_hex(const void *, timer_handle, timer_handle_arg)
     ctf_integer_hex(const void *, node_handle, node_handle_arg)
-    ctf_integer(const uint64_t, pid_timer_id, pid_timer_id_arg)
     ctf_integer_hex(const void *, callback, callback_arg)
     ctf_integer_hex(const void *, callback_group, callback_group_arg)
     ctf_string(symbol, symbol_arg)
@@ -163,11 +163,11 @@ TRACEPOINT_EVENT(
   agnocast_create_timer_callable,
   TP_ARGS(
     const void *, callable_arg,             // callable pointer, links to agnocast_callable_start
-    const uint64_t, pid_timer_id_arg        // (pid << 32) | timer_id, links to agnocast_timer_init
+    const void *, timer_handle_arg         // timer pointer, links to agnocast_timer_init
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, callable, callable_arg)
-    ctf_integer(const uint64_t, pid_timer_id, pid_timer_id_arg)
+    ctf_integer_hex(const void *, timer_handle, timer_handle_arg)
   )
 )
 

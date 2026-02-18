@@ -42,8 +42,8 @@ DECLARE_TRACEPOINT(
 
 DECLARE_TRACEPOINT(
   agnocast_timer_init,
+   const void * timer_handle,
   const void * node_handle,
-  const uint64_t pid_timer_id,
   const void * callback,
   const void * callback_group,
   const char * function_symbol,
@@ -69,7 +69,7 @@ DECLARE_TRACEPOINT(
 DECLARE_TRACEPOINT(
   agnocast_create_timer_callable,
   const void * callable,
-  const uint64_t pid_timer_id)
+  const void * timer_handle)
 
 DECLARE_TRACEPOINT(
   agnocast_callable_start,

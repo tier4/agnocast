@@ -352,13 +352,10 @@ public:
 
     const void * callback_addr = timer->get_callback_addr();  // 必要か？
 
-    {
-      constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_timer_id = (static_cast<uint64_t>(getpid()) << PID_SHIFT_BITS) | timer_id;
-      TRACEPOINT(
-        agnocast_timer_init, static_cast<const void *>(this), pid_timer_id, callback_addr,
-        static_cast<const void *>(group.get()), tracetools::get_symbol(callback), period.count());
-    }
+    TRACEPOINT(
+      agnocast_timer_init, static_cast<const void *>(timer.get()), static_cast<const void *>(this),
+      callback_addr, static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
+      period.count());
 
     return timer;
   }
@@ -394,14 +391,10 @@ public:
 
     const void * callback_addr = timer->get_callback_addr();  // 必要か？
 
-    {
-      constexpr uint8_t PID_SHIFT_BITS = 32;
-      uint64_t pid_timer_id = (static_cast<uint64_t>(getpid()) << PID_SHIFT_BITS) | timer_id;
-      TRACEPOINT(
-        agnocast_timer_init, static_cast<const void *>(this), pid_timer_id, callback_addr,
-        static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
-        period_ns.count());
-    }
+    TRACEPOINT(
+      agnocast_timer_init, static_cast<const void *>(timer.get()), static_cast<const void *>(this),
+      callback_addr, static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
+      period.count());
 
     return timer;
   }
