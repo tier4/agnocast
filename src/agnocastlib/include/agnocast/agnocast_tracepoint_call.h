@@ -102,6 +102,7 @@ TRACEPOINT_EVENT(
   TP_FIELDS(
     ctf_integer_hex(const void *, node_handle, node_handle_arg)
     ctf_integer(const uint64_t, pid_timer_id, pid_timer_id_arg)
+    ctf_integer_hex(const void *, callback, callback_arg)
     ctf_integer_hex(const void *, callback_group, callback_group_arg)
     ctf_string(symbol, symbol_arg)
     ctf_integer(const int64_t, period, period_arg)
@@ -115,7 +116,7 @@ TRACEPOINT_EVENT(
   agnocast_add_callback_group,
   TP_ARGS(
     const void *, executor_addr_arg,
-    const void *, callback_group_addr_arg
+    const void *, callback_group_addr_arg,
     const char *, group_type_name_arg
   ),
   TP_FIELDS(
