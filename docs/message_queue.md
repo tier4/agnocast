@@ -82,19 +82,3 @@ The Bridge Manager message queue is named using the process ID:
 |------|-------------------|-------------|
 | Standard | `/agnocast_bridge_manager@{pid}` | `{pid}` is the PID of the bridge manager's parent process |
 | Performance | `/agnocast_bridge_manager@-1` | Uses virtual PID `-1` for the global manager |
-
-## Resource Limits
-
-### `RLIMIT_MSGQUEUE` and Bridge MQ memory consumption
-
-In Standard mode, each Agnocast process creates its own Bridge Manager message queue. The kernel tracks per-user POSIX message queue memory usage via `RLIMIT_MSGQUEUE` (default: 819,200 bytes on most Linux systems).
-
-Each bridge MQ consumes memory proportional to `mq_maxmsg * mq_msgsize`. The bridge MQ message size (`sizeof(MqMsgBridge)`) is approximately 4,640 bytes. With `BRIDGE_MQ_MAX_MESSAGES = 1`, each MQ consumes roughly 4,640 bytes of the `RLIMIT_MSGQUEUE` budget, allowing approximately 176 concurrent processes within the default 819,200-byte limit.
-
-If the per-user limit is exceeded, `mq_open` will fail with `EMFILE` ("Too many open files"). To resolve this, you can increase the limit. See the [System Configuration](../README.md#system-configuration) section in the README for details.
-
-**Note:** Performance mode is not affected by this limit in the same way, because only a single global Bridge Manager MQ is created regardless of the number of processes.
-
-### Retry mechanism for `mq_send`
-
-Because `BRIDGE_MQ_MAX_MESSAGES` is set to 1, the bridge MQ may be temporarily full when the Bridge Manager has not yet consumed the previous message. In this case, `mq_send` returns `EAGAIN` (since the queue is opened with `O_NONBLOCK`). The sender retries up to 10 times with a 100ms interval between attempts, for a maximum total wait of approximately 1 second. This is acceptable because `send_mq_message` is only called during publisher/subscriber construction.
