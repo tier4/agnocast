@@ -12,7 +12,7 @@ Agnocast uses the `LD_PRELOAD` to replace the following memory allocation/deallo
 - `aligned_alloc`
 - `memalign`
 
-The hook library is generated as `libagnocast_heaphook.so`, so Agnocast requires to set `LD_PRELOAD` to `libagnocast_heaphook.so`. In addition, you have to specify appropriate `AGNOCAST_MEMPOOL_SIZE` as an environment variable because of [this](./shared_memory.md#how-virtual-addresses-are-decided).
+The hook library is generated as `libagnocast_heaphook.so`, so Agnocast requires to set `LD_PRELOAD` to `libagnocast_heaphook.so`.
 
 ## Integrate with ROS 2 launch
 
@@ -21,7 +21,6 @@ You can set environment variables through ROS 2 launch file systems as follows. 
 ```xml
 <node pkg="..." exec="..." name="...">
   <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
-  <env name="AGNOCAST_MEMPOOL_SIZE" value="..." />
 </node>
 ```
 
@@ -35,7 +34,6 @@ You can set environment variables through ROS 2 launch file systems as follows. 
 <!-- Deprecated: agnocastlib package (will be removed in future versions) -->
 <node_container pkg="agnocastlib" exec="agnocast_component_container" name="...">
   <env name="LD_PRELOAD" value="libagnocast_heaphook.so:$(env LD_PRELOAD '')" />
-  <env name="AGNOCAST_MEMPOOL_SIZE" value="..." />
 </node_container>
 ```
 
@@ -46,7 +44,6 @@ container = ComposableNodeContainer(
     ...,
     additional_env={
         'LD_PRELOAD': f"libagnocast_heaphook.so:{os.getenv('LD_PRELOAD', '')}",
-        "AGNOCAST_MEMPOOL_SIZE": "...",
     },
 )
 ```
