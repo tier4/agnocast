@@ -6,6 +6,7 @@ override_dh_auto_configure:
 	true
 
 override_dh_auto_build:
+	rm -f Cargo.lock
 	cargo build --release
 
 override_dh_auto_clean:

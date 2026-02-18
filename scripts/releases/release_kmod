@@ -20,7 +20,7 @@ if ! command -v backportpackage &> /dev/null; then
 fi
 
 VERSION="2.2.0"
-RELEASE="2"
+RELEASE="5"
 
 CHANGES_FILE="agnocast-kmod-v${VERSION}_${VERSION}-${RELEASE}_source.changes"
 DSC_FILE="agnocast-kmod-v${VERSION}_${VERSION}-${RELEASE}.dsc"
