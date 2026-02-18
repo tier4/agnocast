@@ -64,13 +64,16 @@ cd agnocast
 
 ### System Configuration
 
+Agnocast uses POSIX message queues for inter-process notification. The following system parameters may need adjustment.
+
+#### `msg_max`: Maximum number of messages per queue (Required)
+
 Agnocast requires increasing the system limit for the maximum number of messages in a queue.
 
 **Temporary setting (Current session only):**
 
 ```bash
 sudo sysctl -w fs.mqueue.msg_max=256
-
 ```
 
 **Permanent setting:**
@@ -80,15 +83,17 @@ echo "fs.mqueue.msg_max=256" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
-#### Adjusting the maximum number of message queues
+#### `queues_max`: Maximum number of message queues system-wide (Optional)
 
-Depending on the number of topics and subscribers in your system, you may need to increase the system-wide limit on the number of POSIX message queues (`queues_max`). The default is typically 256, which may not be sufficient for large-scale deployments.
+Agnocast creates a message queue for each subscriber, so the total number of message queues grows with the number of topics and subscribers. The system default for `queues_max` is typically 256, which may not be sufficient for large-scale deployments.
 
 You can check the current limit with:
 
 ```bash
 cat /proc/sys/fs/mqueue/queues_max
 ```
+
+If you encounter `mq_open failed: No space left on device`, you may need to increase this limit.
 
 **Temporary setting (Current session only):**
 
@@ -374,7 +379,7 @@ rm /dev/mqueue/agnocast_bridge_manager_parent@*
 rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 ```
 
-If the error persists after cleanup, you may need to increase the system-wide limit on the number of message queues. See the [Adjusting the maximum number of message queues](#adjusting-the-maximum-number-of-message-queues) section above.
+If the error persists after cleanup, you may need to increase the system-wide limit on the number of message queues. See the [System Configuration](#system-configuration) section above for how to increase `queues_max`.
 
 ## Documents
 
