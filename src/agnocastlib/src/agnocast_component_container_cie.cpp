@@ -41,14 +41,14 @@ class ComponentManagerCallbackIsolated : public rclcpp_components::ComponentMana
   };
 
 public:
-  static constexpr int DEFALUT_GET_NEXT = 50;
+  static constexpr int DEFAULT_GET_NEXT = 50;
 
   template <typename... Args>
   explicit ComponentManagerCallbackIsolated(Args &&... args)
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay,hicpp-no-array-decay)
   : rclcpp_components::ComponentManager(std::forward<Args>(args)...)
   {
-    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
+    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFAULT_GET_NEXT);
     client_publisher_ = agnocast::create_rclcpp_client_publisher();
   }
 
