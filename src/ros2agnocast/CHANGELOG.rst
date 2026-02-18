@@ -2,8 +2,8 @@
 Changelog for package ros2agnocast
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-02-19)
+------------------
 * fix(bridge): unify r2a and a2r plugin into one to improve build time (`#1064 <https://github.com/tier4/agnocast/issues/1064>`_)
 * fix(bridge): improve bridge plugins build time (`#1063 <https://github.com/tier4/agnocast/issues/1063>`_)
 * feat(ros2agnocast): change bridge display meaning (`#1005 <https://github.com/tier4/agnocast/issues/1005>`_)

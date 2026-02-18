@@ -2,8 +2,8 @@
 Changelog for package agnocast_components
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-02-19)
+------------------
 * feat(components): move component container to agnocast_components package (`#1074 <https://github.com/tier4/agnocast/issues/1074>`_)
 * fix(components):  fix to use wrapper node base (`#1057 <https://github.com/tier4/agnocast/issues/1057>`_)
 * feat(agnocastlib): add AgnocastOnlyCallbackIsolatedExecutor (`#1031 <https://github.com/tier4/agnocast/issues/1031>`_)

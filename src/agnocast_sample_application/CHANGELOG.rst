@@ -2,8 +2,8 @@
 Changelog for package agnocast_sample_application
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-02-19)
+------------------
 * fix: delete deprecated agnocast mempool size (`#1068 <https://github.com/tier4/agnocast/issues/1068>`_)
 * fix(sample_app): add missing agnocast_components dependency to package.xml (`#1029 <https://github.com/tier4/agnocast/issues/1029>`_)
 * feat(agnocast_components): add agnocast_components_register_node macro (`#1025 <https://github.com/tier4/agnocast/issues/1025>`_)

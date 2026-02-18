@@ -2,8 +2,8 @@
 Changelog for package agnocast_ioctl_wrapper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-02-19)
+------------------
 * feat(kmod)[need-minor-update]: increase MAX_PUBLISHER_NUM (`#1060 <https://github.com/tier4/agnocast/issues/1060>`_)
 * feat(kmod): Increase MAX_SUBSCRIBER_NUM by using bitmap (`#1015 <https://github.com/tier4/agnocast/issues/1015>`_)
 * feat(agnocast_ioctl_wrapper, ros2agnocast): enhance topic list agnocast command (`#1002 <https://github.com/tier4/agnocast/issues/1002>`_)

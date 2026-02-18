@@ -2,8 +2,8 @@
 Changelog for package agnocastlib
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.0 (2026-02-19)
+------------------
 * Fix/resend mq message and test fix (`#1078 <https://github.com/tier4/agnocast/issues/1078>`_)
 * fix(agnocastlib): prevent bridge counting (`#1076 <https://github.com/tier4/agnocast/issues/1076>`_)
 * fix(bridge): unify r2a and a2r plugin into one to improve build time (`#1064 <https://github.com/tier4/agnocast/issues/1064>`_)
