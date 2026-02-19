@@ -5,6 +5,21 @@
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
+# Signal handling: kill all child processes on exit
+CHILD_PIDS=()
+cleanup() {
+    echo "" | sudo tee /dev/kmsg
+    echo "Caught signal, terminating child processes..." | sudo tee /dev/kmsg
+    for pid in "${CHILD_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -TERM -- -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+        fi
+    done
+    wait
+    exit 130
+}
+trap cleanup SIGINT SIGTERM SIGHUP
+
 # Parsing arguments
 OPTIONS=$(getopt -o hp:S --long help,parallel:,sequential -- "$@")
 if [ $? -ne 0 ]; then
@@ -68,11 +83,13 @@ else
     echo "Starting 1to1 and 2to2 E2E tests in parallel (workers per suite: $PARALLEL)..." | sudo tee /dev/kmsg
 
     # Run 1to1 and 2to2 in parallel with different topic prefixes
-    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_1to1 "$SCRIPT_DIR/e2e_test_1to1" -p "$PARALLEL" -c &
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_1to1 setsid "$SCRIPT_DIR/e2e_test_1to1" -p "$PARALLEL" -c &
     PID_1TO1=$!
+    CHILD_PIDS+=($PID_1TO1)
 
-    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_2to2 "$SCRIPT_DIR/e2e_test_2to2" -p "$PARALLEL" -c &
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_2to2 setsid "$SCRIPT_DIR/e2e_test_2to2" -p "$PARALLEL" -c &
     PID_2TO2=$!
+    CHILD_PIDS+=($PID_2TO2)
 
     wait $PID_1TO1
     RESULT_1TO1=$?
@@ -80,6 +97,8 @@ else
     wait $PID_2TO2
     RESULT_2TO2=$?
 fi
+
+trap - SIGINT SIGTERM SIGHUP
 
 echo "" | sudo tee /dev/kmsg
 echo "====== COMBINED RESULTS ======" | sudo tee /dev/kmsg

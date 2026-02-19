@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Signal handling: kill all background worker processes on exit
+cleanup() {
+    echo "Caught signal, terminating workers..." >&2
+    kill $(jobs -p) 2>/dev/null
+    wait
+    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" 2>/dev/null
+    exit 130
+}
+trap cleanup SIGINT SIGTERM SIGHUP
+
 # Parsing arguments
 OPTIONS=$(getopt -o hscp: --long help,single,continue,parallel: -- "$@")
 if [ $? -ne 0 ]; then
