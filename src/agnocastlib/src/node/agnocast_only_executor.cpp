@@ -311,11 +311,6 @@ void AgnocastOnlyExecutor::add_node(
           (group_type_enum == rclcpp::CallbackGroupType::MutuallyExclusive) ? "MutuallyExclusive"
                                                                             : "Reentrant";
 
-        std::cout << "TRACEPOINT: agnocast_add_callback_group with executor "
-                  << static_cast<const void *>(this) << ", callback group "
-                  << static_cast<const void *>(group_ptr.get()) << ", group type " << group_type_str
-                  << std::endl;
-
         TRACEPOINT(
           agnocast_add_callback_group, static_cast<const void *>(this),
           static_cast<const void *>(group_ptr.get()), group_type_str);
