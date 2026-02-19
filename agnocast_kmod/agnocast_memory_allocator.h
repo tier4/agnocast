@@ -1,22 +1,26 @@
 #pragma once
 
+#include <linux/list.h>
 #include <linux/types.h>
 
-// Maximum number of processes that can be mapped to a memory pool
-#define MAX_PROCESS_NUM_PER_MEMPOOL 32
-
-#define MEMPOOL_NUM 1000
+#define MEMPOOL_NUM 1024
 
 // Default is 8GB, can be overridden by insmod parameter mempool_size_gb
 extern int mempool_size_gb;
 // Mempool size in bytes (calculated from mempool_size_gb)
 extern uint64_t mempool_size_bytes;
 
+struct mapped_pid_entry
+{
+  pid_t pid;
+  struct list_head list;
+};
+
 struct mempool_entry
 {
   uint64_t addr;
   uint32_t mapped_num;
-  pid_t mapped_pids[MAX_PROCESS_NUM_PER_MEMPOOL];
+  struct list_head mapped_pid_head;
 };
 
 void init_memory_allocator(void);

@@ -41,17 +41,15 @@ class ComponentManagerCallbackIsolated : public rclcpp_components::ComponentMana
   };
 
 public:
-  static constexpr int DEFALUT_GET_NEXT = 50;
-  static constexpr int DEFAULT_QOS_DEPTH = 1000;
+  static constexpr int DEFAULT_GET_NEXT = 50;
 
   template <typename... Args>
   explicit ComponentManagerCallbackIsolated(Args &&... args)
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay,hicpp-no-array-decay)
   : rclcpp_components::ComponentManager(std::forward<Args>(args)...)
   {
-    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
-    client_publisher_ = create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
+    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFAULT_GET_NEXT);
+    client_publisher_ = agnocast::create_rclcpp_client_publisher();
   }
 
   ~ComponentManagerCallbackIsolated() override;
@@ -70,7 +68,7 @@ private:
   static bool is_clock_callback_group(const rclcpp::CallbackGroup::SharedPtr & group);
 
   std::unordered_map<uint64_t, std::list<ExecutorWrapper>> node_id_to_executor_wrappers_;
-  rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
+  rclcpp::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
   std::mutex client_publisher_mutex_;
   int get_next_timeout_ms_;
 };
@@ -222,6 +220,11 @@ int main(int argc, char * argv[])
 
   try {
     rclcpp::init(argc, argv);
+
+    RCLCPP_WARN(
+      rclcpp::get_logger("agnocast_component_container_cie"),
+      "agnocastlib::agnocast_component_container_cie is deprecated. "
+      "Please use agnocast_components::agnocast_component_container_cie instead.");
 
     rclcpp::NodeOptions options;
     options.allow_undeclared_parameters(true);

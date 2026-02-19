@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agnocastlib</name>
-  <version>2.1.2</version>
+  <version>2.2.0</version>
   <description>
     True Zero Copy Communication Middleware for Unsized ROS 2 Message Types.
   </description>
@@ -30,11 +30,10 @@
   <depend>rosgraph_msgs</depend>
   <depend>ament_index_cpp</depend>
 
-  <build_depend>libgoogle-glog-dev</build_depend>
-  <exec_depend>libgoogle-glog-dev</exec_depend>
+  <depend>glog</depend>
 
-  <depend>cie_config_msgs</depend>
-  <depend>cie_thread_configurator</depend>
+  <depend>agnocast_cie_config_msgs</depend>
+  <depend>agnocast_cie_thread_configurator</depend>
   <depend>agnocast_sample_interfaces</depend>
 
   <!-- Uncomment when agnocast_kmod is released from PPA -->
