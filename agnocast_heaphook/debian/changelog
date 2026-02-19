@@ -1,4 +1,4 @@
-agnocast-heaphook-v2.2.0 (2.2.0-5) noble; urgency=medium
+agnocast-heaphook-v2.2.0 (2.2.0-6) noble; urgency=medium
 
   * fix(test): fix test failures in cie and heaphook test (#887 <https://github.com/tier4/agnocast/issues/887>)
   * feat(heaphook)[need-minor-update] :add init_child_allocator  (#798 <https://github.com/tier4/agnocast/issues/798>)
