@@ -40,11 +40,9 @@ This reflects the current status, and support is expected to expand in the futur
 
 | Category           | Supported Versions / Notes                                   |
 |--------------------|--------------------------------------------------------------|
-| ROS 2              | Humble (only with `rclcpp` client library)                   |
-| Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
+| ROS 2              | Humble / Jazzy (only with `rclcpp` client library)           |
+| Linux Distribution | Ubuntu 22.04 (Jammy) / Ubuntu 24.04 (Noble)                 |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
-
-ROS 2 Jazzy (Ubuntu 24.04) is now supported in the main branch and will be included in the v2.2.0 release.
 
 > **Warning**: Agnocast service/client is not officially supported yet and the API may change in the future. Use at your own risk.
 
@@ -58,7 +56,7 @@ Since ROS packages under `src/` such as `agnocastlib` are not yet distributed fr
 Therefore, to perform the source build, first check out the specific version as follows:
 
 ```bash
-git clone --branch 2.1.2 https://github.com/tier4/agnocast.git
+git clone --branch 2.2.0 https://github.com/tier4/agnocast.git
 cd agnocast
 ```
 
@@ -108,6 +106,30 @@ echo "fs.mqueue.queues_max=1024" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
+#### `msgqueue`: Per-user POSIX message queue memory limit (Optional)
+
+Each bridge manager message queue consumes memory proportional to the maximum message size and queue depth.
+When running many Agnocast processes simultaneously, the per-user POSIX message queue memory limit
+(`RLIMIT_MSGQUEUE`) may be exceeded, causing `mq_open` to fail.
+
+To increase the limit, either add the following line to `/etc/security/limits.conf`:
+
+```text
+* - msgqueue unlimited
+```
+
+Or use `prlimit` to change the limit for the current shell:
+
+```bash
+sudo prlimit --pid=$$ --msgqueue=unlimited
+```
+
+You can verify the current limit with:
+
+```bash
+ulimit -q
+```
+
 ### Setup
 
 Run the setup script to install dependencies:
@@ -134,14 +156,14 @@ sudo chmod 0644 /etc/apt/keyrings/agnocast-ppa.gpg
 cat <<EOF | sudo tee /etc/apt/sources.list.d/agnocast.sources
 Types: deb
 URIs: http://ppa.launchpad.net/t4-system-software/agnocast/ubuntu
-Suites: jammy
+Suites: jammy noble
 Components: main
 Signed-By: /etc/apt/keyrings/agnocast-ppa.gpg
 EOF
 
 # Install packages
 sudo apt update
-sudo apt install agnocast-heaphook-v2.1.2 agnocast-kmod-v2.1.2
+sudo apt install agnocast-heaphook-v2.2.0 agnocast-kmod-v2.2.0
 ```
 
 </details>
