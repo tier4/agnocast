@@ -2806,19 +2806,44 @@ void agnocast_init_mutexes(void)
   mutex_init(&global_mutex);
 }
 
-void agnocast_init_device(void)
+int agnocast_init_device(void)
 {
+  int ret;
+
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
+  if (major < 0) {
+    pr_err("agnocast: register_chrdev failed: %d\n", major);
+    return major;
+  }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
   agnocast_class = class_create("agnocast_class");
 #else
   agnocast_class = class_create(THIS_MODULE, "agnocast_class");
 #endif
+  if (IS_ERR(agnocast_class)) {
+    pr_err("agnocast: class_create failed\n");
+    ret = PTR_ERR(agnocast_class);
+    goto err_unregister_chrdev;
+  }
 
   agnocast_class->devnode = agnocast_devnode;
+
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+  if (IS_ERR(agnocast_device)) {
+    pr_err("agnocast: device_create failed\n");
+    ret = PTR_ERR(agnocast_device);
+    goto err_class_destroy;
+  }
+
+  return 0;
+
+err_class_destroy:
+  class_destroy(agnocast_class);
+err_unregister_chrdev:
+  unregister_chrdev(major, "agnocast");
+  return ret;
 }
 
 int agnocast_init_kthread(void)
@@ -2854,7 +2879,9 @@ static int agnocast_init(void)
 
   agnocast_init_mutexes();
 
-  agnocast_init_device();
+  ret = agnocast_init_device();
+  if (ret < 0)
+    return ret;
 
   ret = agnocast_init_kthread();
   if (ret < 0) {
