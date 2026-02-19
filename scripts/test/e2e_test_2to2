@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Signal handling: kill all background worker processes on exit
+# Signal handling: kill all descendant processes on exit
 cleanup() {
-    echo "Caught signal, terminating workers..." >&2
-    kill $(jobs -p) 2>/dev/null
-    wait
+    trap - SIGINT SIGTERM SIGHUP
+    kill -- -$$ 2>/dev/null
     rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" 2>/dev/null
     exit 130
 }
@@ -87,13 +86,13 @@ show_config() {
     echo "----------------------------------------------" | sudo tee /dev/kmsg
 }
 
-# Generate test ID from mode and layout
-# Format: {mode}_{layout_with_dashes}  e.g. agno2agno_PPSS, ros2agno_P-P-S-S
+# Generate test ID from mode and layout (ROS2 topic-name safe: no hyphens)
+# Example: agno2agno_PP_SS (containers separated by underscore)
 generate_test_id() {
     local mode=$1
     local layout=$2
-    local layout_id="${layout//|/-}"
-    echo "${mode}_${layout_id}"
+    local layout_id="${layout//|/_}"
+    echo "${mode}_layout_${layout_id}"
 }
 
 FAILURE_COUNT=0
@@ -122,27 +121,35 @@ elif [ "$PARALLEL" -gt 1 ]; then
 
     FAILED_TESTS_FILE=$(mktemp)
 
-    # Generate all test commands
+    # Generate all test commands (with sequential worker number for ROS_DOMAIN_ID)
     COMMANDS_FILE=$(mktemp)
+    WORKER_NUM=0
+    # Base domain ID offset to avoid collision with default domain (0) and other users
+    DOMAIN_ID_BASE=${ROS_DOMAIN_ID_BASE:-10}
     for mode in "${TEST_MODES[@]}"; do
         for layout in "${CONTAINER_LAYOUT[@]}"; do
             TEST_ID=$(generate_test_id "$mode" "$layout")
-            echo "$TEST_ID $mode $layout" >> "$COMMANDS_FILE"
+            echo "$WORKER_NUM $TEST_ID $mode $layout" >> "$COMMANDS_FILE"
+            WORKER_NUM=$((WORKER_NUM + 1))
         done
     done
 
     echo "Running $TOTAL_TESTS tests with $PARALLEL parallel workers..." | sudo tee /dev/kmsg
 
     # Export variables needed by worker
-    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE
+    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE DOMAIN_ID_BASE
 
     # Create worker script
     WORKER_SCRIPT=$(mktemp /tmp/e2e_2to2_worker_XXXXXX.sh)
     cat > "$WORKER_SCRIPT" << 'WORKER_EOF'
 #!/bin/bash
-TEST_ID=$1
-mode=$2
-layout=$3
+WORKER_NUM=$1
+TEST_ID=$2
+mode=$3
+layout=$4
+
+# Isolate DDS discovery per worker
+export ROS_DOMAIN_ID=$((DOMAIN_ID_BASE + WORKER_NUM))
 
 CONFIG_TMP="/tmp/e2e_2to2_${TEST_ID}.yaml"
 

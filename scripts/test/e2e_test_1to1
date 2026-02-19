@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Signal handling: kill all background worker processes on exit
+# Signal handling: kill all descendant processes on exit
 cleanup() {
-    echo "Caught signal, terminating workers..." >&2
-    kill $(jobs -p) 2>/dev/null
-    wait
+    trap - SIGINT SIGTERM SIGHUP
+    kill -- -$$ 2>/dev/null
     rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" 2>/dev/null
     exit 130
 }
@@ -97,8 +96,8 @@ show_config() {
     echo "----------------------------------------------" | sudo tee /dev/kmsg
 }
 
-# Generate test ID from parameters
-# Format: {agno|ros2}_{pub-first|sub-first}_pd{1|10}_{ptl|pvol}_sd{1|10}_{stl|svol}_{take|cb}
+# Generate test ID from parameters (ROS2 topic-name safe: alphanumerics and underscores only)
+# Example: agnopub_pubfirst_pub_depth1_tl_sub_depth1_tl_takesub
 generate_test_id() {
     local use_agnocast_pub=$1
     local launch_pub_before_sub=$2
@@ -108,22 +107,22 @@ generate_test_id() {
     local sub_transient_local=$6
     local use_take_sub=$7
 
-    local pub_type="agno"
-    [ "$use_agnocast_pub" = "false" ] && pub_type="ros2"
+    local pub_type="agnopub"
+    [ "$use_agnocast_pub" = "false" ] && pub_type="ros2pub"
 
-    local launch_order="pub-first"
-    [ "$launch_pub_before_sub" = "false" ] && launch_order="sub-first"
+    local launch_order="pubfirst"
+    [ "$launch_pub_before_sub" = "false" ] && launch_order="subfirst"
 
-    local ptl="ptl"
-    [ "$pub_transient_local" = "false" ] && ptl="pvol"
+    local pub_tl="tl"
+    [ "$pub_transient_local" = "false" ] && pub_tl="volatile"
 
-    local stl="stl"
-    [ "$sub_transient_local" = "false" ] && stl="svol"
+    local sub_tl="tl"
+    [ "$sub_transient_local" = "false" ] && sub_tl="volatile"
 
-    local sub_type="cb"
-    [ "$use_take_sub" = "true" ] && sub_type="take"
+    local sub_type="callbacksub"
+    [ "$use_take_sub" = "true" ] && sub_type="takesub"
 
-    echo "${pub_type}_${launch_order}_pd${pub_qos_depth}_${ptl}_sd${sub_qos_depth}_${stl}_${sub_type}"
+    echo "${pub_type}_${launch_order}_pub_depth${pub_qos_depth}_${pub_tl}_sub_depth${sub_qos_depth}_${sub_tl}_${sub_type}"
 }
 
 FAILURE_COUNT=0
@@ -158,8 +157,11 @@ elif [ "$PARALLEL" -gt 1 ]; then
 
     FAILED_TESTS_FILE=$(mktemp)
 
-    # Generate all test commands
+    # Generate all test commands (with sequential worker number for ROS_DOMAIN_ID)
     COMMANDS_FILE=$(mktemp)
+    WORKER_NUM=0
+    # Base domain ID offset to avoid collision with default domain (0) and other users
+    DOMAIN_ID_BASE=${ROS_DOMAIN_ID_BASE:-10}
     for use_agnocast_pub in ${USE_AGNOCAST_PUB[@]}; do
         for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
             for pub_qos_depth in ${PUB_QOS_DEPTH[@]}; do
@@ -168,7 +170,8 @@ elif [ "$PARALLEL" -gt 1 ]; then
                         for sub_transient_local in ${SUB_TRANSIENT_LOCAL[@]}; do
                             for use_take_sub in ${USE_TAKE_SUB[@]}; do
                                 TEST_ID=$(generate_test_id "$use_agnocast_pub" "$launch_pub_before_sub" "$pub_qos_depth" "$pub_transient_local" "$sub_qos_depth" "$sub_transient_local" "$use_take_sub")
-                                echo "$TEST_ID $use_agnocast_pub $launch_pub_before_sub $pub_qos_depth $pub_transient_local $sub_qos_depth $sub_transient_local $use_take_sub" >> "$COMMANDS_FILE"
+                                echo "$WORKER_NUM $TEST_ID $use_agnocast_pub $launch_pub_before_sub $pub_qos_depth $pub_transient_local $sub_qos_depth $sub_transient_local $use_take_sub" >> "$COMMANDS_FILE"
+                                WORKER_NUM=$((WORKER_NUM + 1))
                             done
                         done
                     done
@@ -180,20 +183,24 @@ elif [ "$PARALLEL" -gt 1 ]; then
     echo "Running $TOTAL_TESTS tests with $PARALLEL parallel workers..." | sudo tee /dev/kmsg
 
     # Export variables needed by worker
-    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE
+    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE DOMAIN_ID_BASE
 
     # Create worker script
     WORKER_SCRIPT=$(mktemp /tmp/e2e_1to1_worker_XXXXXX.sh)
     cat > "$WORKER_SCRIPT" << 'WORKER_EOF'
 #!/bin/bash
-TEST_ID=$1
-use_agnocast_pub=$2
-launch_pub_before_sub=$3
-pub_qos_depth=$4
-pub_transient_local=$5
-sub_qos_depth=$6
-sub_transient_local=$7
-use_take_sub=$8
+WORKER_NUM=$1
+TEST_ID=$2
+use_agnocast_pub=$3
+launch_pub_before_sub=$4
+pub_qos_depth=$5
+pub_transient_local=$6
+sub_qos_depth=$7
+sub_transient_local=$8
+use_take_sub=$9
+
+# Isolate DDS discovery per worker
+export ROS_DOMAIN_ID=$((DOMAIN_ID_BASE + WORKER_NUM))
 
 CONFIG_TMP="/tmp/e2e_1to1_${TEST_ID}.yaml"
 cat > "$CONFIG_TMP" << CFG_EOF
