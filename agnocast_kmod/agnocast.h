@@ -413,4 +413,7 @@ int get_topic_num(const struct ipc_namespace * ipc_ns);
 bool is_in_topic_htable(const char * topic_name, const struct ipc_namespace * ipc_ns);
 bool is_in_bridge_htable(const char * topic_name, const struct ipc_namespace * ipc_ns);
 pid_t get_bridge_owner_pid(const char * topic_name, const struct ipc_namespace * ipc_ns);
+int count_node_subscriber_topics(const struct ipc_namespace * ipc_ns, const char * node_name);
+int count_node_publisher_topics(const struct ipc_namespace * ipc_ns, const char * node_name);
+int get_version_for_test(struct ioctl_get_version_args * ioctl_ret);
 #endif
