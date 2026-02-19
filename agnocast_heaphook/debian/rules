@@ -13,7 +13,7 @@ override_dh_auto_clean:
 	cargo clean
 
 override_dh_auto_install:
-	if [ "$$(. /etc/os-release && echo $$VERSION_CODENAME)" = "jammy" ]; then \
+	if [ "$$(dpkg-parsechangelog -S Distribution)" = "jammy" ]; then \
 		ROS_DISTRO=humble; \
 	else \
 		ROS_DISTRO=jazzy; \
