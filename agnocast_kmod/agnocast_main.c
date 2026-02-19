@@ -1341,7 +1341,7 @@ static int get_node_subscriber_topics(
     int bkt_sub_info;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
     {
-      if (strncmp(sub_info->node_name, node_name, strlen(node_name)) == 0) {
+      if (strcmp(sub_info->node_name, node_name) == 0) {
         if (topic_num >= MAX_TOPIC_NUM) {
           dev_warn(
             agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
@@ -1384,7 +1384,7 @@ static int get_node_publisher_topics(
     int bkt_pub_info;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
     {
-      if (strncmp(pub_info->node_name, node_name, strlen(node_name)) == 0) {
+      if (strcmp(pub_info->node_name, node_name) == 0) {
         if (topic_num >= MAX_TOPIC_NUM) {
           dev_warn(
             agnocast_device, "The number of topics is over MAX_TOPIC_NUM=%d\n", MAX_TOPIC_NUM);
