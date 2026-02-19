@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Combined 1to1 + 2to2 E2E test runner
+# Builds once, then runs both test suites in parallel with different topic prefixes.
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+# Parsing arguments
+OPTIONS=$(getopt -o hp:S --long help,parallel:,sequential -- "$@")
+if [ $? -ne 0 ]; then
+    echo "Invalid options provided"
+    exit 1
+fi
+eval set -- "$OPTIONS"
+
+usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  -h, --help           Show this help message"
+    echo "  -p, --parallel N     Run tests in parallel with N workers per suite (default: 4)"
+    echo "  -S, --sequential     Run 1to1 and 2to2 sequentially (default: run both suites in parallel)"
+    exit 0
+}
+
+PARALLEL=4
+SEQUENTIAL_SUITES=false
+while true; do
+    case "$1" in
+    -h | --help)
+        usage
+        ;;
+    -p | --parallel)
+        PARALLEL=$2
+        shift 2
+        ;;
+    -S | --sequential)
+        SEQUENTIAL_SUITES=true
+        shift
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+
+# Build once
+rm -rf build/agnocast_e2e_test install/e2e_test
+source /opt/ros/${ROS_DISTRO}/setup.bash
+colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+
+RESULT_1TO1=0
+RESULT_2TO2=0
+
+if [ "$SEQUENTIAL_SUITES" = true ]; then
+    echo "Starting 1to1 and 2to2 E2E tests sequentially (workers per suite: $PARALLEL)..." | sudo tee /dev/kmsg
+
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_1to1 "$SCRIPT_DIR/e2e_test_1to1" -p "$PARALLEL" -c
+    RESULT_1TO1=$?
+
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_2to2 "$SCRIPT_DIR/e2e_test_2to2" -p "$PARALLEL" -c
+    RESULT_2TO2=$?
+else
+    echo "Starting 1to1 and 2to2 E2E tests in parallel (workers per suite: $PARALLEL)..." | sudo tee /dev/kmsg
+
+    # Run 1to1 and 2to2 in parallel with different topic prefixes
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_1to1 "$SCRIPT_DIR/e2e_test_1to1" -p "$PARALLEL" -c &
+    PID_1TO1=$!
+
+    SKIP_BUILD=true E2E_TOPIC_PREFIX=/test_topic_2to2 "$SCRIPT_DIR/e2e_test_2to2" -p "$PARALLEL" -c &
+    PID_2TO2=$!
+
+    wait $PID_1TO1
+    RESULT_1TO1=$?
+
+    wait $PID_2TO2
+    RESULT_2TO2=$?
+fi
+
+echo "" | sudo tee /dev/kmsg
+echo "====== COMBINED RESULTS ======" | sudo tee /dev/kmsg
+if [ $RESULT_1TO1 -eq 0 ]; then
+    echo "  1to1: PASSED" | sudo tee /dev/kmsg
+else
+    echo "  1to1: FAILED (see /tmp/e2e_1to1_logs/)" | sudo tee /dev/kmsg
+fi
+if [ $RESULT_2TO2 -eq 0 ]; then
+    echo "  2to2: PASSED" | sudo tee /dev/kmsg
+else
+    echo "  2to2: FAILED (see /tmp/e2e_2to2_logs/)" | sudo tee /dev/kmsg
+fi
+echo "==============================" | sudo tee /dev/kmsg
+
+if [ $RESULT_1TO1 -ne 0 ] || [ $RESULT_2TO2 -ne 0 ]; then
+    exit 1
+fi
+
+echo "All E2E tests passed!!" | sudo tee /dev/kmsg
