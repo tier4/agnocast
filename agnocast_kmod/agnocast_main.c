@@ -1450,7 +1450,7 @@ static int get_topic_subscriber_info(
 
     struct topic_info_ret * temp_info = &topic_info_mem[subscriber_num];
 
-    strncpy(temp_info->node_name, sub_info->node_name, strlen(sub_info->node_name));
+    strscpy(temp_info->node_name, sub_info->node_name, NODE_NAME_BUFFER_SIZE);
     temp_info->qos_depth = sub_info->qos_depth;
     temp_info->qos_is_transient_local = sub_info->qos_is_transient_local;
     temp_info->qos_is_reliable = sub_info->qos_is_reliable;
@@ -1511,7 +1511,7 @@ static int get_topic_publisher_info(
 
     struct topic_info_ret * temp_info = &topic_info_mem[publisher_num];
 
-    strncpy(temp_info->node_name, pub_info->node_name, strlen(pub_info->node_name));
+    strscpy(temp_info->node_name, pub_info->node_name, NODE_NAME_BUFFER_SIZE);
     temp_info->qos_depth = pub_info->qos_depth;
     temp_info->qos_is_transient_local = pub_info->qos_is_transient_local;
     temp_info->qos_is_reliable = false;  // Publishers do not have reliability QoS
