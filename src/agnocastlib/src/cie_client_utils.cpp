@@ -84,8 +84,10 @@ create_rclcpp_client_publisher()
 {
   static int idx = 1;
 
+  rclcpp::NodeOptions options;
+  options.use_global_arguments(false);
   auto node = std::make_shared<rclcpp::Node>(
-    "client_node" + std::to_string(idx++), "/agnocast_cie_thread_configurator");
+    "client_node" + std::to_string(idx++), "/agnocast_cie_thread_configurator", options);
   auto publisher = node->create_publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>(
     "/agnocast_cie_thread_configurator/callback_group_info",
     rclcpp::QoS(CIE_QOS_DEPTH).keep_all().reliable().transient_local());
