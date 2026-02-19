@@ -707,7 +707,7 @@ static int set_publisher_shm_info(
 
 static int get_version(struct ioctl_get_version_args * ioctl_ret)
 {
-  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
+  strscpy(ioctl_ret->ret_version, VERSION, VERSION_BUFFER_LEN);
 
   return 0;
 }
