@@ -102,6 +102,8 @@ create_agnocast_client_publisher()
   static int idx = 1;
 
   rclcpp::NodeOptions options;
+  // Disable global arguments so that global "__node" remapping cannot override this name
+  // and cause duplicate node names for these per-client nodes.
   options.use_global_arguments(false);
   auto node = std::make_shared<agnocast::Node>(
     "agnocast_client_node" + std::to_string(idx++), "/agnocast_cie_thread_configurator", options);
