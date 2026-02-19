@@ -59,6 +59,7 @@ struct process_info
   struct mempool_entry * mempool_entry;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
+  struct rcu_head rcu_head;
 };
 
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
@@ -776,7 +777,7 @@ int ioctl_add_process(
 
   INIT_HLIST_NODE(&new_proc_info->node);
   uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
-  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
+  hash_add_rcu(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
   ioctl_ret->ret_shm_size = mempool_size_bytes;
@@ -1404,8 +1405,8 @@ static int ioctl_get_exit_process(
     }
 
     ioctl_ret->ret_pid = proc_info->local_pid;
-    hash_del(&proc_info->node);
-    kfree(proc_info);
+    hash_del_rcu(&proc_info->node);
+    kfree_rcu(proc_info, rcu_head);
     break;
   }
 
@@ -3125,7 +3126,24 @@ void enqueue_exit_pid(const pid_t pid)
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   const pid_t pid = current->pid;
-  enqueue_exit_pid(pid);
+
+  // Quick RCU check: skip non-Agnocast PIDs to avoid the full
+  // enqueue → wake → dequeue → rwsem pipeline for unrelated exits.
+  struct process_info * proc_info;
+  bool found = false;
+  rcu_read_lock();
+  hash_for_each_possible_rcu(
+    proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
+  {
+    if (proc_info->global_pid == pid) {
+      found = true;
+      break;
+    }
+  }
+  rcu_read_unlock();
+
+  if (found) enqueue_exit_pid(pid);
+
   return 0;
 }
 
@@ -3251,9 +3269,10 @@ static void remove_all_process_info(void)
   struct hlist_node * tmp;
   hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
   {
-    hash_del(&proc_info->node);
-    kfree(proc_info);
+    hash_del_rcu(&proc_info->node);
+    kfree_rcu(proc_info, rcu_head);
   }
+  synchronize_rcu();
 }
 
 static void remove_all_bridge_info(void)
