@@ -350,12 +350,10 @@ public:
 
     register_timer_info(timer_id, timer, period, group, timer->get_clock());
 
-    const void * callback_addr = timer->get_callback_addr();  // 必要か？
-
     TRACEPOINT(
       agnocast_timer_init, static_cast<const void *>(timer.get()), static_cast<const void *>(this),
-      callback_addr, static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
-      period.count());
+      static_cast<const void *>(&callback), static_cast<const void *>(group.get()),
+      tracetools::get_symbol(callback), period.count());
 
     return timer;
   }
@@ -389,12 +387,10 @@ public:
 
     register_timer_info(timer_id, timer, period_ns, group, clock);
 
-    const void * callback_addr = timer->get_callback_addr();  // 必要か？
-
     TRACEPOINT(
       agnocast_timer_init, static_cast<const void *>(timer.get()), static_cast<const void *>(this),
-      callback_addr, static_cast<const void *>(group.get()), tracetools::get_symbol(callback),
-      period.count());
+      static_cast<const void *>(&callback), static_cast<const void *>(group.get()),
+      tracetools::get_symbol(callback), period_ns.count());
 
     return timer;
   }
