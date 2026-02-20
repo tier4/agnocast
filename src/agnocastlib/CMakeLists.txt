@@ -45,7 +45,7 @@ add_library(agnocast SHARED
   src/bridge/standard/agnocast_standard_bridge_ipc_event_loop.cpp src/bridge/standard/agnocast_standard_bridge_loader.cpp src/bridge/standard/agnocast_standard_bridge_manager.cpp src/bridge/agnocast_bridge_utils.cpp
   src/bridge/performance/agnocast_performance_bridge_ipc_event_loop.cpp src/bridge/performance/agnocast_performance_bridge_loader.cpp src/bridge/performance/agnocast_performance_bridge_manager.cpp)
 
-target_compile_definitions(agnocast PRIVATE TRACETOOLS_LTTNG_ENABLED=1) # 一時的
+# target_compile_definitions(agnocast PRIVATE TRACETOOLS_LTTNG_ENABLED=1) # 一時的
 
 ament_target_dependencies(agnocast cie_thread_configurator rosgraph_msgs cie_config_msgs ament_index_cpp message_filters)
 
