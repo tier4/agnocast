@@ -5,16 +5,12 @@
 TEST(AgnocastUtilsTest, create_mq_name_normal)
 {
   EXPECT_EQ(agnocast::create_mq_name_for_agnocast_publish("/dummy", 0), "/agnocast@dummy@0");
-  EXPECT_EQ(agnocast::create_mq_name_for_ros2_publish("/dummy", 0), "/agnocast_to_ros2@dummy@0");
 }
 
 TEST(AgnocastUtilsTest, create_mq_name_slash_included)
 {
   EXPECT_EQ(
     agnocast::create_mq_name_for_agnocast_publish("/dummy/dummy", 0), "/agnocast@dummy_dummy@0");
-  EXPECT_EQ(
-    agnocast::create_mq_name_for_ros2_publish("/dummy/dummy", 0),
-    "/agnocast_to_ros2@dummy_dummy@0");
 }
 
 TEST(AgnocastUtilsTest, create_mq_name_invalid_topic)
@@ -22,18 +18,11 @@ TEST(AgnocastUtilsTest, create_mq_name_invalid_topic)
   EXPECT_EXIT(
     agnocast::create_mq_name_for_agnocast_publish("dummy", 0),
     ::testing::ExitedWithCode(EXIT_FAILURE), "");
-  EXPECT_EXIT(
-    agnocast::create_mq_name_for_ros2_publish("dummy", 0), ::testing::ExitedWithCode(EXIT_FAILURE),
-    "");
 }
 
 TEST(AgnocastUtilsTest, create_mq_name_bridge_manager)
 {
-  EXPECT_EQ(
-    agnocast::create_mq_name_for_bridge_parent(12345), "/agnocast_bridge_manager_parent@12345");
-
-  EXPECT_EQ(
-    agnocast::create_mq_name_for_bridge_daemon(67890), "/agnocast_bridge_manager_daemon@67890");
+  EXPECT_EQ(agnocast::create_mq_name_for_bridge(12345), "/agnocast_bridge_manager@12345");
 }
 
 TEST(AgnocastUtilsTest, validate_ld_preload_normal)
@@ -72,7 +61,6 @@ TEST(AgnocastUtilsTest, validate_ld_preload_prefix)
 TEST(AgnocastUtilsTest, validate_ld_preload_only_libagnocast_heaphook)
 {
   setenv("LD_PRELOAD", "libagnocast_heaphook.so", 1);
-  setenv("AGNOCAST_MEMPOOL_SIZE", "10000000", 1);
   EXPECT_NO_THROW(agnocast::validate_ld_preload());
   unsetenv("LD_PRELOAD");
 }

@@ -1,4 +1,5 @@
 #include "agnocast/agnocast_callback_isolated_executor.hpp"
+#include "agnocast/node/agnocast_node.hpp"
 
 #include <gtest/gtest.h>
 
@@ -66,4 +67,54 @@ TEST_F(CallbackIsolatedAgnocastExecutorTest, get_all_callback_groups)
   executor->remove_node(node2);
   groups = executor->get_all_callback_groups();
   EXPECT_EQ(groups.size(), 0);
+}
+
+// Verify that agnocast::Node's get_notify_guard_condition() does not throw
+// when created with a valid context (i.e., after rclcpp::init()).
+// This is required because rclcpp::Executor::add_node() calls
+// get_notify_guard_condition() in add_callback_group_to_map() to register
+// the node's guard condition in the executor's wait set.
+// agnocast::Node uses its own epoll-based dispatch and does not need this
+// guard condition, but it must be available for executor compatibility.
+TEST_F(CallbackIsolatedAgnocastExecutorTest, agnocast_node_add_to_executor)
+{
+  auto node = std::make_shared<agnocast::Node>("test_agnocast_node");
+  auto node_base = node->get_node_base_interface();
+
+  EXPECT_NO_THROW(node_base->get_notify_guard_condition());
+  EXPECT_NO_THROW(executor->add_node(node_base));
+
+  auto groups = executor->get_automatically_added_callback_groups_from_nodes();
+  EXPECT_EQ(groups.size(), 1);
+
+  executor->remove_node(node_base);
+  groups = executor->get_automatically_added_callback_groups_from_nodes();
+  EXPECT_EQ(groups.size(), 0);
+}
+
+TEST_F(CallbackIsolatedAgnocastExecutorTest, cancel)
+{
+  // Arrange
+  auto node = std::make_shared<rclcpp::Node>("test_node");
+  bool timer_called = false;
+  auto timer = node->create_wall_timer(
+    std::chrono::milliseconds(10), [&timer_called]() { timer_called = true; });
+  executor->add_node(node);
+  bool spin_finished = false;
+  std::thread spin_thread([this, &spin_finished]() {
+    executor->spin();
+    spin_finished = true;
+  });
+  while (!timer_called) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  // Act
+  EXPECT_NO_THROW(executor->cancel());
+  if (spin_thread.joinable()) {
+    spin_thread.join();
+  }
+
+  // Assert
+  EXPECT_TRUE(spin_finished) << "Spin should have finished after cancel";
 }

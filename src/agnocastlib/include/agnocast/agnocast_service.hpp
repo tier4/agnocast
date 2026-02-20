@@ -1,16 +1,17 @@
 #pragma once
 
-#include "agnocast/agnocast_bridge_node.hpp"
 #include "agnocast/agnocast_publisher.hpp"
 #include "agnocast/agnocast_smart_pointer.hpp"
 #include "agnocast/agnocast_subscription.hpp"
 #include "agnocast/agnocast_utils.hpp"
+#include "agnocast/bridge/agnocast_bridge_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace agnocast
 {
@@ -30,25 +31,36 @@ private:
     int64_t _sequence_number;
   };
 
-  rclcpp::Node * node_;
+private:
+  using ServiceResponsePublisher =
+    agnocast::BasicPublisher<ResponseT, agnocast::NoBridgeRequestPolicy>;
+
+  std::variant<rclcpp::Node *, agnocast::Node *> node_;
   const std::string service_name_;
   const rclcpp::QoS qos_;
   std::mutex publishers_mtx_;
-  // AgnocastOnlyPublisher is used since ResponseT is not a compatible ROS message type.
-  std::unordered_map<std::string, typename AgnocastOnlyPublisher<ResponseT>::SharedPtr> publishers_;
+  std::unordered_map<std::string, typename ServiceResponsePublisher::SharedPtr> publishers_;
   typename BasicSubscription<RequestT, NoBridgeRequestPolicy>::SharedPtr subscriber_;
 
 public:
   using SharedPtr = std::shared_ptr<Service<ServiceT>>;
 
-  template <typename Func>
+  template <typename Func, typename NodeT>
   Service(
-    rclcpp::Node * node, const std::string & service_name, Func && callback,
-    const rclcpp::QoS & qos, rclcpp::CallbackGroup::SharedPtr group)
+    NodeT * node, const std::string & service_name, Func && callback, const rclcpp::QoS & qos,
+    rclcpp::CallbackGroup::SharedPtr group)
   : node_(node),
-    service_name_(node_->get_node_services_interface()->resolve_service_name(service_name)),
+    service_name_(node->get_node_services_interface()->resolve_service_name(service_name)),
     qos_(qos)
   {
+    static_assert(
+      std::is_same_v<NodeT, rclcpp::Node> || std::is_same_v<NodeT, agnocast::Node>,
+      "NodeT must be either rclcpp::Node or agnocast::Node");
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Agnocast service/client is not officially supported yet and the API may change in the "
+      "future: %s",
+      service_name_.c_str());
     static_assert(
       std::is_invocable_v<
         std::decay_t<Func>, ipc_shared_ptr<typename ServiceT::Request> &&,
@@ -57,8 +69,8 @@ public:
       "ipc_shared_ptr<typename ServiceT::Response> (const&, &&, or by-value)");
 
     auto subscriber_callback =
-      [this, callback = std::forward<Func>(callback)](ipc_shared_ptr<RequestT> && request) {
-        typename AgnocastOnlyPublisher<ResponseT>::SharedPtr publisher;
+      [this, callback = std::forward<Func>(callback)](const ipc_shared_ptr<RequestT> & request) {
+        typename ServiceResponsePublisher::SharedPtr publisher;
 
         {
           std::lock_guard<std::mutex> lock(publishers_mtx_);
@@ -66,7 +78,13 @@ public:
           if (it == publishers_.end()) {
             std::string topic_name =
               create_service_response_topic_name(service_name_, request->_node_name);
-            publisher = std::make_shared<AgnocastOnlyPublisher<ResponseT>>(node_, topic_name, qos_);
+            std::visit(
+              [this, &publisher, &topic_name](auto * node) {
+                agnocast::PublisherOptions pub_options;
+                publisher =
+                  std::make_shared<ServiceResponsePublisher>(node, topic_name, qos_, pub_options);
+              },
+              node_);
             publishers_[request->_node_name] = publisher;
           } else {
             publisher = it->second;

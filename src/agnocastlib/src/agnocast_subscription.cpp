@@ -11,15 +11,14 @@ SubscriptionBase::SubscriptionBase(rclcpp::Node * node, const std::string & topi
 
 SubscriptionBase::SubscriptionBase(
   agnocast::Node * node, const std::string & topic_name)  // NOLINT(modernize-pass-by-value)
-: id_(0), topic_name_(topic_name)                         // TODO(sykwer): resolve topic name
+: id_(0), topic_name_(node->get_node_topics_interface()->resolve_topic_name(topic_name))
 {
-  (void)node;
   validate_ld_preload();
 }
 
 union ioctl_add_subscriber_args SubscriptionBase::initialize(
   const rclcpp::QoS & qos, const bool is_take_sub, const bool ignore_local_publications,
-  const std::string & node_name)
+  const bool is_bridge, const std::string & node_name)
 {
   union ioctl_add_subscriber_args add_subscriber_args = {};
   add_subscriber_args.topic_name = {topic_name_.c_str(), topic_name_.size()};
@@ -30,6 +29,7 @@ union ioctl_add_subscriber_args SubscriptionBase::initialize(
   add_subscriber_args.qos_is_reliable = qos.reliability() == rclcpp::ReliabilityPolicy::Reliable;
   add_subscriber_args.is_take_sub = is_take_sub;
   add_subscriber_args.ignore_local_publications = ignore_local_publications;
+  add_subscriber_args.is_bridge = is_bridge;
   if (ioctl(agnocast_fd, AGNOCAST_ADD_SUBSCRIBER_CMD, &add_subscriber_args) < 0) {
     RCLCPP_ERROR(logger, "AGNOCAST_ADD_SUBSCRIBER_CMD failed: %s", strerror(errno));
     close(agnocast_fd);
@@ -53,7 +53,10 @@ mqd_t open_mq_for_subscription(
   const int mq_mode = 0666;
   mqd_t mq = mq_open(mq_name.c_str(), O_CREAT | O_RDONLY | O_NONBLOCK, mq_mode, &attr);
   if (mq == -1) {
-    RCLCPP_ERROR(logger, "mq_open failed: %s", strerror(errno));
+    RCLCPP_ERROR_STREAM(
+      logger, "mq_open failed for topic '" << topic_name << "' (subscriber_id=" << subscriber_id
+                                           << ", mq_name='" << mq_name
+                                           << "'): " << strerror(errno));
     close(agnocast_fd);
     exit(EXIT_FAILURE);
   }
@@ -66,24 +69,15 @@ void remove_mq(const std::pair<mqd_t, std::string> & mq_subscription)
 {
   /* The message queue is destroyed after all the publisher processes close it. */
   if (mq_close(mq_subscription.first) == -1) {
-    RCLCPP_ERROR(logger, "mq_close failed: %s", strerror(errno));
+    RCLCPP_ERROR_STREAM(
+      logger,
+      "mq_close failed for mq_name='" << mq_subscription.second << "': " << strerror(errno));
   }
   if (mq_unlink(mq_subscription.second.c_str()) == -1) {
-    RCLCPP_ERROR(logger, "mq_unlink failed: %s", strerror(errno));
+    RCLCPP_ERROR_STREAM(
+      logger,
+      "mq_unlink failed for mq_name='" << mq_subscription.second << "': " << strerror(errno));
   }
-}
-
-rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  const rclcpp::Node * node, const SubscriptionOptions & options)
-{
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-  return get_valid_callback_group(const_cast<rclcpp::Node *>(node), options);
-}
-
-rclcpp::CallbackGroup::SharedPtr get_valid_callback_group(
-  rclcpp::Node * node, const SubscriptionOptions & options)
-{
-  return get_valid_callback_group(node->get_node_base_interface().get(), options);
 }
 
 }  // namespace agnocast

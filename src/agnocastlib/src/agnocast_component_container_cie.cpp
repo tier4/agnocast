@@ -1,8 +1,9 @@
 #include "agnocast/agnocast_single_threaded_executor.hpp"
-#include "cie_thread_configurator/cie_thread_configurator.hpp"
+#include "agnocast/cie_client_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
+#include <glog/logging.h>
 #include <sys/syscall.h>
 
 #include <chrono>
@@ -40,17 +41,15 @@ class ComponentManagerCallbackIsolated : public rclcpp_components::ComponentMana
   };
 
 public:
-  static constexpr int DEFALUT_GET_NEXT = 50;
-  static constexpr int DEFAULT_QOS_DEPTH = 1000;
+  static constexpr int DEFAULT_GET_NEXT = 50;
 
   template <typename... Args>
   explicit ComponentManagerCallbackIsolated(Args &&... args)
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay,hicpp-no-array-decay)
   : rclcpp_components::ComponentManager(std::forward<Args>(args)...)
   {
-    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFALUT_GET_NEXT);
-    client_publisher_ = create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-      "/cie_thread_configurator/callback_group_info", rclcpp::QoS(DEFAULT_QOS_DEPTH).keep_all());
+    get_next_timeout_ms_ = this->get_parameter_or("get_next_timeout_ms", DEFAULT_GET_NEXT);
+    client_publisher_ = agnocast::create_rclcpp_client_publisher();
   }
 
   ~ComponentManagerCallbackIsolated() override;
@@ -69,7 +68,7 @@ private:
   static bool is_clock_callback_group(const rclcpp::CallbackGroup::SharedPtr & group);
 
   std::unordered_map<uint64_t, std::list<ExecutorWrapper>> node_id_to_executor_wrappers_;
-  rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
+  rclcpp::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr client_publisher_;
   std::mutex client_publisher_mutex_;
   int get_next_timeout_ms_;
 };
@@ -136,9 +135,13 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
   node->for_each_callback_group(
     [node_id, &node, this](const rclcpp::CallbackGroup::SharedPtr & callback_group) {
+      if (!callback_group->automatically_add_to_executor_with_node()) {
+        return;
+      }
+
       auto agnocast_topics = agnocast::get_agnocast_topics_by_group(callback_group);
       std::string group_id =
-        cie_thread_configurator::create_callback_group_id(callback_group, node, agnocast_topics);
+        agnocast::create_callback_group_id(callback_group, node, agnocast_topics);
       std::atomic_bool & has_executor = callback_group->get_associated_with_executor_atomic();
 
       if (is_clock_callback_group(callback_group) /* workaround */ || has_executor.load()) {
@@ -171,8 +174,7 @@ void ComponentManagerCallbackIsolated::add_node_to_executor(uint64_t node_id)
 
           {
             std::lock_guard<std::mutex> lock{this->client_publisher_mutex_};
-            cie_thread_configurator::publish_callback_group_info(
-              this->client_publisher_, tid, group_id);
+            agnocast::publish_callback_group_info(this->client_publisher_, tid, group_id);
           }
 
           executor_wrapper.thread_initialized_ = true;
@@ -213,8 +215,16 @@ void ComponentManagerCallbackIsolated::cancel_executor(ExecutorWrapper & executo
 
 int main(int argc, char * argv[])
 {
+  google::InitGoogleLogging(argv[0]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  google::InstallFailureSignalHandler();
+
   try {
     rclcpp::init(argc, argv);
+
+    RCLCPP_WARN(
+      rclcpp::get_logger("agnocast_component_container_cie"),
+      "agnocastlib::agnocast_component_container_cie is deprecated. "
+      "Please use agnocast_components::agnocast_component_container_cie instead.");
 
     rclcpp::NodeOptions options;
     options.allow_undeclared_parameters(true);

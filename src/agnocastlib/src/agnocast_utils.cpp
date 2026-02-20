@@ -4,37 +4,17 @@
 
 namespace agnocast
 {
-
-extern int agnocast_fd;
-
 rclcpp::Logger logger = rclcpp::get_logger("Agnocast");
-
-BridgeMode get_bridge_mode()
-{
-  const char * env_val = std::getenv("AGNOCAST_BRIDGE_MODE");
-  if (env_val == nullptr) {
-    return BridgeMode::Standard;
-  }
-
-  std::string val = env_val;
-  std::transform(val.begin(), val.end(), val.begin(), ::tolower);
-
-  if (val == "0" || val == "off") {
-    return BridgeMode::Off;
-  }
-  if (val == "1" || val == "standard") {
-    return BridgeMode::Standard;
-  }
-  if (val == "2" || val == "performance") {
-    return BridgeMode::Performance;
-  }
-
-  RCLCPP_WARN(logger, "Unknown AGNOCAST_BRIDGE_MODE: %s. Fallback to STANDARD.", env_val);
-  return BridgeMode::Standard;
-}
+bool is_bridge_process = false;
 
 void validate_ld_preload()
 {
+  if (is_bridge_process) {
+    // The bridge process is spawned with an empty LD_PRELOAD to avoid loading the heaphook library
+    // in its descendant processes.
+    return;
+  }
+
   const char * ld_preload_cstr = getenv("LD_PRELOAD");
   if (
     ld_preload_cstr == nullptr ||
@@ -91,20 +71,9 @@ std::string create_mq_name_for_agnocast_publish(
   return create_mq_name("/agnocast", topic_name, id);
 }
 
-std::string create_mq_name_for_ros2_publish(
-  const std::string & topic_name, const topic_local_id_t id)
+std::string create_mq_name_for_bridge(const pid_t pid)
 {
-  return create_mq_name("/agnocast_to_ros2", topic_name, id);
-}
-
-std::string create_mq_name_for_bridge_parent(const pid_t pid)
-{
-  return "/agnocast_bridge_manager_parent@" + std::to_string(pid);
-}
-
-std::string create_mq_name_for_bridge_daemon(const pid_t pid)
-{
-  return "/agnocast_bridge_manager_daemon@" + std::to_string(pid);
+  return "/agnocast_bridge_manager@" + std::to_string(pid);
 }
 
 std::string create_shm_name(const pid_t pid)

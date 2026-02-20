@@ -2,14 +2,24 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_components/component_manager.hpp"
 
+#include <glog/logging.h>
+
 #include <chrono>
 
 int main(int argc, char * argv[])
 {
+  google::InitGoogleLogging(argv[0]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  google::InstallFailureSignalHandler();
+
   try {
     using namespace std::chrono;
 
     rclcpp::init(argc, argv);
+
+    RCLCPP_WARN(
+      rclcpp::get_logger("agnocast_component_container_mt"),
+      "agnocastlib::agnocast_component_container_mt is deprecated. "
+      "Please use agnocast_components::agnocast_component_container_mt instead.");
 
     rclcpp::NodeOptions options;
     options.allow_undeclared_parameters(true);

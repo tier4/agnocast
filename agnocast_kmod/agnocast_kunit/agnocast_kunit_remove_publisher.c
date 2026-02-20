@@ -14,11 +14,14 @@ static const bool QOS_IS_TRANSIENT_LOCAL = false;
 static const bool QOS_IS_RELIABLE = true;
 static const bool IS_TAKE_SUB = false;
 static const bool IGNORE_LOCAL_PUBLICATIONS = false;
+static const bool IS_BRIDGE = false;
+
+static topic_local_id_t subscriber_ids_buf[MAX_SUBSCRIBER_NUM];
 
 static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 {
   union ioctl_add_process_args ioctl_ret;
-  int ret = add_process(pid, current->nsproxy->ipc_ns, &ioctl_ret);
+  int ret = ioctl_add_process(pid, current->nsproxy->ipc_ns, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   return ioctl_ret.ret_addr;
@@ -27,9 +30,9 @@ static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
 static topic_local_id_t setup_one_publisher(struct kunit * test, const pid_t publisher_pid)
 {
   union ioctl_add_publisher_args add_publisher_args;
-  int ret = add_publisher(
+  int ret = ioctl_add_publisher(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, publisher_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, &add_publisher_args);
+    QOS_IS_TRANSIENT_LOCAL, IS_BRIDGE, &add_publisher_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
@@ -40,9 +43,9 @@ static topic_local_id_t setup_one_publisher(struct kunit * test, const pid_t pub
 static topic_local_id_t setup_one_subscriber(struct kunit * test, const pid_t subscriber_pid)
 {
   union ioctl_add_subscriber_args add_subscriber_args;
-  int ret = add_subscriber(
+  int ret = ioctl_add_subscriber(
     TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS,
+    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
     &add_subscriber_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
@@ -55,8 +58,9 @@ static uint64_t setup_one_entry(
   struct kunit * test, const topic_local_id_t publisher_id, const uint64_t msg_virtual_address)
 {
   union ioctl_publish_msg_args publish_msg_args;
-  int ret = publish_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, &publish_msg_args);
+  int ret = ioctl_publish_msg(
+    TOPIC_NAME, current->nsproxy->ipc_ns, publisher_id, msg_virtual_address, subscriber_ids_buf,
+    ARRAY_SIZE(subscriber_ids_buf), &publish_msg_args);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_TRUE(
@@ -75,12 +79,12 @@ void test_case_remove_publisher_basic(struct kunit * test)
   // Check initial state
   KUNIT_ASSERT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   union ioctl_get_publisher_num_args get_pub_args;
-  int ret = get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
+  int ret = ioctl_get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
   KUNIT_ASSERT_EQ(test, ret, 0);
   KUNIT_ASSERT_EQ(test, get_pub_args.ret_publisher_num, 1);
 
   // Act
-  ret = remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
+  ret = ioctl_remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -97,7 +101,7 @@ void test_case_remove_publisher_keeps_topic_with_subscriber(struct kunit * test)
   setup_one_subscriber(test, pid);
 
   // Act
-  int ret = remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
+  int ret = ioctl_remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -105,11 +109,11 @@ void test_case_remove_publisher_keeps_topic_with_subscriber(struct kunit * test)
   KUNIT_EXPECT_EQ(test, get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   union ioctl_get_publisher_num_args get_pub_args;
-  get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
+  ioctl_get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
   KUNIT_EXPECT_EQ(test, get_pub_args.ret_publisher_num, 0);
   union ioctl_get_subscriber_num_args get_sub_args;
-  get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_sub_args);
-  KUNIT_EXPECT_EQ(test, get_sub_args.ret_subscriber_num, 1);
+  ioctl_get_subscriber_num(TOPIC_NAME, current->nsproxy->ipc_ns, current->tgid, &get_sub_args);
+  KUNIT_EXPECT_EQ(test, get_sub_args.ret_other_process_subscriber_num, 1);
 }
 
 void test_case_remove_publisher_cleans_unreferenced_messages(struct kunit * test)
@@ -123,7 +127,7 @@ void test_case_remove_publisher_cleans_unreferenced_messages(struct kunit * test
   KUNIT_ASSERT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
 
   // Act
-  int ret = remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
+  int ret = ioctl_remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
@@ -144,13 +148,13 @@ void test_case_remove_publisher_leaves_orphaned_messages(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   // Act
-  ret = remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
+  ret = ioctl_remove_publisher(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id);
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   // Assert
   KUNIT_EXPECT_TRUE(test, is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   union ioctl_get_publisher_num_args get_pub_args;
-  get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
+  ioctl_get_publisher_num(TOPIC_NAME, current->nsproxy->ipc_ns, &get_pub_args);
   KUNIT_EXPECT_EQ(test, get_pub_args.ret_publisher_num, 1);
   KUNIT_EXPECT_TRUE(test, is_in_topic_entries(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id));
   KUNIT_EXPECT_EQ(test, get_entry_rc(TOPIC_NAME, current->nsproxy->ipc_ns, entry_id, sub_id), 1);

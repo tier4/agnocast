@@ -1,6 +1,9 @@
 #include "agnocast/agnocast_callback_info.hpp"
 
 #include "agnocast/agnocast.hpp"
+#include "agnocast/agnocast_executor.hpp"
+
+#include <array>
 
 namespace agnocast
 {
@@ -9,17 +12,21 @@ std::mutex id2_callback_info_mtx;
 const int callback_map_bkt_cnt = 100;  // arbitrary size to prevent rehash
 std::unordered_map<uint32_t, CallbackInfo> id2_callback_info(callback_map_bkt_cnt);
 std::atomic<uint32_t> next_callback_info_id;
-std::atomic<bool> need_epoll_updates{false};
 
-void receive_message(
-  [[maybe_unused]] const uint32_t callback_info_id,  // for CARET
-  [[maybe_unused]] const pid_t my_pid,               // for CARET
-  const CallbackInfo & callback_info, std::mutex & ready_agnocast_executables_mutex,
+void receive_and_execute_message(
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info,
+  std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables)
 {
+  std::vector<std::pair<int64_t, uint64_t>> entries;  // entry_id, entry_addr
+
+  std::array<publisher_shm_info, MAX_PUBLISHER_NUM> pub_shm_infos{};
+
   union ioctl_receive_msg_args receive_args = {};
   receive_args.topic_name = {callback_info.topic_name.c_str(), callback_info.topic_name.size()};
   receive_args.subscriber_id = callback_info.subscriber_id;
+  receive_args.pub_shm_info_addr = reinterpret_cast<uint64_t>(pub_shm_infos.data());
+  receive_args.pub_shm_info_size = MAX_PUBLISHER_NUM;
 
   {
     std::lock_guard<std::mutex> lock(mmap_mtx);
@@ -31,100 +38,75 @@ void receive_message(
     }
 
     // Map the shared memory region with read permissions whenever a new publisher is discovered.
-    for (uint32_t i = 0; i < receive_args.ret_pub_shm_info.publisher_num; i++) {
-      const pid_t pid = receive_args.ret_pub_shm_info.publisher_pids[i];
-      const uint64_t addr = receive_args.ret_pub_shm_info.shm_addrs[i];
-      const uint64_t size = receive_args.ret_pub_shm_info.shm_sizes[i];
+    for (uint32_t i = 0; i < receive_args.ret_pub_shm_num; i++) {
+      const pid_t pid = pub_shm_infos[i].pid;
+      const uint64_t addr = pub_shm_infos[i].shm_addr;
+      const uint64_t size = pub_shm_infos[i].shm_size;
       map_read_only_area(pid, addr, size);
     }
   }
 
-  // older messages first
-  for (int32_t i = static_cast<int32_t>(receive_args.ret_entry_num) - 1; i >= 0; i--) {
-    const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([callback_info, receive_args, i]() {
-        auto typed_msg = callback_info.message_creator(
-          reinterpret_cast<void *>(receive_args.ret_entry_addrs[i]), callback_info.topic_name,
-          callback_info.subscriber_id, receive_args.ret_entry_ids[i]);
-        callback_info.callback(std::move(*typed_msg));
-      });
+  // Collect entries (oldest first order from ioctl)
+  for (uint16_t i = 0; i < receive_args.ret_entry_num; i++) {
+    entries.emplace_back(receive_args.ret_entry_ids[i], receive_args.ret_entry_addrs[i]);
+  }
+
+  // Process entries from oldest to newest (ioctl returns oldest first)
+  for (const auto & entry : entries) {
+    const auto & [entry_id, entry_addr] = entry;
+    const void * callback_addr = &entry;  // For CARET
 
     {
       constexpr uint8_t PID_SHIFT_BITS = 32;
       uint64_t pid_callback_info_id =
         (static_cast<uint64_t>(my_pid) << PID_SHIFT_BITS) | callback_info_id;
-      TRACEPOINT(
-        agnocast_create_callable, static_cast<const void *>(callable.get()),
-        receive_args.ret_entry_ids[i], pid_callback_info_id);
+      // NOTE: The agnocast_create_callable tracepoint was previously used to associate
+      // pid_callback_info_id with callable_addr, as well as to associate callable with entry_addr
+      // and entry_id. In the current implementation, however, this information can be obtained when
+      // the callback starts and ends, rendering this tracepoint unnecessary. Nevertheless, since
+      // the current implementation may change in the future, we are retaining this tracepoint to
+      // ensure that CARET can be used without modifying its implementation.
+      TRACEPOINT(agnocast_create_callable, callback_addr, entry_id, pid_callback_info_id);
     }
 
-    {
-      std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
-      ready_agnocast_executables.emplace_back(
-        AgnocastExecutable{callable, callback_info.callback_group});
-    }
+    auto typed_msg = callback_info.message_creator(
+      reinterpret_cast<void *>(entry_addr), callback_info.topic_name, callback_info.subscriber_id,
+      entry_id);
+    // NOTE: agnocast_callable_start should be renamed to agnocast_callback_start. As mentioned
+    // earlier, we will not change the name in order to avoid requiring changes to be made to the
+    // implementation of CARET.
+    TRACEPOINT(agnocast_callable_start, callback_addr);
+    callback_info.callback(std::move(*typed_msg));
+    // NOTE: agnocast_callable_end should be renamed to agnocast_callback_end. As mentioned earlier,
+    // we will not change the name in order to avoid requiring changes to be made to the
+    // implementation of CARET.
+    TRACEPOINT(agnocast_callable_end, callback_addr);
+  }
+
+  // If more entries remain, re-enqueue to allow other callbacks to be scheduled in between.
+  if (receive_args.ret_call_again) {
+    enqueue_receive_and_execute(
+      callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
+      ready_agnocast_executables);
   }
 }
 
-void wait_and_handle_epoll_event(
-  const int epoll_fd, const pid_t my_pid, const int timeout_ms,
+void enqueue_receive_and_execute(
+  const uint32_t callback_info_id, const pid_t my_pid, const CallbackInfo & callback_info,
   std::mutex & ready_agnocast_executables_mutex,
   std::vector<AgnocastExecutable> & ready_agnocast_executables)
 {
-  struct epoll_event event = {};
+  auto deferred_callable = std::make_shared<std::function<void()>>(
+    [callback_info_id, my_pid, callback_info, &ready_agnocast_executables_mutex,
+     &ready_agnocast_executables]() {
+      receive_and_execute_message(
+        callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
+        ready_agnocast_executables);
+    });
 
-  // blocking with timeout
-  const int nfds = epoll_wait(epoll_fd, &event, 1 /*maxevents*/, timeout_ms);
-
-  if (nfds == -1) {
-    if (errno != EINTR) {  // signal handler interruption is not error
-      RCLCPP_ERROR(logger, "epoll_wait failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    return;
-  }
-
-  // timeout
-  if (nfds == 0) {
-    return;
-  }
-
-  const uint32_t callback_info_id = event.data.u32;
-  CallbackInfo callback_info;
-
-  {
-    std::lock_guard<std::mutex> lock(id2_callback_info_mtx);
-
-    const auto it = id2_callback_info.find(callback_info_id);
-    if (it == id2_callback_info.end()) {
-      RCLCPP_ERROR(logger, "Agnocast internal implementation error: callback info cannot be found");
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    callback_info = it->second;
-  }
-
-  MqMsgAgnocast mq_msg = {};
-
-  // non-blocking
-  auto ret =
-    mq_receive(callback_info.mqdes, reinterpret_cast<char *>(&mq_msg), sizeof(mq_msg), nullptr);
-  if (ret < 0) {
-    if (errno != EAGAIN) {
-      RCLCPP_ERROR(logger, "mq_receive failed: %s", strerror(errno));
-      close(agnocast_fd);
-      exit(EXIT_FAILURE);
-    }
-
-    return;
-  }
-
-  agnocast::receive_message(
-    callback_info_id, my_pid, callback_info, ready_agnocast_executables_mutex,
-    ready_agnocast_executables);
+  std::lock_guard<std::mutex> ready_lock{ready_agnocast_executables_mutex};
+  ready_agnocast_executables.emplace_back(
+    AgnocastExecutable{deferred_callable, callback_info.callback_group});
 }
 
 std::vector<std::string> get_agnocast_topics_by_group(
