@@ -20,4 +20,9 @@
         <param name="qos.queue_size" value="10" />
         <param name="qos_overrides./custom_topic.subscription.durability" value="transient_local" />
     </node>
+
+    <node pkg="agnocast_sample_application" exec="no_rclcpp_take_listener" name="no_rclcpp_take_listener_node" output="screen">
+        <env name="LD_PRELOAD" value="$(var preload_libs)" />
+        <param name="use_sim_time" value="$(var use_sim_time)" />
+    </node>
 </launch>

@@ -2,6 +2,8 @@
 
 #include "agnocast/agnocast.hpp"
 
+#include <unistd.h>  // read() のために追加
+
 namespace agnocast
 {
 
@@ -62,12 +64,26 @@ bool wait_and_handle_epoll_event(
 
     auto timer_ptr = timer_info->timer.lock();
 
-    // Create a callable that handles the timer event
-    const std::shared_ptr<std::function<void()>> callable =
-      std::make_shared<std::function<void()>>([timer_info]() { handle_timer_event(*timer_info); });
+    // Read the number of expirations to clear the event
+    uint64_t expirations = 0;
+    const ssize_t ret = read(timer_info->timer_fd, &expirations, sizeof(expirations));
+    if (ret == -1 || expirations == 0) {
+      return false;
+    }
+
+    auto callable = std::make_shared<std::function<void()>>();
+    void * callable_ptr = callable.get();
+
+    *callable = [timer_info, expirations, callable_ptr]() {
+      TRACEPOINT(agnocast_callable_start, callable_ptr);
+
+      handle_timer_event(*timer_info, expirations);
+
+      TRACEPOINT(agnocast_callable_end, callable_ptr);
+    };
 
     TRACEPOINT(
-      agnocast_create_timer_callable, static_cast<const void *>(callable.get()),
+      agnocast_create_timer_callable, static_cast<const void *>(callable_ptr),
       static_cast<const void *>(timer_ptr.get()));
 
     {
