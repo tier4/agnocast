@@ -71,16 +71,10 @@ fi
 TOPIC_PREFIX=${E2E_TOPIC_PREFIX:-/test_topic}
 
 # Setup
-SKIP_BUILD=${SKIP_BUILD:-false}
-if [ "$SKIP_BUILD" != "true" ]; then
-    rm -rf build/agnocast_e2e_test install/e2e_test
-    source /opt/ros/${ROS_DISTRO}/setup.bash
-    colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
-    source install/setup.bash
-else
-    source /opt/ros/${ROS_DISTRO}/setup.bash
-    source install/setup.bash
-fi
+rm -rf build/agnocast_e2e_test install/e2e_test
+source /opt/ros/${ROS_DISTRO}/setup.bash
+colcon build --symlink-install --packages-select agnocast_e2e_test --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
 
 CURRENT_BRIDGE_DISPLAY=${LOWER_BRIDGE_MODE:-"standard (default)"}
 echo "Bridge mode: $CURRENT_BRIDGE_DISPLAY" | sudo tee /dev/kmsg
