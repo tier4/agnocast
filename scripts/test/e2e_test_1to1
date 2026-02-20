@@ -155,7 +155,9 @@ elif [ "$PARALLEL" -gt 1 ]; then
     # Generate all test commands (with sequential worker number for ROS_DOMAIN_ID)
     COMMANDS_FILE=$(mktemp)
     WORKER_NUM=0
-    # Base domain ID offset to avoid collision with default domain (0) and other users
+    # Max parallel workers = 101 - DOMAIN_ID_BASE + 1 (default: 92 with base=10).
+    # This is because DDS domain IDs must be in 0-101; higher IDs cause port collisions
+    # with OS ephemeral ports. Each worker needs a unique domain ID starting from DOMAIN_ID_BASE.
     DOMAIN_ID_BASE=${ROS_DOMAIN_ID_BASE:-10}
     for use_agnocast_pub in ${USE_AGNOCAST_PUB[@]}; do
         for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
@@ -213,7 +215,7 @@ export ROS_DOMAIN_ID=$((DOMAIN_ID_BASE + SLOT))
 
 echo "[START  $COUNT/$TOTAL_TESTS] $TEST_ID (domain=$ROS_DOMAIN_ID)" | sudo tee /dev/kmsg
 
-CONFIG_TMP="/tmp/e2e_1to1_${TEST_ID}.yaml"
+CONFIG_TMP="/tmp/e2e_1to1_${COUNT}_${TEST_ID}.yaml"
 cat > "$CONFIG_TMP" << CFG_EOF
 use_agnocast_pub: $use_agnocast_pub
 launch_pub_before_sub: $launch_pub_before_sub
@@ -224,13 +226,13 @@ sub_transient_local: $sub_transient_local
 use_take_sub: $use_take_sub
 CFG_EOF
 
-LOG_FILE="${LOG_DIR}/${TEST_ID}.log"
+LOG_FILE="${LOG_DIR}/${COUNT}_${TEST_ID}.log"
 E2E_TOPIC_NAME="${TOPIC_PREFIX}_${TEST_ID}" E2E_CONFIG_PATH="$CONFIG_TMP" launch_test src/agnocast_e2e_test/test/test_1to1.py > "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
     echo "[FAILED $COUNT/$TOTAL_TESTS] $TEST_ID" | sudo tee /dev/kmsg >&2
-    echo "$TEST_ID" >> "$FAILED_TESTS_FILE"
+    echo "${COUNT}_${TEST_ID}" >> "$FAILED_TESTS_FILE"
 else
     echo "[PASSED $COUNT/$TOTAL_TESTS] $TEST_ID" | sudo tee /dev/kmsg
 fi
@@ -268,7 +270,7 @@ WORKER_EOF
         echo "$FAILURE_COUNT / $TOTAL_TESTS tests failed:" | sudo tee /dev/kmsg
         while IFS= read -r test_id; do
             echo "  FAILED: $test_id (log: ${LOG_DIR}/${test_id}.log)" | sudo tee /dev/kmsg
-        done < "$FAILED_TESTS_FILE"
+        done < <(sort -n "$FAILED_TESTS_FILE")
         echo "=============================" | sudo tee /dev/kmsg
         rm -f "$FAILED_TESTS_FILE"
         exit 1
