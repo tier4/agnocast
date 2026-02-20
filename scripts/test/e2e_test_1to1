@@ -5,7 +5,7 @@ cleanup() {
     trap - SIGINT SIGTERM SIGHUP
     kill -- -$$ 2>/dev/null
     exec 3>&- 2>/dev/null
-    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" "$SLOT_FIFO" 2>/dev/null
+    rm -f "${COMMANDS_FILE:-}" "${WORKER_SCRIPT:-}" "${SLOT_FIFO:-}" 2>/dev/null
     exit 130
 }
 trap cleanup SIGINT SIGTERM SIGHUP
@@ -58,6 +58,11 @@ while true; do
         ;;
     esac
 done
+
+if ! [[ "$PARALLEL" =~ ^[0-9]+$ ]] || [ "$PARALLEL" -lt 1 ]; then
+    echo "Error: --parallel must be a positive integer"
+    exit 1
+fi
 
 # Check bridge mode
 LOWER_BRIDGE_MODE=$(echo "$AGNOCAST_BRIDGE_MODE" | tr '[:upper:]' '[:lower:]')
@@ -159,6 +164,12 @@ elif [ "$PARALLEL" -gt 1 ]; then
     # This is because DDS domain IDs must be in 0-101; higher IDs cause port collisions
     # with OS ephemeral ports. Each worker needs a unique domain ID starting from DOMAIN_ID_BASE.
     DOMAIN_ID_BASE=${ROS_DOMAIN_ID_BASE:-10}
+    MAX_PARALLEL=$((101 - DOMAIN_ID_BASE + 1))
+    if [ "$PARALLEL" -gt "$MAX_PARALLEL" ]; then
+        echo "Error: -p $PARALLEL exceeds max parallel workers ($MAX_PARALLEL) for DOMAIN_ID_BASE=$DOMAIN_ID_BASE." | sudo tee /dev/kmsg
+        echo "DDS domain IDs must be in 0-101. Reduce -p or lower ROS_DOMAIN_ID_BASE." | sudo tee /dev/kmsg
+        exit 1
+    fi
     for use_agnocast_pub in ${USE_AGNOCAST_PUB[@]}; do
         for launch_pub_before_sub in ${LAUNCH_PUB_BEFORE_SUB[@]}; do
             for pub_qos_depth in ${PUB_QOS_DEPTH[@]}; do
