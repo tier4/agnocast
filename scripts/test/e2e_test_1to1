@@ -234,15 +234,17 @@ WORKER_EOF
     chmod +x "$WORKER_SCRIPT"
 
     # Run tests in parallel with job control
-    RUNNING_JOBS=0
     while IFS= read -r line; do
+        # Stop launching new tests if any test has failed
+        if [ -s "$FAILED_TESTS_FILE" ]; then
+            echo "Failure detected, stopping new test launches..." | sudo tee /dev/kmsg
+            break
+        fi
         # shellcheck disable=SC2086
         bash "$WORKER_SCRIPT" $line &
-        RUNNING_JOBS=$((RUNNING_JOBS + 1))
-        if [ "$RUNNING_JOBS" -ge "$PARALLEL" ]; then
+        while [ "$(jobs -rp | wc -l)" -ge "$PARALLEL" ]; do
             wait -n
-            RUNNING_JOBS=$((RUNNING_JOBS - 1))
-        fi
+        done
     done < "$COMMANDS_FILE"
     wait
 
