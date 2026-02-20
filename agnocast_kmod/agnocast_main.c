@@ -2883,6 +2883,7 @@ static char * agnocast_devnode(struct device * dev, umode_t * mode)
 }
 
 static struct file_operations fops = {
+  .owner = THIS_MODULE,
   .unlocked_ioctl = agnocast_ioctl,
 };
 
