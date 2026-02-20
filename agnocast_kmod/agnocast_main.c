@@ -2153,7 +2153,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     ret = ioctl_add_process(pid, ipc_ns, &add_process_args);
     if (ret == 0) {
       if (copy_to_user(
-            (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
+            (union ioctl_add_process_args __user *)arg, &add_process_args,
+            sizeof(add_process_args)))
         return -EFAULT;
     }
   } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
@@ -2281,7 +2282,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     if (ret == 0) {
       if (copy_to_user(
-            (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
+            (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
+            sizeof(receive_msg_args)))
         return -EFAULT;
     }
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
@@ -2334,7 +2336,8 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
 
     if (ret == 0) {
       if (copy_to_user(
-            (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
+            (union ioctl_publish_msg_args __user *)arg, &publish_msg_args,
+            sizeof(publish_msg_args)))
         return -EFAULT;
     }
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
@@ -2398,12 +2401,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[get_subscriber_num_args.topic_name.len] = '\0';
     ret = ioctl_get_subscriber_num(topic_name_buf, ipc_ns, pid, &get_subscriber_num_args);
     kfree(topic_name_buf);
-    if (ret == 0) {
-      if (copy_to_user(
-            (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
-            sizeof(get_subscriber_num_args)))
-        return -EFAULT;
-    }
+    if (copy_to_user(
+          (union ioctl_get_subscriber_num_args __user *)arg, &get_subscriber_num_args,
+          sizeof(get_subscriber_num_args)))
+      return -EFAULT;
   } else if (cmd == AGNOCAST_GET_PUBLISHER_NUM_CMD) {
     union ioctl_get_publisher_num_args get_publisher_num_args;
     if (copy_from_user(
@@ -2422,21 +2423,17 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[get_publisher_num_args.topic_name.len] = '\0';
     ret = ioctl_get_publisher_num(topic_name_buf, ipc_ns, &get_publisher_num_args);
     kfree(topic_name_buf);
-    if (ret == 0) {
-      if (copy_to_user(
-            (union ioctl_get_publisher_num_args __user *)arg, &get_publisher_num_args,
-            sizeof(get_publisher_num_args)))
-        return -EFAULT;
-    }
+    if (copy_to_user(
+          (union ioctl_get_publisher_num_args __user *)arg, &get_publisher_num_args,
+          sizeof(get_publisher_num_args)))
+      return -EFAULT;
   } else if (cmd == AGNOCAST_GET_EXIT_PROCESS_CMD) {
     struct ioctl_get_exit_process_args get_exit_process_args;
     ret = ioctl_get_exit_process(ipc_ns, &get_exit_process_args);
-    if (ret == 0) {
-      if (copy_to_user(
-            (struct ioctl_get_exit_process_args __user *)arg, &get_exit_process_args,
-            sizeof(get_exit_process_args)))
-        return -EFAULT;
-    }
+    if (copy_to_user(
+          (struct ioctl_get_exit_process_args __user *)arg, &get_exit_process_args,
+          sizeof(get_exit_process_args)))
+      return -EFAULT;
   } else if (cmd == AGNOCAST_GET_TOPIC_LIST_CMD) {
     union ioctl_topic_list_args topic_list_args;
     if (copy_from_user(
