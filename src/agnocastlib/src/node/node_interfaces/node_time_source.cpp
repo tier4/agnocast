@@ -38,11 +38,6 @@ void NodeTimeSource::attachNode(agnocast::Node * node)
   node_parameters_ = node->get_node_parameters_interface();
   agnocast_node_ = node;
 
-  // Create a dedicated callback group for /clock subscription.
-  // Pass false to NOT automatically add to executor - we'll add it to a dedicated executor only.
-  clock_callback_group_ =
-    node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
-
   // Though this defaults to false, it can be overridden by initial parameter values for the
   // node, which may be given by the user at the node's construction or even by command-line
   // arguments.
@@ -159,6 +154,11 @@ void NodeTimeSource::create_clock_sub()
     return;
   }
 
+  // Create a dedicated callback group for /clock subscription.
+  // Pass false to NOT automatically add to executor - we'll add it to a dedicated executor only.
+  clock_callback_group_ =
+    agnocast_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+
   agnocast::SubscriptionOptions options;
   options.callback_group = clock_callback_group_;
 
@@ -169,8 +169,10 @@ void NodeTimeSource::create_clock_sub()
 
   // Create dedicated executor and thread for /clock processing
   clock_executor_ = std::make_unique<AgnocastOnlySingleThreadedExecutor>();
-  clock_executor_->add_callback_group(clock_callback_group_, node_base_);
-  clock_executor_thread_ = std::thread([this]() { clock_executor_->spin(); });
+  clock_executor_thread_ = std::thread([this]() {
+    clock_executor_->add_callback_group(clock_callback_group_, node_base_);
+    clock_executor_->spin();
+  });
 }
 
 void NodeTimeSource::destroy_clock_sub()
@@ -181,7 +183,10 @@ void NodeTimeSource::destroy_clock_sub()
     clock_executor_->cancel();
     clock_executor_thread_.join();
   }
-  clock_executor_.reset();
+  if (clock_executor_) {
+    clock_executor_->remove_callback_group(clock_callback_group_);
+    clock_executor_.reset();
+  }
 
   clock_subscription_.reset();
 }
