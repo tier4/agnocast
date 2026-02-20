@@ -31,7 +31,8 @@ public:
 
   NodeTimeSource(
     const rclcpp::node_interfaces::NodeClockInterface::SharedPtr & node_clock,
-    agnocast::Node * node, const rclcpp::QoS & qos = rclcpp::ClockQoS());
+    agnocast::Node * node, const rclcpp::QoS & qos = rclcpp::ClockQoS(),
+    bool use_clock_thread = true);
 
   ~NodeTimeSource() override;
 
@@ -40,6 +41,7 @@ private:
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
   agnocast::Node * agnocast_node_{nullptr};
 
+  bool use_clock_thread_;
   rclcpp::QoS qos_;
   agnocast::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription_;
   rclcpp::CallbackGroup::SharedPtr clock_callback_group_;
