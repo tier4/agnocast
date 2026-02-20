@@ -49,8 +49,7 @@ void test_case_sub_prefix_no_match(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   count = count_node_subscriber_topics(current->nsproxy->ipc_ns, NODE_NAME);
-  KUNIT_EXPECT_EQ_MSG(
-    test, count, 0, "Prefix of node name should not match (strcmp, not strncmp)");
+  KUNIT_EXPECT_EQ_MSG(test, count, 0, "Prefix of node name should not match (strcmp, not strncmp)");
 }
 
 void test_case_pub_exact_match(struct kunit * test)
@@ -84,8 +83,7 @@ void test_case_pub_prefix_no_match(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret, 0);
 
   count = count_node_publisher_topics(current->nsproxy->ipc_ns, NODE_NAME);
-  KUNIT_EXPECT_EQ_MSG(
-    test, count, 0, "Prefix of node name should not match (strcmp, not strncmp)");
+  KUNIT_EXPECT_EQ_MSG(test, count, 0, "Prefix of node name should not match (strcmp, not strncmp)");
 }
 
 void test_case_get_version(struct kunit * test)
