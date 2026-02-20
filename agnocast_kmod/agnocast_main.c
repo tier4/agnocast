@@ -728,7 +728,7 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-static int ioctl_get_version(struct ioctl_get_version_args * ioctl_ret)
+int ioctl_get_version(struct ioctl_get_version_args * ioctl_ret)
 {
   strscpy(ioctl_ret->ret_version, VERSION, VERSION_BUFFER_LEN);
 
@@ -1455,7 +1455,7 @@ unlock:
   return ret;
 }
 
-static int ioctl_get_node_subscriber_topics(
+int ioctl_get_node_subscriber_topics(
   const struct ipc_namespace * ipc_ns, const char * node_name,
   union ioctl_node_info_args * node_info_args)
 {
@@ -1514,7 +1514,7 @@ unlock:
   return ret;
 }
 
-static int ioctl_get_node_publisher_topics(
+int ioctl_get_node_publisher_topics(
   const struct ipc_namespace * ipc_ns, const char * node_name,
   union ioctl_node_info_args * node_info_args)
 {
@@ -2863,62 +2863,6 @@ pid_t get_bridge_owner_pid(const char * topic_name, const struct ipc_namespace *
     return br_info->pid;
   }
   return -1;
-}
-
-int count_node_subscriber_topics(const struct ipc_namespace * ipc_ns, const char * node_name)
-{
-  int count = 0;
-  struct topic_wrapper * wrapper;
-  int bkt_topic;
-
-  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-  {
-    if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
-      continue;
-    }
-
-    struct subscriber_info * sub_info;
-    int bkt_sub_info;
-    hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
-    {
-      if (strcmp(sub_info->node_name, node_name) == 0) {
-        count++;
-        break;
-      }
-    }
-  }
-  return count;
-}
-
-int count_node_publisher_topics(const struct ipc_namespace * ipc_ns, const char * node_name)
-{
-  int count = 0;
-  struct topic_wrapper * wrapper;
-  int bkt_topic;
-
-  hash_for_each(topic_hashtable, bkt_topic, wrapper, node)
-  {
-    if (!ipc_eq(ipc_ns, wrapper->ipc_ns)) {
-      continue;
-    }
-
-    struct publisher_info * pub_info;
-    int bkt_pub_info;
-    hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
-    {
-      if (strcmp(pub_info->node_name, node_name) == 0) {
-        count++;
-        break;
-      }
-    }
-  }
-  return count;
-}
-
-// ioctl_get_version is static, so expose it for KUnit.
-int get_version_for_test(struct ioctl_get_version_args * ioctl_ret)
-{
-  return ioctl_get_version(ioctl_ret);
 }
 
 #endif
