@@ -4,7 +4,8 @@
 cleanup() {
     trap - SIGINT SIGTERM SIGHUP
     kill -- -$$ 2>/dev/null
-    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" 2>/dev/null
+    exec 3>&- 2>/dev/null
+    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" "$SLOT_FIFO" 2>/dev/null
     exit 130
 }
 trap cleanup SIGINT SIGTERM SIGHUP
@@ -182,8 +183,19 @@ elif [ "$PARALLEL" -gt 1 ]; then
 
     echo "Running $TOTAL_TESTS tests with $PARALLEL parallel workers..." | sudo tee /dev/kmsg
 
+    # Create a FIFO-based slot pool to reuse ROS_DOMAIN_IDs within the safe range (0-101).
+    # Each worker acquires a slot (0 to PARALLEL-1) from the FIFO before running, and
+    # returns it when done. This keeps ROS_DOMAIN_ID = DOMAIN_ID_BASE + slot, avoiding
+    # high domain IDs whose DDS ports collide with OS ephemeral ports.
+    SLOT_FIFO=$(mktemp -u /tmp/e2e_1to1_slot_fifo_XXXXXX)
+    mkfifo "$SLOT_FIFO"
+    exec 3<>"$SLOT_FIFO"
+    for ((i = 0; i < PARALLEL; i++)); do
+        echo "$i" >&3
+    done
+
     # Export variables needed by worker
-    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE DOMAIN_ID_BASE TOTAL_TESTS
+    export TOPIC_PREFIX LOG_DIR FAILED_TESTS_FILE DOMAIN_ID_BASE TOTAL_TESTS SLOT_FIFO
 
     # Create worker script
     WORKER_SCRIPT=$(mktemp /tmp/e2e_1to1_worker_XXXXXX.sh)
@@ -201,10 +213,11 @@ use_take_sub=$9
 
 COUNT=$((WORKER_NUM + 1))
 
-# Isolate DDS discovery per worker
-export ROS_DOMAIN_ID=$((DOMAIN_ID_BASE + WORKER_NUM))
+# Acquire a slot from the FIFO pool for DDS domain isolation
+read -u 3 SLOT
+export ROS_DOMAIN_ID=$((DOMAIN_ID_BASE + SLOT))
 
-echo "[START  $COUNT/$TOTAL_TESTS] $TEST_ID" | sudo tee /dev/kmsg
+echo "[START  $COUNT/$TOTAL_TESTS] $TEST_ID (domain=$ROS_DOMAIN_ID)" | sudo tee /dev/kmsg
 
 CONFIG_TMP="/tmp/e2e_1to1_${TEST_ID}.yaml"
 cat > "$CONFIG_TMP" << CFG_EOF
@@ -230,6 +243,9 @@ fi
 
 rm -f "$CONFIG_TMP"
 sleep 2
+
+# Return the slot to the pool
+echo "$SLOT" >&3
 WORKER_EOF
     chmod +x "$WORKER_SCRIPT"
 
@@ -240,7 +256,6 @@ WORKER_EOF
             echo "Failure detected, stopping new test launches..." | sudo tee /dev/kmsg
             break
         fi
-        # shellcheck disable=SC2086
         bash "$WORKER_SCRIPT" $line &
         while [ "$(jobs -rp | wc -l)" -ge "$PARALLEL" ]; do
             wait -n
@@ -248,7 +263,8 @@ WORKER_EOF
     done < "$COMMANDS_FILE"
     wait
 
-    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT"
+    exec 3>&-
+    rm -f "$COMMANDS_FILE" "$WORKER_SCRIPT" "$SLOT_FIFO"
 
     # Summary
     if [ -s "$FAILED_TESTS_FILE" ]; then
