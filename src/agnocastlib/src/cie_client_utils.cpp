@@ -4,7 +4,9 @@
 #include "agnocast/node/agnocast_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include "cie_config_msgs/msg/callback_group_info.hpp"
+#include "agnocast_cie_config_msgs/msg/callback_group_info.hpp"
+
+#include <unistd.h>
 
 #include <algorithm>
 #include <memory>
@@ -79,46 +81,52 @@ std::string create_callback_group_id(
   return ss.str();
 }
 
-rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr
+rclcpp::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr
 create_rclcpp_client_publisher()
 {
-  static int idx = 1;
-
+  rclcpp::NodeOptions options;
+  // Disable global arguments so that global "__node" remapping cannot override this name
+  // and cause duplicate node names for these per-client nodes.
+  options.use_global_arguments(false);
   auto node = std::make_shared<rclcpp::Node>(
-    "client_node" + std::to_string(idx++), "/cie_thread_configurator");
-  auto publisher = node->create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
-    "/cie_thread_configurator/callback_group_info",
+    "client_node_" + std::to_string(getpid()), "/agnocast_cie_thread_configurator", options);
+  auto publisher = node->create_publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>(
+    "/agnocast_cie_thread_configurator/callback_group_info",
     rclcpp::QoS(CIE_QOS_DEPTH).keep_all().reliable().transient_local());
   return publisher;
 }
 
-agnocast::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr
+agnocast::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr
 create_agnocast_client_publisher()
 {
-  static int idx = 1;
-
+  rclcpp::NodeOptions options;
+  // Disable global arguments so that global "__node" remapping cannot override this name
+  // and cause duplicate node names for these per-client nodes.
+  options.use_global_arguments(false);
   auto node = std::make_shared<agnocast::Node>(
-    "agnocast_client_node" + std::to_string(idx++), "/cie_thread_configurator");
-  auto publisher = node->create_publisher<cie_config_msgs::msg::CallbackGroupInfo>(
+    "agnocast_client_node_" + std::to_string(getpid()), "/agnocast_cie_thread_configurator",
+    options);
+  auto publisher = node->create_publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>(
     // Note: agnocast Publisher does not support keep_all(), so KeepLast is used here
     // (unlike the rclcpp variant which uses keep_all()).
-    "/cie_thread_configurator/callback_group_info",
+    "/agnocast_cie_thread_configurator/callback_group_info",
     rclcpp::QoS(rclcpp::KeepLast(CIE_QOS_DEPTH)).transient_local());
   return publisher;
 }
 
 void publish_callback_group_info(
-  const rclcpp::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr & publisher,
+  const rclcpp::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr & publisher,
   int64_t tid, const std::string & callback_group_id)
 {
-  auto message = std::make_shared<cie_config_msgs::msg::CallbackGroupInfo>();
+  auto message = std::make_shared<agnocast_cie_config_msgs::msg::CallbackGroupInfo>();
   message->thread_id = tid;
   message->callback_group_id = callback_group_id;
   publisher->publish(*message);
 }
 
 void publish_callback_group_info(
-  const agnocast::Publisher<cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr & publisher,
+  const agnocast::Publisher<agnocast_cie_config_msgs::msg::CallbackGroupInfo>::SharedPtr &
+    publisher,
   int64_t tid, const std::string & callback_group_id)
 {
   auto message = publisher->borrow_loaned_message();

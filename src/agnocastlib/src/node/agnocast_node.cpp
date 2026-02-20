@@ -20,8 +20,8 @@ Node::Node(
 : local_args_(parse_arguments(options.arguments()))
 {
   node_base_ = std::make_shared<node_interfaces::NodeBase>(
-    node_name, namespace_, options.context(), local_args_.get(), options.use_intra_process_comms(),
-    options.enable_topic_statistics());
+    node_name, namespace_, options.context(), local_args_.get(), options.use_global_arguments(),
+    options.use_intra_process_comms(), options.enable_topic_statistics());
 
   TRACEPOINT(
     agnocast_node_init, static_cast<const void *>(this), this->get_name().c_str(),

@@ -40,11 +40,11 @@ This reflects the current status, and support is expected to expand in the futur
 
 | Category           | Supported Versions / Notes                                   |
 |--------------------|--------------------------------------------------------------|
-| ROS 2              | Humble (only with `rclcpp` client library)                   |
-| Linux Distribution | Ubuntu 22.04 (Jammy Jellyfish)                               |
+| ROS 2              | Humble / Jazzy (only with `rclcpp` client library)           |
+| Linux Distribution | Ubuntu 22.04 (Jammy) / Ubuntu 24.04 (Noble)                 |
 | Linux Kernel       | 5.x / 6.x series (detailed version matrix not yet available) |
 
-ROS 2 Jazzy (Ubuntu 24.04) is now supported in the main branch and will be included in the v2.2.0 release.
+> **Warning**: Agnocast service/client is not officially supported yet and the API may change in the future. Use at your own risk.
 
 ---
 
@@ -56,11 +56,15 @@ Since ROS packages under `src/` such as `agnocastlib` are not yet distributed fr
 Therefore, to perform the source build, first check out the specific version as follows:
 
 ```bash
-git clone --branch 2.1.2 https://github.com/tier4/agnocast.git
+git clone --branch 2.2.0 https://github.com/tier4/agnocast.git
 cd agnocast
 ```
 
 ### System Configuration
+
+Agnocast uses POSIX message queues for inter-process notification. The following system parameters may need adjustment.
+
+#### `msg_max`: Maximum number of messages per queue (Required)
 
 Agnocast requires increasing the system limit for the maximum number of messages in a queue.
 
@@ -68,7 +72,6 @@ Agnocast requires increasing the system limit for the maximum number of messages
 
 ```bash
 sudo sysctl -w fs.mqueue.msg_max=256
-
 ```
 
 **Permanent setting:**
@@ -76,6 +79,55 @@ sudo sysctl -w fs.mqueue.msg_max=256
 ```bash
 echo "fs.mqueue.msg_max=256" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
+```
+
+#### `queues_max`: Maximum number of message queues system-wide (Optional)
+
+Agnocast creates a message queue for each subscriber, so the total number of message queues grows with the number of topics and subscribers. The system default for `queues_max` is typically 256, which may not be sufficient for large-scale deployments.
+
+You can check the current limit with:
+
+```bash
+cat /proc/sys/fs/mqueue/queues_max
+```
+
+If you encounter `mq_open failed: No space left on device`, you may need to increase this limit.
+
+**Temporary setting (Current session only):**
+
+```bash
+sudo sysctl -w fs.mqueue.queues_max=1024
+```
+
+**Permanent setting:**
+
+```bash
+echo "fs.mqueue.queues_max=1024" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+#### `msgqueue`: Per-user POSIX message queue memory limit (Optional)
+
+Each bridge manager message queue consumes memory proportional to the maximum message size and queue depth.
+When running many Agnocast processes simultaneously, the per-user POSIX message queue memory limit
+(`RLIMIT_MSGQUEUE`) may be exceeded, causing `mq_open` to fail.
+
+To increase the limit, either add the following line to `/etc/security/limits.conf`:
+
+```text
+* - msgqueue unlimited
+```
+
+Or use `prlimit` to change the limit for the current shell:
+
+```bash
+sudo prlimit --pid=$$ --msgqueue=unlimited
+```
+
+You can verify the current limit with:
+
+```bash
+ulimit -q
 ```
 
 ### Setup
@@ -104,14 +156,14 @@ sudo chmod 0644 /etc/apt/keyrings/agnocast-ppa.gpg
 cat <<EOF | sudo tee /etc/apt/sources.list.d/agnocast.sources
 Types: deb
 URIs: http://ppa.launchpad.net/t4-system-software/agnocast/ubuntu
-Suites: jammy
+Suites: jammy noble
 Components: main
 Signed-By: /etc/apt/keyrings/agnocast-ppa.gpg
 EOF
 
 # Install packages
 sudo apt update
-sudo apt install agnocast-heaphook-v2.1.2 agnocast-kmod-v2.1.2
+sudo apt install agnocast-heaphook-v2.2.0 agnocast-kmod-v2.2.0
 ```
 
 </details>
@@ -132,12 +184,21 @@ Insert kernel module.
 sudo modprobe agnocast
 ```
 
+You can optionally specify the mempool size per process (default: 8GB).
+Note that this parameter is experimental and may be removed or changed in future versions:
+
+```bash
+sudo modprobe agnocast mempool_size_gb=16
+```
+
+See [shared_memory.md](docs/shared_memory.md) for details on mempool configuration.
+
 Run sample app (different window for each script).
 The order does not matter.
 
 ```bash
-bash scripts/run_listener
-bash scripts/run_talker
+bash scripts/sample_application/run_listener
+bash scripts/sample_application/run_talker
 ```
 
 Stop applications and unload kernel module.
@@ -268,7 +329,7 @@ sudo lsmod
 You can build, test and generate the coverage report by following:
 
 ```bash
-bash scripts/test_and_create_report
+bash scripts/test/test_and_create_report
 ```
 
 ### Kernel Module Test
@@ -281,7 +342,7 @@ A custom kernel with the following CONFIG enabled is required to run KUnit Test 
 If booting with the custom kernel, the following script can be used to run unit tests on kernel modules and generate coverage reports.
 
 ```bash
-bash scripts/run_kunit
+bash scripts/test/run_kunit
 ```
 
 You can also use [pre-commit](#setup-pre-commit)
@@ -341,13 +402,15 @@ Although Agnocast includes cleanup procedures for resources like shared memory a
 rm /dev/shm/agnocast@*
 ```
 
-Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, you may need to remove leftover message queues by running:
+Additionally, if you encounter the error `mq_open failed: No space left on device`, it means that the system has reached the maximum number of message queues. In that case, first try removing leftover message queues by running:
 
 ```bash
 rm /dev/mqueue/agnocast@*
 rm /dev/mqueue/agnocast_bridge_manager_parent@*
 rm /dev/mqueue/agnocast_bridge_manager_daemon@*
 ```
+
+If the error persists after cleanup, you may need to increase the system-wide limit on the number of message queues. See the [System Configuration](#system-configuration) section above for how to increase `queues_max`.
 
 ## Documents
 

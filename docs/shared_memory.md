@@ -49,17 +49,9 @@ Message queue is also created for each process.
 Suppose the process's id is `pid`, then the message queue is named as "/new_publisher@pid".
 The restriction for the name is the same as the shared memory.
 
-## How to determine `AGNOCAST_MEMPOOL_SIZE` value
+## Memory allocation for shared memory
 
-Any process which joins Agnocast has to set `AGNOCAST_MEMPOOL_SIZE` as an environment variable.
-The passed value is aligned to 100KB boundaries.
-
-`AGNOCAST_MEMPOOL_SIZE` represents the size of the writable Virtual Address Space (VAS) mapped into the process’s own address space.
-This VAS is backed by shared memory.
-Due to demand paging, physical memory is allocated only upon the first access (first touch) of a page.
-Therefore, the shared physical memory corresponding to `AGNOCAST_MEMPOOL_SIZE` is not allocated all at once.
-
-In the [original paper](https://www.arxiv.org/pdf/2506.16882) and its corresponding prototype implementation ([sykwer/agnocast](https://github.com/sykwer/agnocast)), all heap allocations are redirected to this shared memory.
+In the [original paper](https://www.arxiv.org/pdf/2506.16882) and its corresponding prototype implementation ([sykwer/agnocast](https://github.com/sykwer/agnocast)), all heap allocations are redirected to shared memory.
 In contrast, in the [tier4/agnocast](https://github.com/tier4/agnocast) implementation, not all heap allocations are redirected to shared memory.
 Ideally, only objects referenced by `agnocast::ipc_shared_ptr` should be placed in shared memory, while all other allocations should reside in the process-private heap.
 However, since it is difficult to fully achieve this in practice, the implementation is designed to approximate this ideal as closely as possible.
@@ -67,10 +59,34 @@ Those interested may refer to the `agnocast_get_borrowed_publisher_num()` functi
 The current approach is that heap allocations occurring between the `AgnocastPublisher::borrow_loaned_message()` call and the subsequent `AgnocastPublisher::publish()` call are redirected to shared memory.
 This is because it is not possible to determine exactly when, within this interval, a heap allocation for an object referenced by `agnocast::ipc_shared_ptr` will occur.
 
-Given the above implementation, it is difficult to determine an appropriate size for `AGNOCAST_MEMPOOL_SIZE`.
-Due to demand paging, the shared physical memory corresponding to `AGNOCAST_MEMPOOL_SIZE` is not consumed in full from the beginning.
-Therefore, as long as the virtual address space resources are not exhausted, it is safer to allocate a much larger size.
 The virtual address space resources are managed in [agnocast_kmod/agnocast_memory_allocator.h](https://github.com/tier4/agnocast/blob/main/agnocast_kmod/agnocast_memory_allocator.h), and the ranges defined in this file are arbitrarily chosen.
+
+## Mempool size configuration (Experimental)
+
+> [!WARNING]
+> The `mempool_size_gb` parameter is experimental and may be removed or changed in future versions.
+
+The mempool size per process can be configured when loading the kernel module using the `mempool_size_gb` parameter.
+
+### Usage
+
+```bash
+# Default: 8GB per process
+sudo modprobe agnocast
+
+# Custom size: 16GB per process
+sudo modprobe agnocast mempool_size_gb=16
+
+# Or with insmod
+sudo insmod agnocast.ko mempool_size_gb=16
+```
+
+### Notes
+
+- The parameter value is in gigabytes (GB)
+- Default value is 8GB
+- The configured size is logged to kernel messages (`dmesg`) when the module is loaded
+- Due to demand paging, physical memory is allocated only upon the first access (first touch) of a page, so the configured size does not consume physical memory immediately
 
 ## Known issues
 

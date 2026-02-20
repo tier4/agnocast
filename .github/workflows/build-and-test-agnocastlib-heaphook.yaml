@@ -49,7 +49,7 @@ jobs:
         echo "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
 
-        if echo "$CHANGED_FILES" | grep -qE '(agnocastlib|agnocast_ioctl_wrapper|cie_thread_configurator)/.*\.(cpp|hpp)$'; then
+        if echo "$CHANGED_FILES" | grep -qE '(agnocastlib|agnocast_ioctl_wrapper|agnocast_cie_thread_configurator)/.*\.(cpp|hpp)$'; then
           echo "cpp_changed=true" >> "$GITHUB_OUTPUT"
         else
           echo "cpp_changed=false" >> "$GITHUB_OUTPUT"
@@ -89,7 +89,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends python3-rosdep
         sudo rosdep init
         rosdep update
-        rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+        rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO --skip-keys glog
 
     - name: Cache ccache
       if: github.event_name == 'push' || (steps.check_diff.outputs.cpp_changed == 'true' || steps.check_diff.outputs.heaphook_changed == 'true')
