@@ -155,14 +155,20 @@ void NodeTimeSource::create_clock_sub()
   }
 
   agnocast::SubscriptionOptions options;
+  options.qos_overriding_options = rclcpp::QosOverridingOptions({
+    rclcpp::QosPolicyKind::Depth,
+    rclcpp::QosPolicyKind::Durability,
+    rclcpp::QosPolicyKind::History,
+    rclcpp::QosPolicyKind::Reliability,
+  });
 
   if (use_clock_thread_) {
-    // Create a dedicated callback group for /clock subscription.
-    // Pass false to NOT automatically add to executor - we'll add it to a dedicated executor only.
     clock_callback_group_ =
       agnocast_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
     options.callback_group = clock_callback_group_;
 
+    // TODO(Koichi98): rclcpp passes ExecutorOptions with node's context to the executor.
+    // AgnocastOnlySingleThreadedExecutor does not support ExecutorOptions yet.
     clock_executor_ = std::make_unique<AgnocastOnlySingleThreadedExecutor>();
     if (!clock_executor_thread_.joinable()) {
       clock_executor_thread_ = std::thread([this]() {
@@ -181,13 +187,11 @@ void NodeTimeSource::create_clock_sub()
 void NodeTimeSource::destroy_clock_sub()
 {
   std::lock_guard<std::mutex> guard(clock_sub_lock_);
-
   if (clock_executor_thread_.joinable()) {
     clock_executor_->cancel();
     clock_executor_thread_.join();
     clock_executor_->remove_callback_group(clock_callback_group_);
   }
-
   clock_subscription_.reset();
 }
 
