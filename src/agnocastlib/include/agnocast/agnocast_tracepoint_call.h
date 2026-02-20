@@ -84,20 +84,16 @@ TRACEPOINT_EVENT(
   )
 )
 
-// Records timer initialization information.
-// Links a timer to its node (via node_handle matching agnocast_node_init),
-// and stores metadata for identification in caret_analyze.
-// pid_timer_id is used to link with agnocast_create_timer_callable.
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_timer_init,
   TP_ARGS(
-    const void *, timer_handle_arg,         // timer pointer, used for identification in caret_analyze
-    const void *, node_handle_arg,          // agnocast::Node pointer (same as agnocast_node_init)
-    const void *, callback_arg,             // callback pointer, used for identification in caret_analyze
-    const void *, callback_group_arg,       // callback group this timer belongs to
-    const char *, symbol_arg,               // demangled callback function name for display
-    int64_t, period_arg                     // timer period in nanoseconds
+    const void *, timer_handle_arg,      
+    const void *, node_handle_arg,      
+    const void *, callback_arg,          
+    const void *, callback_group_arg,    
+    const char *, symbol_arg,            
+    int64_t, period_arg                     
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, timer_handle, timer_handle_arg)
@@ -109,8 +105,6 @@ TRACEPOINT_EVENT(
   )
 )
 
-// Records the association between an executor and a callback group.
-// Only needed for AgnocastOnly executors (not rclcpp::Executor-based).
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_add_callback_group,
@@ -154,16 +148,12 @@ TRACEPOINT_EVENT(
   )
 )
 
-// Records the association between a callable and a timer.
-// Created each time a timer fires.
-// callable links to agnocast_callable_start.
-// pid_timer_id links to agnocast_timer_init.
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_create_timer_callable,
   TP_ARGS(
-    const void *, callable_arg,             // callable pointer, links to agnocast_callable_start
-    const void *, timer_handle_arg         // timer pointer, links to agnocast_timer_init
+    const void *, callable_arg,         
+    const void *, timer_handle_arg      
   ),
   TP_FIELDS(
     ctf_integer_hex(const void *, callable, callable_arg)
@@ -208,9 +198,6 @@ TRACEPOINT_EVENT(
   )
 )
 
-// TODO: executor → callback_groupの紐付けについて：
-// - AgnocastOnly系はrclcpp::Executorを継承していないため発火しない。
-//   追加済みだが実際に必要かは確認する必要がある。
 TRACEPOINT_EVENT(
   TRACEPOINT_PROVIDER,
   agnocast_construct_executor,

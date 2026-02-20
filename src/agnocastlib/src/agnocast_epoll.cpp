@@ -2,7 +2,7 @@
 
 #include "agnocast/agnocast.hpp"
 
-#include <unistd.h>  // read() のために追加
+#include <unistd.h>
 
 namespace agnocast
 {
