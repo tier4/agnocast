@@ -728,9 +728,9 @@ static int set_publisher_shm_info(
   return 0;
 }
 
-static int ioctl_get_version(struct ioctl_get_version_args * ioctl_ret)
+int ioctl_get_version(struct ioctl_get_version_args * ioctl_ret)
 {
-  memcpy(ioctl_ret->ret_version, VERSION, strlen(VERSION) + 1);
+  strscpy(ioctl_ret->ret_version, VERSION, VERSION_BUFFER_LEN);
 
   return 0;
 }
@@ -1455,7 +1455,7 @@ unlock:
   return ret;
 }
 
-static int ioctl_get_node_subscriber_topics(
+int ioctl_get_node_subscriber_topics(
   const struct ipc_namespace * ipc_ns, const char * node_name,
   union ioctl_node_info_args * node_info_args)
 {
@@ -1480,7 +1480,7 @@ static int ioctl_get_node_subscriber_topics(
     bool found = false;
     hash_for_each(wrapper->topic.sub_info_htable, bkt_sub_info, sub_info, node)
     {
-      if (strncmp(sub_info->node_name, node_name, strlen(node_name)) == 0) {
+      if (strcmp(sub_info->node_name, node_name) == 0) {
         found = true;
         break;
       }
@@ -1514,7 +1514,7 @@ unlock:
   return ret;
 }
 
-static int ioctl_get_node_publisher_topics(
+int ioctl_get_node_publisher_topics(
   const struct ipc_namespace * ipc_ns, const char * node_name,
   union ioctl_node_info_args * node_info_args)
 {
@@ -1539,7 +1539,7 @@ static int ioctl_get_node_publisher_topics(
     bool found = false;
     hash_for_each(wrapper->topic.pub_info_htable, bkt_pub_info, pub_info, node)
     {
-      if (strncmp(pub_info->node_name, node_name, strlen(node_name)) == 0) {
+      if (strcmp(pub_info->node_name, node_name) == 0) {
         found = true;
         break;
       }
@@ -1623,7 +1623,7 @@ static int ioctl_get_topic_subscriber_info(
 
     struct topic_info_ret * temp_info = &topic_info_mem[subscriber_num];
 
-    strncpy(temp_info->node_name, sub_info->node_name, strlen(sub_info->node_name));
+    strscpy(temp_info->node_name, sub_info->node_name, NODE_NAME_BUFFER_SIZE);
     temp_info->qos_depth = sub_info->qos_depth;
     temp_info->qos_is_transient_local = sub_info->qos_is_transient_local;
     temp_info->qos_is_reliable = sub_info->qos_is_reliable;
@@ -1697,7 +1697,7 @@ static int ioctl_get_topic_publisher_info(
 
     struct topic_info_ret * temp_info = &topic_info_mem[publisher_num];
 
-    strncpy(temp_info->node_name, pub_info->node_name, strlen(pub_info->node_name));
+    strscpy(temp_info->node_name, pub_info->node_name, NODE_NAME_BUFFER_SIZE);
     temp_info->qos_depth = pub_info->qos_depth;
     temp_info->qos_is_transient_local = pub_info->qos_is_transient_local;
     temp_info->qos_is_reliable = false;  // Publishers do not have reliability QoS
@@ -2151,9 +2151,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           &add_process_args, (union ioctl_add_process_args __user *)arg, sizeof(add_process_args)))
       return -EFAULT;
     ret = ioctl_add_process(pid, ipc_ns, &add_process_args);
-    if (copy_to_user(
-          (union ioctl_add_process_args __user *)arg, &add_process_args, sizeof(add_process_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_add_process_args __user *)arg, &add_process_args,
+            sizeof(add_process_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_ADD_SUBSCRIBER_CMD) {
     union ioctl_add_subscriber_args sub_args;
     if (copy_from_user(&sub_args, (union ioctl_add_subscriber_args __user *)arg, sizeof(sub_args)))
@@ -2183,8 +2186,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       sub_args.qos_is_transient_local, sub_args.qos_is_reliable, sub_args.is_take_sub,
       sub_args.ignore_local_publications, sub_args.is_bridge, &sub_args);
     kfree(combined_buf);
-    if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user((union ioctl_add_subscriber_args __user *)arg, &sub_args, sizeof(sub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_ADD_PUBLISHER_CMD) {
     union ioctl_add_publisher_args pub_args;
     if (copy_from_user(&pub_args, (union ioctl_add_publisher_args __user *)arg, sizeof(pub_args)))
@@ -2213,8 +2218,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
       topic_name_buf, ipc_ns, node_name_buf, pid, pub_args.qos_depth,
       pub_args.qos_is_transient_local, pub_args.is_bridge, &pub_args);
     kfree(combined_buf);
-    if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user((union ioctl_add_publisher_args __user *)arg, &pub_args, sizeof(pub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_RELEASE_SUB_REF_CMD) {
     struct ioctl_update_entry_args entry_args;
     if (copy_from_user(
@@ -2273,9 +2280,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     kfree(pub_shm_infos);
 
-    if (copy_to_user(
-          (union ioctl_receive_msg_args __user *)arg, &receive_msg_args, sizeof(receive_msg_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_receive_msg_args __user *)arg, &receive_msg_args,
+            sizeof(receive_msg_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_PUBLISH_MSG_CMD) {
     union ioctl_publish_msg_args publish_msg_args;
     if (copy_from_user(
@@ -2324,9 +2334,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     kfree(subscriber_ids_buf);
 
-    if (copy_to_user(
-          (union ioctl_publish_msg_args __user *)arg, &publish_msg_args, sizeof(publish_msg_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_publish_msg_args __user *)arg, &publish_msg_args,
+            sizeof(publish_msg_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_TAKE_MSG_CMD) {
     union ioctl_take_msg_args take_args;
     if (copy_from_user(&take_args, (union ioctl_take_msg_args __user *)arg, sizeof(take_args)))
@@ -2366,8 +2379,10 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     }
     kfree(pub_shm_infos);
 
-    if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user((union ioctl_take_msg_args __user *)arg, &take_args, sizeof(take_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_NUM_CMD) {
     union ioctl_get_subscriber_num_args get_subscriber_num_args;
     if (copy_from_user(
@@ -2425,9 +2440,11 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
           &topic_list_args, (union ioctl_topic_list_args __user *)arg, sizeof(topic_list_args)))
       return -EFAULT;
     ret = ioctl_get_topic_list(ipc_ns, &topic_list_args);
-    if (copy_to_user(
-          (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_topic_list_args __user *)arg, &topic_list_args, sizeof(topic_list_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_NODE_SUBSCRIBER_TOPICS_CMD) {
     union ioctl_node_info_args node_info_sub_args;
     if (copy_from_user(
@@ -2446,10 +2463,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     node_name_buf[node_info_sub_args.node_name.len] = '\0';
     ret = ioctl_get_node_subscriber_topics(ipc_ns, node_name_buf, &node_info_sub_args);
     kfree(node_name_buf);
-    if (copy_to_user(
-          (union ioctl_node_info_args __user *)arg, &node_info_sub_args,
-          sizeof(node_info_sub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_node_info_args __user *)arg, &node_info_sub_args,
+            sizeof(node_info_sub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_NODE_PUBLISHER_TOPICS_CMD) {
     union ioctl_node_info_args node_info_pub_args;
     if (copy_from_user(
@@ -2468,10 +2487,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     node_name_buf[node_info_pub_args.node_name.len] = '\0';
     ret = ioctl_get_node_publisher_topics(ipc_ns, node_name_buf, &node_info_pub_args);
     kfree(node_name_buf);
-    if (copy_to_user(
-          (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
-          sizeof(node_info_pub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_node_info_args __user *)arg, &node_info_pub_args,
+            sizeof(node_info_pub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_TOPIC_SUBSCRIBER_INFO_CMD) {
     union ioctl_topic_info_args topic_info_sub_args;
     if (copy_from_user(
@@ -2490,10 +2511,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[topic_info_sub_args.topic_name.len] = '\0';
     ret = ioctl_get_topic_subscriber_info(topic_name_buf, ipc_ns, &topic_info_sub_args);
     kfree(topic_name_buf);
-    if (copy_to_user(
-          (union ioctl_topic_info_args __user *)arg, &topic_info_sub_args,
-          sizeof(topic_info_sub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_topic_info_args __user *)arg, &topic_info_sub_args,
+            sizeof(topic_info_sub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_TOPIC_PUBLISHER_INFO_CMD) {
     union ioctl_topic_info_args topic_info_pub_args;
     if (copy_from_user(
@@ -2512,10 +2535,12 @@ static long agnocast_ioctl(struct file * file, unsigned int cmd, unsigned long a
     topic_name_buf[topic_info_pub_args.topic_name.len] = '\0';
     ret = ioctl_get_topic_publisher_info(topic_name_buf, ipc_ns, &topic_info_pub_args);
     kfree(topic_name_buf);
-    if (copy_to_user(
-          (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
-          sizeof(topic_info_pub_args)))
-      return -EFAULT;
+    if (ret == 0) {
+      if (copy_to_user(
+            (union ioctl_topic_info_args __user *)arg, &topic_info_pub_args,
+            sizeof(topic_info_pub_args)))
+        return -EFAULT;
+    }
   } else if (cmd == AGNOCAST_GET_SUBSCRIBER_QOS_CMD) {
     struct ioctl_get_subscriber_qos_args get_sub_qos_args;
     if (copy_from_user(
@@ -3133,19 +3158,43 @@ static struct kprobe kp_do_exit = {
   .pre_handler = pre_handler_do_exit,
 };
 
-void agnocast_init_device(void)
+int agnocast_init_device(void)
 {
+  int ret;
+
   major = register_chrdev(0, "agnocast" /*device driver name*/, &fops);
+  if (major < 0) {
+    pr_err("agnocast: register_chrdev failed: %d\n", major);
+    return major;
+  }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
   agnocast_class = class_create("agnocast_class");
 #else
   agnocast_class = class_create(THIS_MODULE, "agnocast_class");
 #endif
+  if (IS_ERR(agnocast_class)) {
+    ret = PTR_ERR(agnocast_class);
+    pr_err("agnocast: class_create failed: %d\n", ret);
+    goto err_unregister_chrdev;
+  }
 
   agnocast_class->devnode = agnocast_devnode;
   agnocast_device =
     device_create(agnocast_class, NULL, MKDEV(major, 0), NULL, "agnocast" /*file name*/);
+  if (IS_ERR(agnocast_device)) {
+    ret = PTR_ERR(agnocast_device);
+    pr_err("agnocast: device_create failed: %d\n", ret);
+    goto err_class_destroy;
+  }
+
+  return 0;
+
+err_class_destroy:
+  class_destroy(agnocast_class);
+err_unregister_chrdev:
+  unregister_chrdev(major, "agnocast");
+  return ret;
 }
 
 int agnocast_init_kthread(void)
@@ -3179,7 +3228,8 @@ static int agnocast_init(void)
 {
   int ret;
 
-  agnocast_init_device();
+  ret = agnocast_init_device();
+  if (ret < 0) return ret;
 
   ret = agnocast_init_kthread();
   if (ret < 0) {
