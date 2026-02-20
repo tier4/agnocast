@@ -59,6 +59,7 @@ struct process_info
   struct mempool_entry * mempool_entry;
   const struct ipc_namespace * ipc_ns;
   struct hlist_node node;
+  struct rcu_head rcu_head;
 };
 
 DEFINE_HASHTABLE(proc_info_htable, PROC_INFO_HASH_BITS);
@@ -776,7 +777,7 @@ int ioctl_add_process(
 
   INIT_HLIST_NODE(&new_proc_info->node);
   uint32_t hash_val = hash_min(new_proc_info->global_pid, PROC_INFO_HASH_BITS);
-  hash_add(proc_info_htable, &new_proc_info->node, hash_val);
+  hash_add_rcu(proc_info_htable, &new_proc_info->node, hash_val);
 
   ioctl_ret->ret_addr = new_proc_info->mempool_entry->addr;
   ioctl_ret->ret_shm_size = mempool_size_bytes;
@@ -1404,8 +1405,8 @@ static int ioctl_get_exit_process(
     }
 
     ioctl_ret->ret_pid = proc_info->local_pid;
-    hash_del(&proc_info->node);
-    kfree(proc_info);
+    hash_del_rcu(&proc_info->node);
+    kfree_rcu(proc_info, rcu_head);
     break;
   }
 
@@ -3087,28 +3088,30 @@ void process_exit_cleanup(const pid_t pid)
 static int exit_worker_thread(void * data)
 {
   while (!kthread_should_stop()) {
-    pid_t pid;
-    unsigned long flags;
-    bool got_pid = false;
-
     wait_event_interruptible(worker_wait, smp_load_acquire(&has_new_pid) || kthread_should_stop());
 
     if (kthread_should_stop()) break;
 
-    spin_lock_irqsave(&pid_queue_lock, flags);
+    // Drain all queued PIDs in a single wake-up cycle
+    while (true) {
+      pid_t pid;
+      unsigned long flags;
+      bool got_pid = false;
 
-    if (queue_head != queue_tail) {
-      pid = exit_pid_queue[queue_head];
-      queue_head = (queue_head + 1) & (EXIT_QUEUE_SIZE - 1);
-      got_pid = true;
-    }
+      spin_lock_irqsave(&pid_queue_lock, flags);
 
-    // queue is empty
-    if (queue_head == queue_tail) smp_store_release(&has_new_pid, 0);
+      if (queue_head != queue_tail) {
+        pid = exit_pid_queue[queue_head];
+        queue_head = (queue_head + 1) & EXIT_QUEUE_MASK;
+        got_pid = true;
+      }
 
-    spin_unlock_irqrestore(&pid_queue_lock, flags);
+      if (queue_head == queue_tail) smp_store_release(&has_new_pid, 0);
 
-    if (got_pid) {
+      spin_unlock_irqrestore(&pid_queue_lock, flags);
+
+      if (!got_pid) break;
+
       process_exit_cleanup(pid);
     }
   }
@@ -3125,8 +3128,7 @@ void enqueue_exit_pid(const pid_t pid)
 
   spin_lock_irqsave(&pid_queue_lock, flags);
 
-  // Assumes EXIT_QUEUE_SIZE is 2^N
-  next = (queue_tail + 1) & (EXIT_QUEUE_SIZE - 1);
+  next = (queue_tail + 1) & EXIT_QUEUE_MASK;
 
   if (next != queue_head) {  // queue is not full
     exit_pid_queue[queue_tail] = pid;
@@ -3149,7 +3151,24 @@ void enqueue_exit_pid(const pid_t pid)
 static int pre_handler_do_exit(struct kprobe * p, struct pt_regs * regs)
 {
   const pid_t pid = current->pid;
-  enqueue_exit_pid(pid);
+
+  // Quick RCU check: skip non-Agnocast PIDs to avoid the full
+  // enqueue → wake → dequeue → rwsem pipeline for unrelated exits.
+  struct process_info * proc_info;
+  bool found = false;
+  rcu_read_lock();
+  hash_for_each_possible_rcu(
+    proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
+  {
+    if (proc_info->global_pid == pid) {
+      found = true;
+      break;
+    }
+  }
+  rcu_read_unlock();
+
+  if (found) enqueue_exit_pid(pid);
+
   return 0;
 }
 
@@ -3275,9 +3294,10 @@ static void remove_all_process_info(void)
   struct hlist_node * tmp;
   hash_for_each_safe(proc_info_htable, bkt, tmp, proc_info, node)
   {
-    hash_del(&proc_info->node);
-    kfree(proc_info);
+    hash_del_rcu(&proc_info->node);
+    kfree_rcu(proc_info, rcu_head);
   }
+  // No synchronize_rcu needed: the kprobe is already unregistered, so no RCU readers exist.
 }
 
 static void remove_all_bridge_info(void)
