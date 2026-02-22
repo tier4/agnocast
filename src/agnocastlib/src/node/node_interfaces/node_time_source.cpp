@@ -170,6 +170,8 @@ void NodeTimeSource::create_clock_sub()
     // TODO(Koichi98): rclcpp passes ExecutorOptions with node's context to the executor.
     // AgnocastOnlySingleThreadedExecutor does not support ExecutorOptions yet.
     clock_executor_ = std::make_unique<AgnocastOnlySingleThreadedExecutor>();
+    // rclcpp uses spin_until_future_complete() with a promise/future pair, but spin() + cancel()
+    // is sufficient here since the executor is recreated each time, not reused.
     if (!clock_executor_thread_.joinable()) {
       clock_executor_thread_ = std::thread([this]() {
         clock_executor_->add_callback_group(clock_callback_group_, node_base_);
