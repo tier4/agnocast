@@ -46,7 +46,6 @@ while true; do
         ;;
     -p | --parallel)
         PARALLEL=$2
-        CONTINUE_ON_FAILURE=true
         shift 2
         ;;
     --)
@@ -258,8 +257,8 @@ WORKER_EOF
 
     # Run tests in parallel with job control
     while IFS= read -r line; do
-        # Stop launching new tests if any test has failed
-        if [ -s "$FAILED_TESTS_FILE" ]; then
+        # Stop launching new tests if any test has failed (unless -c is specified)
+        if [ "$CONTINUE_ON_FAILURE" != "true" ] && [ -s "$FAILED_TESTS_FILE" ]; then
             echo "Failure detected, stopping new test launches..." | sudo tee /dev/kmsg
             break
         fi
