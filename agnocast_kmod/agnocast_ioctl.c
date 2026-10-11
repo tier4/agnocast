@@ -3776,6 +3776,18 @@ int agnocast_get_discovery_agent_num(void)
   return count;
 }
 
+bool agnocast_is_proc_alive(const pid_t pid)
+{
+  struct process_info * proc_info;
+  hash_for_each_possible(proc_info_htable, proc_info, node, hash_min(pid, PROC_INFO_HASH_BITS))
+  {
+    if (proc_info->global_pid == pid) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int agnocast_get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns)
 {
   struct topic_wrapper * wrapper = find_topic_for_current(topic_name, ipc_ns);
@@ -3934,6 +3946,24 @@ int agnocast_topic_wrapper_refcnt(
   int refcnt = wrapper ? (int)wrapper->topic->wrapper_refcnt : 0;
   up_read(&global_htables_rwsem);
   return refcnt;
+}
+
+// Creates and registers a shared-memory file for the publisher process.
+int agnocast_register_publisher_memf(const pid_t publisher_pid)
+{
+  struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, EMPTY_VMA_FLAGS);
+  if (IS_ERR(memf)) return PTR_ERR(memf);
+
+  int fd = get_unused_fd_flags(0);
+  if (fd < 0) {
+    fput(memf);
+    return fd;
+  }
+  fd_install(fd, memf);
+
+  int ret = agnocast_ioctl_register_process_shm(publisher_pid, fd);
+  close_fd(fd);
+  return ret;
 }
 
 #endif

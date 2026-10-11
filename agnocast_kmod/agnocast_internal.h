@@ -6,6 +6,7 @@
 
 #include <linux/device.h>
 #include <linux/eventfd.h>
+#include <linux/fdtable.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/hashtable.h>
@@ -14,6 +15,7 @@
 #include <linux/mm.h>  // kvzalloc, kvfree
 #include <linux/module.h>
 #include <linux/rwsem.h>
+#include <linux/shmem_fs.h>
 #include <linux/slab.h>  // kmalloc, kfree
 #include <linux/tracepoint.h>
 #include <linux/version.h>

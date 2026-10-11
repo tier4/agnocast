@@ -31,7 +31,6 @@ struct publisher_shm_info
 // Kernel-only counterpart to publisher_shm_info that carries the memfd file pointer.
 struct publisher_shm_info_internal
 {
-  pid_t pid;
   struct file * memf;
   uint64_t shm_addr;
   uint64_t shm_size;
@@ -574,6 +573,7 @@ int agnocast_increment_message_entry_rc(
   const int64_t entry_id);
 int agnocast_get_alive_proc_num(void);
 int agnocast_get_discovery_agent_num(void);
+bool agnocast_is_proc_alive(const pid_t pid);
 int agnocast_get_topic_entries_num(const char * topic_name, const struct ipc_namespace * ipc_ns);
 int64_t agnocast_get_latest_received_entry_id(
   const char * topic_name, const struct ipc_namespace * ipc_ns,
@@ -600,4 +600,5 @@ bool agnocast_get_domain_rule(
 // or 0 if no such wrapper exists. Used to observe domain-bridge grouping.
 int agnocast_topic_wrapper_refcnt(
   const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t domain_id);
+int agnocast_register_publisher_memf(const pid_t publisher_pid);
 #endif
