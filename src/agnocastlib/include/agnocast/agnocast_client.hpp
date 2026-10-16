@@ -104,7 +104,9 @@ protected:
   rclcpp::Logger get_logger() const;
 
   template <typename NodeT>
-  void init_base(NodeT * node, const std::string & service_name, const std::string & service_type)
+  void init_base(
+    NodeT * node, const std::string & service_name,
+    [[maybe_unused]] const std::string & service_type)
   {
     node_ = node;
     node_name_ = node->get_fully_qualified_name();

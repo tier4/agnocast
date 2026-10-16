@@ -175,18 +175,18 @@ void sort_events(std::vector<Event> & events)
 
 }  // namespace
 
-#define FULL_CHECK_WITH_PAYLOAD \
-  ASSERT_EQ(events.size(), 4u); \
-  EXPECT_EQ(events[0].info.event_type, ServiceEventInfo::REQUEST_SENT); \
-  ASSERT_EQ(events[0].request.size(), 1u);                              \
-  EXPECT_TRUE(events[0].request[0].data);                               \
-  EXPECT_EQ(events[1].info.event_type, ServiceEventInfo::REQUEST_RECEIVED); \
-  ASSERT_EQ(events[1].request.size(), 1u);                                  \
-  EXPECT_TRUE(events[1].request[0].data);                                   \
-  EXPECT_EQ(events[2].info.event_type, ServiceEventInfo::RESPONSE_SENT); \
-  ASSERT_EQ(events[2].response.size(), 1u);                              \
-  EXPECT_TRUE(events[2].response[0].success);                            \
-  EXPECT_EQ(events[2].response[0].message, "ok");                        \
+#define FULL_CHECK_WITH_PAYLOAD                                              \
+  ASSERT_EQ(events.size(), 4u);                                              \
+  EXPECT_EQ(events[0].info.event_type, ServiceEventInfo::REQUEST_SENT);      \
+  ASSERT_EQ(events[0].request.size(), 1u);                                   \
+  EXPECT_TRUE(events[0].request[0].data);                                    \
+  EXPECT_EQ(events[1].info.event_type, ServiceEventInfo::REQUEST_RECEIVED);  \
+  ASSERT_EQ(events[1].request.size(), 1u);                                   \
+  EXPECT_TRUE(events[1].request[0].data);                                    \
+  EXPECT_EQ(events[2].info.event_type, ServiceEventInfo::RESPONSE_SENT);     \
+  ASSERT_EQ(events[2].response.size(), 1u);                                  \
+  EXPECT_TRUE(events[2].response[0].success);                                \
+  EXPECT_EQ(events[2].response[0].message, "ok");                            \
   EXPECT_EQ(events[3].info.event_type, ServiceEventInfo::RESPONSE_RECEIVED); \
   ASSERT_EQ(events[3].response.size(), 1u);                                  \
   EXPECT_TRUE(events[3].response[0].success);                                \
