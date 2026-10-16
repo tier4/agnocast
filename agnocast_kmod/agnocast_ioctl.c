@@ -3952,7 +3952,11 @@ int agnocast_topic_wrapper_refcnt(
 // borrowed pointer to the file.
 int agnocast_register_publisher_memf(const pid_t publisher_pid, struct file ** ret_memf)
 {
+#ifdef EMPTY_VMA_FLAGS
   struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, EMPTY_VMA_FLAGS);
+#else
+  struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, 0);
+#endif
   if (IS_ERR(memf)) return PTR_ERR(memf);
 
   int fd = get_unused_fd_flags(0);
