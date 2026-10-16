@@ -7,16 +7,17 @@
 Agnocast processes invoke `AGNOCAST_ADD_PROCESS_CMD` ioctl during the initialization phase. The
 ioctl returns a virtual memory range allocated for the process to map **writable** shared memory.
 
-The process then creates an anonymous file via the `memfd_create` system call and maps it into the
-virtual memory range. Specifically, the following seals are applied to the anonymous file before
-mapping:
+The process then creates an anonymous file via the `memfd_create` system call, sizes it, and maps it
+into the virtual memory range. After establishing this mapping, it applies the following
+seals to the anonymous file:
 
 ```cpp
 int seals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_FUTURE_WRITE;
 ```
 
-This prevents the file from being resized or modified by other processes. Note that other processes
-or subscribers only need read permissions to the shared memory.
+The seals prevent the file from being resized and block future writes or writable mappings, while
+preserving write access through the publisher's existing mapping. Note that other processes or
+subscribers only need read access to the shared memory.
 
 Next, the process registers the anonymous file with the kernel module using the
 `AGNOCAST_REGISTER_PROCESS_SHM_CMD` ioctl. Inside the kernel module, the ioctl obtains a
