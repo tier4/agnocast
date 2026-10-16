@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <memory>
 
 using namespace std::chrono;
 using namespace std::chrono_literals;
@@ -96,35 +97,29 @@ std::optional<std::shared_ptr<void>> GenericClient::copy_request_if_contents(con
 
   rclcpp::SerializedMessage serialized;
   if (rmw_serialize(payload, request_ts, &serialized.get_rcl_serialized_message()) != RMW_RET_OK) {
-    std::visit(
-      [](auto * n) {
-        RCLCPP_ERROR(
-          n->get_logger(),
-          "rmw_serialize() failed; only publishing metadata for this REQUEST_SENT service event");
-      },
-      node_);
+    RCLCPP_ERROR(
+      get_logger(),
+      "rmw_serialize() failed; only publishing metadata for this REQUEST_SENT service event");
+    rmw_reset_error();
     return std::nullopt;
   }
 
-  std::shared_ptr<void> copied(
-    ::operator new(service_ts_bundle_.request_members->size_of_), [this](void * p) {
-      this->service_ts_bundle_.request_members->fini_function(p);
-      ::operator delete(p);
-    });
-  service_ts_bundle_.request_members->init_function(
-    copied.get(), rosidl_runtime_cpp::MessageInitialization::SKIP);
+  // Allocate and initialize memory for the copy.
+  auto * members = service_ts_bundle_.request_members;
+  void * copied_raw = ::operator new(members->size_of_);
+  members->init_function(copied_raw, rosidl_runtime_cpp::MessageInitialization::SKIP);
+  std::shared_ptr<void> copied(copied_raw, [members](void * p) {
+    members->fini_function(p);
+    ::operator delete(p);
+  });
 
   if (
     rmw_deserialize(&serialized.get_rcl_serialized_message(), request_ts, copied.get()) !=
     RMW_RET_OK) {
-    std::visit(
-      [](auto * n) {
-        RCLCPP_ERROR(
-          n->get_logger(),
-          "rmw_deserialize() failed; only publishing metadata for this REQUEST_SENT service "
-          "event");
-      },
-      node_);
+    RCLCPP_ERROR(
+      get_logger(),
+      "rmw_deserialize() failed; only publishing metadata for this REQUEST_SENT service event");
+    rmw_reset_error();
     return std::nullopt;
   }
 
