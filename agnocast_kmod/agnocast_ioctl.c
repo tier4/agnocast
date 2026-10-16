@@ -3952,10 +3952,11 @@ int agnocast_topic_wrapper_refcnt(
 // borrowed pointer to the file.
 int agnocast_register_publisher_memf(const pid_t publisher_pid, struct file ** ret_memf)
 {
-#ifdef EMPTY_VMA_FLAGS
-  struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, EMPTY_VMA_FLAGS);
+#if KERNEL_VERSION(7, 0, 0) <= LINUX_VERSION_CODE
+  struct file * memf =
+    shmem_file_setup("agnocast_kunit", mempool_size_bytes, mk_vma_flags(VMA_NORESERVE_BIT));
 #else
-  struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, 0);
+  struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, VM_NORESERVE);
 #endif
   if (IS_ERR(memf)) return PTR_ERR(memf);
 
