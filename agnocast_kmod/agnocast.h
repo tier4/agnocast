@@ -600,5 +600,5 @@ bool agnocast_get_domain_rule(
 // or 0 if no such wrapper exists. Used to observe domain-bridge grouping.
 int agnocast_topic_wrapper_refcnt(
   const char * topic_name, const struct ipc_namespace * ipc_ns, uint32_t domain_id);
-int agnocast_register_publisher_memf(const pid_t publisher_pid);
+int agnocast_register_publisher_memf(const pid_t publisher_pid, struct file ** ret_memf);
 #endif

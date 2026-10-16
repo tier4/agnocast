@@ -465,11 +465,11 @@ void test_case_domain_bridge_shm_info_skips_undelivered_publisher(struct kunit *
   const topic_local_id_t sub_id = add_subscriber_for(test, current->tgid);
 
   const uint64_t domain1_pub_addr = setup_process_in_domain(test, 1000, 1);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(1000), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(1000, NULL), 0);
   add_publisher_for(test, 1000);
 
   setup_process_in_domain(test, 1001, 2);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(1001), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(1001, NULL), 0);
   add_publisher_for(test, 1001);
 
   union ioctl_receive_msg_args receive_args;

@@ -3948,8 +3948,9 @@ int agnocast_topic_wrapper_refcnt(
   return refcnt;
 }
 
-// Creates and registers a shared-memory file for the publisher process.
-int agnocast_register_publisher_memf(const pid_t publisher_pid)
+// Creates and registers a shared-memory file for the publisher process; optionally returns a
+// borrowed pointer to the file.
+int agnocast_register_publisher_memf(const pid_t publisher_pid, struct file ** ret_memf)
 {
   struct file * memf = shmem_file_setup("agnocast_kunit", mempool_size_bytes, EMPTY_VMA_FLAGS);
   if (IS_ERR(memf)) return PTR_ERR(memf);
@@ -3963,6 +3964,7 @@ int agnocast_register_publisher_memf(const pid_t publisher_pid)
 
   int ret = agnocast_ioctl_register_process_shm(publisher_pid, fd);
   close_fd(fd);
+  if (ret == 0 && ret_memf) *ret_memf = memf;
   return ret;
 }
 

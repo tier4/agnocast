@@ -25,7 +25,7 @@ static void setup_one_publisher(
   int ret1 = agnocast_ioctl_add_process(
     PUBLISHER_PID, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, 0, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(PUBLISHER_PID), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(PUBLISHER_PID, NULL), 0);
 
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = agnocast_ioctl_add_publisher(

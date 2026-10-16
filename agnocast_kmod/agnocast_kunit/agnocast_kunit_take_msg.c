@@ -69,7 +69,7 @@ static void setup_publisher_impl(
       publisher_pid, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, domain_id,
       &add_process_args),
     0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(publisher_pid), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(publisher_pid, NULL), 0);
   *ret_addr = add_process_args.ret_addr;
 
   union ioctl_add_publisher_args add_publisher_args;
@@ -813,7 +813,7 @@ void test_case_take_msg_pubsub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid, NULL), 0);
 
   const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
@@ -861,7 +861,7 @@ void test_case_take_msg_2pub_in_same_process(struct kunit * test)
   KUNIT_ASSERT_EQ(test, ret1, 0);
   KUNIT_ASSERT_EQ(test, ret2, 0);
   KUNIT_ASSERT_EQ(test, ret3, 0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(publisher_pid), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(publisher_pid, NULL), 0);
 
   const bool allow_same_message = true;
   union ioctl_take_msg_args ioctl_take_msg_ret;
@@ -1049,7 +1049,7 @@ void test_case_take_msg_ignore_local_same_pid_enabled(struct kunit * test)
   int ret1 = agnocast_ioctl_add_process(
     pid, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, 0, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid, NULL), 0);
 
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = agnocast_ioctl_add_publisher(
@@ -1096,7 +1096,7 @@ void test_case_take_msg_ignore_local_same_pid_disabled(struct kunit * test)
   int ret1 = agnocast_ioctl_add_process(
     pid, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, 0, &add_process_args);
   KUNIT_ASSERT_EQ(test, ret1, 0);
-  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid), 0);
+  KUNIT_ASSERT_EQ(test, agnocast_register_publisher_memf(pid, NULL), 0);
 
   union ioctl_add_publisher_args add_publisher_args;
   int ret2 = agnocast_ioctl_add_publisher(
