@@ -84,7 +84,7 @@ int map_writable_area(const uint64_t shm_addr, const uint64_t shm_size)
   }
 
   int prot = PROT_READ | PROT_WRITE;
-  void * mapped_addr = mmap(
+  const void * mapped_addr = mmap(
     reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, memfd, 0);
   if (mapped_addr == MAP_FAILED) {
     RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
@@ -109,7 +109,7 @@ int map_writable_area(const uint64_t shm_addr, const uint64_t shm_size)
 void map_read_only_area(int32_t memfd, const uint64_t shm_addr, const uint64_t shm_size)
 {
   int prot = PROT_READ;
-  void * mapped_addr = mmap(
+  const void * mapped_addr = mmap(
     reinterpret_cast<void *>(shm_addr), shm_size, prot, MAP_SHARED | MAP_FIXED_NOREPLACE, memfd, 0);
   if (mapped_addr == MAP_FAILED) {
     RCLCPP_ERROR(logger, "mmap failed: %s", strerror(errno));
