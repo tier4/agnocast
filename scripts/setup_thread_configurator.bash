@@ -36,11 +36,6 @@ if ! command -v dpkg-architecture >/dev/null 2>&1; then
 	exit 1
 fi
 
-if ! command -v getcap >/dev/null 2>&1; then
-	echo "Error: 'getcap' not found. Install it with: sudo apt-get install libcap2-bin"
-	exit 1
-fi
-
 if ! command -v setcap >/dev/null 2>&1; then
 	echo "Error: 'setcap' not found. Install it with: sudo apt-get install libcap2-bin"
 	exit 1
@@ -96,16 +91,14 @@ config_msgs_lib_dir="${config_msgs_prefix}/lib"
 # The binary links libagnocast_thread_configurator.so from its own package.
 thread_configurator_lib_dir="${thread_configurator_prefix}/lib"
 # Workspace directories come first, matching the overlay order of setup.bash.
-# awk drops the duplicates that a merged or /opt/ros install produces.
-expected_content=$(printf '%s\n' "$thread_configurator_lib_dir" "$config_msgs_lib_dir" "$ros_lib_dir" "$ros_multiarch_lib_dir" | awk '!seen[$0]++')
+expected_content=$(printf '%s\n' "$thread_configurator_lib_dir" "$config_msgs_lib_dir" "$ros_lib_dir" "$ros_multiarch_lib_dir")
 
 if [ -f "$conf_file" ] && [ "$(cat "$conf_file")" = "$expected_content" ]; then
 	echo "  Already configured ($conf_file). Skipping."
 else
 	echo "  Writing: $conf_file"
 	echo "  Content:"
-	while IFS= read -r dir; do echo "    $dir"; done <<<"$expected_content"
-	echo "$expected_content" | sudo tee "$conf_file" >/dev/null
+	sudo tee "$conf_file" <<<"$expected_content" | sed 's/^/    /'
 	sudo ldconfig
 	echo "  Done."
 fi
