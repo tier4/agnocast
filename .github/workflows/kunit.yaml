@@ -125,6 +125,7 @@ jobs:
              agnocast_kmod/agnocast_kunit/Makefile.inc \
              "${dst}/agnocast_kunit/"
           cp .github/kunit/Kbuild "${dst}/Makefile"
+          cp .github/kunit/rt_console_flush.c "${dst}/"
           if ! grep -q 'drivers/agnocast' linux/drivers/Makefile; then
             echo 'obj-$(CONFIG_KUNIT) += agnocast/' >> linux/drivers/Makefile
           fi
