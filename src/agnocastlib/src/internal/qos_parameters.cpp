@@ -134,7 +134,6 @@ void apply_string_qos_override(
   apply(policy_value);
 }
 
-// NOLINTBEGIN(google-runtime-references)
 void apply_qos_override(
   rclcpp::QosPolicyKind policy, const rclcpp::ParameterValue & value, rclcpp::QoS & qos)
 {
@@ -179,9 +178,7 @@ void apply_qos_override(
       throw std::invalid_argument("unknown QosPolicyKind");
   }
 }
-// NOLINTEND(google-runtime-references)
 
-// NOLINTBEGIN(google-runtime-references)
 rclcpp::ParameterValue declare_parameter_or_get(
   rclcpp::node_interfaces::NodeParametersInterface & parameters_interface,
   const std::string & param_name, const rclcpp::ParameterValue & param_value,
@@ -193,10 +190,8 @@ rclcpp::ParameterValue declare_parameter_or_get(
     return parameters_interface.get_parameter(param_name).get_parameter_value();
   }
 }
-// NOLINTEND(google-runtime-references)
 
 template <size_t N>
-// NOLINTBEGIN(google-runtime-references)
 void declare_selected_policies(
   const std::array<rclcpp::QosPolicyKind, N> & allowed,
   const rclcpp::QosOverridingOptions & options,
@@ -218,7 +213,6 @@ void declare_selected_policies(
     apply_qos_override(policy, value, qos);
   }
 }
-// NOLINTEND(google-runtime-references)
 
 }  // namespace
 

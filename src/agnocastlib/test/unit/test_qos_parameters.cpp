@@ -1,4 +1,5 @@
 #include "agnocast/internal/qos_parameters.hpp"
+#include "agnocast/node/agnocast_node.hpp"
 
 #include <rclcpp/exceptions.hpp>
 #include <rclcpp/node.hpp>
@@ -17,14 +18,52 @@ protected:
   void SetUp() override { rclcpp::init(0, nullptr); }
   void TearDown() override { rclcpp::shutdown(); }
 
+  template <typename NodeT>
   static rclcpp::QoS declare_for(
-    rclcpp::Node & node, const rclcpp::QosOverridingOptions & options, const rclcpp::QoS & qos,
+    NodeT & node, const rclcpp::QosOverridingOptions & options, const rclcpp::QoS & qos,
     const std::string & topic, const QosOverrideEntity entity)
   {
     return declare_qos_parameters(
       options, node.get_node_parameters_interface(), topic, qos, entity);
   }
 };
+
+TEST_F(QosParametersTest, an_agnocast_node_applies_a_depth_override)
+{
+  // Arrange
+  rclcpp::NodeOptions node_options;
+  node_options.start_parameter_services(false);
+  node_options.parameter_overrides(
+    {rclcpp::Parameter("qos_overrides./topic.subscription.depth", 9)});
+  agnocast::Node node("qos_param_agnocast_node", node_options);
+  const rclcpp::QosOverridingOptions options({rclcpp::QosPolicyKind::Depth});
+
+  // Act
+  const rclcpp::QoS actual = declare_for(
+    node, options, rclcpp::QoS(rclcpp::KeepLast(1)), "/topic", QosOverrideEntity::Subscription);
+
+  // Assert
+  EXPECT_EQ(actual.depth(), 9u);
+  EXPECT_TRUE(node.has_parameter("qos_overrides./topic.subscription.depth"));
+}
+
+TEST_F(QosParametersTest, an_agnocast_node_reuses_an_already_declared_parameter)
+{
+  // Arrange
+  rclcpp::NodeOptions node_options;
+  node_options.start_parameter_services(false);
+  agnocast::Node node("qos_param_agnocast_node_existing", node_options);
+  node.declare_parameter(
+    "qos_overrides./topic.publisher.depth", rclcpp::ParameterValue(static_cast<int64_t>(6)));
+  const rclcpp::QosOverridingOptions options({rclcpp::QosPolicyKind::Depth});
+
+  // Act
+  const rclcpp::QoS actual = declare_for(
+    node, options, rclcpp::QoS(rclcpp::KeepLast(1)), "/topic", QosOverrideEntity::Publisher);
+
+  // Assert
+  EXPECT_EQ(actual.depth(), 6u);
+}
 
 TEST_F(QosParametersTest, depth_override_replaces_the_constructor_value)
 {
