@@ -664,12 +664,9 @@ void test_case_do_exit_releases_notify_context(struct kunit * test)
   const int eventfd = 0;
   setup_one_process(test, subscriber_pid);
 
-  union ioctl_add_subscriber_args add_subscriber_args;
-  int ret = agnocast_ioctl_add_subscriber(
-    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
-    eventfd, &add_subscriber_args);
-  KUNIT_ASSERT_EQ(test, ret, 0);
+  agnocast_kunit_setup_subscriber(
+    test, TOPIC_NAME, NODE_NAME, subscriber_pid, QOS_DEPTH, QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE,
+    IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE, eventfd);
   KUNIT_ASSERT_EQ(test, agnocast_kunit_eventfd_outstanding(), (int64_t)1);
 
   // Act
@@ -695,14 +692,9 @@ void test_case_do_exit_releases_notify_contexts_of_multiple_subscribers(struct k
   setup_one_process(test, subscriber_pid);
 
   for (int eventfd = 0; eventfd < subscriber_num; eventfd++) {
-    union ioctl_add_subscriber_args add_subscriber_args;
-    KUNIT_ASSERT_EQ(
-      test,
-      agnocast_ioctl_add_subscriber(
-        TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-        QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
-        eventfd, &add_subscriber_args),
-      0);
+    agnocast_kunit_setup_subscriber(
+      test, TOPIC_NAME, NODE_NAME, subscriber_pid, QOS_DEPTH, QOS_IS_TRANSIENT_LOCAL,
+      QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE, eventfd);
   }
   KUNIT_ASSERT_EQ(test, agnocast_kunit_eventfd_outstanding(), (int64_t)subscriber_num);
 

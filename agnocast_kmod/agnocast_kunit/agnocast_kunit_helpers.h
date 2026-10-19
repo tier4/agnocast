@@ -22,13 +22,12 @@ topic_local_id_t agnocast_kunit_setup_subscriber(
   const int eventfd);
 
 // Register a process and add a publisher. Returns the publisher id.
-// The mempool base address is the return value of agnocast_kunit_setup_process.
 topic_local_id_t agnocast_kunit_setup_one_publisher(
   struct kunit * test, const char * topic_name, const char * node_name, const pid_t pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool is_bridge,
   const uint32_t domain_id);
 
-// Register a process and add a subscriber.
+// Register a process and add a subscriber. Returns the subscriber id.
 topic_local_id_t agnocast_kunit_setup_one_subscriber(
   struct kunit * test, const char * topic_name, const char * node_name, const pid_t pid,
   const uint32_t qos_depth, const bool qos_is_transient_local, const bool qos_is_reliable,

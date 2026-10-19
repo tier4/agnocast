@@ -215,17 +215,13 @@ void test_case_remove_subscriber_releases_notify_context(struct kunit * test)
   const int eventfd = 0;
   setup_one_process(test, subscriber_pid);
 
-  union ioctl_add_subscriber_args add_subscriber_args;
-  int ret = agnocast_ioctl_add_subscriber(
-    TOPIC_NAME, current->nsproxy->ipc_ns, NODE_NAME, subscriber_pid, QOS_DEPTH,
-    QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE, IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE,
-    eventfd, &add_subscriber_args);
-  KUNIT_ASSERT_EQ(test, ret, 0);
+  topic_local_id_t subscriber_id = agnocast_kunit_setup_subscriber(
+    test, TOPIC_NAME, NODE_NAME, subscriber_pid, QOS_DEPTH, QOS_IS_TRANSIENT_LOCAL, QOS_IS_RELIABLE,
+    IS_TAKE_SUB, IGNORE_LOCAL_PUBLICATIONS, IS_BRIDGE, eventfd);
   KUNIT_ASSERT_EQ(test, agnocast_kunit_eventfd_outstanding(), (int64_t)1);
 
   // Act
-  ret = agnocast_ioctl_remove_subscriber(
-    TOPIC_NAME, current->nsproxy->ipc_ns, add_subscriber_args.ret_id);
+  int ret = agnocast_ioctl_remove_subscriber(TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret, 0);
