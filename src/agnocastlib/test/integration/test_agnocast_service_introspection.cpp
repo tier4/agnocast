@@ -122,6 +122,19 @@ protected:
       rclcpp::ServicesQoS(), new_group());
   }
 
+  agnocast::GenericService::SharedPtr create_generic_service()
+  {
+    return agnocast::create_generic_service(
+      node_.get(), kServiceName, "std_srvs/srv/SetBool",
+      [](agnocast::ipc_shared_ptr<void> && request, agnocast::ipc_shared_ptr<void> && response) {
+        auto * request_ptr = static_cast<Request *>(request.get());
+        auto * response_ptr = static_cast<Response *>(response.get());
+        response_ptr->success = request_ptr->data;
+        response_ptr->message = "ok";
+      },
+      rclcpp::ServicesQoS(), new_group());
+  }
+
   template <typename T>
   void set_introspection(std::shared_ptr<T> target, rcl_service_introspection_state_t state)
   {
@@ -421,13 +434,30 @@ TEST_F(ServiceIntrospectionTest, DeferredServiceSupportsIntrospection)
 TEST_F(ServiceIntrospectionTest, GenericClientSupportsIntrospection)
 {
   // Arrange
-  auto service = create_service(true);
+  auto service = create_service();
   auto generic_client = create_generic_client();
   set_introspection(service, RCL_SERVICE_INTROSPECTION_CONTENTS);
   set_introspection(generic_client, RCL_SERVICE_INTROSPECTION_CONTENTS);
 
   // Act
   ASSERT_TRUE(call_service(generic_client, true));
+  auto events = wait_for_events(4);
+  sort_events(events);
+
+  // Assert
+  FULL_CHECK_WITH_PAYLOAD;
+}
+
+TEST_F(ServiceIntrospectionTest, GenericServiceSupportsIntrospection)
+{
+  // Arrange
+  auto generic_service = create_generic_service();
+  auto client = create_client();
+  set_introspection(generic_service, RCL_SERVICE_INTROSPECTION_CONTENTS);
+  set_introspection(client, RCL_SERVICE_INTROSPECTION_CONTENTS);
+
+  // Act
+  ASSERT_TRUE(call_service(client, true));
   auto events = wait_for_events(4);
   sort_events(events);
 
