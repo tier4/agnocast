@@ -138,6 +138,11 @@ jobs:
             echo "::error::No KUnit tests ran — check KUNIT_FILTER vs the suite name."
             exit 1
           fi
+          # CONFIG_DEBUG_ATOMIC_SLEEP only logs the splat; the KUnit cases still pass.
+          if grep -F 'BUG: sleeping function called from invalid context' "${GITHUB_WORKSPACE}/kunit-build/test.log"; then
+            echo "::error::A sleeping function was called from atomic context. See the KTAP log for the stack trace."
+            exit 1
+          fi
 
       - name: Show KTAP results
         if: always()
