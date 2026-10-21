@@ -347,6 +347,9 @@ void PerformanceBridgeManager::create_pubsub_bridge_if_needed(
       result = loader_.create_r2a_pubsub_bridge(container_node_, topic_name, message_type, qos);
     } else {
       auto qos = get_publisher_qos(topic_name, qos_source_id);
+      if (topic_name == "/diagnostics") {
+        qos.keep_last(std::max<size_t>(qos.depth(), 1000));
+      }
       result = loader_.create_a2r_pubsub_bridge(container_node_, topic_name, message_type, qos);
     }
 
