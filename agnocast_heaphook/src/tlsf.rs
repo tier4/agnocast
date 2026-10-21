@@ -24,6 +24,10 @@ pub struct SizeTrackingAllocator {
     current_size: usize,
     /// Peak value of `current_size` observed so far.
     max_size: usize,
+    /// Lowest start address of any block allocated so far (`usize::MAX` before the first allocation).
+    lowest_addr: usize,
+    /// Highest end address (exclusive) of any block allocated so far.
+    highest_end: usize,
 }
 impl SizeTrackingAllocator {
     fn new() -> Self {
@@ -31,18 +35,33 @@ impl SizeTrackingAllocator {
             tlsf: Tlsf::new(),
             current_size: 0,
             max_size: 0,
+            lowest_addr: usize::MAX,
+            highest_end: 0,
         }
     }
 
-    fn add_size(&mut self, size: usize) {
+    /// Peak span of the pool that has ever been used: from the lowest block start to the highest block end.
+    /// This is the allocated memory plus external fragmentation, so it is never smaller than `max_size`.
+    fn high_water_mark(&self) -> usize {
+        self.highest_end.saturating_sub(self.lowest_addr)
+    }
+
+    fn publish(&self) {
+        memory_stats::publish(self.current_size, self.max_size, self.high_water_mark());
+    }
+
+    /// Accounts for a newly allocated block of `size` usable bytes starting at `addr`.
+    fn add_block(&mut self, addr: usize, size: usize) {
         self.current_size += size;
         self.max_size = self.max_size.max(self.current_size);
-        memory_stats::publish(self.current_size, self.max_size);
+        self.lowest_addr = self.lowest_addr.min(addr);
+        self.highest_end = self.highest_end.max(addr + size);
+        self.publish();
     }
 
     fn sub_size(&mut self, size: usize) {
         self.current_size -= size;
-        memory_stats::publish(self.current_size, self.max_size);
+        self.publish();
     }
 }
 
@@ -90,7 +109,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         // store the original pointer
         unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
         let allocated_size = unsafe { TlsfType::allocation_usable_size(original_ptr) };
-        allocator.add_size(allocated_size);
+        allocator.add_block(original_addr, allocated_size);
 
         Some(aligned_ptr)
     }
@@ -129,7 +148,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
             new_size = TlsfType::allocation_usable_size(new_original_ptr);
         }
         allocator.sub_size(old_size);
-        allocator.add_size(new_size);
+        allocator.add_block(new_original_addr, new_size);
 
         // the aligned pointer returned to the user
         //
@@ -313,5 +332,52 @@ mod tests {
 
         alloc.deallocate(a);
         assert_eq!(sizes(&alloc), (0, max_r));
+    }
+
+    fn high_water_mark(alloc: &TLSFAllocator) -> usize {
+        alloc.inner.lock().unwrap().high_water_mark()
+    }
+
+    fn block_range(ptr: NonNull<u8>) -> (usize, usize) {
+        let original_ptr: NonNull<u8> = unsafe { *ptr.as_ptr().byte_sub(POINTER_SIZE).cast() };
+        let start = original_ptr.as_ptr() as usize;
+        (start, start + unsafe { TlsfType::allocation_usable_size(original_ptr) })
+    }
+
+    #[test]
+    fn test_high_water_mark() {
+        let alloc = create_test_allocator();
+        assert_eq!(high_water_mark(&alloc), 0);
+
+        let layout = Layout::from_size_align(1024, 1).unwrap();
+        let a = alloc.allocate(layout).unwrap();
+        let b = alloc.allocate(layout).unwrap();
+        let c = alloc.allocate(layout).unwrap();
+        let ranges = [block_range(a), block_range(b), block_range(c)];
+        let lowest = ranges.iter().map(|r| r.0).min().unwrap();
+        let highest = ranges.iter().map(|r| r.1).max().unwrap();
+        assert_eq!(high_water_mark(&alloc), highest - lowest);
+        assert!(high_water_mark(&alloc) >= sizes(&alloc).1);
+
+        // Freeing a block in the middle leaves a hole: the span is unchanged although less is allocated.
+        let span = high_water_mark(&alloc);
+        alloc.deallocate(b);
+        assert_eq!(high_water_mark(&alloc), span);
+        assert!(span > sizes(&alloc).0);
+
+        // A block that does not fit into the hole extends the span.
+        let big = alloc.allocate(Layout::from_size_align(8 * 1024, 1).unwrap()).unwrap();
+        let (big_start, big_end) = block_range(big);
+        assert_eq!(high_water_mark(&alloc), highest.max(big_end) - lowest.min(big_start));
+        assert!(high_water_mark(&alloc) > span);
+
+        // It is a peak: freeing everything keeps it.
+        let span = high_water_mark(&alloc);
+        for ptr in [a, c, big] {
+            alloc.deallocate(ptr);
+        }
+        assert_eq!(sizes(&alloc).0, 0);
+        assert_eq!(high_water_mark(&alloc), span);
+        assert!(span >= sizes(&alloc).1);
     }
 }

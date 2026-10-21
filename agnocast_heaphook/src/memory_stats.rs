@@ -1,9 +1,12 @@
 //! Exposes shared heap usage to external tools.
 //!
 //! When `AGNOCAST_HEAPHOOK_MEMORY_STATS` is set, each process maps `/dev/shm/agnocast_heaphook_<pid>`,
-//! a 16-byte file holding `current: u64` and `max: u64` (native endian, in bytes).
+//! a 24-byte file holding `current: u64`, `max: u64` and `high_water_mark: u64` (native endian, in bytes).
+//! `high_water_mark` is the peak span from the lowest to the highest allocated address, i.e. allocated
+//! memory plus external fragmentation. New fields are only ever appended, so readers of the first
+//! 16 bytes keep working.
 //! The allocator updates it on every size change, so tools can poll it without touching the process,
-//! e.g. `od -An -t u8 -N16 /dev/shm/agnocast_heaphook_<pid>`.
+//! e.g. `od -An -t u8 -N24 /dev/shm/agnocast_heaphook_<pid>`.
 
 #[cfg(not(test))]
 use std::sync::atomic::AtomicI32;
@@ -16,6 +19,7 @@ use std::{
 struct MemoryStats {
     current: AtomicU64,
     max: AtomicU64,
+    high_water_mark: AtomicU64,
 }
 
 /// Null when stats are disabled.
@@ -27,15 +31,16 @@ static MEMORY_STATS: AtomicPtr<MemoryStats> = AtomicPtr::new(ptr::null_mut());
 static OWNER_PID: AtomicI32 = AtomicI32::new(0);
 
 #[inline]
-pub(crate) fn publish(current: usize, max: usize) {
+pub(crate) fn publish(current: usize, max: usize, high_water_mark: usize) {
     let stats = MEMORY_STATS.load(Ordering::Acquire);
     if stats.is_null() {
         return;
     }
-    // SAFETY: a non-null pointer always refers to a live 16-byte mapping created in `init`.
+    // SAFETY: a non-null pointer always refers to a live `MemoryStats` mapping created in `init`.
     let stats = unsafe { &*stats };
     stats.current.store(current as u64, Ordering::Relaxed);
     stats.max.store(max as u64, Ordering::Relaxed);
+    stats.high_water_mark.store(high_water_mark as u64, Ordering::Relaxed);
 }
 
 /// Builds the NUL-terminated name `/agnocast_heaphook_<pid>` without allocating,
