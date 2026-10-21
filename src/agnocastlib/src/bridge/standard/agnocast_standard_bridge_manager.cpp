@@ -252,6 +252,9 @@ bool StandardBridgeManager::activate_pubsub_bridge(const DirectedPubsubBridgeRef
   try {
     rclcpp::QoS target_qos = is_r2a ? get_subscriber_qos(topic_name, entry.target_id_r2a)
                                     : get_publisher_qos(topic_name, entry.target_id_a2r);
+    if (!is_r2a && topic_name == "/diagnostics") {
+      target_qos.keep_last(std::max<size_t>(target_qos.depth(), 1000));
+    }
 
     auto bridge =
       loader_->start_pubsub_bridge(topic_name, direction, entry.factory_spec, target_qos);
