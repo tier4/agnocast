@@ -10,7 +10,8 @@
 
 static int wait_for_console(struct notifier_block * nb, unsigned long action, void * data)
 {
-  // ponytail: fixed delay, because v6.12 keeps pr_flush() static.
+  // A fixed delay, because v6.12 keeps pr_flush() static. If the console needs more than
+  // 1 s to drain, the last KTAP lines can still get lost.
   msleep(1000);
   return NOTIFY_DONE;
 }
