@@ -2,6 +2,7 @@
 #include "agnocast_kunit_do_exit.h"
 
 #include "../agnocast.h"
+#include "../agnocast_internal.h"
 #include "../agnocast_memory_allocator.h"
 #include "agnocast_kunit_eventfd.h"
 
@@ -140,9 +141,9 @@ void test_case_do_exit_many(struct kunit * test)
     agnocast_enqueue_exit_pid(pid);
   }
 
-  // wait for exit_worker_thread to handle process exit:
-  // this value is conservatively estimated to be large enough
-  msleep(100);
+  // Wait until exit_worker_thread drains the queue, so the next test does not wait behind it.
+  // On a PREEMPT_RT kernel under QEMU, this can take longer than 100 ms.
+  for (int i = 0; i < 500 && READ_ONCE(has_new_pid); i++) msleep(20);
 
   // Assert
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 0);
