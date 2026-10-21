@@ -2,12 +2,11 @@ use rlsf::Tlsf;
 use std::{
     alloc::Layout,
     mem::MaybeUninit,
-    ops::{Add, Sub},
     ptr::NonNull,
     sync::Mutex,
 };
 
-use crate::{AgnocastSharedMemory, SharedMemoryAllocator};
+use crate::{memory_stats, AgnocastSharedMemory, SharedMemoryAllocator};
 
 const FLLEN: usize = 28; // The maximum block size is (32 << 28) - 1 = 8_589_934_591 (nearly 8GiB)
 const SLLEN: usize = 64; // The worst-case internal fragmentation is ((32 << 28) / 64 - 2) = 134_217_726 (nearly 128MiB)
@@ -21,9 +20,32 @@ const LAYOUT_ALIGN: usize = 1; // Minimun value that is a power of 2.
 
 pub struct SizeTrackingAllocator {
     tlsf: TlsfType,
-    total_size: usize,
-    limit_size: usize,
+    /// Bytes currently allocated (usable size reported by TLSF, including our metadata/padding).
+    current_size: usize,
+    /// Peak value of `current_size` observed so far.
+    max_size: usize,
 }
+impl SizeTrackingAllocator {
+    fn new() -> Self {
+        Self {
+            tlsf: Tlsf::new(),
+            current_size: 0,
+            max_size: 0,
+        }
+    }
+
+    fn add_size(&mut self, size: usize) {
+        self.current_size += size;
+        self.max_size = self.max_size.max(self.current_size);
+        memory_stats::publish(self.current_size, self.max_size);
+    }
+
+    fn sub_size(&mut self, size: usize) {
+        self.current_size -= size;
+        memory_stats::publish(self.current_size, self.max_size);
+    }
+}
+
 pub struct TLSFAllocator {
     inner: Mutex<SizeTrackingAllocator>,
 }
@@ -34,16 +56,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
             std::slice::from_raw_parts_mut(shm.as_ptr() as *mut MaybeUninit<u8>, shm.len())
         };
 
-        let mut size_tracking_allocator = SizeTrackingAllocator {
-            tlsf: Tlsf::new(),
-            total_size: 0,
-            limit_size: usize::MAX, // Default is unlimited
-        };
-        if let Ok(val) = std::env::var("AGNOCAST_SHARED_HEAP_MEMORY_LIMIT") {
-            if let Ok(limit_bytes) = val.parse::<usize>() {
-                size_tracking_allocator.limit_size = limit_bytes;
-            }
-        }
+        let mut size_tracking_allocator = SizeTrackingAllocator::new();
 
         size_tracking_allocator.tlsf.insert_free_block(pool);
         Self {
@@ -58,9 +71,6 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         let layout = Layout::from_size_align(POINTER_SIZE + size + alignment, LAYOUT_ALIGN).ok()?;
 
         let mut allocator = self.inner.lock().unwrap();
-        if allocator.total_size.saturating_add(layout.size()) > allocator.limit_size {
-            return None;
-        }
         // the original pointer returned by the internal allocator
         let original_ptr = allocator.tlsf.allocate(layout)?;
         let original_addr = original_ptr.as_ptr() as usize;
@@ -79,10 +89,8 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
 
         // store the original pointer
         unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
-        unsafe {
-            let diff = TlsfType::allocation_usable_size(original_ptr);
-            allocator.total_size += diff
-        };
+        let allocated_size = unsafe { TlsfType::allocation_usable_size(original_ptr) };
+        allocator.add_size(allocated_size);
 
         Some(aligned_ptr)
     }
@@ -112,14 +120,6 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         unsafe {
             old_size = TlsfType::allocation_usable_size(old_original_ptr);
         }
-        if allocator
-            .total_size
-            .sub(old_size)
-            .saturating_add(new_layout.size())
-            > allocator.limit_size
-        {
-            return None;
-        }
 
         let new_original_ptr = unsafe { allocator.tlsf.reallocate(old_original_ptr, new_layout) }?;
         let new_original_addr = new_original_ptr.as_ptr() as usize;
@@ -128,8 +128,8 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         unsafe {
             new_size = TlsfType::allocation_usable_size(new_original_ptr);
         }
-        allocator.total_size -= old_size;
-        allocator.total_size += new_size;
+        allocator.sub_size(old_size);
+        allocator.add_size(new_size);
 
         // the aligned pointer returned to the user
         //
@@ -174,7 +174,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         unsafe {
             deallocate_size = TlsfType::allocation_usable_size(original_ptr);
         }
-        allocator.total_size -= deallocate_size;
+        allocator.sub_size(deallocate_size);
         unsafe { allocator.tlsf.deallocate(original_ptr, LAYOUT_ALIGN) }
     }
 }
@@ -184,7 +184,7 @@ mod tests {
     use super::*;
     use crate::SharedMemoryAllocator;
 
-    fn create_test_allocator(max_size: Option<usize>) -> TLSFAllocator {
+    fn create_test_allocator() -> TLSFAllocator {
         let pool_size = 256 * 1024;
         let pool_ptr = unsafe {
             libc::mmap(
@@ -201,11 +201,7 @@ mod tests {
         // SAFETY: mmap'd memory lives until munmap; we intentionally leak it for 'static.
         let pool: &'static mut [MaybeUninit<u8>] =
             unsafe { std::slice::from_raw_parts_mut(pool_ptr as *mut MaybeUninit<u8>, pool_size) };
-        let mut size_tracking_allocator = SizeTrackingAllocator {
-            tlsf: Tlsf::new(),
-            total_size: 0,
-            limit_size: max_size.unwrap_or(usize::MAX), // Default is unlimited
-        };
+        let mut size_tracking_allocator = SizeTrackingAllocator::new();
         size_tracking_allocator.tlsf.insert_free_block(pool);
 
         TLSFAllocator {
@@ -229,7 +225,7 @@ mod tests {
     /// offsets genuinely differ, ensuring the memmove fix path is exercised.
     #[test]
     fn test_reallocate_with_offset_change() {
-        let alloc = create_test_allocator(None);
+        let alloc = create_test_allocator();
         let old_size = 100;
         let new_size = 200;
 
@@ -285,26 +281,37 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_size_limit_allocate() {
-        let size_max = 1024 * 1024;
-        let alloc = create_test_allocator(Some(size_max));
-        // Rust itself already alloced memory, allocating additional max_size bytes will exceed the max_size limit
-        let maybe_ptr = alloc.allocate(Layout::from_size_align(size_max, 1).unwrap());
-        assert_eq!(maybe_ptr, None);
+    fn sizes(alloc: &TLSFAllocator) -> (usize, usize) {
+        let inner = alloc.inner.lock().unwrap();
+        (inner.current_size, inner.max_size)
     }
+
     #[test]
-    fn test_size_limit_reallocate() {
-        let size_max = 1024 * 1024;
-        let alloc = create_test_allocator(Some(size_max));
-        let maybe_ptr = alloc.allocate(Layout::from_size_align(1024, 1).unwrap());
-        assert_ne!(maybe_ptr, None);
-        // Rust itself already alloced memory, allocating additional max_size bytes will exceed the max_size limit
-        let maybe_realloc_ptr = alloc.reallocate(
-            maybe_ptr.unwrap(),
-            Layout::from_size_align(size_max, 1).unwrap(),
-        );
-        assert_eq!(maybe_realloc_ptr, None);
-        alloc.deallocate(maybe_ptr.unwrap());
+    fn test_size_tracking() {
+        let alloc = create_test_allocator();
+        assert_eq!(sizes(&alloc), (0, 0));
+
+        let a = alloc.allocate(Layout::from_size_align(1024, 1).unwrap()).unwrap();
+        let (cur_a, max_a) = sizes(&alloc);
+        assert!(cur_a >= 1024);
+        assert_eq!(max_a, cur_a);
+
+        let b = alloc.allocate(Layout::from_size_align(4096, 1).unwrap()).unwrap();
+        let (cur_ab, max_ab) = sizes(&alloc);
+        assert!(cur_ab >= cur_a + 4096);
+        assert_eq!(max_ab, cur_ab);
+
+        // Freeing lowers the current size but keeps the peak.
+        alloc.deallocate(b);
+        assert_eq!(sizes(&alloc), (cur_a, max_ab));
+
+        // Growing via reallocate updates both current and peak.
+        let a = alloc.reallocate(a, Layout::from_size_align(16 * 1024, 1).unwrap()).unwrap();
+        let (cur_r, max_r) = sizes(&alloc);
+        assert!(cur_r >= 16 * 1024);
+        assert_eq!(max_r, max_ab.max(cur_r));
+
+        alloc.deallocate(a);
+        assert_eq!(sizes(&alloc), (0, max_r));
     }
 }
