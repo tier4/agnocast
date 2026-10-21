@@ -50,17 +50,34 @@ impl SizeTrackingAllocator {
         memory_stats::publish(self.current_size, self.max_size, self.high_water_mark());
     }
 
-    /// Accounts for a newly allocated block of `size` usable bytes starting at `addr`.
-    fn add_block(&mut self, addr: usize, size: usize) {
+    fn record_alloc(&mut self, addr: usize, size: usize) {
         self.current_size += size;
         self.max_size = self.max_size.max(self.current_size);
         self.lowest_addr = self.lowest_addr.min(addr);
         self.highest_end = self.highest_end.max(addr + size);
+    }
+
+    fn record_free(&mut self, size: usize) {
+        self.current_size -= size;
+    }
+
+    /// A block of `size` usable bytes starting at `addr` was allocated.
+    fn on_allocate(&mut self, addr: usize, size: usize) {
+        self.record_alloc(addr, size);
         self.publish();
     }
 
-    fn sub_size(&mut self, size: usize) {
-        self.current_size -= size;
+    /// A block of `size` usable bytes was freed.
+    fn on_deallocate(&mut self, size: usize) {
+        self.record_free(size);
+        self.publish();
+    }
+
+    /// A block was moved or resized. Publishes once so readers never see the intermediate state
+    /// where the old block is already gone.
+    fn on_reallocate(&mut self, old_size: usize, new_addr: usize, new_size: usize) {
+        self.record_free(old_size);
+        self.record_alloc(new_addr, new_size);
         self.publish();
     }
 }
@@ -109,7 +126,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         // store the original pointer
         unsafe { *aligned_ptr.as_ptr().byte_sub(POINTER_SIZE).cast() = original_ptr };
         let allocated_size = unsafe { TlsfType::allocation_usable_size(original_ptr) };
-        allocator.add_block(original_addr, allocated_size);
+        allocator.on_allocate(original_addr, allocated_size);
 
         Some(aligned_ptr)
     }
@@ -147,8 +164,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         unsafe {
             new_size = TlsfType::allocation_usable_size(new_original_ptr);
         }
-        allocator.sub_size(old_size);
-        allocator.add_block(new_original_addr, new_size);
+        allocator.on_reallocate(old_size, new_original_addr, new_size);
 
         // the aligned pointer returned to the user
         //
@@ -193,7 +209,7 @@ unsafe impl SharedMemoryAllocator for TLSFAllocator {
         unsafe {
             deallocate_size = TlsfType::allocation_usable_size(original_ptr);
         }
-        allocator.sub_size(deallocate_size);
+        allocator.on_deallocate(deallocate_size);
         unsafe { allocator.tlsf.deallocate(original_ptr, LAYOUT_ALIGN) }
     }
 }
