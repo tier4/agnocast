@@ -28,7 +28,6 @@ static void setup_processes(struct kunit * test, const int process_num)
     int ret = agnocast_ioctl_add_process(
       pid, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, 0, &ioctl_ret);
     KUNIT_ASSERT_EQ(test, ret, 0);
-    KUNIT_ASSERT_FALSE(test, agnocast_is_proc_exited(pid));
   }
   KUNIT_ASSERT_EQ(test, agnocast_get_alive_proc_num(), process_num);
 }
@@ -40,7 +39,6 @@ static uint64_t setup_one_process(struct kunit * test, const pid_t pid)
     pid, current->nsproxy->ipc_ns, PROCESS_ROLE_APPLICATION, 0, &ioctl_ret);
 
   KUNIT_ASSERT_EQ(test, ret, 0);
-  KUNIT_ASSERT_FALSE(test, agnocast_is_proc_exited(pid));
 
   return ioctl_ret.ret_addr;
 }
@@ -125,7 +123,6 @@ void test_case_do_exit(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 0);
-  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_exited(PID_BASE));
 }
 
 void test_case_do_exit_many(struct kunit * test)
@@ -147,10 +144,6 @@ void test_case_do_exit_many(struct kunit * test)
 
   // Assert
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 0);
-  for (int i = 0; i < agnocast_process_num; i++) {
-    const pid_t pid = PID_BASE + i;
-    KUNIT_EXPECT_TRUE(test, agnocast_is_proc_exited(pid));
-  }
 }
 
 void test_case_do_exit_with_publisher(struct kunit * test)
@@ -285,10 +278,10 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_publisher_exi
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 3);
-  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_exited(publisher_pid1));
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(publisher_pid2));
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(subscriber_pid1));
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(subscriber_pid2));
+  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_alive(publisher_pid1));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(publisher_pid2));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(subscriber_pid1));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(subscriber_pid2));
   KUNIT_EXPECT_EQ(test, agnocast_get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, agnocast_is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
@@ -348,10 +341,10 @@ void test_case_do_exit_with_many_pubsub_in_different_processes_and_subscriber_ex
   KUNIT_EXPECT_EQ(test, ret2, 0);
   KUNIT_EXPECT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 3);
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(publisher_pid1));
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(publisher_pid2));
-  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_exited(subscriber_pid1));
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(subscriber_pid2));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(publisher_pid1));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(publisher_pid2));
+  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_alive(subscriber_pid1));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(subscriber_pid2));
   KUNIT_EXPECT_EQ(test, agnocast_get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, agnocast_is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 2);
@@ -641,7 +634,7 @@ void test_case_do_exit_with_multi_references_subscriber_exit_first(struct kunit 
   KUNIT_ASSERT_EQ(test, ret3, 0);
   KUNIT_EXPECT_EQ(test, ret4, 0);
   KUNIT_EXPECT_EQ(test, agnocast_get_alive_proc_num(), 1);
-  KUNIT_EXPECT_FALSE(test, agnocast_is_proc_exited(publisher_pid));
+  KUNIT_EXPECT_TRUE(test, agnocast_is_proc_alive(publisher_pid));
   KUNIT_EXPECT_EQ(test, agnocast_get_topic_num(current->nsproxy->ipc_ns), 1);
   KUNIT_EXPECT_TRUE(test, agnocast_is_in_topic_htable(TOPIC_NAME, current->nsproxy->ipc_ns));
   KUNIT_EXPECT_EQ(test, get_publisher_num_args.ret_publisher_num, 1);
@@ -695,7 +688,7 @@ void test_case_do_exit_releases_notify_context(struct kunit * test)
   // Act
   agnocast_enqueue_exit_pid(subscriber_pid);
   msleep(20);  // wait for exit_worker_thread to handle process exit
-  KUNIT_ASSERT_TRUE(test, agnocast_is_proc_exited(subscriber_pid));
+  KUNIT_ASSERT_EQ(test, agnocast_get_alive_proc_num(), 0);
 
   // Assert
   const struct agnocast_kunit_eventfd_slot * slot = agnocast_kunit_eventfd_slot_of(eventfd);
@@ -729,7 +722,7 @@ void test_case_do_exit_releases_notify_contexts_of_multiple_subscribers(struct k
   // Act
   agnocast_enqueue_exit_pid(subscriber_pid);
   msleep(20);  // wait for exit_worker_thread to handle process exit
-  KUNIT_ASSERT_TRUE(test, agnocast_is_proc_exited(subscriber_pid));
+  KUNIT_ASSERT_EQ(test, agnocast_get_alive_proc_num(), 0);
 
   // Assert
   for (int eventfd = 0; eventfd < subscriber_num; eventfd++) {
