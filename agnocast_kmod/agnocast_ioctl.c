@@ -663,9 +663,6 @@ static int insert_message_entry(
   new_node->entry_id = wrapper->topic->current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  // Publisher-side handles do not participate in reference counting.
-  // Subscribers will add their references when they receive/take the message.
-  bitmap_zero(new_node->referencing_subscribers, MAX_TOPIC_LOCAL_ID);
 
   struct rb_root * root = &wrapper->topic->entries;
   struct rb_node ** new = &(root->rb_node);
@@ -705,6 +702,9 @@ static int insert_message_entry(
 
 // Reads nothing that topic->rwsem guards, so receive and take call it after the topic unlock. This
 // keeps the GFP_KERNEL allocation in reference_memory() out of the topic section.
+// Caller holds global_htables_rwsem (read). Only global write changes the publisher table or sets
+// need_mmap_update. agnocastlib's mmap_mtx serializes the calls for one subscriber, so the clear
+// below needs no lock.
 static int set_publisher_shm_info(
   const struct topic_wrapper * wrapper, struct subscriber_info * sub_info,
   struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size,
@@ -1081,13 +1081,15 @@ int agnocast_ioctl_publish_msg(
 {
   int ret = 0;
 
-  // Declared here so the early-error `goto unlock_all` paths reach the signal loop below with
+  // Declared here so the error `goto unlock_all` paths reach the signal loop below with
   // notify_num == 0 (a no-op).
   struct eventfd_ctx ** notify_ctxs = NULL;
   uint32_t notify_num = 0;
 
-  // Allocated before both locks, so that direct reclaim never runs while other tasks wait for them.
-  struct entry_node * new_node = kmalloc(sizeof(*new_node), GFP_KERNEL);
+  // Allocated and zeroed before both locks, so that neither direct reclaim nor the 512-byte bitmap
+  // clear runs while other tasks wait for them. The bitmap starts empty because publisher-side
+  // handles do not participate in reference counting. Subscribers set their bits on receive/take.
+  struct entry_node * new_node = kzalloc(sizeof(*new_node), GFP_KERNEL);
   if (!new_node) {
     return -ENOMEM;
   }
@@ -1101,22 +1103,22 @@ int agnocast_ioctl_publish_msg(
     goto unlock_only_global;
   }
 
-  down_write(&wrapper->topic->rwsem);
-
+  // These lookups read only state that changes under global_htables_rwsem WRITE, so they run
+  // before the topic lock.
   struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
     dev_warn(
       agnocast_device, "Publisher (id=%d) not found in the topic (topic_name=%s). (%s)\n",
       publisher_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   struct process_info * proc_info = agnocast_find_process_info(pub_info->pid);
   if (!proc_info) {
     dev_warn(agnocast_device, "Process (pid=%d) does not exist. (%s)\n", pub_info->pid, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   uint64_t mempool_start = proc_info->mempool_entry->addr;
@@ -1124,8 +1126,10 @@ int agnocast_ioctl_publish_msg(
   if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
     dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (%s)\n", __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
+
+  down_write(&wrapper->topic->rwsem);
 
   ret = insert_message_entry(wrapper, pub_info, new_node, msg_virtual_address, ioctl_ret);
   if (ret < 0) {
@@ -1777,7 +1781,7 @@ static bool owner_is_alive(const pid_t pid)
 
 // Collects the nodes owning an endpoint of one topic. Caller holds global_htables_rwsem.
 static int collect_node_names_of_topic(
-  struct topic_wrapper * wrapper, const uint32_t domain_id, struct node_name_collector * col)
+  const struct topic_wrapper * wrapper, const uint32_t domain_id, struct node_name_collector * col)
 {
   struct publisher_info * pub_info;
   int bkt_pub_info;
