@@ -2880,6 +2880,7 @@ static int get_alive_process_num_in_domain_except_unlink_daemon(
 // A bridge manager is per (ipc_ns, domain), so it must shut down once its
 // own domain is empty -- counting the whole namespace would keep it alive while an
 // unrelated domain is busy. The manager itself is the remaining process (count == 1).
+// Caller holds global_htables_rwsem (read or write).
 static bool bridge_manager_is_alone(const struct ipc_namespace * ipc_ns, const pid_t pid)
 {
   return get_process_num_in_domain_except_unlink_daemon(ipc_ns, get_process_domain_id(pid)) <= 1;
