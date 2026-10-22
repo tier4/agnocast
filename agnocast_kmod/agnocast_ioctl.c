@@ -549,8 +549,9 @@ static int insert_publisher_info(
 // Pass allow_existing=true when that is an expected outcome (a repeated take of the same entry)
 // to suppress the warning. The test and the set are deliberately one atomic operation
 // rather than a test_bit followed by a conditional set:
-// agnocast_ioctl_release_message_entry_reference holds only the topic read lock, so it can clear
-// this bit at any point and a separate test would already be stale by the time the set ran.
+// on a stock kernel agnocast_ioctl_release_message_entry_reference shares topic_reader_lock() with
+// receive and take as a read lock, so it can clear this bit at any point and a separate test would
+// already be stale by the time the set ran.
 static int add_subscriber_reference(
   struct entry_node * en, const topic_local_id_t id, const bool allow_existing)
 {
@@ -1283,7 +1284,7 @@ int agnocast_ioctl_receive_msg(
   //      - Subscriber/publisher removal, process-exit cleanup and module unload take
   //        global_htables_rwsem WRITE. Those never take topic->rwsem at all: global write is what
   //        excludes them. Holding global read is therefore what keeps this very lock alive.
-  //    Both locks stay held until the function finishes, so no writer can change the tree during
+  //    Both locks stay held until the tree walk finishes, so no writer can change the tree during
   //    traversal.
   //
   // 2. Per-subscriber fields (latest_received_entry_id, need_mmap_update) live in disjoint
@@ -1309,31 +1310,31 @@ int agnocast_ioctl_receive_msg(
       "(%s)\n",
       subscriber_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_topic;
   }
 
   ret = receive_msg_core(wrapper, sub_info, subscriber_id, ioctl_ret);
+
+unlock_topic:
+  topic_reader_unlock(wrapper->topic);
   if (ret < 0) {
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
-  // Check if there is any publisher that need to be mmapped
+  // The mmap update reads nothing that topic->rwsem guards, so it runs after the unlock. This keeps
+  // the GFP_KERNEL allocation in reference_memory() out of the topic section.
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   ret = set_publisher_shm_info(
     wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
     &ioctl_ret->ret_pub_shm_num);
-  if (ret < 0) {
-    goto unlock_all;
+  if (ret == 0) {
+    sub_info->need_mmap_update = false;
   }
 
-  sub_info->need_mmap_update = false;
-
-unlock_all:
-  topic_reader_unlock(wrapper->topic);
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1365,7 +1366,7 @@ int agnocast_ioctl_take_msg(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (%s)\n",
       subscriber_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_topic;
   }
 
   // These remains 0 if no message is found to take.
@@ -1390,7 +1391,7 @@ int agnocast_ioctl_take_msg(
     const int deliverable = is_entry_deliverable(wrapper, sub_info, en);
     if (deliverable < 0) {
       ret = deliverable;
-      goto unlock_all;
+      goto unlock_topic;
     }
     if (deliverable == 0) {
       continue;
@@ -1406,7 +1407,7 @@ int agnocast_ioctl_take_msg(
     // reference is reused instead of a second being taken.
     ret = add_subscriber_reference(candidate_en, subscriber_id, allow_same_message);
     if (ret < 0 && !(allow_same_message && ret == -EALREADY)) {
-      goto unlock_all;
+      goto unlock_topic;
     }
     ret = 0;
 
@@ -1416,23 +1417,25 @@ int agnocast_ioctl_take_msg(
     sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
   }
 
-  // Check if there is any publisher that need to be mmapped
+unlock_topic:
+  topic_reader_unlock(wrapper->topic);
+  if (ret < 0) {
+    goto unlock_only_global;
+  }
+
+  // See the mmap update comment in agnocast_ioctl_receive_msg().
   if (!sub_info->need_mmap_update) {
     ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   ret = set_publisher_shm_info(
     wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
     &ioctl_ret->ret_pub_shm_num);
-  if (ret < 0) {
-    goto unlock_all;
+  if (ret == 0) {
+    sub_info->need_mmap_update = false;
   }
 
-  sub_info->need_mmap_update = false;
-
-unlock_all:
-  topic_reader_unlock(wrapper->topic);
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
