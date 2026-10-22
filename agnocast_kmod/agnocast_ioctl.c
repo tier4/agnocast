@@ -1648,11 +1648,9 @@ void agnocast_commit_exit_process(
   const struct ipc_namespace * ipc_ns, pid_t global_pid, pid_t caller_pid,
   bool * ret_daemon_should_exit)
 {
-  // The daemon polls every second, and a poll that frees nothing while other processes remain
-  // changes nothing. A writer still makes new readers wait until every in-flight reader leaves,
-  // and PREEMPT_RT cannot boost those readers, so one preempted reader would stall all IPC.
-  // The flag is re-derived under the write lock, because a process that registers between the two
-  // locks must keep the daemon from deregistering.
+  // Idle polls (once a second) take only the read lock. A waiting writer queues new readers, and
+  // PREEMPT_RT cannot boost the in-flight ones, so one preempted reader would stall all IPC. The
+  // write path re-derives the flag because a process can register between the two locks.
   if (global_pid < 0) {
     down_read(&global_htables_rwsem);
     *ret_daemon_should_exit = (get_process_num_except_unlink_daemon(ipc_ns) == 0);
