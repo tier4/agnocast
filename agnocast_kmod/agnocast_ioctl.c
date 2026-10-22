@@ -655,15 +655,11 @@ unlock_only_global:
   return ret;
 }
 
+// Takes ownership of new_node only on success.
 static int insert_message_entry(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
-  union ioctl_publish_msg_args * ioctl_ret)
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info, struct entry_node * new_node,
+  uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
 {
-  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
-  if (!new_node) {
-    return -ENOMEM;
-  }
-
   new_node->entry_id = wrapper->topic->current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
@@ -687,7 +683,6 @@ static int insert_message_entry(
         "Unreachable: New message entry (entry_id=%lld) does not have the largest entry_id in the "
         "topic (topic_name=%s). (%s)\n",
         new_node->entry_id, wrapper->key, __func__);
-      kfree(new_node);
       return -ECANCELED;
     }
   }
@@ -1091,6 +1086,12 @@ int agnocast_ioctl_publish_msg(
   struct eventfd_ctx ** notify_ctxs = NULL;
   uint32_t notify_num = 0;
 
+  // Allocated before both locks, so that direct reclaim never runs while other tasks wait for them.
+  struct entry_node * new_node = kmalloc(sizeof(*new_node), GFP_KERNEL);
+  if (!new_node) {
+    return -ENOMEM;
+  }
+
   down_read(&global_htables_rwsem);
 
   struct topic_wrapper * wrapper = find_topic_for_current(topic_name, ipc_ns);
@@ -1126,10 +1127,11 @@ int agnocast_ioctl_publish_msg(
     goto unlock_all;
   }
 
-  ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
+  ret = insert_message_entry(wrapper, pub_info, new_node, msg_virtual_address, ioctl_ret);
   if (ret < 0) {
     goto unlock_all;
   }
+  new_node = NULL;
 
   ret = release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret);
   if (ret < 0) {
@@ -1152,6 +1154,7 @@ unlock_all:
 
 unlock_only_global:
   up_read(&global_htables_rwsem);
+  kfree(new_node);
   return ret;
 }
 
