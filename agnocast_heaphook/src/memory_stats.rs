@@ -3,8 +3,7 @@
 //! When `AGNOCAST_HEAPHOOK_MEMORY_STATS` is set, each process maps `/dev/shm/agnocast_heaphook_<pid>`,
 //! a 24-byte file holding `current: u64`, `max: u64` and `high_water_mark: u64` (native endian, in bytes).
 //! `high_water_mark` is the peak span from the lowest to the highest allocated address, i.e. allocated
-//! memory plus external fragmentation. New fields are only ever appended, so readers of the first
-//! 16 bytes keep working.
+//! memory plus external fragmentation. 
 //! The allocator updates it on every size change, so tools can poll it without touching the process,
 //! e.g. `od -An -t u8 -N24 /dev/shm/agnocast_heaphook_<pid>`.
 
