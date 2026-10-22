@@ -1648,6 +1648,20 @@ void agnocast_commit_exit_process(
   const struct ipc_namespace * ipc_ns, pid_t global_pid, pid_t caller_pid,
   bool * ret_daemon_should_exit)
 {
+  // The daemon polls every second, and a poll that frees nothing while other processes remain
+  // changes nothing. A writer still makes new readers wait until every in-flight reader leaves,
+  // and PREEMPT_RT cannot boost those readers, so one preempted reader would stall all IPC.
+  // The flag is re-derived under the write lock, because a process that registers between the two
+  // locks must keep the daemon from deregistering.
+  if (global_pid < 0) {
+    down_read(&global_htables_rwsem);
+    *ret_daemon_should_exit = (get_process_num_except_unlink_daemon(ipc_ns) == 0);
+    up_read(&global_htables_rwsem);
+    if (!*ret_daemon_should_exit) {
+      return;
+    }
+  }
+
   down_write(&global_htables_rwsem);
 
   if (global_pid >= 0) {
@@ -2863,6 +2877,14 @@ static int get_alive_process_num_in_domain_except_unlink_daemon(
   return count;
 }
 
+// A bridge manager is per (ipc_ns, domain), so it must shut down once its
+// own domain is empty -- counting the whole namespace would keep it alive while an
+// unrelated domain is busy. The manager itself is the remaining process (count == 1).
+static bool bridge_manager_is_alone(const struct ipc_namespace * ipc_ns, const pid_t pid)
+{
+  return get_process_num_in_domain_except_unlink_daemon(ipc_ns, get_process_domain_id(pid)) <= 1;
+}
+
 int agnocast_ioctl_notify_bridge_shutdown(const pid_t pid)
 {
   down_write(&global_htables_rwsem);
@@ -2969,18 +2991,25 @@ int agnocast_ioctl_check_and_request_bridge_shutdown(
   const pid_t pid, const struct ipc_namespace * ipc_ns,
   struct ioctl_check_and_request_bridge_shutdown_args * ioctl_ret)
 {
+  ioctl_ret->ret_should_shutdown = false;
+
+  // Polled about once a second, so it reads first for the same reason as
+  // agnocast_commit_exit_process().
+  down_read(&global_htables_rwsem);
+  const bool alone = bridge_manager_is_alone(ipc_ns, pid);
+  up_read(&global_htables_rwsem);
+  if (!alone) {
+    return 0;
+  }
+
   down_write(&global_htables_rwsem);
-  // A bridge manager is per (ipc_ns, domain), so it must shut down once its
-  // own domain is empty -- counting the whole namespace would keep it alive while an
-  // unrelated domain is busy. The manager itself is the remaining process (count == 1).
-  if (get_process_num_in_domain_except_unlink_daemon(ipc_ns, get_process_domain_id(pid)) <= 1) {
+  // Re-checked because a process can register between the two locks.
+  if (bridge_manager_is_alone(ipc_ns, pid)) {
     struct process_info * proc_info = agnocast_find_process_info(pid);
     if (proc_info) {
       proc_info->role = PROCESS_ROLE_APPLICATION;
     }
     ioctl_ret->ret_should_shutdown = true;
-  } else {
-    ioctl_ret->ret_should_shutdown = false;
   }
   up_write(&global_htables_rwsem);
   return 0;
