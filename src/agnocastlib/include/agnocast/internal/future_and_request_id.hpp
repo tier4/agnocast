@@ -41,8 +41,11 @@ struct FutureAndRequestId
    * Allow implicit conversions to the future type by value.
    * \deprecated
    */
-  [[deprecated(
-    "FutureAndRequestId: use .future instead of an implicit conversion")]] operator FutureT()
+  [[deprecated("FutureAndRequestId: use .future instead of an implicit conversion")]]
+  // Kept non-const as in rclcpp's FutureAndRequestId: making it const changes which of the two
+  // conversion operators overload resolution picks.
+  // cppcheck-suppress functionConst
+  operator FutureT()
   {
     return this->future;
   }
