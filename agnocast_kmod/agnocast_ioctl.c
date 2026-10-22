@@ -1283,6 +1283,19 @@ int agnocast_ioctl_receive_msg(
     goto unlock_only_global;
   }
 
+  // sub_info_htable changes only under global_htables_rwsem WRITE, so the lookup runs before the
+  // topic lock.
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
+      "(%s)\n",
+      subscriber_id, topic_name, __func__);
+    ret = -EINVAL;
+    goto unlock_only_global;
+  }
+
   // The receive path needs only a read lock.
   // That lets subscriber processes on one topic receive concurrently
   // rather than serializing behind an exclusive lock.
@@ -1311,24 +1324,12 @@ int agnocast_ioctl_receive_msg(
   //    latest_received_entry_id and walk the same entries, and the loser of the test_and_set_bit
   //    on the first of them would fail the ioctl with -EALREADY, which agnocastlib treats as fatal.
   //
-  // 3. The reference bitmap update here is a single atomic test_and_set_bit. (bitmap_empty and
-  //    bitmap_zero elsewhere are NOT atomic; every one of their callers holds a write lock.)
+  // 3. The reference bitmap update here is a single atomic test_and_set_bit. (bitmap_empty
+  //    elsewhere is NOT atomic; every one of its callers holds a write lock.)
   down_read(&wrapper->topic->rwsem);
-
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
-  if (!sub_info) {
-    dev_warn(
-      agnocast_device,
-      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(%s)\n",
-      subscriber_id, topic_name, __func__);
-    ret = -EINVAL;
-    goto unlock_topic;
-  }
 
   ret = receive_msg_core(wrapper, sub_info, subscriber_id, ioctl_ret);
 
-unlock_topic:
   up_read(&wrapper->topic->rwsem);
   if (ret == 0) {
     ret = set_publisher_shm_info(
@@ -1357,17 +1358,18 @@ int agnocast_ioctl_take_msg(
     goto unlock_only_global;
   }
 
-  // See the comment above `down_read(&wrapper->topic->rwsem)` in agnocast_ioctl_receive_msg().
-  down_read(&wrapper->topic->rwsem);
-
+  // See the comments above find_subscriber_info() and `down_read(&wrapper->topic->rwsem)` in
+  // agnocast_ioctl_receive_msg().
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (%s)\n",
       subscriber_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_topic;
+    goto unlock_only_global;
   }
+
+  down_read(&wrapper->topic->rwsem);
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
