@@ -549,9 +549,8 @@ static int insert_publisher_info(
 // Pass allow_existing=true when that is an expected outcome (a repeated take of the same entry)
 // to suppress the warning. The test and the set are deliberately one atomic operation
 // rather than a test_bit followed by a conditional set:
-// on a stock kernel agnocast_ioctl_release_message_entry_reference shares topic_reader_lock() with
-// receive and take as a read lock, so it can clear this bit at any point and a separate test would
-// already be stale by the time the set ran.
+// agnocast_ioctl_release_message_entry_reference holds only the topic read lock, so it can clear
+// this bit at any point and a separate test would already be stale by the time the set ran.
 static int add_subscriber_reference(
   struct entry_node * en, const topic_local_id_t id, const bool allow_existing)
 {
@@ -618,7 +617,7 @@ int agnocast_ioctl_release_message_entry_reference(
     goto unlock_only_global;
   }
 
-  topic_reader_lock(wrapper->topic);
+  down_read(&wrapper->topic->rwsem);
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
@@ -650,7 +649,7 @@ int agnocast_ioctl_release_message_entry_reference(
   }
 
 unlock_all:
-  topic_reader_unlock(wrapper->topic);
+  up_read(&wrapper->topic->rwsem);
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1159,7 +1158,7 @@ unlock_only_global:
 // Whether `sub_info` may be handed `en`: 1 when it may, 0 when the entry has to be skipped,
 // -ENODATA when the entry's publisher is no longer in the topic.
 // Caller holds global_htables_rwsem (read), which keeps pub_info and proc_info alive, and
-// topic_reader_lock(), which keeps `en` alive.
+// wrapper->topic->rwsem (read), which keeps `en` alive.
 static int is_entry_deliverable(
   const struct topic_wrapper * wrapper, const struct subscriber_info * sub_info,
   const struct entry_node * en)
@@ -1277,7 +1276,9 @@ int agnocast_ioctl_receive_msg(
     goto unlock_only_global;
   }
 
-  // topic_reader_lock() picks read or write per kernel. The reasoning below holds for both.
+  // The receive path needs only a read lock.
+  // That lets subscriber processes on one topic receive concurrently
+  // rather than serializing behind an exclusive lock.
   // The concurrency unit is processes, not subscribers: agnocastlib holds a process-global
   // `mmap_mtx` across the ioctl, so subscribers sharing a process serialize there regardless.
   //
@@ -1285,7 +1286,7 @@ int agnocast_ioctl_receive_msg(
   //
   // 1. Entries rbtree: two classes of writer mutate it, and both are excluded here.
   //      - Publish (insert_message_entry, release_msgs_to_meet_depth) takes topic->rwsem WRITE,
-  //        which topic_reader_lock() excludes.
+  //        which a read lock excludes.
   //      - Subscriber/publisher removal, process-exit cleanup and module unload take
   //        global_htables_rwsem WRITE. Those never take topic->rwsem at all: global write is what
   //        excludes them. Holding global read is therefore what keeps this very lock alive.
@@ -1305,7 +1306,7 @@ int agnocast_ioctl_receive_msg(
   //
   // 3. The reference bitmap update here is a single atomic test_and_set_bit. (bitmap_empty and
   //    bitmap_zero elsewhere are NOT atomic; every one of their callers holds a write lock.)
-  topic_reader_lock(wrapper->topic);
+  down_read(&wrapper->topic->rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1321,7 +1322,7 @@ int agnocast_ioctl_receive_msg(
   ret = receive_msg_core(wrapper, sub_info, subscriber_id, ioctl_ret);
 
 unlock_topic:
-  topic_reader_unlock(wrapper->topic);
+  up_read(&wrapper->topic->rwsem);
   if (ret == 0) {
     ret = set_publisher_shm_info(
       wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
@@ -1349,8 +1350,8 @@ int agnocast_ioctl_take_msg(
     goto unlock_only_global;
   }
 
-  // See the comment above `topic_reader_lock()` in agnocast_ioctl_receive_msg().
-  topic_reader_lock(wrapper->topic);
+  // See the comment above `down_read(&wrapper->topic->rwsem)` in agnocast_ioctl_receive_msg().
+  down_read(&wrapper->topic->rwsem);
 
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -1410,7 +1411,7 @@ int agnocast_ioctl_take_msg(
   }
 
 unlock_topic:
-  topic_reader_unlock(wrapper->topic);
+  up_read(&wrapper->topic->rwsem);
   if (ret == 0) {
     ret = set_publisher_shm_info(
       wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
@@ -3807,7 +3808,7 @@ int agnocast_increment_message_entry_rc(
     goto unlock_only_global;
   }
 
-  topic_reader_lock(wrapper->topic);
+  down_read(&wrapper->topic->rwsem);
 
   struct entry_node * en = find_message_entry(wrapper, entry_id);
   if (!en) {
@@ -3836,7 +3837,7 @@ int agnocast_increment_message_entry_rc(
   }
 
 unlock_all:
-  topic_reader_unlock(wrapper->topic);
+  up_read(&wrapper->topic->rwsem);
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;

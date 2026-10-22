@@ -178,7 +178,7 @@ struct topic_struct
   uint32_t ros2_subscriber_num;
   uint32_t ros2_publisher_num;
   // Per-topic rwsem guarding the entries tree. Publish takes it for write. Receive, take and
-  // message-entry reference release take it through topic_reader_lock().
+  // message-entry reference release take it for read.
   // Structural changes, like adding or removing publishers and subscribers, run under
   // global_htables_rwsem WRITE and do not take this rwsem. This is why holding global read
   // for the whole receive keeps both the tree and this struct alive.
@@ -192,29 +192,6 @@ struct topic_struct
   // the publish/receive hot path can check delivery direction without a lookup.
   const struct domain_bridge_rule * rule;
 };
-
-// A receiver only reads the entries tree, so a read lock is enough on a stock kernel. On
-// PREEMPT_RT a writer cannot boost the readers it waits for, so a receiver preempted inside the
-// section would block an RT publisher without priority inheritance. There the receiver takes write
-// instead, which makes it the owner of the rtmutex behind the rwsem and lets a waiting publisher
-// boost it. Receivers in different processes then serialize on the topic.
-static inline void topic_reader_lock(struct topic_struct * topic)
-{
-  if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
-    down_write(&topic->rwsem);
-  } else {
-    down_read(&topic->rwsem);
-  }
-}
-
-static inline void topic_reader_unlock(struct topic_struct * topic)
-{
-  if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
-    up_write(&topic->rwsem);
-  } else {
-    up_read(&topic->rwsem);
-  }
-}
 
 struct topic_wrapper
 {
