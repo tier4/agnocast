@@ -173,13 +173,17 @@ struct topic_struct
   DECLARE_HASHTABLE(sub_info_htable, SUB_INFO_HASH_BITS);
   topic_local_id_t current_pubsub_id;
   int64_t current_entry_id;
-  uint32_t ros2_subscriber_num;  // Updated by Bridge Manager
-  uint32_t ros2_publisher_num;   // Updated by Bridge Manager
-  // Per-topic rwsem. Write is taken by publish and by the Bridge Manager's ros2_*_num setters;
-  // read by receive/take, message-entry reference release, and the query ioctls.
+  // Set by the Bridge Manager under global_htables_rwsem READ only, so accessed with
+  // READ_ONCE/WRITE_ONCE.
+  uint32_t ros2_subscriber_num;
+  uint32_t ros2_publisher_num;
+  // Per-topic rwsem guarding the entries tree. Publish takes it for write. Receive, take and
+  // message-entry reference release take it through topic_reader_lock().
   // Structural changes, like adding or removing publishers and subscribers, run under
   // global_htables_rwsem WRITE and do not take this rwsem. This is why holding global read
   // for the whole receive keeps both the tree and this struct alive.
+  // The query ioctls do not take it: every field they read is fixed at insertion or changes only
+  // under global_htables_rwsem WRITE, apart from ros2_*_num above.
   struct rw_semaphore rwsem;
   // Number of topic_wrappers sharing this struct. 1 normally; 2 when a domain
   // bridge rule groups two domains' wrappers onto one entry/id space. The struct
@@ -189,6 +193,29 @@ struct topic_struct
   // the publish/receive hot path can check delivery direction without a lookup.
   const struct domain_bridge_rule * rule;
 };
+
+// A receiver only reads the entries tree, so a read lock is enough on a stock kernel. On
+// PREEMPT_RT a writer cannot boost the readers it waits for, so a receiver preempted inside the
+// section would block an RT publisher without priority inheritance. There the receiver takes write
+// instead, which makes it the owner of the rtmutex behind the rwsem and lets a waiting publisher
+// boost it. Receivers in different processes then serialize on the topic.
+static inline void topic_reader_lock(struct topic_struct * topic)
+{
+  if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
+    down_write(&topic->rwsem);
+  } else {
+    down_read(&topic->rwsem);
+  }
+}
+
+static inline void topic_reader_unlock(struct topic_struct * topic)
+{
+  if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
+    up_write(&topic->rwsem);
+  } else {
+    up_read(&topic->rwsem);
+  }
+}
 
 struct topic_wrapper
 {
