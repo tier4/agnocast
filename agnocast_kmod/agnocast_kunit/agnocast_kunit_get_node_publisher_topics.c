@@ -20,8 +20,7 @@ void test_case_get_node_pub_topics_exact_match(struct kunit * test)
   int ret;
 
   agnocast_kunit_setup_process(test, PID, 0);
-  agnocast_kunit_setup_publisher(
-    test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
+  agnocast_kunit_setup_publisher(test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
 
   ret = agnocast_ioctl_get_node_publisher_topics(
     current->nsproxy->ipc_ns, NODE_NAME, (char *)buf, ARRAY_SIZE(buf), &topic_num);
@@ -54,8 +53,7 @@ void test_case_get_node_pub_topics_buffer_size_exceeded(struct kunit * test)
   int ret;
 
   agnocast_kunit_setup_process(test, PID, 0);
-  agnocast_kunit_setup_publisher(
-    test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
+  agnocast_kunit_setup_publisher(test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
 
   ret = agnocast_ioctl_get_node_publisher_topics(
     current->nsproxy->ipc_ns, NODE_NAME, (char *)buf, 0, &topic_num);

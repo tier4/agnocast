@@ -1199,8 +1199,8 @@ void test_case_receive_msg_ignore_local_same_pid_enabled(struct kunit * test)
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
   struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret5 = agnocast_ioctl_receive_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, pub_shm_infos,
-    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_receive_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE,
+    &ioctl_receive_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);
@@ -1233,8 +1233,8 @@ void test_case_receive_msg_ignore_local_same_pid_disabled(struct kunit * test)
   union ioctl_receive_msg_args ioctl_receive_msg_ret;
   struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret5 = agnocast_ioctl_receive_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, pub_shm_infos,
-    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_receive_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE,
+    &ioctl_receive_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);

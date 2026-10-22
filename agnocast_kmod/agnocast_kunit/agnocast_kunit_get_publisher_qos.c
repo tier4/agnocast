@@ -21,8 +21,8 @@ static void verify_publisher_qos(struct kunit * test, bool is_transient)
   topic_local_id_t pub_id = agnocast_kunit_setup_publisher(
     test, TOPIC_NAME, NODE_NAME, PUBLISHER_PID, QOS_DEPTH, is_transient, IS_BRIDGE);
 
-  ret = agnocast_ioctl_get_publisher_qos(
-    TOPIC_NAME, current->nsproxy->ipc_ns, pub_id, &get_qos_args);
+  ret =
+    agnocast_ioctl_get_publisher_qos(TOPIC_NAME, current->nsproxy->ipc_ns, pub_id, &get_qos_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ_MSG(test, get_qos_args.ret_depth, QOS_DEPTH, "Depth mismatch");

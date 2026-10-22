@@ -38,8 +38,7 @@ void test_case_get_topic_sub_info_no_subscribers(struct kunit * test)
   int ret;
 
   agnocast_kunit_setup_process(test, PID, 0);
-  agnocast_kunit_setup_publisher(
-    test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
+  agnocast_kunit_setup_publisher(test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
 
   topic_info_args.topic_info_ret_buffer_size = MAX_SUBSCRIBER_NUM;
   ret = agnocast_ioctl_get_topic_subscriber_info(

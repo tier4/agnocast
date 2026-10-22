@@ -1007,8 +1007,8 @@ void test_case_take_msg_ignore_local_same_pid_enabled(struct kunit * test)
   union ioctl_take_msg_args ioctl_take_msg_ret;
   struct publisher_shm_info pub_shm_infos[KUNIT_PUB_SHM_BUF_SIZE] = {0};
   int ret5 = agnocast_ioctl_take_msg(
-    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message,
-    pub_shm_infos, KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
+    TOPIC_NAME, current->nsproxy->ipc_ns, subscriber_id, allow_same_message, pub_shm_infos,
+    KUNIT_PUB_SHM_BUF_SIZE, &ioctl_take_msg_ret);
 
   // Assert
   KUNIT_EXPECT_EQ(test, ret5, 0);

@@ -19,8 +19,7 @@ void test_case_get_topic_pub_info_one_publisher(struct kunit * test)
   int ret;
 
   agnocast_kunit_setup_process(test, PID, 0);
-  agnocast_kunit_setup_publisher(
-    test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
+  agnocast_kunit_setup_publisher(test, TOPIC_NAME, NODE_NAME, PID, QOS_DEPTH, false, IS_BRIDGE);
 
   // copy_to_user inside agnocast_ioctl_get_topic_publisher_info returns -EFAULT in KUnit
   // (kernel thread) context, but reaching it confirms the publisher was counted.
@@ -68,8 +67,7 @@ void test_case_get_topic_pub_info_selects_by_domain(struct kunit * test)
   int ret;
 
   agnocast_kunit_setup_process(test, pid_d1, 1);
-  agnocast_kunit_setup_publisher(
-    test, TOPIC_NAME, NODE_NAME, pid_d1, QOS_DEPTH, false, IS_BRIDGE);
+  agnocast_kunit_setup_publisher(test, TOPIC_NAME, NODE_NAME, pid_d1, QOS_DEPTH, false, IS_BRIDGE);
 
   // domain 1: the topic exists -> the publisher is counted (copy_to_user
   // fails with -EFAULT in KUnit context, but reaching it confirms the count).

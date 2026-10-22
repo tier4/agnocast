@@ -22,8 +22,8 @@ static void verify_subscriber_qos(struct kunit * test, bool is_transient, bool i
     test, TOPIC_NAME, NODE_NAME, SUBSCRIBER_PID, QOS_DEPTH, is_transient, is_reliable, false, false,
     IS_BRIDGE, -1);
 
-  ret = agnocast_ioctl_get_subscriber_qos(
-    TOPIC_NAME, current->nsproxy->ipc_ns, sub_id, &get_qos_args);
+  ret =
+    agnocast_ioctl_get_subscriber_qos(TOPIC_NAME, current->nsproxy->ipc_ns, sub_id, &get_qos_args);
 
   KUNIT_EXPECT_EQ(test, ret, 0);
   KUNIT_EXPECT_EQ_MSG(test, get_qos_args.ret_depth, QOS_DEPTH, "Depth mismatch");
