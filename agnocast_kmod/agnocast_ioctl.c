@@ -709,11 +709,19 @@ static int insert_message_entry(
   return 0;
 }
 
+// Reads nothing that topic->rwsem guards, so receive and take call it after the topic unlock. This
+// keeps the GFP_KERNEL allocation in reference_memory() out of the topic section.
 static int set_publisher_shm_info(
-  const struct topic_wrapper * wrapper, const pid_t subscriber_pid, const bool sub_is_bridge,
+  const struct topic_wrapper * wrapper, struct subscriber_info * sub_info,
   struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size,
   uint32_t * ret_pub_shm_num)
 {
+  if (!sub_info->need_mmap_update) {
+    *ret_pub_shm_num = 0;
+    return 0;
+  }
+
+  const pid_t subscriber_pid = sub_info->pid;
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
@@ -727,7 +735,7 @@ static int set_publisher_shm_info(
     // bridge rule can exclude opposite-domain publishers, so skip mapping them.
     if (!domain_delivery_allowed(
           wrapper->topic, pub_info->domain_id, pub_info->is_bridge, wrapper->domain_id,
-          sub_is_bridge)) {
+          sub_info->is_bridge)) {
       continue;
     }
 
@@ -782,6 +790,7 @@ static int set_publisher_shm_info(
   }
 
   *ret_pub_shm_num = publisher_num;
+  sub_info->need_mmap_update = false;
 
   return 0;
 }
@@ -1268,11 +1277,7 @@ int agnocast_ioctl_receive_msg(
     goto unlock_only_global;
   }
 
-  // On a stock kernel the receive path takes only a read lock.
-  // That lets subscriber processes on one topic receive concurrently
-  // rather than serializing behind an exclusive lock.
-  // PREEMPT_RT gives that concurrency up for priority inheritance (see topic_reader_lock()). The
-  // reasoning below holds for both.
+  // topic_reader_lock() picks read or write per kernel. The reasoning below holds for both.
   // The concurrency unit is processes, not subscribers: agnocastlib holds a process-global
   // `mmap_mtx` across the ioctl, so subscribers sharing a process serialize there regardless.
   //
@@ -1317,22 +1322,9 @@ int agnocast_ioctl_receive_msg(
 
 unlock_topic:
   topic_reader_unlock(wrapper->topic);
-  if (ret < 0) {
-    goto unlock_only_global;
-  }
-
-  // The mmap update reads nothing that topic->rwsem guards, so it runs after the unlock. This keeps
-  // the GFP_KERNEL allocation in reference_memory() out of the topic section.
-  if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_only_global;
-  }
-
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
-    &ioctl_ret->ret_pub_shm_num);
   if (ret == 0) {
-    sub_info->need_mmap_update = false;
+    ret = set_publisher_shm_info(
+      wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
   }
 
 unlock_only_global:
@@ -1419,21 +1411,9 @@ int agnocast_ioctl_take_msg(
 
 unlock_topic:
   topic_reader_unlock(wrapper->topic);
-  if (ret < 0) {
-    goto unlock_only_global;
-  }
-
-  // See the mmap update comment in agnocast_ioctl_receive_msg().
-  if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_only_global;
-  }
-
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
-    &ioctl_ret->ret_pub_shm_num);
   if (ret == 0) {
-    sub_info->need_mmap_update = false;
+    ret = set_publisher_shm_info(
+      wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
   }
 
 unlock_only_global:

@@ -182,8 +182,7 @@ struct topic_struct
   // Structural changes, like adding or removing publishers and subscribers, run under
   // global_htables_rwsem WRITE and do not take this rwsem. This is why holding global read
   // for the whole receive keeps both the tree and this struct alive.
-  // The query ioctls do not take it: every field they read is fixed at insertion or changes only
-  // under global_htables_rwsem WRITE, apart from ros2_*_num above.
+  // The query ioctls do not take it, for the same reason.
   struct rw_semaphore rwsem;
   // Number of topic_wrappers sharing this struct. 1 normally; 2 when a domain
   // bridge rule groups two domains' wrappers onto one entry/id space. The struct
