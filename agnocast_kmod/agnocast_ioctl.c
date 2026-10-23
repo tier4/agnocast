@@ -655,21 +655,14 @@ unlock_only_global:
   return ret;
 }
 
+// Takes ownership of new_node only on success.
 static int insert_message_entry(
-  struct topic_wrapper * wrapper, struct publisher_info * pub_info, uint64_t msg_virtual_address,
-  union ioctl_publish_msg_args * ioctl_ret)
+  struct topic_wrapper * wrapper, struct publisher_info * pub_info, struct entry_node * new_node,
+  uint64_t msg_virtual_address, union ioctl_publish_msg_args * ioctl_ret)
 {
-  struct entry_node * new_node = kmalloc(sizeof(struct entry_node), GFP_KERNEL);
-  if (!new_node) {
-    return -ENOMEM;
-  }
-
   new_node->entry_id = wrapper->topic->current_entry_id++;
   new_node->publisher_id = pub_info->id;
   new_node->msg_virtual_address = msg_virtual_address;
-  // Publisher-side handles do not participate in reference counting.
-  // Subscribers will add their references when they receive/take the message.
-  bitmap_zero(new_node->referencing_subscribers, MAX_TOPIC_LOCAL_ID);
 
   struct rb_root * root = &wrapper->topic->entries;
   struct rb_node ** new = &(root->rb_node);
@@ -687,7 +680,6 @@ static int insert_message_entry(
         "Unreachable: New message entry (entry_id=%lld) does not have the largest entry_id in the "
         "topic (topic_name=%s). (%s)\n",
         new_node->entry_id, wrapper->key, __func__);
-      kfree(new_node);
       return -ECANCELED;
     }
   }
@@ -708,11 +700,22 @@ static int insert_message_entry(
   return 0;
 }
 
+// Reads nothing that topic->rwsem guards, so receive and take call it after the topic unlock. This
+// keeps the GFP_KERNEL allocation in reference_memory() out of the topic section.
+// Caller holds global_htables_rwsem (read). Only global write changes the publisher table or sets
+// need_mmap_update. agnocastlib's mmap_mtx serializes the calls for one subscriber, so the clear
+// below needs no lock.
 static int set_publisher_shm_info(
-  const struct topic_wrapper * wrapper, const pid_t subscriber_pid, const bool sub_is_bridge,
+  const struct topic_wrapper * wrapper, struct subscriber_info * sub_info,
   struct publisher_shm_info * pub_shm_infos, uint32_t pub_shm_infos_size,
   uint32_t * ret_pub_shm_num)
 {
+  if (!sub_info->need_mmap_update) {
+    *ret_pub_shm_num = 0;
+    return 0;
+  }
+
+  const pid_t subscriber_pid = sub_info->pid;
   uint32_t publisher_num = 0;
   struct publisher_info * pub_info;
   int bkt;
@@ -726,7 +729,7 @@ static int set_publisher_shm_info(
     // bridge rule can exclude opposite-domain publishers, so skip mapping them.
     if (!domain_delivery_allowed(
           wrapper->topic, pub_info->domain_id, pub_info->is_bridge, wrapper->domain_id,
-          sub_is_bridge)) {
+          sub_info->is_bridge)) {
       continue;
     }
 
@@ -781,6 +784,7 @@ static int set_publisher_shm_info(
   }
 
   *ret_pub_shm_num = publisher_num;
+  sub_info->need_mmap_update = false;
 
   return 0;
 }
@@ -1077,10 +1081,18 @@ int agnocast_ioctl_publish_msg(
 {
   int ret = 0;
 
-  // Declared here so the early-error `goto unlock_all` paths reach the signal loop below with
+  // Declared here so the error `goto unlock_all` paths reach the signal loop below with
   // notify_num == 0 (a no-op).
   struct eventfd_ctx ** notify_ctxs = NULL;
   uint32_t notify_num = 0;
+
+  // Allocated and zeroed before both locks, so that neither direct reclaim nor the 512-byte bitmap
+  // clear runs while other tasks wait for them. The bitmap starts empty because publisher-side
+  // handles do not participate in reference counting. Subscribers set their bits on receive/take.
+  struct entry_node * new_node = kzalloc(sizeof(*new_node), GFP_KERNEL);
+  if (!new_node) {
+    return -ENOMEM;
+  }
 
   down_read(&global_htables_rwsem);
 
@@ -1091,22 +1103,22 @@ int agnocast_ioctl_publish_msg(
     goto unlock_only_global;
   }
 
-  down_write(&wrapper->topic->rwsem);
-
+  // These lookups read only state that changes under global_htables_rwsem WRITE, so they run
+  // before the topic lock.
   struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
     dev_warn(
       agnocast_device, "Publisher (id=%d) not found in the topic (topic_name=%s). (%s)\n",
       publisher_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   struct process_info * proc_info = agnocast_find_process_info(pub_info->pid);
   if (!proc_info) {
     dev_warn(agnocast_device, "Process (pid=%d) does not exist. (%s)\n", pub_info->pid, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
   uint64_t mempool_start = proc_info->mempool_entry->addr;
@@ -1114,13 +1126,16 @@ int agnocast_ioctl_publish_msg(
   if (msg_virtual_address < mempool_start || msg_virtual_address >= mempool_end) {
     dev_warn(agnocast_device, "msg_virtual_address is out of bounds. (%s)\n", __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
 
-  ret = insert_message_entry(wrapper, pub_info, msg_virtual_address, ioctl_ret);
+  down_write(&wrapper->topic->rwsem);
+
+  ret = insert_message_entry(wrapper, pub_info, new_node, msg_virtual_address, ioctl_ret);
   if (ret < 0) {
     goto unlock_all;
   }
+  new_node = NULL;
 
   ret = release_msgs_to_meet_depth(wrapper, pub_info, ioctl_ret);
   if (ret < 0) {
@@ -1133,8 +1148,8 @@ int agnocast_ioctl_publish_msg(
 unlock_all:
   up_write(&wrapper->topic->rwsem);
 
-  // Signal outside topic_rwsem: RECEIVE_MSG and TAKE_MSG take it for write, so holding it here
-  // would block the very subscribers being woken. The list and the contexts both stay valid
+  // Signal outside topic_rwsem: RECEIVE_MSG and TAKE_MSG take it too, so holding it here would
+  // block the very subscribers being woken. The list and the contexts both stay valid
   // because a context is released only once every list has stopped pointing at it, and both that
   // and any rebuild happen under global_htables_rwsem (write), which is held here for read.
   for (uint32_t i = 0; i < notify_num; i++) {
@@ -1143,6 +1158,7 @@ unlock_all:
 
 unlock_only_global:
   up_read(&global_htables_rwsem);
+  kfree(new_node);
   return ret;
 }
 
@@ -1267,6 +1283,19 @@ int agnocast_ioctl_receive_msg(
     goto unlock_only_global;
   }
 
+  // sub_info_htable changes only under global_htables_rwsem WRITE, so the lookup runs before the
+  // topic lock.
+  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
+  if (!sub_info) {
+    dev_warn(
+      agnocast_device,
+      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
+      "(%s)\n",
+      subscriber_id, topic_name, __func__);
+    ret = -EINVAL;
+    goto unlock_only_global;
+  }
+
   // The receive path needs only a read lock.
   // That lets subscriber processes on one topic receive concurrently
   // rather than serializing behind an exclusive lock.
@@ -1281,7 +1310,7 @@ int agnocast_ioctl_receive_msg(
   //      - Subscriber/publisher removal, process-exit cleanup and module unload take
   //        global_htables_rwsem WRITE. Those never take topic->rwsem at all: global write is what
   //        excludes them. Holding global read is therefore what keeps this very lock alive.
-  //    Both locks stay held until the function finishes, so no writer can change the tree during
+  //    Both locks stay held until the tree walk finishes, so no writer can change the tree during
   //    traversal.
   //
   // 2. Per-subscriber fields (latest_received_entry_id, need_mmap_update) live in disjoint
@@ -1295,43 +1324,18 @@ int agnocast_ioctl_receive_msg(
   //    latest_received_entry_id and walk the same entries, and the loser of the test_and_set_bit
   //    on the first of them would fail the ioctl with -EALREADY, which agnocastlib treats as fatal.
   //
-  // 3. The reference bitmap update here is a single atomic test_and_set_bit. (bitmap_empty and
-  //    bitmap_zero elsewhere are NOT atomic; every one of their callers holds a write lock.)
+  // 3. The reference bitmap update here is a single atomic test_and_set_bit. (bitmap_empty
+  //    elsewhere is NOT atomic; every one of its callers holds a write lock.)
   down_read(&wrapper->topic->rwsem);
 
-  struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
-  if (!sub_info) {
-    dev_warn(
-      agnocast_device,
-      "Subscriber (id=%d) for the topic (topic_name=%s) not found. "
-      "(%s)\n",
-      subscriber_id, topic_name, __func__);
-    ret = -EINVAL;
-    goto unlock_all;
-  }
-
   ret = receive_msg_core(wrapper, sub_info, subscriber_id, ioctl_ret);
-  if (ret < 0) {
-    goto unlock_all;
-  }
 
-  // Check if there is any publisher that need to be mmapped
-  if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_all;
-  }
-
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
-    &ioctl_ret->ret_pub_shm_num);
-  if (ret < 0) {
-    goto unlock_all;
-  }
-
-  sub_info->need_mmap_update = false;
-
-unlock_all:
   up_read(&wrapper->topic->rwsem);
+  if (ret == 0) {
+    ret = set_publisher_shm_info(
+      wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
+  }
+
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1354,17 +1358,18 @@ int agnocast_ioctl_take_msg(
     goto unlock_only_global;
   }
 
-  // See the comment above `down_read(&wrapper->topic->rwsem)` in agnocast_ioctl_receive_msg().
-  down_read(&wrapper->topic->rwsem);
-
+  // See the comments above find_subscriber_info() and `down_read(&wrapper->topic->rwsem)` in
+  // agnocast_ioctl_receive_msg().
   struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
     dev_warn(
       agnocast_device, "Subscriber (id=%d) for the topic (topic_name=%s) not found. (%s)\n",
       subscriber_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock_only_global;
   }
+
+  down_read(&wrapper->topic->rwsem);
 
   // These remains 0 if no message is found to take.
   ioctl_ret->ret_addr = 0;
@@ -1388,7 +1393,7 @@ int agnocast_ioctl_take_msg(
     const int deliverable = is_entry_deliverable(wrapper, sub_info, en);
     if (deliverable < 0) {
       ret = deliverable;
-      goto unlock_all;
+      goto unlock_topic;
     }
     if (deliverable == 0) {
       continue;
@@ -1404,7 +1409,7 @@ int agnocast_ioctl_take_msg(
     // reference is reused instead of a second being taken.
     ret = add_subscriber_reference(candidate_en, subscriber_id, allow_same_message);
     if (ret < 0 && !(allow_same_message && ret == -EALREADY)) {
-      goto unlock_all;
+      goto unlock_topic;
     }
     ret = 0;
 
@@ -1414,23 +1419,13 @@ int agnocast_ioctl_take_msg(
     sub_info->latest_received_entry_id = ioctl_ret->ret_entry_id;
   }
 
-  // Check if there is any publisher that need to be mmapped
-  if (!sub_info->need_mmap_update) {
-    ioctl_ret->ret_pub_shm_num = 0;
-    goto unlock_all;
-  }
-
-  ret = set_publisher_shm_info(
-    wrapper, sub_info->pid, sub_info->is_bridge, pub_shm_infos, pub_shm_infos_size,
-    &ioctl_ret->ret_pub_shm_num);
-  if (ret < 0) {
-    goto unlock_all;
-  }
-
-  sub_info->need_mmap_update = false;
-
-unlock_all:
+unlock_topic:
   up_read(&wrapper->topic->rwsem);
+  if (ret == 0) {
+    ret = set_publisher_shm_info(
+      wrapper, sub_info, pub_shm_infos, pub_shm_infos_size, &ioctl_ret->ret_pub_shm_num);
+  }
+
 unlock_only_global:
   up_read(&global_htables_rwsem);
   return ret;
@@ -1459,8 +1454,6 @@ int agnocast_ioctl_get_subscriber_num(
     up_read(&global_htables_rwsem);
     return 0;
   }
-
-  down_read(&wrapper->topic->rwsem);
 
   uint32_t inter_count = 0;
   uint32_t intra_count = 0;
@@ -1506,9 +1499,8 @@ int agnocast_ioctl_get_subscriber_num(
   ioctl_ret->ret_other_process_subscriber_num = inter_count;
   ioctl_ret->ret_same_process_subscriber_num = intra_count;
   ioctl_ret->ret_other_domain_subscriber_num = other_domain_count;
-  ioctl_ret->ret_ros2_subscriber_num = wrapper->topic->ros2_subscriber_num;
+  ioctl_ret->ret_ros2_subscriber_num = READ_ONCE(wrapper->topic->ros2_subscriber_num);
 
-  up_read(&wrapper->topic->rwsem);
   up_read(&global_htables_rwsem);
 
   return 0;
@@ -1523,9 +1515,7 @@ int agnocast_ioctl_set_ros2_subscriber_num(
 
   struct topic_wrapper * wrapper = find_topic_for_current(topic_name, ipc_ns);
   if (wrapper) {
-    down_write(&wrapper->topic->rwsem);
-    wrapper->topic->ros2_subscriber_num = count;
-    up_write(&wrapper->topic->rwsem);
+    WRITE_ONCE(wrapper->topic->ros2_subscriber_num, count);
   } else {
     ret = -ENOENT;
   }
@@ -1543,9 +1533,7 @@ int agnocast_ioctl_set_ros2_publisher_num(
 
   struct topic_wrapper * wrapper = find_topic_for_current(topic_name, ipc_ns);
   if (wrapper) {
-    down_write(&wrapper->topic->rwsem);
-    wrapper->topic->ros2_publisher_num = count;
-    up_write(&wrapper->topic->rwsem);
+    WRITE_ONCE(wrapper->topic->ros2_publisher_num, count);
   } else {
     ret = -ENOENT;
   }
@@ -1572,9 +1560,7 @@ int agnocast_ioctl_get_publisher_num(
     return 0;
   }
 
-  down_read(&wrapper->topic->rwsem);
-
-  ioctl_ret->ret_ros2_publisher_num = wrapper->topic->ros2_publisher_num;
+  ioctl_ret->ret_ros2_publisher_num = READ_ONCE(wrapper->topic->ros2_publisher_num);
 
   // Match ROS 2's get_publisher_count: report only same-domain publishers.
   // A bridge rule still delivers cross-domain (see the publish/receive paths),
@@ -1605,7 +1591,6 @@ int agnocast_ioctl_get_publisher_num(
     }
   }
 
-  up_read(&wrapper->topic->rwsem);
   up_read(&global_htables_rwsem);
 
   return 0;
@@ -1798,12 +1783,8 @@ static bool owner_is_alive(const pid_t pid)
 
 // Collects the nodes owning an endpoint of one topic. Caller holds global_htables_rwsem.
 static int collect_node_names_of_topic(
-  struct topic_wrapper * wrapper, const uint32_t domain_id, struct node_name_collector * col)
+  const struct topic_wrapper * wrapper, const uint32_t domain_id, struct node_name_collector * col)
 {
-  int ret = 0;
-
-  down_read(&wrapper->topic->rwsem);
-
   struct publisher_info * pub_info;
   int bkt_pub_info;
   hash_for_each(wrapper->topic->pub_info_htable, bkt_pub_info, pub_info, node)
@@ -1811,8 +1792,8 @@ static int collect_node_names_of_topic(
     if (pub_info->domain_id != domain_id || pub_info->is_bridge) continue;
     if (!owner_is_alive(pub_info->pid)) continue;
 
-    ret = add_unique_node(col, pub_info->node_name, pub_info->pid);
-    if (ret) goto unlock;
+    const int ret = add_unique_node(col, pub_info->node_name, pub_info->pid);
+    if (ret) return ret;
   }
 
   struct subscriber_info * sub_info;
@@ -1822,13 +1803,11 @@ static int collect_node_names_of_topic(
     if (sub_info->domain_id != domain_id || sub_info->is_bridge) continue;
     if (!owner_is_alive(sub_info->pid)) continue;
 
-    ret = add_unique_node(col, sub_info->node_name, sub_info->pid);
-    if (ret) goto unlock;
+    const int ret = add_unique_node(col, sub_info->node_name, sub_info->pid);
+    if (ret) return ret;
   }
 
-unlock:
-  up_read(&wrapper->topic->rwsem);
-  return ret;
+  return 0;
 }
 
 int agnocast_ioctl_get_node_names(
@@ -1887,8 +1866,6 @@ int agnocast_ioctl_get_node_subscriber_topics(
       continue;
     }
 
-    down_read(&wrapper->topic->rwsem);
-
     struct subscriber_info * sub_info;
     int bkt_sub_info;
     bool found = false;
@@ -1899,8 +1876,6 @@ int agnocast_ioctl_get_node_subscriber_topics(
         break;
       }
     }
-
-    up_read(&wrapper->topic->rwsem);
 
     if (found) {
       if (topic_num >= buf_topic_num) {
@@ -1941,8 +1916,6 @@ int agnocast_ioctl_get_node_publisher_topics(
       continue;
     }
 
-    down_read(&wrapper->topic->rwsem);
-
     struct publisher_info * pub_info;
     int bkt_pub_info;
     bool found = false;
@@ -1953,8 +1926,6 @@ int agnocast_ioctl_get_node_publisher_topics(
         break;
       }
     }
-
-    up_read(&wrapper->topic->rwsem);
 
     if (found) {
       if (topic_num >= buf_topic_num) {
@@ -1991,8 +1962,6 @@ int agnocast_ioctl_get_topic_subscriber_info(
     up_read(&global_htables_rwsem);
     return 0;
   }
-
-  down_read(&wrapper->topic->rwsem);
 
   struct subscriber_info * sub_info;
   int bkt_sub_info;
@@ -2062,7 +2031,6 @@ int agnocast_ioctl_get_topic_subscriber_info(
   topic_info_args->ret_topic_info_ret_num = subscriber_num;
 
 unlock:
-  up_read(&wrapper->topic->rwsem);
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -2081,8 +2049,6 @@ int agnocast_ioctl_get_topic_publisher_info(
     up_read(&global_htables_rwsem);
     return 0;
   }
-
-  down_read(&wrapper->topic->rwsem);
 
   struct publisher_info * pub_info;
   int bkt_pub_info;
@@ -2152,7 +2118,6 @@ int agnocast_ioctl_get_topic_publisher_info(
   topic_info_args->ret_topic_info_ret_num = publisher_num;
 
 unlock:
-  up_read(&wrapper->topic->rwsem);
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -2169,10 +2134,8 @@ int agnocast_ioctl_get_subscriber_qos(
   if (!wrapper) {
     dev_dbg(agnocast_device, "Topic (topic_name=%s) not found. (%s)\n", topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_only_global;
+    goto unlock;
   }
-
-  down_read(&wrapper->topic->rwsem);
 
   const struct subscriber_info * sub_info = find_subscriber_info(wrapper, subscriber_id);
   if (!sub_info) {
@@ -2182,16 +2145,14 @@ int agnocast_ioctl_get_subscriber_qos(
       "(%s)\n",
       subscriber_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock;
   }
 
   args->ret_depth = sub_info->qos_depth;
   args->ret_is_transient_local = sub_info->qos_is_transient_local;
   args->ret_is_reliable = sub_info->qos_is_reliable;
 
-unlock_all:
-  up_read(&wrapper->topic->rwsem);
-unlock_only_global:
+unlock:
   up_read(&global_htables_rwsem);
   return ret;
 }
@@ -2208,10 +2169,8 @@ int agnocast_ioctl_get_publisher_qos(
   if (!wrapper) {
     dev_dbg(agnocast_device, "Topic (topic_name=%s) not found. (%s)\n", topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_only_global;
+    goto unlock;
   }
-
-  down_read(&wrapper->topic->rwsem);
 
   const struct publisher_info * pub_info = find_publisher_info(wrapper, publisher_id);
   if (!pub_info) {
@@ -2221,15 +2180,13 @@ int agnocast_ioctl_get_publisher_qos(
       "(%s)\n",
       publisher_id, topic_name, __func__);
     ret = -EINVAL;
-    goto unlock_all;
+    goto unlock;
   }
 
   args->ret_depth = pub_info->qos_depth;
   args->ret_is_transient_local = pub_info->qos_is_transient_local;
 
-unlock_all:
-  up_read(&wrapper->topic->rwsem);
-unlock_only_global:
+unlock:
   up_read(&global_htables_rwsem);
   return ret;
 }
