@@ -2034,8 +2034,8 @@ static int get_topic_info(
   if (num > buffer_size) {
     dev_warn(
       agnocast_device,
-      "Endpoint count exceeds limit: num=%u, topic_info_ret_buffer_size=%u (topic_name=%s)\n", num,
-      buffer_size, topic_name);
+      "%s count exceeds limit: num=%u, topic_info_ret_buffer_size=%u (topic_name=%s)\n",
+      fill == fill_subscriber_info ? "Subscriber" : "Publisher", num, buffer_size, topic_name);
     ret = -ENOBUFS;
   } else if (num > 0 && copy_to_user(user_buffer, topic_info_mem, sizeof(*topic_info_mem) * num)) {
     ret = -EFAULT;
