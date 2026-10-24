@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
 #include "agnocast_memory_allocator.h"
 
-#include "agnocast.h"
-
-#include <linux/mempool.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -15,11 +12,6 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 static struct mempool_entry * mempool_entries;
 static DEFINE_SPINLOCK(mempool_lock);
-// Reserve of mapped_pid_entry nodes for reference_memory(). assign_memory() does not take from it,
-// because its caller agnocast_ioctl_add_process() already calls kmalloc(GFP_KERNEL) under the
-// global write lock. The reserve's nodes are plain kmalloc objects of that size, so mempool_free()
-// also takes the nodes that assign_memory() and the kmalloc fallback make.
-static mempool_t * mapped_pid_pool;
 
 #define DEFAULT_MEMPOOL_NUM 4096
 #define DEFAULT_MEMPOOL_START_ADDR 0x40000000000ULL
@@ -81,14 +73,6 @@ int init_memory_allocator(void)
     return -ENOMEM;
   }
 
-  // One mmap update links at most one node per publisher of the topic, so a full reserve covers it.
-  mapped_pid_pool = mempool_create_kmalloc_pool(MAX_PUBLISHER_NUM, sizeof(struct mapped_pid_entry));
-  if (!mapped_pid_pool) {
-    kvfree(mempool_entries);
-    mempool_entries = NULL;
-    return -ENOMEM;
-  }
-
   pr_info(
     "Agnocast: Initializing memory allocator with %d pools, pool size: %llu bytes (%d GB), "
     "start address: 0x%llx\n",
@@ -135,15 +119,6 @@ int init_memory_allocator(void)
   return 0;
 }
 
-// The caller holds global_htables_rwsem for read, so direct reclaim here stalls every task that
-// waits for it. The reserve serves the node without reclaim, and only once it runs dry does kmalloc
-// reclaim.
-static struct mapped_pid_entry * alloc_mapped_pid_entry(void)
-{
-  struct mapped_pid_entry * entry = mempool_alloc(mapped_pid_pool, GFP_NOWAIT);
-  return entry ? entry : kmalloc(sizeof(*entry), GFP_KERNEL);
-}
-
 struct mempool_entry * assign_memory(const pid_t pid)
 {
   struct mempool_entry * result = NULL;
@@ -156,6 +131,8 @@ struct mempool_entry * assign_memory(const pid_t pid)
     return NULL;
   }
   new_entry->pid = pid;
+  // The owner maps its own pool at startup, so RECEIVE and TAKE never report it.
+  new_entry->reported = true;
 
   spin_lock_irqsave(&mempool_lock, flags);
   for (int i = 0; i < mempool_num; i++) {
@@ -182,18 +159,19 @@ int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
   unsigned long flags;
 
   // Allocate outside spinlock because kmalloc with GFP_KERNEL may sleep
-  new_entry = alloc_mapped_pid_entry();
+  new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
   if (!new_entry) {
     return -ENOMEM;
   }
   new_entry->pid = pid;
+  new_entry->reported = false;
 
   spin_lock_irqsave(&mempool_lock, flags);
   list_for_each_entry(entry, &mempool_entry->mapped_pid_head, list)
   {
     if (entry->pid == pid) {
       spin_unlock_irqrestore(&mempool_lock, flags);
-      mempool_free(new_entry, mapped_pid_pool);
+      kfree(new_entry);
       return -EEXIST;
     }
   }
@@ -202,6 +180,28 @@ int reference_memory(struct mempool_entry * mempool_entry, const pid_t pid)
   spin_unlock_irqrestore(&mempool_lock, flags);
 
   return 0;
+}
+
+// Returns 0 the first time it finds pid linked, so the process maps this pool once, -EEXIST after
+// that, and -ENOENT when pid is not linked. Allocates nothing.
+int report_memory(struct mempool_entry * mempool_entry, const pid_t pid)
+{
+  struct mapped_pid_entry * entry;
+  unsigned long flags;
+  int ret = -ENOENT;
+
+  spin_lock_irqsave(&mempool_lock, flags);
+  list_for_each_entry(entry, &mempool_entry->mapped_pid_head, list)
+  {
+    if (entry->pid == pid) {
+      ret = entry->reported ? -EEXIST : 0;
+      entry->reported = true;
+      break;
+    }
+  }
+  spin_unlock_irqrestore(&mempool_lock, flags);
+
+  return ret;
 }
 
 void free_memory(const pid_t pid)
@@ -216,7 +216,7 @@ void free_memory(const pid_t pid)
     {
       if (entry->pid == pid) {
         list_del(&entry->list);
-        mempool_free(entry, mapped_pid_pool);
+        kfree(entry);
         mempool_entries[i].mapped_num--;
         break;
       }
@@ -236,7 +236,7 @@ void exit_memory_allocator(void)
     list_for_each_entry_safe(entry, tmp, &mempool_entries[i].mapped_pid_head, list)
     {
       list_del(&entry->list);
-      mempool_free(entry, mapped_pid_pool);
+      kfree(entry);
     }
     mempool_entries[i].mapped_num = 0;
   }
@@ -250,8 +250,6 @@ void cleanup_memory_allocator(void)
   }
 
   exit_memory_allocator();
-  mempool_destroy(mapped_pid_pool);
-  mapped_pid_pool = NULL;
   kvfree(mempool_entries);
   mempool_entries = NULL;
 }
