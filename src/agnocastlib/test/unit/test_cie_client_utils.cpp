@@ -1,3 +1,4 @@
+#include "agnocast/agnocast.hpp"
 #include "agnocast/cie_client_utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>
@@ -60,6 +61,23 @@ TEST_F(CreateCallbackGroupIdTest, TimerOnly)
   // Arrange
   auto group = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   auto timer = node_->create_wall_timer(std::chrono::seconds(1), []() {}, group);
+
+  std::vector<std::string> agnocast_topics;
+
+  // Act
+  auto id = agnocast::create_callback_group_id(group, node_, agnocast_topics);
+
+  // Assert
+  EXPECT_EQ(id, "/test_node@Timer(1000000000)");
+}
+
+TEST_F(CreateCallbackGroupIdTest, AgnocastTimerOnly)
+{
+  // Arrange
+  auto group = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto timer = agnocast::create_timer(
+    node_, std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME),
+    rclcpp::Duration(std::chrono::seconds(1)), []() {}, group);
 
   std::vector<std::string> agnocast_topics;
 
