@@ -1,17 +1,20 @@
 #pragma once
 
 #include "agnocast/agnocast_publisher.hpp"
-#include "agnocast/bridge/agnocast_bridge_msg.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include "agnocast_cie_config_msgs/msg/callback_group_info.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace agnocast
 {
+
+// Defined in agnocast/bridge/agnocast_bridge_msg.hpp.
+enum class BridgeDirection : uint32_t;
 
 std::string create_callback_group_id(
   const rclcpp::CallbackGroup::SharedPtr & group,

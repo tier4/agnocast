@@ -1,3 +1,4 @@
+#include "agnocast/bridge/agnocast_bridge_msg.hpp"
 #include "agnocast/cie_client_utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>

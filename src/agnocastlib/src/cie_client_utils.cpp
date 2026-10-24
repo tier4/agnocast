@@ -1,6 +1,7 @@
 #include "agnocast/cie_client_utils.hpp"
 
 #include "agnocast/agnocast_publisher.hpp"
+#include "agnocast/bridge/agnocast_bridge_msg.hpp"
 #include "agnocast/node/agnocast_node.hpp"
 #include "agnocast_cie_thread_configurator/cie_thread_configurator.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -10,6 +11,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
