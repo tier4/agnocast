@@ -1,3 +1,4 @@
+#include "agnocast/agnocast.hpp"
 #include "agnocast/cie_client_utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>
@@ -68,6 +69,28 @@ TEST_F(CreateCallbackGroupIdTest, TimerOnly)
 
   // Assert
   EXPECT_EQ(id, "/test_node@Timer(1000000000)");
+}
+
+TEST_F(CreateCallbackGroupIdTest, AgnocastTimerProducesSameOutputAsRclcppTimer)
+{
+  // Arrange
+  auto group_rclcpp = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto rclcpp_timer = node_->create_wall_timer(std::chrono::seconds(1), []() {}, group_rclcpp);
+
+  auto group_agnocast = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto agnocast_timer = agnocast::create_timer(
+    node_, std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME),
+    rclcpp::Duration(std::chrono::seconds(1)), []() {}, group_agnocast);
+
+  std::vector<std::string> agnocast_topics;
+
+  // Act
+  auto id_rclcpp = agnocast::create_callback_group_id(group_rclcpp, node_, agnocast_topics);
+  auto id_agnocast = agnocast::create_callback_group_id(group_agnocast, node_, agnocast_topics);
+
+  // Assert
+  EXPECT_EQ(id_agnocast, "/test_node@Timer(1000000000)");
+  EXPECT_EQ(id_rclcpp, id_agnocast);
 }
 
 TEST_F(CreateCallbackGroupIdTest, MultipleEntriesSorted)

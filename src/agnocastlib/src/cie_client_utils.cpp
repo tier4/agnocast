@@ -1,6 +1,7 @@
 #include "agnocast/cie_client_utils.hpp"
 
 #include "agnocast/agnocast_publisher.hpp"
+#include "agnocast/agnocast_timer_info.hpp"
 #include "agnocast/node/agnocast_node.hpp"
 #include "agnocast_cie_thread_configurator/cie_thread_configurator.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -11,6 +12,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 
@@ -68,6 +70,16 @@ std::string create_callback_group_id(
       entries.push_back("Client(" + service_part.substr(0, sep_pos) + ")");
     } else {
       entries.push_back("Subscription(" + topic + ")");
+    }
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(id2_timer_info_mtx);
+    for (const auto & [id, timer_info] : id2_timer_info) {
+      if (timer_info && timer_info->callback_group == group) {
+        entries.push_back(
+          "Timer(" + std::to_string(timer_info->period_ns.load(std::memory_order_relaxed)) + ")");
+      }
     }
   }
 
