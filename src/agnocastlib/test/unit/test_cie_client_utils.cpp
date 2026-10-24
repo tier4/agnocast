@@ -71,26 +71,21 @@ TEST_F(CreateCallbackGroupIdTest, TimerOnly)
   EXPECT_EQ(id, "/test_node@Timer(1000000000)");
 }
 
-TEST_F(CreateCallbackGroupIdTest, AgnocastTimerProducesSameOutputAsRclcppTimer)
+TEST_F(CreateCallbackGroupIdTest, AgnocastTimerOnly)
 {
   // Arrange
-  auto group_rclcpp = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  auto rclcpp_timer = node_->create_wall_timer(std::chrono::seconds(1), []() {}, group_rclcpp);
-
-  auto group_agnocast = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  auto agnocast_timer = agnocast::create_timer(
+  auto group = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  auto timer = agnocast::create_timer(
     node_, std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME),
-    rclcpp::Duration(std::chrono::seconds(1)), []() {}, group_agnocast);
+    rclcpp::Duration(std::chrono::seconds(1)), []() {}, group);
 
   std::vector<std::string> agnocast_topics;
 
   // Act
-  auto id_rclcpp = agnocast::create_callback_group_id(group_rclcpp, node_, agnocast_topics);
-  auto id_agnocast = agnocast::create_callback_group_id(group_agnocast, node_, agnocast_topics);
+  auto id = agnocast::create_callback_group_id(group, node_, agnocast_topics);
 
   // Assert
-  EXPECT_EQ(id_agnocast, "/test_node@Timer(1000000000)");
-  EXPECT_EQ(id_rclcpp, id_agnocast);
+  EXPECT_EQ(id, "/test_node@Timer(1000000000)");
 }
 
 TEST_F(CreateCallbackGroupIdTest, MultipleEntriesSorted)
