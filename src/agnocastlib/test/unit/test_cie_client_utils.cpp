@@ -1,4 +1,3 @@
-#include "agnocast/bridge/agnocast_bridge_msg.hpp"
 #include "agnocast/cie_client_utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>
@@ -179,10 +178,10 @@ TEST_F(CreateCallbackGroupIdTest, BridgeGroupsOfOneTopicShowDirection)
   sub_options.callback_group = group_r2a;
   auto sub = node_->create_subscription<std_msgs::msg::Bool>(
     "/topic_a", 10, [](const std::shared_ptr<const std_msgs::msg::Bool>) {}, sub_options);
-  agnocast::set_bridge_direction(group_r2a, agnocast::BridgeDirection::ROS2_TO_AGNOCAST);
+  agnocast::set_bridge_direction(group_r2a, true);
 
   auto group_a2r = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  agnocast::set_bridge_direction(group_a2r, agnocast::BridgeDirection::AGNOCAST_TO_ROS2);
+  agnocast::set_bridge_direction(group_a2r, false);
 
   // Act
   auto id_r2a = agnocast::create_callback_group_id(group_r2a, node_, {});

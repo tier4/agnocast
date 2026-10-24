@@ -1,7 +1,6 @@
 #include "agnocast/cie_client_utils.hpp"
 
 #include "agnocast/agnocast_publisher.hpp"
-#include "agnocast/bridge/agnocast_bridge_msg.hpp"
 #include "agnocast/node/agnocast_node.hpp"
 #include "agnocast_cie_thread_configurator/cie_thread_configurator.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -28,11 +27,10 @@ namespace
 std::mutex bridge_directions_mtx;
 // owner_less keys a destroyed group by its control block, so a new group at the same address
 // never inherits its entry.
-std::map<std::weak_ptr<rclcpp::CallbackGroup>, BridgeDirection, std::owner_less<>>
-  bridge_directions;
+std::map<std::weak_ptr<rclcpp::CallbackGroup>, bool, std::owner_less<>> bridge_directions;
 }  // namespace
 
-void set_bridge_direction(const rclcpp::CallbackGroup::SharedPtr & group, BridgeDirection direction)
+void set_bridge_direction(const rclcpp::CallbackGroup::SharedPtr & group, bool is_r2a)
 {
   if (!group) {
     return;
@@ -42,7 +40,7 @@ void set_bridge_direction(const rclcpp::CallbackGroup::SharedPtr & group, Bridge
   for (auto it = bridge_directions.begin(); it != bridge_directions.end();) {
     it = it->first.expired() ? bridge_directions.erase(it) : std::next(it);
   }
-  bridge_directions[group] = direction;
+  bridge_directions[group] = is_r2a;
 }
 
 std::string create_callback_group_id(
@@ -109,7 +107,7 @@ std::string create_callback_group_id(
     std::lock_guard<std::mutex> lock(bridge_directions_mtx);
     auto it = bridge_directions.find(group);
     if (it != bridge_directions.end()) {
-      ss << (it->second == BridgeDirection::ROS2_TO_AGNOCAST ? "@BridgeR2A" : "@BridgeA2R");
+      ss << (it->second ? "@BridgeR2A" : "@BridgeA2R");
     }
   }
 

@@ -4,7 +4,6 @@
 #include "agnocast/agnocast_client.hpp"
 #include "agnocast/agnocast_service.hpp"
 #include "agnocast/bridge/agnocast_bridge_node.hpp"
-#include "agnocast/cie_client_utils.hpp"
 #include "agnocast/vendor/rclcpp/generic_client.hpp"
 #include "agnocast/vendor/rclcpp/generic_service.hpp"
 #include "rclcpp/version.h"
@@ -89,86 +88,68 @@ PubsubBridgeResult BridgeLoader::create_r2a_pubsub_bridge(
   rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
   const rclcpp::QoS & qos)
 {
-  PubsubBridgeResult result;
   void * symbol = get_bridge_factory_symbol(message_type, "create_r2a_pubsub_bridge", false);
   if (symbol == nullptr) {
     // Fall back to the generic bridge, which is independent of plugins.
     RCLCPP_DEBUG(
       logger_, "No plugin found for topic '%s' (type: %s). Using generic bridge.",
       topic_name.c_str(), message_type.c_str());
-    result = create_r2a_pubsub_bridge_generic(node, topic_name, message_type, qos);
-  } else {
-    auto factory = reinterpret_cast<R2APubsubBridgeFactory>(symbol);
-    result = factory(std::move(node), topic_name, qos);
+    return create_r2a_pubsub_bridge_generic(node, topic_name, message_type, qos);
   }
 
-  set_bridge_direction(result.callback_group, BridgeDirection::ROS2_TO_AGNOCAST);
-  return result;
+  auto factory = reinterpret_cast<R2APubsubBridgeFactory>(symbol);
+  return factory(std::move(node), topic_name, qos);
 }
 
 PubsubBridgeResult BridgeLoader::create_a2r_pubsub_bridge(
   rclcpp::Node::SharedPtr node, const std::string & topic_name, const std::string & message_type,
   const rclcpp::QoS & qos)
 {
-  PubsubBridgeResult result;
   void * symbol = get_bridge_factory_symbol(message_type, "create_a2r_pubsub_bridge", false);
   if (symbol == nullptr) {
     // Fall back to the generic bridge, which is independent of plugins.
     RCLCPP_DEBUG(
       logger_, "No plugin found for topic '%s' (type: %s). Using generic bridge.",
       topic_name.c_str(), message_type.c_str());
-    result = create_a2r_pubsub_bridge_generic(node, topic_name, message_type, qos);
-  } else {
-    auto factory = reinterpret_cast<A2RPubsubBridgeFactory>(symbol);
-    result = factory(std::move(node), topic_name, qos);
+    return create_a2r_pubsub_bridge_generic(node, topic_name, message_type, qos);
   }
 
-  set_bridge_direction(result.callback_group, BridgeDirection::AGNOCAST_TO_ROS2);
-  return result;
+  auto factory = reinterpret_cast<A2RPubsubBridgeFactory>(symbol);
+  return factory(std::move(node), topic_name, qos);
 }
 
 ServiceBridgeEntity BridgeLoader::create_r2a_service_bridge(
   rclcpp::Node::SharedPtr node, const std::string & service_name, const std::string & service_type,
   const rclcpp::QoS & qos)
 {
-  ServiceBridgeEntity result;
   void * symbol = get_bridge_factory_symbol(service_type, "create_r2a_service_bridge", true);
   if (symbol == nullptr) {
     // Fall back to generic bridge, which is independent of plugins.
     RCLCPP_DEBUG(
       logger_, "No plugin found for service '%s' (type: %s). Using generic bridge.",
       service_name.c_str(), service_type.c_str());
-    result = create_r2a_service_bridge_generic(node, service_name, service_type, qos);
-  } else {
-    auto factory = reinterpret_cast<R2AServiceBridgeFactory>(symbol);
-    result = factory(std::move(node), service_name, qos);
+    return create_r2a_service_bridge_generic(node, service_name, service_type, qos);
   }
 
-  set_bridge_direction(result.srv_cb_group, BridgeDirection::ROS2_TO_AGNOCAST);
-  set_bridge_direction(result.client_cb_group, BridgeDirection::ROS2_TO_AGNOCAST);
-  return result;
+  auto factory = reinterpret_cast<R2AServiceBridgeFactory>(symbol);
+  return factory(std::move(node), service_name, qos);
 }
 
 ServiceBridgeEntity BridgeLoader::create_a2r_service_bridge(
   rclcpp::Node::SharedPtr node, const std::string & service_name, const std::string & service_type,
   const rclcpp::QoS & qos)
 {
-  ServiceBridgeEntity result;
   void * symbol = get_bridge_factory_symbol(service_type, "create_a2r_service_bridge", true);
   if (symbol == nullptr) {
     // Fall back to the generic bridge, which is independent of plugins.
     RCLCPP_DEBUG(
       logger_, "No plugin found for service '%s' (type: %s). Using generic bridge.",
       service_name.c_str(), service_type.c_str());
-    result = create_a2r_service_bridge_generic(node, service_name, service_type, qos);
-  } else {
-    auto factory = reinterpret_cast<A2RServiceBridgeFactory>(symbol);
-    result = factory(std::move(node), service_name, qos);
+    return create_a2r_service_bridge_generic(node, service_name, service_type, qos);
   }
 
-  set_bridge_direction(result.srv_cb_group, BridgeDirection::AGNOCAST_TO_ROS2);
-  set_bridge_direction(result.client_cb_group, BridgeDirection::AGNOCAST_TO_ROS2);
-  return result;
+  auto factory = reinterpret_cast<A2RServiceBridgeFactory>(symbol);
+  return factory(std::move(node), service_name, qos);
 }
 
 std::string BridgeLoader::convert_type_to_snake_case(const std::string & message_type)

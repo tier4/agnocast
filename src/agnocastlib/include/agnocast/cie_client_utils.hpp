@@ -5,16 +5,12 @@
 
 #include "agnocast_cie_config_msgs/msg/callback_group_info.hpp"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace agnocast
 {
-
-// Defined in agnocast/bridge/agnocast_bridge_msg.hpp.
-enum class BridgeDirection : uint32_t;
 
 std::string create_callback_group_id(
   const rclcpp::CallbackGroup::SharedPtr & group,
@@ -31,8 +27,7 @@ std::string create_callback_group_id(
 
 // Marks `group` as a bridge group, so that its callback group ID ends with "@BridgeR2A" or
 // "@BridgeA2R". Without the marker, the R2A and A2R groups of one topic get the same ID.
-void set_bridge_direction(
-  const rclcpp::CallbackGroup::SharedPtr & group, BridgeDirection direction);
+void set_bridge_direction(const rclcpp::CallbackGroup::SharedPtr & group, bool is_r2a);
 
 // Caution: Do not call in parallel
 // Caution: Must be called after rclcpp::init() called
