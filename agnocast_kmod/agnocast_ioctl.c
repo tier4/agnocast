@@ -2037,7 +2037,7 @@ static int get_topic_info(
       "%s count exceeds limit: num=%u, topic_info_ret_buffer_size=%u (topic_name=%s)\n",
       fill == fill_subscriber_info ? "Subscriber" : "Publisher", num, buffer_size, topic_name);
     ret = -ENOBUFS;
-  } else if (num > 0 && copy_to_user(user_buffer, topic_info_mem, sizeof(*topic_info_mem) * num)) {
+  } else if (copy_to_user(user_buffer, topic_info_mem, sizeof(*topic_info_mem) * num)) {
     ret = -EFAULT;
   } else {
     topic_info_args->ret_topic_info_ret_num = num;
